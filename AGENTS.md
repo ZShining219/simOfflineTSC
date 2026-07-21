@@ -1,37 +1,47 @@
-# Repository Guidelines
+# 仓库协作指南
 
-## Project overview
+## 项目概述
 
-This repository is a Python traffic-signal-control research framework derived from LibSignal. It provides Gym-compatible environments and traditional/RL agents for CityFlow and SUMO simulations.
+本仓库是基于 LibSignal 整理的 Python 交通信号控制研究框架，提供与 Gym 风格兼容的交通环境，以及适用于 CityFlow 和 SUMO 仿真器的传统控制与强化学习智能体。
 
-## Layout
+## 项目结构
 
-- `run.py`: main experiment entry point and CLI argument definitions.
-- `agent/`: traffic-signal-control agent implementations.
-- `world/`: simulator-specific world integrations.
-- `trainer/` and `task/`: training loops and task orchestration.
-- `common/`, `utils/`, and `generator/`: shared configuration, logging, metrics, and generation utilities.
-- `configs/`: simulator and TSC experiment configuration.
-- `data/raw_data/`: input networks and traffic-flow data.
-- `dataset/`: dataset integrations.
-- `final_result/`: result-processing utilities or experiment artifacts.
+- run.py：实验主入口和命令行参数定义。
+- agent/：交通信号控制智能体实现。
+- world/：不同交通仿真器的适配实现。
+- trainer/ 和 task/：训练循环与任务编排。
+- common/、utils/ 和 generator/：共享配置、日志、指标和特征生成工具。
+- configs/：仿真器与交通信号控制实验配置。
+- data/raw_data/：路网和交通流输入数据。
+- dataset/：数据集接口与实现。
+- final_result/：结果处理工具或实验产物。
 
-## Development workflow
+## 开发流程
 
-- Use Python 3.9 when matching the original environment.
-- Install core dependencies with `pip install -r requirements.txt`; simulator dependencies must be installed separately.
-- Run an experiment with `python run.py` and select the simulator, agent, and network through CLI options.
-- Inspect available options with `python run.py --help` when the simulator dependencies are available.
-- Keep generated outputs, caches, IDE files, and large experiment artifacts out of Git.
+- 运行本项目时使用名为 colight 的 Conda 环境；执行项目命令前可运行 conda activate colight 激活环境。
+- 如需匹配原始项目环境，使用 Python 3.9。
+- 使用 pip install -r requirements.txt 安装核心依赖；仿真器依赖需要单独安装。
+- 使用 python run.py 启动实验，并通过命令行参数选择仿真器、智能体和路网。
+- 仿真器依赖可用时，使用 python run.py --help 查看支持的参数。
+- Git 提交信息必须使用中文，并清晰说明本次提交的主要修改内容。
+- 不要将生成的输出、缓存、IDE 文件和大型实验产物提交到 Git。
 
-## Change guidelines
+## 修改规范
 
-- Preserve the registry-based architecture in `common/registry.py` and existing registration conventions.
-- Keep simulator-specific behavior isolated in the corresponding `world/` implementation.
-- Prefer configuration changes in `configs/` over hard-coded experiment parameters.
-- Avoid committing generated data or results unless they are intentional, small, and needed for reproducibility.
-- When changing an agent or trainer, verify at least one representative configuration for the affected simulator.
+- 保持 common/registry.py 中基于注册器的架构和现有注册约定。
+- 将仿真器特有行为限制在 world/ 中相应的实现内。
+- 实验参数优先通过 configs/ 调整，避免硬编码。
+- 除非实验数据或结果体积较小、确有必要且有助于复现，否则不要提交生成的数据或结果。
+- 修改智能体或训练器后，至少使用受影响仿真器的一项代表性配置进行验证。
 
-## Validation
+## 用户沟通与文档产出
 
-There is no dedicated automated test suite in this source snapshot. For code-only changes, run targeted import or syntax checks. For behavioral changes, run the smallest applicable experiment and report the simulator, agent, network, seed, and command used.
+- 交流内容必须清晰、具体，避免使用可能产生多种理解的模糊或歧义表述。
+- 如果发现需求、目标、范围或关键决策存在模糊或歧义，应及时明确指出并向用户询问，不得在可能明显偏离用户意图的情况下自行假定。
+- 用户可能尚未想清楚具体方案；遇到这种情况时，应结合现有信息给出可执行的建议，说明推荐理由、主要取舍和可能影响，帮助用户进一步明确需求并作出决定。
+- 与用户讨论过程中，避免未经确认直接创建或修改文档，优先在对话中说明相关内容。
+- 如确有需要将内容落成文档，应先向用户说明拟创建或修改的文档及目的；只有在获得用户明确允许后，才能执行文档创建或修改。
+
+## 验证要求
+
+当前源码快照没有独立的自动化测试套件。仅修改代码时，应执行有针对性的导入或语法检查；修改运行行为时，应执行适用范围内最小规模的实验，并记录所用仿真器、智能体、路网、随机种子和完整命令。

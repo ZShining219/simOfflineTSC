@@ -26,6 +26,7 @@
 | common/ | 注册器、配置加载、指标及格式转换工具 |
 | generator/ | 状态、相位和车辆特征生成器 |
 | dataset/ | 数据集接口 |
+| tools/traffic_flow_profile/ | SUMO 单场景车流需求评估、标准度量计算与固定子图报告工具 |
 
 ## 环境要求
 

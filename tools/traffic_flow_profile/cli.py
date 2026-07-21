@@ -12,11 +12,15 @@ DEFAULT_OUTPUT_ROOT = Path("data/output_data/traffic_flow_profile")
 
 def build_parser():
     parser = argparse.ArgumentParser(
-        description="Create a fixed single-scenario traffic-demand profile for a SUMO package."
+        description="Create comparable traffic-demand profiles for one or more SUMO packages."
     )
     parser.add_argument(
         "input",
-        help="SUMO package directory containing one .sumocfg, or a .sumocfg path.",
+        nargs="+",
+        help=(
+            "One or more SUMO package directories or .sumocfg paths. "
+            "Multiple inputs share plot scales for direct comparison."
+        ),
     )
     parser.add_argument(
         "--output-root",
@@ -30,16 +34,32 @@ def build_parser():
 
 def main(argv=None):
     args = build_parser().parse_args(argv)
-    scenario = load_sumo_scenario(args.input)
-    metrics = calculate_metrics(scenario)
-    output_dir, paths = write_report(metrics, args.output_root, dpi=args.dpi)
-    standard = metrics["standard_metrics"]
-    print(f"Scenario: {scenario.scenario_id}")
-    print(f"Vehicles: {standard['vehicle_count']}")
-    print(f"PHF: {standard['peak_hour_factor']:.3f}")
-    print(f"Output: {output_dir}")
-    for name, path in paths.items():
-        print(f"  {name}: {path}")
+    scenarios = [load_sumo_scenario(input_path) for input_path in args.input]
+    metrics_collection = [calculate_metrics(scenario) for scenario in scenarios]
+
+    from .plotting import calculate_shared_plot_limits
+
+    plot_limits = calculate_shared_plot_limits(metrics_collection)
+    if len(metrics_collection) > 1:
+        print(
+            "Shared plot limits: "
+            f"5 min={plot_limits['five_minute']:g}, "
+            f"approach={plot_limits['approach']:g}, "
+            f"movement={plot_limits['movement']:g}, "
+            f"15 min={plot_limits['fifteen_minute']:g}"
+        )
+
+    for scenario, metrics in zip(scenarios, metrics_collection):
+        output_dir, paths = write_report(
+            metrics, args.output_root, dpi=args.dpi, plot_limits=plot_limits
+        )
+        standard = metrics["standard_metrics"]
+        print(f"Scenario: {scenario.scenario_id}")
+        print(f"Vehicles: {standard['vehicle_count']}")
+        print(f"PHF: {standard['peak_hour_factor']:.3f}")
+        print(f"Output: {output_dir}")
+        for name, path in paths.items():
+            print(f"  {name}: {path}")
 
 
 if __name__ == "__main__":

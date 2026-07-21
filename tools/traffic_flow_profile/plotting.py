@@ -12,12 +12,46 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib.ticker import MaxNLocator
 
 from .models import APPROACHES, MOVEMENTS
 
 
 COLORS = {"W": "#4C78A8", "S": "#F58518", "E": "#54A24B", "N": "#E45756"}
 MOVEMENT_LABELS = {"left": "Left", "through": "Through", "right": "Right"}
+
+
+def _shared_upper_limit(values):
+    maximum = max(values, default=0)
+    if maximum <= 0:
+        return 1.0
+    locator = MaxNLocator(nbins=6, steps=[1, 2, 2.5, 5, 10])
+    ticks = locator.tick_values(0, maximum * 1.08)
+    return float(ticks[-1])
+
+
+def calculate_shared_plot_limits(metrics_collection):
+    """Return common metric limits for a comparable group of profile figures."""
+    five_minute_values = []
+    approach_values = []
+    movement_values = []
+    fifteen_minute_values = []
+
+    for metrics in metrics_collection:
+        standard = metrics["standard_metrics"]
+        profile = metrics["profile_metrics"]
+        five_minute_values.extend(profile["temporal_total_5min"])
+        approach_values.extend(standard["approach_vehicle_count"].values())
+        fifteen_minute_values.extend(profile["temporal_total_15min"])
+        for approach in APPROACHES:
+            movement_values.extend(standard["movement_matrix"][approach].values())
+
+    return {
+        "five_minute": _shared_upper_limit(five_minute_values),
+        "approach": _shared_upper_limit(approach_values),
+        "movement": _shared_upper_limit(movement_values),
+        "fifteen_minute": _shared_upper_limit(fifteen_minute_values),
+    }
 
 
 def _annotate_bars(axis, bars, labels):
@@ -32,7 +66,7 @@ def _annotate_bars(axis, bars, labels):
         )
 
 
-def render_profile(metrics, output_path: Path, dpi: int = 160):
+def render_profile(metrics, output_path: Path, dpi: int = 160, plot_limits=None):
     standard = metrics["standard_metrics"]
     profile = metrics["profile_metrics"]
     scenario = metrics["scenario"]
@@ -45,6 +79,8 @@ def render_profile(metrics, output_path: Path, dpi: int = 160):
     relative_peak_end = standard["peak_15min_end_seconds"] - scenario["begin_seconds"]
     peak_start = int(relative_peak_start // 60)
     peak_end = int(relative_peak_end // 60)
+    if plot_limits is None:
+        plot_limits = calculate_shared_plot_limits([metrics])
 
     fig, axes = plt.subplots(2, 3, figsize=(18, 10), constrained_layout=True)
     fig.suptitle(f"SUMO Traffic Demand Profile: {scenario['id']}", fontsize=16)
@@ -58,6 +94,7 @@ def render_profile(metrics, output_path: Path, dpi: int = 160):
     axis.set_xlabel("Time interval (min)")
     axis.set_ylabel("Vehicles / 5 min")
     axis.set_xticks(x5, [f"{index * 5}-{(index + 1) * 5}" for index in x5], rotation=45)
+    axis.set_ylim(0, plot_limits["five_minute"])
 
     axis = axes[0, 1]
     bottom = np.zeros(len(x5))
@@ -69,6 +106,7 @@ def render_profile(metrics, output_path: Path, dpi: int = 160):
     axis.set_xlabel("Time interval (min)")
     axis.set_ylabel("Vehicles / 5 min")
     axis.set_xticks(x5, [f"{index * 5}-{(index + 1) * 5}" for index in x5], rotation=45)
+    axis.set_ylim(0, plot_limits["five_minute"])
     axis.legend(title="Approach", ncols=4, fontsize=8)
 
     axis = axes[0, 2]
@@ -84,13 +122,15 @@ def render_profile(metrics, output_path: Path, dpi: int = 160):
     axis.set_title("(c) Hourly demand by approach")
     axis.set_xlabel("Approach")
     axis.set_ylabel("Vehicles / hour")
-    axis.set_ylim(0, max(approach_values) * 1.2)
+    axis.set_ylim(0, plot_limits["approach"])
 
     axis = axes[1, 0]
     matrix = np.asarray(
         [[standard["movement_matrix"][approach][movement] for movement in MOVEMENTS] for approach in APPROACHES]
     )
-    image = axis.imshow(matrix, cmap="YlGnBu", aspect="auto")
+    image = axis.imshow(
+        matrix, cmap="YlGnBu", aspect="auto", vmin=0, vmax=plot_limits["movement"]
+    )
     axis.set_title("(d) Turning-movement matrix")
     axis.set_xticks(range(len(MOVEMENTS)), [MOVEMENT_LABELS[item] for item in MOVEMENTS])
     axis.set_yticks(range(len(APPROACHES)), APPROACHES)
@@ -112,7 +152,7 @@ def render_profile(metrics, output_path: Path, dpi: int = 160):
     axis.set_xlabel("Time interval (min)")
     axis.set_ylabel("Vehicles / 15 min")
     axis.set_xticks(x15, [f"{index * 15}-{(index + 1) * 15}" for index in x15])
-    axis.set_ylim(0, max(fifteen_total) * 1.18)
+    axis.set_ylim(0, plot_limits["fifteen_minute"])
 
     axis = axes[1, 2]
     axis.axis("off")

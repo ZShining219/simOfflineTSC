@@ -53,7 +53,7 @@ def _write_movement_csv(path: Path, metrics):
             )
 
 
-def write_report(metrics, output_root, dpi: int = 160):
+def write_report(metrics, output_root, dpi: int = 160, plot_limits=None):
     from .plotting import render_profile
 
     output_dir = Path(output_root).resolve() / metrics["scenario"]["id"]
@@ -67,5 +67,5 @@ def write_report(metrics, output_root, dpi: int = 160):
     _write_json(paths["metrics"], metrics)
     _write_temporal_csv(paths["temporal_profile"], metrics)
     _write_movement_csv(paths["movement_matrix"], metrics)
-    render_profile(metrics, paths["profile_figure"], dpi=dpi)
+    render_profile(metrics, paths["profile_figure"], dpi=dpi, plot_limits=plot_limits)
     return output_dir, paths

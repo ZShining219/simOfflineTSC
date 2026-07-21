@@ -4,10 +4,127 @@ import copy
 import yaml
 import logging
 import json
+import hashlib
+import tempfile
 from datetime import datetime
 from json import JSONDecodeError
 
 from common.registry import Registry
+
+
+CONFIG_ARCHIVE_DIR = 'config'
+
+
+def _read_bytes(path):
+    with open(path, 'rb') as file_handle:
+        return file_handle.read()
+
+
+def _atomic_write(path, content):
+    """Write bytes to path without exposing a partially written file."""
+    directory = os.path.dirname(path)
+    os.makedirs(directory, exist_ok=True)
+    descriptor, temporary_path = tempfile.mkstemp(prefix='.tmp-', dir=directory)
+    try:
+        with os.fdopen(descriptor, 'wb') as file_handle:
+            file_handle.write(content)
+            file_handle.flush()
+            os.fsync(file_handle.fileno())
+        os.replace(temporary_path, path)
+    except Exception:
+        if os.path.exists(temporary_path):
+            os.unlink(temporary_path)
+        raise
+
+
+def capture_config_sources(config):
+    """Capture immutable source configuration before simulator registration."""
+    command = config['command']
+    task = command['task']
+    agent = command['agent']
+    network = command['network']
+    source_paths = {
+        'base.yml': os.path.join('configs', task, 'base.yml'),
+        f'{agent}.yml': os.path.join('configs', task, f'{agent}.yml'),
+        'simulator_source.cfg': os.path.join('configs', 'sim', f'{network}.cfg'),
+    }
+    missing = [path for path in source_paths.values() if not os.path.isfile(path)]
+    if missing:
+        raise FileNotFoundError(
+            'Cannot archive experiment configuration; missing source file(s): '
+            + ', '.join(missing)
+        )
+    return {name: _read_bytes(path) for name, path in source_paths.items()}
+
+
+def reserve_run_output(config):
+    """Reserve a new output directory and reject all pre-existing runs."""
+    output_path = get_output_file_path(config)
+    parent = os.path.dirname(output_path)
+    os.makedirs(parent, exist_ok=True)
+    try:
+        os.mkdir(output_path)
+    except FileExistsError as error:
+        raise FileExistsError(
+            f'Run output already exists: {output_path}. '
+            'Use a new --prefix; existing logs, checkpoints, and configuration '
+            'must not be overwritten or mixed with a new run.'
+        ) from error
+    return output_path
+
+
+def archive_run_config(config, source_snapshots, resolved_world):
+    """Archive source and effective configuration before Trainer creation."""
+    output_path = get_output_file_path(config)
+    config_path = os.path.join(output_path, CONFIG_ARCHIVE_DIR)
+    simulator_path = os.path.join(
+        'configs', 'sim', f"{config['command']['network']}.cfg"
+    )
+    snapshots = dict(source_snapshots)
+    snapshots['simulator_resolved.cfg'] = _read_bytes(simulator_path)
+
+    resolved_config = copy.deepcopy(config)
+    resolved_config['world'] = copy.deepcopy(resolved_world)
+    resolved_config['config_record'] = {
+        'created_at_utc': datetime.utcnow().replace(microsecond=0).isoformat() + 'Z',
+        'sources': [
+            os.path.join('configs', config['command']['task'], 'base.yml'),
+            os.path.join(
+                'configs', config['command']['task'],
+                f"{config['command']['agent']}.yml"
+            ),
+            simulator_path,
+        ],
+    }
+    snapshots['resolved_config.yaml'] = yaml.safe_dump(
+        resolved_config, sort_keys=False, allow_unicode=True
+    ).encode('utf-8')
+
+    hashes = {
+        name: hashlib.sha256(content).hexdigest()
+        for name, content in snapshots.items()
+    }
+    snapshots['config_hashes.json'] = (
+        json.dumps({'algorithm': 'sha256', 'files': hashes}, indent=2, sort_keys=True)
+        + '\n'
+    ).encode('utf-8')
+
+    for name, content in snapshots.items():
+        _atomic_write(os.path.join(config_path, name), content)
+
+    archived_hashes = json.loads(
+        _read_bytes(os.path.join(config_path, 'config_hashes.json')).decode('utf-8')
+    )['files']
+    for name, expected_hash in archived_hashes.items():
+        actual_hash = hashlib.sha256(
+            _read_bytes(os.path.join(config_path, name))
+        ).hexdigest()
+        if actual_hash != expected_hash:
+            raise IOError(
+                f'Configuration archive verification failed for {name}: '
+                f'expected {expected_hash}, got {actual_hash}'
+            )
+    return config_path
 
 
 def modify_config_file(path, config):

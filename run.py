@@ -41,7 +41,14 @@ class Runner:
         instantiate runner object with processed config and register config into Registry class
         """
         self.config, self.duplicate_config = build_config(pArgs)
+        self.config_sources = capture_config_sources(self.config)
+        self.output_path = reserve_run_output(self.config)
         self.config_registry()
+        self.config_archive_path = archive_run_config(
+            self.config,
+            self.config_sources,
+            Registry.mapping['world_mapping']['setting'].param,
+        )
 
     def config_registry(self):
         """
@@ -79,4 +86,3 @@ class Runner:
 if __name__ == '__main__':
     test = Runner(args)
     test.run()
-

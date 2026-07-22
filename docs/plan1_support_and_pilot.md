@@ -170,7 +170,9 @@ Pilot 节点为 `[0, 10, 25, 50, 100]`。Pilot 通过后，正式节点冻结为
 
 ### 模块 3：固定评估与 checkpoint
 
-- 状态：已通过，待提交；
+- 状态：已通过；
+- 提交：`5036f93 增加Plan 1固定评估与检查点选择机制`；
+- 远端：已推送当前分支；
 - 实现：新增显式 `evaluation_episodes`，按已完成 episode 数调度训练前 episode 0、过程中节点和单次最终评估；evaluation/resumable checkpoint 与评估节点完全一致；
 - best 规则：按 travel time 最低选择，并列取较早节点；结果写入运行目录 `evaluation/summary.json`；
 - 自动检查：Milestone 0 共 24 项、Plan 1 共 7 项全部通过；
@@ -178,5 +180,23 @@ Pilot 节点为 `[0, 10, 25, 50, 100]`。Pilot 通过后，正式节点冻结为
 - smoke 命令：`SUMO_HOME=/home/dev/miniforge3/envs/colight/lib/python3.10/site-packages/sumo /home/dev/miniforge3/envs/colight/bin/python3.10 run.py -w sumo -a dqn -n sumohz1x1 --prefix p1m3_eval_smoke_20260722_1 --seed 41 --interface libsumo --delay_type apx`；
 - smoke 结果：退出码 0；records 顺序为 EVALUATION、TRAIN、EVALUATION、TRAIN、FINAL_EVALUATION；三组两类 checkpoint 均存在；trajectory 为 2 episode/140 transitions、evaluation transitions=0、validation=true；
 - 配置恢复：临时 smoke 参数已清除，`dqn.yml` 恢复 200 episode 开发配置和 `[0,10,25,50,100,150,200]` 节点；SUMO source cfg 哈希保持 `314f1915c...bb9dbd`。
+
+### 模块 4：可复用作图工具
+
+- 状态：已通过；
+- 提交信息：`增加可复用实验结果作图工具`；
+- 实现：新增 `tools/experiment_plotting/`，通过显式 CSV run-list 读取运行，不扫描或猜测输出目录；run-list 固定字段为 `role,agent,network,training_seed,run_dir,include`；
+- 强校验：拒绝重复条目、失败运行、run-list 与运行身份不一致、配置归档哈希损坏、指标 schema/JSONL 损坏；DQN Pilot/正式运行额外要求 evaluation summary、有效 trajectory validation，并复核 trajectory manifest、index 连续性、分片 SHA-256 和计数；
+- 配置比较：四场景 DQN Pilot/正式运行使用 `utils/run_config_compare.py` 比较，除 network、prefix、training seed 和对应路径外的差异会阻止分析；
+- 表格：生成 `metrics.csv`、`action_distribution.csv`、`run_summary.csv`、`final_best_comparison.csv`、`first_100_auc.csv` 和 `config_comparison.json`；
+- 图表：生成 travel time、双 delay、queue/throughput、reward/loss、epsilon/replay、action distribution、phase switching、final/best、interaction costs 和 first-100 AUC；每组同时输出 PNG/PDF；
+- 输出隔离：固定写入 `data/output_data/analysis/plan1/<analysis_id>/`，包含 `inputs/`、`tables/`、`figures/` 和 `plotting_manifest.json`；已存在的 analysis id 不允许覆盖；
+- 使用命令：`python -m tools.experiment_plotting plan1 --run-list <runs.csv> --analysis-id <analysis_id>`；
+- 自动检查：Milestone 0 共 24 项、Plan 1 共 10 项全部通过，新增作图测试 3 项覆盖成功输出、重复/失败运行、损坏配置和缺失 trajectory；
+- 真实产物验证：读取模块 3 的 `p1m3_eval_smoke_20260722_1`，成功规范化 5 条 schema v2 指标并生成 6 份表格、10 组 PNG/PDF；
+- 验证命令：`PYTHONPATH=. /home/dev/miniforge3/envs/colight/bin/python3.10 -m tools.experiment_plotting plan1 --run-list /tmp/p1m4_smoke_runs.csv --analysis-id p1m4_real_smoke_20260722_2 --dpi 80`；
+- 证据目录：`data/output_data/analysis/plan1/p1m4_real_smoke_20260722_2/`，仅本地保留，不提交 Git；
+- 静态检查：新增模块和测试通过 `py_compile`，`git diff --check` 无错误；
+- 已知环境提示：旧 Gym 和未使用的 PyG CUDA 扩展 ABI 警告不影响本模块 CPU/Matplotlib 路径。
 
 后续继续追加真实运行命令、产物地址、验收结论、异常和修复记录。

@@ -18,6 +18,13 @@ CONFIG_ARCHIVE_DIR = 'config'
 RUN_SCHEMA_VERSION = 1
 BASELINE_COMMIT = '73d860bb3924ec15c30433a8f8b7af17787baeff'
 RUN_STATUSES = {'已创建', '运行中', '已完成', '失败'}
+METRIC_RECORD_TYPES = {'TRAIN', 'EVALUATION', 'FINAL_EVALUATION'}
+METRIC_FIELDS = (
+    'schema_version', 'record_type', 'agent', 'network', 'training_seed',
+    'episode', 'simulation_step', 'decision_step', 'global_decision_step',
+    'gradient_updates', 'travel_time', 'reward_mean', 'reward_sum', 'queue',
+    'delay', 'throughput', 'loss_mean', 'epsilon', 'wall_time_seconds',
+)
 
 
 def _read_bytes(path):
@@ -427,6 +434,56 @@ def archive_runtime_model(config_path, trainer, agent_name):
     _atomic_write(os.path.join(config_path, 'model_resolved.json'), content)
     _refresh_config_hashes(config_path)
     return os.path.join(config_path, 'model_resolved.json')
+
+
+class StructuredMetricLogger:
+    """Append schema-validated metric records as one complete JSON object per line."""
+
+    def __init__(self, output_path):
+        self.path = os.path.join(output_path, 'metrics', 'records.jsonl')
+        os.makedirs(os.path.dirname(self.path), exist_ok=True)
+
+    def append(self, record):
+        self._validate_record(record)
+        content = json.dumps(
+            {field: _json_value(record[field]) for field in METRIC_FIELDS},
+            ensure_ascii=False,
+            separators=(',', ':'),
+            allow_nan=False,
+        ) + '\n'
+        with open(self.path, 'a', encoding='utf-8') as handle:
+            handle.write(content)
+            handle.flush()
+            os.fsync(handle.fileno())
+
+    @staticmethod
+    def _validate_record(record):
+        missing = [field for field in METRIC_FIELDS if field not in record]
+        extra = sorted(set(record) - set(METRIC_FIELDS))
+        if missing or extra:
+            raise ValueError(
+                f'Invalid metric record fields; missing={missing}, extra={extra}'
+            )
+        if record['record_type'] not in METRIC_RECORD_TYPES:
+            raise ValueError(f"Invalid metric record_type: {record['record_type']}")
+
+    def validate(self, require_records=True):
+        try:
+            with open(self.path, encoding='utf-8') as handle:
+                lines = handle.readlines()
+        except FileNotFoundError as error:
+            raise IOError(f'Structured metric log is missing: {self.path}') from error
+        if require_records and not lines:
+            raise IOError(f'Structured metric log has no records: {self.path}')
+        for line_number, line in enumerate(lines, start=1):
+            try:
+                record = json.loads(line)
+                self._validate_record(record)
+            except (json.JSONDecodeError, ValueError) as error:
+                raise IOError(
+                    f'Invalid structured metric record at line {line_number}: {self.path}'
+                ) from error
+        return len(lines)
 
 
 def modify_config_file(path, config):

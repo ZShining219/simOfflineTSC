@@ -94,6 +94,8 @@ class Runner:
             for handler in logger.handlers:
                 handler.flush()
             verify_config_archive(self.config_archive_path)
+            if hasattr(self.trainer, 'structured_metrics'):
+                self.trainer.structured_metrics.validate(require_records=True)
             self.run_state.transition('已完成', exit_code=0)
         except Exception as error:
             if self.run_state.status['status'] in {'已创建', '运行中'}:

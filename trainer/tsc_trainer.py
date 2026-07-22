@@ -1,9 +1,11 @@
 import os
+import time
 import numpy as np
 from common.metrics import Metrics
 from environment import TSCEnv
 from common.registry import Registry
 from trainer.base_trainer import BaseTrainer
+from utils.logger import StructuredMetricLogger
 
 
 @Registry.register_trainer("tsc")
@@ -34,6 +36,12 @@ class TSCTrainer(BaseTrainer):
         self.update_model_rate = Registry.mapping['trainer_mapping']['setting'].param['update_model_rate']
         self.update_target_rate = Registry.mapping['trainer_mapping']['setting'].param['update_target_rate']
         self.test_when_train = Registry.mapping['trainer_mapping']['setting'].param['test_when_train']
+        self.global_decision_step = 0
+        self.gradient_updates = 0
+        self.target_updates = 0
+        self.structured_metrics = StructuredMetricLogger(
+            Registry.mapping['logger_mapping']['path'].path
+        )
         # replay file is only valid in cityflow now. 
         # TODO: support SUMO and Openengine later
         
@@ -121,6 +129,7 @@ class TSCTrainer(BaseTrainer):
         total_decision_num = 0
         flush = 0
         for e in range(self.episodes):
+            phase_started_at = time.perf_counter()
             # TODO: check this reset agent
             self.metric.clear()
             last_obs = self.env.reset()  # agent * [sub_agent, feature]
@@ -168,28 +177,34 @@ class TSCTrainer(BaseTrainer):
                         flush = 0
                         # self.dataset.flush([ag.replay_buffer for ag in self.agents])
                     total_decision_num += 1
+                    self.global_decision_step = total_decision_num
                     last_obs = obs
                 if total_decision_num > self.learning_start and\
                         total_decision_num % self.update_model_rate == self.update_model_rate - 1:
 
-                    cur_loss_q = np.stack([ag.train() for ag in self.agents])  # TODO: training
-
+                    current_losses = []
+                    for agent in self.agents:
+                        current_losses.append(agent.train())
+                        self.gradient_updates += 1
+                    cur_loss_q = np.stack(current_losses)  # TODO: training
                     episode_loss.append(cur_loss_q)
                 if total_decision_num > self.learning_start and \
                         total_decision_num % self.update_target_rate == self.update_target_rate - 1:
                     [ag.update_target_network() for ag in self.agents]
+                    self.target_updates += 1
 
                 if all(dones):
                     break
-            if len(episode_loss) > 0:
-                mean_loss = np.mean(np.array(episode_loss))
-            else:
-                mean_loss = 0
+            mean_loss = np.mean(np.array(episode_loss)) if episode_loss else None
             
             self.writeLog("TRAIN", e, self.metric.real_average_travel_time(),\
-                mean_loss, self.metric.rewards(), self.metric.queue(), self.metric.delay(), self.metric.throughput())
+                0 if mean_loss is None else mean_loss, self.metric.rewards(), self.metric.queue(), self.metric.delay(), self.metric.throughput())
+            self.writeStructuredLog(
+                'TRAIN', e, i, self.metric.decision_num, mean_loss,
+                time.perf_counter() - phase_started_at,
+            )
             self.logger.info("step:{}/{}, q_loss:{}, rewards:{}, queue:{}, delay:{}, throughput:{}".format(i, self.steps,\
-                mean_loss, self.metric.rewards(), self.metric.queue(), self.metric.delay(), int(self.metric.throughput())))
+                0 if mean_loss is None else mean_loss, self.metric.rewards(), self.metric.queue(), self.metric.delay(), int(self.metric.throughput())))
             if e % self.save_rate == 0:
                 [ag.save_model(e=e) for ag in self.agents]
             self.logger.info("episode:{}/{}, real avg travel time:{}".format(e, self.episodes, self.metric.real_average_travel_time()))
@@ -209,6 +224,7 @@ class TSCTrainer(BaseTrainer):
         :param e: number of episode
         :return self.metric.real_average_travel_time: travel time of vehicles
         '''
+        phase_started_at = time.perf_counter()
         obs = self.env.reset()
         self.metric.clear()
         for a in self.agents:
@@ -234,6 +250,10 @@ class TSCTrainer(BaseTrainer):
             self.metric.queue(), self.metric.delay(), int(self.metric.throughput())))
         self.writeLog("TEST", e, self.metric.real_average_travel_time(),\
             100, self.metric.rewards(),self.metric.queue(),self.metric.delay(), self.metric.throughput())
+        self.writeStructuredLog(
+            'EVALUATION', e, min(i + 1, self.test_steps), self.metric.decision_num,
+            None, time.perf_counter() - phase_started_at,
+        )
         return self.metric.real_average_travel_time()
 
     def test(self, drop_load=True):
@@ -244,6 +264,7 @@ class TSCTrainer(BaseTrainer):
         :param drop_load: decide whether to load pretrained model's parameters
         :return self.metric: including queue length, throughput, delay and travel time
         '''
+        phase_started_at = time.perf_counter()
         if Registry.mapping['command_mapping']['setting'].param['world'] == 'cityflow':
             if self.save_replay:
                 self.env.eng.set_save_replay(True)
@@ -275,7 +296,43 @@ class TSCTrainer(BaseTrainer):
                 break
         self.logger.info("Final Travel Time is %.4f, mean rewards: %.4f, queue: %.4f, delay: %.4f, throughput: %d" % (self.metric.real_average_travel_time(), \
             self.metric.rewards(), self.metric.queue(), self.metric.delay(), self.metric.throughput()))
+        self.writeStructuredLog(
+            'FINAL_EVALUATION', self.episodes, min(i + 1, self.test_steps),
+            self.metric.decision_num, None, time.perf_counter() - phase_started_at,
+        )
         return self.metric
+
+    def writeStructuredLog(
+        self, record_type, episode, simulation_step, decision_step, loss_mean,
+        wall_time_seconds,
+    ):
+        command = Registry.mapping['command_mapping']['setting'].param
+        reward_values = self.metric.lane_metrics.get('rewards')
+        reward_sum = None if reward_values is None else float(np.sum(reward_values))
+        epsilon_values = [
+            float(agent.epsilon) for agent in self.agents if hasattr(agent, 'epsilon')
+        ]
+        self.structured_metrics.append({
+            'schema_version': 1,
+            'record_type': record_type,
+            'agent': command['agent'],
+            'network': command['network'],
+            'training_seed': command['seed'],
+            'episode': episode,
+            'simulation_step': simulation_step,
+            'decision_step': decision_step,
+            'global_decision_step': self.global_decision_step,
+            'gradient_updates': self.gradient_updates,
+            'travel_time': self.metric.real_average_travel_time(),
+            'reward_mean': self.metric.rewards(),
+            'reward_sum': reward_sum,
+            'queue': self.metric.queue(),
+            'delay': self.metric.delay(),
+            'throughput': self.metric.throughput(),
+            'loss_mean': loss_mean,
+            'epsilon': None if not epsilon_values else float(np.mean(epsilon_values)),
+            'wall_time_seconds': wall_time_seconds,
+        })
 
     def writeLog(self, mode, step, travel_time, loss, cur_rwd, cur_queue, cur_delay, cur_throughput):
         '''
@@ -298,4 +355,3 @@ class TSCTrainer(BaseTrainer):
         log_handle = open(self.log_file, "a")
         log_handle.write(res + "\n")
         log_handle.close()
-

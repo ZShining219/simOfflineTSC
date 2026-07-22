@@ -42,8 +42,8 @@
 
 1. 真实 SUMO 非干扰 A/B：`sumohz1x1`、同一新测试 seed、5 个训练 episodes；A 评估 `[0,5]`，B 评估 `[0,1,2,3,4,5]`，恢复点均为 `[0,5]`。
 2. A/B 必须在 trajectory 全部数组、去除 wall time 的 TRAIN 记录、online/target tensor hash、optimizer、epsilon、replay、训练计数器和 RNG 状态上一致。任何不一致均停止新 Pilot。
-3. A/B 通过后运行四场景 seed 0、100-episode 新 Pilot；每场景 100 条 TRAIN、101 次 evaluation、101 个 evaluation checkpoint、5 个 resumable checkpoint、100 个 trajectory 分片和 36,000 transitions。
-4. 新 Pilot 通过后切换到 400 episodes，重新冻结配置 SHA-256，执行全量测试、配置归档检查和 Git 门禁。
+3. 原计划在 A/B 后运行四场景 seed 0、100-episode 新 Pilot。用户评估其重复验证时间成本后，决定取消该 Pilot，由正式 Wave 1 四场景 seed 0 承担长链路门禁；Wave 1 全部强验收前不得进入 Wave 2。
+4. 切换到 400 episodes，重新冻结配置 SHA-256，执行全量测试、配置归档检查和 Git 门禁。
 
 若修复触及 state/action/reward、DQN 网络或核心超参数、SUMO、replay、trajectory/指标计算或 evaluation/checkpoint 语义，立即停止启动新 run，明确已有证据的作废范围，并重新判断 A/B、Pilot 和正式 run 的重跑范围。
 
@@ -83,4 +83,14 @@ Plan 2 白名单只包含通过全部强验收的 20 个正式 run trajectory。
 - 非干扰比较：5 个训练 trajectory NPZ 的文件 SHA-256 逐 episode 相同；去除 `wall_time_seconds` 的 5 条 TRAIN 记录完全相同；最终 online/target tensor hash、optimizer tensor 内容、epsilon、1,800 条 replay、训练计数器及 Python/NumPy/Torch RNG 状态全部相同。
 - 结论：逐 episode evaluation 只增加 evaluation 仿真与墙钟成本，没有改变训练行为或最终训练状态，可以进入新 Pilot。
 
-后续按新 Pilot、正式配置冻结、Wave 1～3、最终分析与交付顺序继续追加真实命令和证据。
+### 7.2 新 Pilot 取消与正式配置冻结
+
+- 用户决定：新四场景 100-episode Pilot 仅用于新协议预演，A/B 已精确证明 evaluation 非干扰；为避免重复约 35～45 分钟的预演成本，取消新 Pilot，直接以 Wave 1 四场景 seed 0 作为正式长链路门禁。
+- 以下四个 `p1_pilot_v3_*` 目录在约 episode 4～9 被 `Ctrl-C` 取消并原样保留：`sumohz1x1_config2`、`sumohz1x1`、`sumohz1x1_config4`、`sumohz1x1_config3`。由于 `KeyboardInterrupt` 未进入现有异常状态转换，`run_status.json` 残留“运行中”；实际进程已经停止。
+- 作废边界：上述四个取消目录不得作为 Pilot/正式证据，不得进入任何分析或 Plan 2，不删除、不覆盖，也不人工伪造完成/失败状态。
+- 正式配置：400 training episodes；evaluation episodes 显式为 `0..400`；resumable checkpoint episodes 为 `[0,10,25,50,100,150,200,250,300,350,400]`。
+- 正式 `configs/tsc/dqn.yml` SHA-256：`60e496d597579e8ca2f07235aad0f73bcf4ab69e2d4f6d2fe029f7093557f99d`。
+- 正式配置提交：`126cf4a 冻结Plan 1逐回合评估正式配置`，已推送当前远端分支。
+- 冻结回归：Milestone 0 共 25 项、Plan 1 共 13 项通过；相关语法检查和 `git diff --check` 通过。
+
+后续按 Wave 1～3、最终分析与交付顺序继续追加真实命令和证据。

@@ -148,11 +148,22 @@ Pilot 节点为 `[0, 10, 25, 50, 100]`。Pilot 通过后，正式节点冻结为
 
 ### 模块 1：双口径指标与诊断基础
 
-- 状态：已通过，待提交；
+- 状态：已通过；
+- 提交：`dc6399e 补全Plan 1双延误与交通诊断指标`；
+- 远端：已推送当前分支；
 - 实现：real delay 无副作用快照、活跃车辆平均累计等待、路网内未完成车辆数、动作分布、切相频率、replay/target 诊断和结构化指标 schema v2；
 - 兼容：schema v1 日志仍可验证和读取；
 - 自动检查：Milestone 0 共 24 项通过，Plan 1 指标新增 2 项通过；
 - 语法检查：`common/metrics.py`、`world/world_sumo.py`、`trainer/tsc_trainer.py`、`utils/logger.py` 和新增测试通过；
 - 已知环境提示：旧 Gym 弃用提示不影响本模块 CPU/SUMO 路径。
+
+### 模块 2：Replay 与 trajectory 双写
+
+- 状态：已通过，待提交；
+- 实现：保持 Online replay tuple 不变，在 trainer 层每个环境决策记录一条聚合 transition，按 episode 原子生成压缩 NPZ，并维护 manifest、append-only index、SHA-256 和 validation；
+- 验收：每 episode 决策数、episode/global step、state/phase 链、NaN/Inf、动作范围和 terminated/truncated 语义均有自动校验；
+- 评估隔离：EvaluationIsolationGuard 已纳入 trajectory 写入计数，evaluation transition count 固定为 0；
+- 自动检查：Milestone 0 共 24 项通过；Plan 1 指标和 trajectory 共 5 项通过；
+- replay 回归：`DQNAgent.remember()` 仍保存原 6 元训练 payload，未写入科研元数据。
 
 后续继续追加真实运行命令、产物地址、验收结论、异常和修复记录。

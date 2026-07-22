@@ -31,6 +31,7 @@ class DummyTrainer:
         self.gradient_updates = 2
         self.global_decision_step = 9
         self.evaluation_isolation_checks = []
+        self.trajectory_writer = type('Writer', (), {'total_count': 5})()
 
 
 class EvaluationIsolationTest(unittest.TestCase):
@@ -40,6 +41,7 @@ class EvaluationIsolationTest(unittest.TestCase):
             pass
         self.assertEqual(0, trainer.evaluation_isolation_checks[0]['remember_calls'])
         self.assertEqual([3], trainer.evaluation_isolation_checks[0]['replay_lengths'])
+        self.assertEqual(5, trainer.evaluation_isolation_checks[0]['trajectory_writes'])
 
     def test_remember_call_fails_immediately(self):
         trainer = DummyTrainer()
@@ -57,6 +59,10 @@ class EvaluationIsolationTest(unittest.TestCase):
             with EvaluationIsolationGuard(trainer, 'FINAL_EVALUATION'):
                 with torch.no_grad():
                     trainer.agents[0].model.weight.add_(1)
+        trainer = DummyTrainer()
+        with self.assertRaisesRegex(RuntimeError, 'mutated protected'):
+            with EvaluationIsolationGuard(trainer, 'EVALUATION'):
+                trainer.trajectory_writer.total_count += 1
 
 
 if __name__ == '__main__':

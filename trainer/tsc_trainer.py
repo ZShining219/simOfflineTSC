@@ -12,6 +12,7 @@ from environment import TSCEnv
 from common.registry import Registry
 from trainer.base_trainer import BaseTrainer
 from utils.logger import StructuredMetricLogger, hash_torch_state_dict
+from utils.trajectory import EpisodeTrajectoryWriter
 
 
 def _state_values_equal(left, right):
@@ -53,6 +54,10 @@ class EvaluationIsolationGuard:
         return {
             'agents': agents,
             'dataset_writes': len(self.trainer.dataset),
+            'trajectory_writes': (
+                None if getattr(self.trainer, 'trajectory_writer', None) is None
+                else self.trainer.trajectory_writer.total_count
+            ),
             'gradient_updates': self.trainer.gradient_updates,
             'global_decision_step': self.trainer.global_decision_step,
         }
@@ -93,6 +98,7 @@ class EvaluationIsolationGuard:
             'remember_calls': self.remember_calls,
             'replay_lengths': [agent['replay_length'] for agent in after['agents']],
             'dataset_writes': after['dataset_writes'],
+            'trajectory_writes': after['trajectory_writes'],
             'gradient_updates': after['gradient_updates'],
             'global_decision_step': after['global_decision_step'],
         })
@@ -138,6 +144,19 @@ class TSCTrainer(BaseTrainer):
         self.output_path = Registry.mapping['logger_mapping']['path'].path
         with open(os.path.join(self.output_path, 'run_manifest.json'), encoding='utf-8') as handle:
             self.config_hash = json.load(handle)['config_hash']
+        command = Registry.mapping['command_mapping']['setting'].param
+        model = Registry.mapping['model_mapping']['setting'].param
+        self.trajectory_writer = None
+        if command['agent'] == 'dqn' and model['train_model']:
+            self.trajectory_writer = EpisodeTrajectoryWriter(
+                output_path=self.output_path,
+                network=command['network'],
+                behavior_training_seed=command['seed'],
+                config_hash=self.config_hash,
+                simulation_steps=self.steps,
+                action_interval=self.action_interval,
+                action_dim=self.agents[0].action_space.n,
+            )
         # replay file is only valid in cityflow now. 
         # TODO: support SUMO and Openengine later
         
@@ -248,6 +267,8 @@ class TSCTrainer(BaseTrainer):
             # TODO: check this reset agent
             self.metric.clear()
             self._reset_action_diagnostics()
+            if self.trajectory_writer is not None:
+                self.trajectory_writer.start_episode(e + 1)
             last_obs = self.env.reset()  # agent * [sub_agent, feature]
 
             for a in self.agents:
@@ -286,6 +307,41 @@ class TSCTrainer(BaseTrainer):
                     self.metric.update(rewards)
 
                     cur_phase = np.stack([ag.get_phase() for ag in self.agents])
+                    terminated = bool(all(dones))
+                    truncated = bool(i >= self.steps and not terminated)
+                    if self.trajectory_writer is not None:
+                        epsilon_values = [
+                            float(ag.epsilon) for ag in self.agents
+                            if hasattr(ag, 'epsilon')
+                        ]
+                        self.trajectory_writer.append(
+                            episode_id=e + 1,
+                            decision_step=self.metric.decision_num,
+                            global_step=total_decision_num + 1,
+                            state=np.asarray(last_obs),
+                            current_phase=last_phase,
+                            action=actions,
+                            reward=rewards,
+                            next_state=np.asarray(obs),
+                            next_phase=cur_phase,
+                            terminated=terminated,
+                            truncated=truncated,
+                            epsilon=(
+                                0.0 if not epsilon_values else
+                                float(np.mean(epsilon_values))
+                            ),
+                            behavior_mode=(
+                                'epsilon_greedy' if total_decision_num > self.learning_start
+                                else 'random_warmup'
+                            ),
+                            queue=float(np.mean([ag.get_queue() for ag in self.agents])),
+                            approximate_delay=float(
+                                np.mean([ag.get_delay() for ag in self.agents])
+                            ),
+                            real_delay=self.metric.real_delay(),
+                            throughput=self.metric.throughput(),
+                            waiting_time=self.metric.waiting_time(),
+                        )
                     for idx, ag in enumerate(self.agents):
                         ag.remember(last_obs[idx], last_phase[idx], actions[idx], actions_prob[idx], rewards[idx],
                             obs[idx], cur_phase[idx], dones[idx], f'{e}_{i//self.action_interval}_{ag.id}')
@@ -308,6 +364,8 @@ class TSCTrainer(BaseTrainer):
 
                 if all(dones):
                     break
+            if self.trajectory_writer is not None:
+                self.trajectory_writer.finish_episode()
             mean_loss = np.mean(np.array(episode_loss)) if episode_loss else None
             
             self.writeLog("TRAIN", e, self.metric.real_average_travel_time(),\
@@ -330,6 +388,8 @@ class TSCTrainer(BaseTrainer):
         # self.dataset.flush([ag.replay_buffer for ag in self.agents])
         [ag.save_model(e=self.episodes) for ag in self.agents]
         self.save_milestone_checkpoints(self.episodes)
+        if self.trajectory_writer is not None:
+            self.trajectory_writer.validate(expected_episodes=self.episodes)
 
     def optimizer_update_from_replay(self):
         losses = []

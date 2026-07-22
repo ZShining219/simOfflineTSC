@@ -58,7 +58,7 @@ Milestone 0 未改变 state、reward、action mapping、DQN loss、terminal/trun
 - `c871bcb` 增加跨运行配置一致性校验
 - `0e864a1` 同步Milestone 0功能提交证据
 - `4040f97` 补全初始化失败运行状态
-- Function 9 最终回归与总结：见验收清单最终同步提交。
+- `98cbc00` 完成Milestone 0整体回归与总结
 
 远端分支：`origin/codex/milestone0-experiment-infrastructure`。未 force push，未改写已推送历史，未自动合并 main。
 

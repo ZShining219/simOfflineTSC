@@ -41,13 +41,13 @@
 | M0-16 | 当前 travel time、delay、queue、throughput、reward 口径有代码证据 | 已通过 | 见 `docs/verification/milestone0/function7_metric_audit.md` | 逐项源码链路与 characterization 输出已记录；reward 差异关联 RD-009 | `cd7fc54` | real delay 空车辆除零作为已知风险保留 |
 | M0-17 | 未经用户决定不修改指标公式或主指标口径 | 已通过 | `git diff` + characterization tests | 本功能未修改 metrics/world/agent/generator/run 公式 | `cd7fc54` | RD-006、RD-009 未擅自决定 |
 | M0-18 | 跨 network/seed 配置一致性工具按契约允许字段规范化比较 | 已通过 | 见 `docs/verification/milestone0/function8_run_config_compare.md` | 四个真实 DQN network 比较 compatible=true；非法 trainer/dimension 差异失败 | `c871bcb` | input_dim/action_dim 不一致直接失败 |
-| M0-19 | FixedTime 最小真实 SUMO smoke 通过 | 已通过 | 见 `docs/verification/milestone0/function9_final_regression.md` | 1 episode/3600 steps；travel time 233.164929；throughput 1631 | 最终回归提交 | 完整环境 smoke |
-| M0-20 | MaxPressure 最小真实 SUMO smoke 通过 | 已通过 | 同上 | 1 episode/3600 steps；travel time 80.514474；throughput 1969 | 最终回归提交 | 完整环境 smoke |
-| M0-21 | DQN 最小真实 SUMO smoke 通过 | 已通过 | 同上 | 700 train + 2×100 eval；6 gradient、1 target update、checkpoint/隔离通过 | 最终回归提交 | 临时 YAML 已恢复 |
-| M0-22 | 全部针对性语法、导入、哈希和失败路径检查通过 | 已通过 | 23 项 unittest + py_compile + artifact parser + diff check | 正常、缺失、损坏、非法状态/type/hash/dimension/突变路径覆盖 | 最终回归提交 |  |
-| M0-23 | smoke 后无临时 YAML、simulator cfg 或其他非目标变化 | 已通过 | `git status`、`git diff`、source cfg SHA-256 | 临时 YAML 恢复；source cfg hash `314f…9dbd`；output 未跟踪 | 最终回归提交 |  |
-| M0-24 | 每个功能均有独立中文提交并已推送指定远端分支 | 已通过 | `git log` + 本地/远端 SHA | 功能 1–8、修复和最终回归均独立提交，无 force push | 最终同步提交 | 不自动合并 main |
-| M0-25 | Milestone 0 最终 diff review 和整体回归通过 | 已通过 | baseline-to-HEAD diff review + 三类回归 | protected 算法/指标公式未改；三类真实 SUMO 和完整产物审计通过 | 最终回归提交 | 不自动合并 main |
+| M0-19 | FixedTime 最小真实 SUMO smoke 通过 | 已通过 | 见 `docs/verification/milestone0/function9_final_regression.md` | 1 episode/3600 steps；travel time 233.164929；throughput 1631 | `98cbc00` | 完整环境 smoke |
+| M0-20 | MaxPressure 最小真实 SUMO smoke 通过 | 已通过 | 同上 | 1 episode/3600 steps；travel time 80.514474；throughput 1969 | `98cbc00` | 完整环境 smoke |
+| M0-21 | DQN 最小真实 SUMO smoke 通过 | 已通过 | 同上 | 700 train + 2×100 eval；6 gradient、1 target update、checkpoint/隔离通过 | `98cbc00` | 临时 YAML 已恢复 |
+| M0-22 | 全部针对性语法、导入、哈希和失败路径检查通过 | 已通过 | 23 项 unittest + py_compile + artifact parser + diff check | 正常、缺失、损坏、非法状态/type/hash/dimension/突变路径覆盖 | `98cbc00` |  |
+| M0-23 | smoke 后无临时 YAML、simulator cfg 或其他非目标变化 | 已通过 | `git status`、`git diff`、source cfg SHA-256 | 临时 YAML 恢复；source cfg hash `314f…9dbd`；output 未跟踪 | `98cbc00` |  |
+| M0-24 | 每个功能均有独立中文提交并已推送指定远端分支 | 已通过 | `git log` + 本地/远端 SHA | 功能 1–8、修复和最终回归均独立提交，无 force push | `98cbc00` | 不自动合并 main |
+| M0-25 | Milestone 0 最终 diff review 和整体回归通过 | 已通过 | baseline-to-HEAD diff review + 三类回归 | protected 算法/指标公式未改；三类真实 SUMO 和完整产物审计通过 | `98cbc00` | 不自动合并 main |
 
 ## 3. 固定验收语义
 

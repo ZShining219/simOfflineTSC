@@ -159,11 +159,24 @@ Pilot 节点为 `[0, 10, 25, 50, 100]`。Pilot 通过后，正式节点冻结为
 
 ### 模块 2：Replay 与 trajectory 双写
 
-- 状态：已通过，待提交；
+- 状态：已通过；
+- 提交：`828f9e3 实现Plan 1训练轨迹分片与完整性校验`；
+- 远端：已推送当前分支；
 - 实现：保持 Online replay tuple 不变，在 trainer 层每个环境决策记录一条聚合 transition，按 episode 原子生成压缩 NPZ，并维护 manifest、append-only index、SHA-256 和 validation；
 - 验收：每 episode 决策数、episode/global step、state/phase 链、NaN/Inf、动作范围和 terminated/truncated 语义均有自动校验；
 - 评估隔离：EvaluationIsolationGuard 已纳入 trajectory 写入计数，evaluation transition count 固定为 0；
 - 自动检查：Milestone 0 共 24 项通过；Plan 1 指标和 trajectory 共 5 项通过；
 - replay 回归：`DQNAgent.remember()` 仍保存原 6 元训练 payload，未写入科研元数据。
+
+### 模块 3：固定评估与 checkpoint
+
+- 状态：已通过，待提交；
+- 实现：新增显式 `evaluation_episodes`，按已完成 episode 数调度训练前 episode 0、过程中节点和单次最终评估；evaluation/resumable checkpoint 与评估节点完全一致；
+- best 规则：按 travel time 最低选择，并列取较早节点；结果写入运行目录 `evaluation/summary.json`；
+- 自动检查：Milestone 0 共 24 项、Plan 1 共 7 项全部通过；
+- 真实 SUMO smoke：`sumohz1x1`、DQN、seed 41、2 个训练 episode、700 training steps、评估节点 `[0,1,2]`；
+- smoke 命令：`SUMO_HOME=/home/dev/miniforge3/envs/colight/lib/python3.10/site-packages/sumo /home/dev/miniforge3/envs/colight/bin/python3.10 run.py -w sumo -a dqn -n sumohz1x1 --prefix p1m3_eval_smoke_20260722_1 --seed 41 --interface libsumo --delay_type apx`；
+- smoke 结果：退出码 0；records 顺序为 EVALUATION、TRAIN、EVALUATION、TRAIN、FINAL_EVALUATION；三组两类 checkpoint 均存在；trajectory 为 2 episode/140 transitions、evaluation transitions=0、validation=true；
+- 配置恢复：临时 smoke 参数已清除，`dqn.yml` 恢复 200 episode 开发配置和 `[0,10,25,50,100,150,200]` 节点；SUMO source cfg 哈希保持 `314f1915c...bb9dbd`。
 
 后续继续追加真实运行命令、产物地址、验收结论、异常和修复记录。

@@ -29,6 +29,16 @@ def _state_values_equal(left, right):
     return left == right
 
 
+def _json_safe_value(value):
+    if hasattr(value, 'item'):
+        return value.item()
+    if isinstance(value, dict):
+        return {str(key): _json_safe_value(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_json_safe_value(item) for item in value]
+    return value
+
+
 class EvaluationIsolationGuard:
     """Fail evaluation if it mutates any Milestone 0 protected training state."""
 
@@ -133,11 +143,19 @@ class TSCTrainer(BaseTrainer):
         self.update_model_rate = Registry.mapping['trainer_mapping']['setting'].param['update_model_rate']
         self.update_target_rate = Registry.mapping['trainer_mapping']['setting'].param['update_target_rate']
         self.test_when_train = Registry.mapping['trainer_mapping']['setting'].param['test_when_train']
+        self.evaluation_episodes = self._resolve_evaluation_episodes(
+            Registry.mapping['trainer_mapping']['setting'].param.get(
+                'evaluation_episodes'
+            )
+        )
         self.global_decision_step = 0
         self.gradient_updates = 0
         self.target_updates = 0
         self.evaluation_isolation_checks = []
         self._reset_action_diagnostics()
+        self.evaluation_results = {}
+        self.final_evaluation_completed = False
+        self.last_evaluation_record = None
         self.structured_metrics = StructuredMetricLogger(
             Registry.mapping['logger_mapping']['path'].path
         )
@@ -172,6 +190,92 @@ class TSCTrainer(BaseTrainer):
                                      Registry.mapping['logger_mapping']['setting'].param['log_dir'],
                                      os.path.basename(self.logger.handlers[-1].baseFilename).rstrip('_BRF.log') + '_DTL.log'
                                      )
+
+    def _resolve_evaluation_episodes(self, configured):
+        if configured is None:
+            return None
+        if not isinstance(configured, list) or not all(
+            isinstance(item, int) for item in configured
+        ):
+            raise ValueError('evaluation_episodes must be a list of integers')
+        resolved = sorted(set(configured))
+        if resolved != configured:
+            raise ValueError('evaluation_episodes must be sorted and unique')
+        if not resolved or resolved[0] != 0 or resolved[-1] != self.episodes:
+            raise ValueError(
+                'evaluation_episodes must include 0 and the configured episode count'
+            )
+        if any(item < 0 or item > self.episodes for item in resolved):
+            raise ValueError('evaluation_episodes contains an out-of-range episode')
+        return tuple(resolved)
+
+    def _uses_explicit_evaluation_schedule(self):
+        return self.evaluation_episodes is not None
+
+    def _should_evaluate(self, completed_episodes):
+        if self._uses_explicit_evaluation_schedule():
+            return completed_episodes in self.evaluation_episodes
+        return self.test_when_train and completed_episodes > 0
+
+    def _evaluation_summary_path(self):
+        return os.path.join(self.output_path, 'evaluation', 'summary.json')
+
+    def _write_evaluation_summary(self):
+        if not self.evaluation_results:
+            return None
+        ordered = [
+            self.evaluation_results[episode]
+            for episode in sorted(self.evaluation_results)
+        ]
+        best = min(ordered, key=lambda item: (item['travel_time'], item['episode']))
+        final = self.evaluation_results.get(self.episodes)
+        payload = {
+            'schema_version': 1,
+            'selection_metric': 'travel_time',
+            'selection_rule': 'minimum_then_earliest_episode',
+            'best_episode': best['episode'],
+            'best_travel_time': best['travel_time'],
+            'best_checkpoint': os.path.relpath(
+                self._checkpoint_path('evaluation', best['episode']), self.output_path
+            ),
+            'final_episode': None if final is None else final['episode'],
+            'final_travel_time': None if final is None else final['travel_time'],
+            'final_checkpoint': None if final is None else os.path.relpath(
+                self._checkpoint_path('evaluation', final['episode']), self.output_path
+            ),
+            'evaluations': ordered,
+        }
+        path = self._evaluation_summary_path()
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        descriptor, temporary_path = tempfile.mkstemp(
+            prefix='.tmp-', dir=os.path.dirname(path)
+        )
+        try:
+            with os.fdopen(descriptor, 'w', encoding='utf-8') as handle:
+                json.dump(payload, handle, ensure_ascii=False, indent=2, sort_keys=True)
+                handle.write('\n')
+                handle.flush()
+                os.fsync(handle.fileno())
+            os.replace(temporary_path, path)
+        except Exception:
+            if os.path.exists(temporary_path):
+                os.unlink(temporary_path)
+            raise
+        return path
+
+    def _run_scheduled_evaluation(self, completed_episodes):
+        self.save_milestone_checkpoints(completed_episodes)
+        record_type = (
+            'FINAL_EVALUATION'
+            if completed_episodes == self.episodes else 'EVALUATION'
+        )
+        self.train_test(completed_episodes, record_type=record_type)
+        self.evaluation_results[completed_episodes] = _json_safe_value(
+            dict(self.last_evaluation_record)
+        )
+        self._write_evaluation_summary()
+        if record_type == 'FINAL_EVALUATION':
+            self.final_evaluation_completed = True
 
     def create_world(self):
         '''
@@ -262,6 +366,8 @@ class TSCTrainer(BaseTrainer):
         '''
         total_decision_num = self.global_decision_step
         flush = 0
+        if self._should_evaluate(0):
+            self._run_scheduled_evaluation(0)
         for e in range(self.episodes):
             phase_started_at = time.perf_counter()
             # TODO: check this reset agent
@@ -368,26 +474,30 @@ class TSCTrainer(BaseTrainer):
                 self.trajectory_writer.finish_episode()
             mean_loss = np.mean(np.array(episode_loss)) if episode_loss else None
             
-            self.writeLog("TRAIN", e, self.metric.real_average_travel_time(),\
+            completed_episodes = e + 1
+            self.writeLog("TRAIN", completed_episodes, self.metric.real_average_travel_time(),\
                 0 if mean_loss is None else mean_loss, self.metric.rewards(), self.metric.queue(), self.metric.delay(), self.metric.throughput())
             self.writeStructuredLog(
-                'TRAIN', e, i, self.metric.decision_num, mean_loss,
+                'TRAIN', completed_episodes, i, self.metric.decision_num, mean_loss,
                 time.perf_counter() - phase_started_at,
             )
             self.logger.info("step:{}/{}, q_loss:{}, rewards:{}, queue:{}, delay:{}, throughput:{}".format(i, self.steps,\
                 0 if mean_loss is None else mean_loss, self.metric.rewards(), self.metric.queue(), self.metric.delay(), int(self.metric.throughput())))
             if e % self.save_rate == 0:
                 [ag.save_model(e=e) for ag in self.agents]
-                self.save_milestone_checkpoints(e)
             self.logger.info("episode:{}/{}, real avg travel time:{}".format(e, self.episodes, self.metric.real_average_travel_time()))
             for j in range(len(self.world.intersections)):
                 self.logger.debug("intersection:{}, mean_episode_reward:{}, mean_queue:{}".format(j, self.metric.lane_rewards()[j],\
                      self.metric.lane_queue()[j]))
-            if self.test_when_train:
-                self.train_test(e)
+            if self._should_evaluate(completed_episodes):
+                if self._uses_explicit_evaluation_schedule():
+                    self._run_scheduled_evaluation(completed_episodes)
+                else:
+                    self.train_test(completed_episodes)
         # self.dataset.flush([ag.replay_buffer for ag in self.agents])
         [ag.save_model(e=self.episodes) for ag in self.agents]
-        self.save_milestone_checkpoints(self.episodes)
+        if not self._uses_explicit_evaluation_schedule():
+            self.save_milestone_checkpoints(self.episodes)
         if self.trajectory_writer is not None:
             self.trajectory_writer.validate(expected_episodes=self.episodes)
 
@@ -581,7 +691,7 @@ class TSCTrainer(BaseTrainer):
             torch.cuda.set_rng_state_all(payload['torch_cuda_rng_states'])
         return payload
 
-    def train_test(self, e):
+    def train_test(self, e, record_type='EVALUATION'):
         '''
         train_test
         Evaluate model performance after each episode training process.
@@ -589,7 +699,7 @@ class TSCTrainer(BaseTrainer):
         :param e: number of episode
         :return self.metric.real_average_travel_time: travel time of vehicles
         '''
-        with EvaluationIsolationGuard(self, 'EVALUATION'):
+        with EvaluationIsolationGuard(self, record_type):
             phase_started_at = time.perf_counter()
             obs = self.env.reset()
             self.metric.clear()
@@ -618,8 +728,8 @@ class TSCTrainer(BaseTrainer):
                 self.metric.queue(), self.metric.delay(), int(self.metric.throughput())))
             self.writeLog("TEST", e, self.metric.real_average_travel_time(),\
                 100, self.metric.rewards(),self.metric.queue(),self.metric.delay(), self.metric.throughput())
-            self.writeStructuredLog(
-                'EVALUATION', e, min(i + 1, self.test_steps), self.metric.decision_num,
+            self.last_evaluation_record = self.writeStructuredLog(
+                record_type, e, min(i + 1, self.test_steps), self.metric.decision_num,
                 None, time.perf_counter() - phase_started_at,
             )
         return self.metric.real_average_travel_time()
@@ -667,7 +777,7 @@ class TSCTrainer(BaseTrainer):
                     break
             self.logger.info("Final Travel Time is %.4f, mean rewards: %.4f, queue: %.4f, delay: %.4f, throughput: %d" % (self.metric.real_average_travel_time(), \
                 self.metric.rewards(), self.metric.queue(), self.metric.delay(), self.metric.throughput()))
-            self.writeStructuredLog(
+            self.last_evaluation_record = self.writeStructuredLog(
                 'FINAL_EVALUATION', self.episodes, min(i + 1, self.test_steps),
                 self.metric.decision_num, None, time.perf_counter() - phase_started_at,
             )
@@ -695,7 +805,7 @@ class TSCTrainer(BaseTrainer):
         previous_action_count = (
             0 if self.previous_actions is None else len(self.previous_actions)
         )
-        self.structured_metrics.append({
+        record = {
             'schema_version': 2,
             'record_type': record_type,
             'agent': command['agent'],
@@ -727,7 +837,9 @@ class TSCTrainer(BaseTrainer):
             'replay_size': replay_size,
             'replay_capacity': replay_capacity,
             'target_updates': self.target_updates,
-        })
+        }
+        self.structured_metrics.append(record)
+        return record
 
     def writeLog(self, mode, step, travel_time, loss, cur_rwd, cur_queue, cur_delay, cur_throughput):
         '''

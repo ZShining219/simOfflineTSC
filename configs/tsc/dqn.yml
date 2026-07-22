@@ -13,3 +13,4 @@ model:
 trainer:
   learning_start: 1000
   buffer_size: 5000
+  evaluation_episodes: [0, 10, 25, 50, 100, 150, 200]

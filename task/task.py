@@ -41,7 +41,8 @@ class TSCTask(BaseTask):
         try:
             if Registry.mapping['model_mapping']['setting'].param['train_model']:
                 self.trainer.train()
-            if Registry.mapping['model_mapping']['setting'].param['test_model']:
+            if Registry.mapping['model_mapping']['setting'].param['test_model'] and not getattr(
+                    self.trainer, 'final_evaluation_completed', False):
                 self.trainer.test()
         except RuntimeError as e:
             self._process_error(e)

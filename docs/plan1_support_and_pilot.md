@@ -184,7 +184,8 @@ Pilot 节点为 `[0, 10, 25, 50, 100]`。Pilot 通过后，正式节点冻结为
 ### 模块 4：可复用作图工具
 
 - 状态：已通过；
-- 提交信息：`增加可复用实验结果作图工具`；
+- 提交：`f25fba8 增加可复用实验结果作图工具`；
+- 远端：已推送当前分支；
 - 实现：新增 `tools/experiment_plotting/`，通过显式 CSV run-list 读取运行，不扫描或猜测输出目录；run-list 固定字段为 `role,agent,network,training_seed,run_dir,include`；
 - 强校验：拒绝重复条目、失败运行、run-list 与运行身份不一致、配置归档哈希损坏、指标 schema/JSONL 损坏；DQN Pilot/正式运行额外要求 evaluation summary、有效 trajectory validation，并复核 trajectory manifest、index 连续性、分片 SHA-256 和计数；
 - 配置比较：四场景 DQN Pilot/正式运行使用 `utils/run_config_compare.py` 比较，除 network、prefix、training seed 和对应路径外的差异会阻止分析；
@@ -198,5 +199,21 @@ Pilot 节点为 `[0, 10, 25, 50, 100]`。Pilot 通过后，正式节点冻结为
 - 证据目录：`data/output_data/analysis/plan1/p1m4_real_smoke_20260722_2/`，仅本地保留，不提交 Git；
 - 静态检查：新增模块和测试通过 `py_compile`，`git diff --check` 无错误；
 - 已知环境提示：旧 Gym 和未使用的 PyG CUDA 扩展 ABI 警告不影响本模块 CPU/Matplotlib 路径。
+
+### 模块 5：集成验收
+
+- 状态：已通过；
+- 提交信息：`完成Plan 1启动能力集成验收`；
+- 自动检查：Milestone 0 共 24 项、Plan 1 共 11 项全部通过；新增传统基线配置回归 1 项；相关 Python 文件通过 `py_compile`，`git diff --check` 无错误；
+- DQN 证据：复用模块 3 已通过的 `data/output_data/tsc/sumo_dqn/sumohz1x1/p1m3_eval_smoke_20260722_1/`，包含训练、固定评估、checkpoint、trajectory 和 schema v2 指标；
+- FixedTime 命令：`SUMO_HOME=/home/dev/miniforge3/envs/colight/lib/python3.10/site-packages/sumo /home/dev/miniforge3/envs/colight/bin/python3.10 run.py -w sumo -a fixedtime -n sumohz1x1 --prefix p1m5_fixedtime_smoke_20260722_1 --seed 41 --interface libsumo --delay_type apx`；
+- FixedTime 结果：退出码 0，3600 simulation steps/360 decisions，episode 1，travel time `233.16492949110975`，real delay `170.36838048514238`，trajectory 不适用；
+- MaxPressure 初次 smoke：`p1m5_maxpressure_smoke_20260722_1` 的仿真退出码为 0，但发现其继承 `base.yml` 的 `episodes: 200`，单次最终评估被错误标为 episode 200；该运行仅元数据错误，已作废且不作为后续证据；
+- 修复：在 `configs/tsc/maxpressure.yml` 明确设置 `episodes: 1`，并增加 FixedTime/MaxPressure 均必须为单 episode 的配置回归测试；
+- MaxPressure 有效命令：`SUMO_HOME=/home/dev/miniforge3/envs/colight/lib/python3.10/site-packages/sumo /home/dev/miniforge3/envs/colight/bin/python3.10 run.py -w sumo -a maxpressure -n sumohz1x1 --prefix p1m5_maxpressure_smoke_20260722_2 --seed 41 --interface libsumo --delay_type apx`；
+- MaxPressure 结果：退出码 0，3600 simulation steps/360 decisions，episode 1，travel time `80.51447435246318`，real delay `21.615554974699602`，trajectory 不适用；
+- 混合作图：三类 agent 通过同一个显式 run-list 生成规范化表格和 10 组 PNG/PDF，证据目录为 `data/output_data/analysis/plan1/p1m5_integrated_smoke_20260722_2/`；
+- 配置源核对：运行后 `base.yml`、`dqn.yml`、`fixedtime.yml` 和 `sumohz1x1.cfg` 哈希与运行前一致；`maxpressure.yml` 仅包含已审核的 `episodes: 1` 永久修复；
+- 结论：Plan 1 启动所需项目能力全部通过，可以执行 16 次传统基线确定性验证。
 
 后续继续追加真实运行命令、产物地址、验收结论、异常和修复记录。

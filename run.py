@@ -49,6 +49,7 @@ class Runner:
             self.config_sources,
             Registry.mapping['world_mapping']['setting'].param,
         )
+        self.run_state = RunStateManager(self.config, self.config_archive_path)
 
     def config_registry(self):
         """
@@ -75,19 +76,29 @@ class Runner:
         interface.ModelAgent_param_Interface(self.config)
 
     def run(self):
-        logger = setup_logging(logging_level)
-        self.trainer = Registry.mapping['trainer_mapping']\
-            [Registry.mapping['command_mapping']['setting'].param['task']](logger)
-        self.model_archive_path = archive_runtime_model(
-            self.config_archive_path,
-            self.trainer,
-            Registry.mapping['command_mapping']['setting'].param['agent'],
-        )
-        self.task = Registry.mapping['task_mapping']\
-            [Registry.mapping['command_mapping']['setting'].param['task']](self.trainer)
-        start_time = time.time()
-        self.task.run()
-        logger.info(f"Total time taken: {time.time() - start_time}")
+        try:
+            logger = setup_logging(logging_level)
+            self.trainer = Registry.mapping['trainer_mapping']\
+                [Registry.mapping['command_mapping']['setting'].param['task']](logger)
+            self.model_archive_path = archive_runtime_model(
+                self.config_archive_path,
+                self.trainer,
+                Registry.mapping['command_mapping']['setting'].param['agent'],
+            )
+            self.task = Registry.mapping['task_mapping']\
+                [Registry.mapping['command_mapping']['setting'].param['task']](self.trainer)
+            self.run_state.transition('运行中')
+            start_time = time.time()
+            self.task.run()
+            logger.info(f"Total time taken: {time.time() - start_time}")
+            for handler in logger.handlers:
+                handler.flush()
+            verify_config_archive(self.config_archive_path)
+            self.run_state.transition('已完成', exit_code=0)
+        except Exception as error:
+            if self.run_state.status['status'] in {'已创建', '运行中'}:
+                self.run_state.transition('失败', exit_code=1, error=error)
+            raise
 
 
 if __name__ == '__main__':

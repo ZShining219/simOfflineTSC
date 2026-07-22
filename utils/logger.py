@@ -13,6 +13,9 @@ from common.registry import Registry
 
 
 CONFIG_ARCHIVE_DIR = 'config'
+RUN_SCHEMA_VERSION = 1
+BASELINE_COMMIT = '73d860bb3924ec15c30433a8f8b7af17787baeff'
+RUN_STATUSES = {'已创建', '运行中', '已完成', '失败'}
 
 
 def _read_bytes(path):
@@ -35,6 +38,98 @@ def _atomic_write(path, content):
         if os.path.exists(temporary_path):
             os.unlink(temporary_path)
         raise
+
+
+def _utc_now():
+    return datetime.utcnow().replace(microsecond=0).isoformat() + 'Z'
+
+
+def _write_json_atomic(path, value):
+    content = (json.dumps(value, ensure_ascii=False, indent=2, sort_keys=True) + '\n')
+    _atomic_write(path, content.encode('utf-8'))
+
+
+def _sanitize_error_message(error):
+    message = ' '.join(str(error).split())[:1000]
+    for value in os.environ.values():
+        if len(value) >= 8 and value in message:
+            message = message.replace(value, '[REDACTED]')
+    return message
+
+
+class RunStateManager:
+    """Persist the immutable run identity and atomic lifecycle transitions."""
+
+    def __init__(self, config, config_path):
+        command = config['command']
+        self.output_path = get_output_file_path(config)
+        self.manifest_path = os.path.join(self.output_path, 'run_manifest.json')
+        self.status_path = os.path.join(self.output_path, 'run_status.json')
+        run_id = '/'.join((
+            command['task'], f"{command['world']}_{command['agent']}",
+            command['network'], command['prefix'],
+        ))
+        config_hash = hashlib.sha256(
+            _read_bytes(os.path.join(config_path, 'resolved_config.yaml'))
+        ).hexdigest()
+        created_at = _utc_now()
+        self.manifest = {
+            'schema_version': RUN_SCHEMA_VERSION,
+            'run_id': run_id,
+            'task': command['task'],
+            'agent': command['agent'],
+            'world': command['world'],
+            'network': command['network'],
+            'prefix': command['prefix'],
+            'training_seed': command['seed'],
+            'sumo_seed_mode': 'fixed_default',
+            'baseline_commit': BASELINE_COMMIT,
+            'created_at_utc': created_at,
+            'config_hash': config_hash,
+        }
+        self.status = {
+            'schema_version': RUN_SCHEMA_VERSION,
+            'run_id': run_id,
+            'status': '已创建',
+            'started_at_utc': None,
+            'finished_at_utc': None,
+            'exit_code': None,
+            'error_type': None,
+            'error_message': None,
+        }
+        _write_json_atomic(self.manifest_path, self.manifest)
+        _write_json_atomic(self.status_path, self.status)
+
+    def transition(self, status, exit_code=None, error=None):
+        if status not in RUN_STATUSES:
+            raise ValueError(f'Invalid run status: {status}')
+        allowed = {
+            '已创建': {'运行中', '失败'},
+            '运行中': {'已完成', '失败'},
+            '已完成': set(),
+            '失败': set(),
+        }
+        current = self.status['status']
+        if status not in allowed[current]:
+            raise ValueError(f'Invalid run status transition: {current} -> {status}')
+        if status == '运行中':
+            if exit_code is not None or error is not None:
+                raise ValueError('Running status cannot contain an exit code or error')
+            self.status['started_at_utc'] = _utc_now()
+        elif status == '已完成':
+            if exit_code not in (None, 0) or error is not None:
+                raise ValueError('Completed status requires exit_code=0 and no error')
+            self.status['finished_at_utc'] = _utc_now()
+            self.status['exit_code'] = 0
+        elif status == '失败':
+            if error is None or exit_code in (None, 0):
+                raise ValueError('Failed status requires an error and non-zero exit code')
+            self.status['finished_at_utc'] = _utc_now()
+            self.status['exit_code'] = exit_code
+            self.status['error_type'] = type(error).__name__
+            self.status['error_message'] = _sanitize_error_message(error)
+        self.status['status'] = status
+        _write_json_atomic(self.status_path, self.status)
 
 
 def verify_config_archive(config_path):

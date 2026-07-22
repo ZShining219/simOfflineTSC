@@ -71,4 +71,16 @@ Plan 2 白名单只包含通过全部强验收的 20 个正式 run trajectory。
 
 ## 7. 执行记录
 
-后续按 A/B、新 Pilot、正式配置冻结、Wave 1～3、最终分析与交付顺序追加真实命令和证据，不预填未执行结果。
+### 7.1 真实 SUMO evaluation 非干扰 A/B
+
+- 状态：已通过；network `sumohz1x1`，training seed 73，5 个 training episodes，libsumo，`delay_type=apx`。
+- A 稀疏配置 SHA-256：`ab6403a9420eb06c01fd4f36f921fa7110e8e2fc89fbd91ac249daf8f6cd89a9`；evaluation `[0,5]`，resumable `[0,5]`。
+- A 命令：`SUMO_HOME=/home/dev/miniforge3/envs/colight/lib/python3.10/site-packages/sumo /home/dev/miniforge3/envs/colight/bin/python3.10 run.py -w sumo -a dqn -n sumohz1x1 --prefix p1_eval_ab_sparse_sumohz1x1_seed73_5ep_20260722 --seed 73 --interface libsumo --delay_type apx`。
+- A 结果：完成、exit code 0；2 次 evaluation、2/2 两类 checkpoint、5 个 trajectory 分片、1,800 transitions、evaluation 零写入、RNG isolation true；总运行时间 75.17 秒。
+- B 密集配置 SHA-256：`b57bc7340c2d42e13f7ba6ece177fd729b3b7fa497ac655fe8801d5cecb08806`；evaluation `[0,1,2,3,4,5]`，resumable `[0,5]`。
+- B 命令：`SUMO_HOME=/home/dev/miniforge3/envs/colight/lib/python3.10/site-packages/sumo /home/dev/miniforge3/envs/colight/bin/python3.10 run.py -w sumo -a dqn -n sumohz1x1 --prefix p1_eval_ab_dense_sumohz1x1_seed73_5ep_20260722 --seed 73 --interface libsumo --delay_type apx`。
+- B 结果：完成、exit code 0；6 次 evaluation、6 个 evaluation checkpoint、2 个 resumable checkpoint、5 个 trajectory 分片、1,800 transitions、evaluation 零写入、RNG isolation true；总运行时间 103.31 秒。
+- 非干扰比较：5 个训练 trajectory NPZ 的文件 SHA-256 逐 episode 相同；去除 `wall_time_seconds` 的 5 条 TRAIN 记录完全相同；最终 online/target tensor hash、optimizer tensor 内容、epsilon、1,800 条 replay、训练计数器及 Python/NumPy/Torch RNG 状态全部相同。
+- 结论：逐 episode evaluation 只增加 evaluation 仿真与墙钟成本，没有改变训练行为或最终训练状态，可以进入新 Pilot。
+
+后续按新 Pilot、正式配置冻结、Wave 1～3、最终分析与交付顺序继续追加真实命令和证据。

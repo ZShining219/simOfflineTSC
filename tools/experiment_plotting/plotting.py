@@ -169,12 +169,12 @@ def render_auc(auc_rows, output_base, dpi=160):
     fig, axis = plt.subplots(figsize=(11, 5), constrained_layout=True)
     selected = [row for row in auc_rows if row["metric"] == "travel_time"]
     if selected:
-        labels = [_label(row) for row in selected]
+        labels = [f"{_label(row)} | {row.get('curve_source', 'TRAIN').lower()}" for row in selected]
         axis.bar(np.arange(len(selected)), [row["auc"] for row in selected], color="#72B7B2")
         axis.set_xticks(np.arange(len(selected)), labels, rotation=20, ha="right")
     else:
-        axis.text(0.5, 0.5, "No first-100 training AUC data", ha="center", va="center")
-    axis.set_title("First-100 episode travel-time AUC")
+        axis.text(0.5, 0.5, "No first-100 AUC data", ha="center", va="center")
+    axis.set_title("First-100 travel-time AUC by curve source")
     axis.set_ylabel("AUC")
     axis.grid(axis="y", alpha=0.2)
     return _save(fig, output_base, dpi)

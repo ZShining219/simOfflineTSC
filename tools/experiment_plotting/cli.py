@@ -7,8 +7,8 @@ from pathlib import Path
 
 from . import __version__
 from .aggregations import (
-    AUC_FIELDS, CORE_FIELDS, build_run_summaries, calculate_first_100_auc,
-    normalize_records, write_csv,
+    AUC_FIELDS, CORE_FIELDS, LEARNING_SPEED_FIELDS, build_run_summaries,
+    calculate_first_100_auc, calculate_learning_speed, normalize_records, write_csv,
 )
 from .loaders import REQUIRED_RUN_LIST_FIELDS, load_run_list
 from .plotting import render_all
@@ -66,6 +66,7 @@ def run_plan1(args):
         metric_rows, action_rows = normalize_records(validated)
         summaries, comparisons = build_run_summaries(validated, metric_rows)
         auc_rows = calculate_first_100_auc(metric_rows)
+        learning_speed_rows = calculate_learning_speed(metric_rows)
 
         metric_fields = (
             "run_key", "role", "agent", "network", "training_seed", "run_dir",
@@ -79,6 +80,10 @@ def run_plan1(args):
         write_csv(tables_dir / "run_summary.csv", summaries)
         write_csv(tables_dir / "final_best_comparison.csv", comparisons)
         write_csv(tables_dir / "first_100_auc.csv", auc_rows, AUC_FIELDS)
+        write_csv(
+            tables_dir / "learning_speed.csv", learning_speed_rows,
+            LEARNING_SPEED_FIELDS,
+        )
         _json_dump(tables_dir / "config_comparison.json", config_comparison)
         figures = render_all(
             metric_rows, action_rows, comparisons, auc_rows, figures_dir, dpi=args.dpi,

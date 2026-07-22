@@ -20,7 +20,13 @@ AUC_METRICS = (
 )
 AUC_FIELDS = (
     "run_key", "role", "agent", "network", "training_seed", "run_dir",
-    "metric", "episode_start", "episode_end", "point_count", "auc",
+    "curve_source", "metric", "episode_start", "episode_end",
+    "point_count", "auc",
+)
+LEARNING_SPEED_FIELDS = (
+    "run_key", "role", "agent", "network", "training_seed", "run_dir",
+    "curve_source", "reference", "criterion", "threshold", "status",
+    "episode",
 )
 
 
@@ -122,36 +128,123 @@ def calculate_first_100_auc(metric_rows):
     rows = []
     run_keys = list(dict.fromkeys(row["run_key"] for row in metric_rows))
     for run_key in run_keys:
-        training = [
-            row for row in metric_rows
-            if row["run_key"] == run_key
-            and row["record_type"] == "TRAIN"
-            and row["episode"] <= 100
-        ]
-        if not training:
-            continue
-        identity = {key: training[0][key] for key in (
-            "run_key", "role", "agent", "network", "training_seed", "run_dir",
-        )}
-        for metric in AUC_METRICS:
-            points = sorted(
-                (row["episode"], row.get(metric))
-                for row in training if _finite(row.get(metric))
-            )
-            if not points:
+        run_rows = [row for row in metric_rows if row["run_key"] == run_key]
+        for curve_source, record_types, minimum_episode in (
+            ("TRAIN", {"TRAIN"}, 1),
+            ("EVALUATION", {"EVALUATION", "FINAL_EVALUATION"}, 0),
+        ):
+            selected = [
+                row for row in run_rows
+                if row["record_type"] in record_types
+                and minimum_episode <= row["episode"] <= 100
+            ]
+            if not selected:
                 continue
-            episodes = np.asarray([point[0] for point in points], dtype=float)
-            values = np.asarray([point[1] for point in points], dtype=float)
-            auc = float(np.trapz(values, episodes)) if len(points) > 1 else float(values[0])
-            rows.append({
-                **identity,
-                "metric": metric,
-                "episode_start": int(episodes[0]),
-                "episode_end": int(episodes[-1]),
-                "point_count": len(points),
-                "auc": auc,
-            })
+            identity = {key: selected[0][key] for key in (
+                "run_key", "role", "agent", "network",
+                "training_seed", "run_dir",
+            )}
+            for metric in AUC_METRICS:
+                points = sorted(
+                    (row["episode"], row.get(metric))
+                    for row in selected if _finite(row.get(metric))
+                )
+                if not points:
+                    continue
+                episodes = np.asarray([point[0] for point in points], dtype=float)
+                values = np.asarray([point[1] for point in points], dtype=float)
+                auc = (
+                    float(np.trapz(values, episodes))
+                    if len(points) > 1 else float(values[0])
+                )
+                rows.append({
+                    **identity,
+                    "curve_source": curve_source,
+                    "metric": metric,
+                    "episode_start": int(episodes[0]),
+                    "episode_end": int(episodes[-1]),
+                    "point_count": len(points),
+                    "auc": auc,
+                })
     return rows
+
+
+def _first_attainment(points, threshold, consecutive):
+    streak = []
+    previous_episode = None
+    for episode, value in points:
+        if value <= threshold:
+            if previous_episode is None or episode == previous_episode + 1:
+                streak.append(episode)
+            else:
+                streak = [episode]
+            if len(streak) >= consecutive:
+                return streak[0]
+        else:
+            streak = []
+        previous_episode = episode
+    return None
+
+
+def calculate_learning_speed(metric_rows):
+    baseline_levels = {}
+    for row in metric_rows:
+        if (
+            row["role"] == "baseline"
+            and row["agent"] in {"fixedtime", "maxpressure"}
+            and _finite(row.get("travel_time"))
+        ):
+            baseline_levels[(row["network"], row["agent"])] = row["travel_time"]
+
+    results = []
+    run_keys = list(dict.fromkeys(
+        row["run_key"] for row in metric_rows
+        if row["agent"] == "dqn" and row["role"] != "baseline"
+    ))
+    for run_key in run_keys:
+        run_rows = [row for row in metric_rows if row["run_key"] == run_key]
+        evaluations = [
+            row for row in run_rows
+            if row["record_type"] in {"EVALUATION", "FINAL_EVALUATION"}
+            and _finite(row.get("travel_time"))
+        ]
+        if not evaluations:
+            continue
+        final = max(evaluations, key=lambda row: row["episode"])
+        references = [
+            ("final_110_percent", final["travel_time"] * 1.10),
+        ]
+        for agent in ("fixedtime", "maxpressure"):
+            level = baseline_levels.get((final["network"], agent))
+            if level is not None:
+                references.append((agent, level))
+        identity = {key: final[key] for key in (
+            "run_key", "role", "agent", "network",
+            "training_seed", "run_dir",
+        )}
+        for curve_source, record_types in (
+            ("TRAIN", {"TRAIN"}),
+            ("EVALUATION", {"EVALUATION", "FINAL_EVALUATION"}),
+        ):
+            points = sorted(
+                (row["episode"], row["travel_time"])
+                for row in run_rows
+                if row["record_type"] in record_types
+                and _finite(row.get("travel_time"))
+            )
+            for reference, threshold in references:
+                for criterion, consecutive in (("single", 1), ("consecutive_5", 5)):
+                    episode = _first_attainment(points, threshold, consecutive)
+                    results.append({
+                        **identity,
+                        "curve_source": curve_source,
+                        "reference": reference,
+                        "criterion": criterion,
+                        "threshold": threshold,
+                        "status": "reached" if episode is not None else "not_reached",
+                        "episode": episode,
+                    })
+    return results
 
 
 def write_csv(path, rows, fieldnames=None):

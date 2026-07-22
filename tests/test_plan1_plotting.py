@@ -186,12 +186,18 @@ class Plan1PlottingTest(unittest.TestCase):
         self.assertTrue((output / "inputs" / "runs.csv").is_file())
         self.assertTrue((output / "tables" / "metrics.csv").is_file())
         self.assertTrue((output / "tables" / "first_100_auc.csv").is_file())
+        self.assertTrue((output / "tables" / "learning_speed.csv").is_file())
         self.assertTrue((output / "figures" / "travel_time.png").is_file())
         self.assertTrue((output / "figures" / "travel_time.pdf").is_file())
         with open(output / "plotting_manifest.json", encoding="utf-8") as handle:
             manifest = json.load(handle)
         self.assertEqual(2, manifest["included_run_count"])
         self.assertTrue(manifest["config_compatible"])
+        with open(output / "tables" / "first_100_auc.csv", newline="", encoding="utf-8") as handle:
+            auc_rows = list(csv.DictReader(handle))
+        self.assertEqual({"TRAIN", "EVALUATION"}, {
+            row["curve_source"] for row in auc_rows
+        })
 
     def test_duplicate_and_failed_runs_are_rejected(self):
         run_dir = write_run(self.root, "run_a")
@@ -233,6 +239,50 @@ class Plan1PlottingTest(unittest.TestCase):
         write_run_list(run_list, [row])
         _, _, included = load_run_list(run_list)
         with self.assertRaisesRegex(IOError, "verification failed"):
+            validate_run(included[0])
+
+    def test_formal_requires_v2_and_v2_rejects_incomplete_evaluations(self):
+        run_dir = write_run(self.root, "formal_old", role="formal")
+        run_list = self.root / "runs.csv"
+        row = {
+            "role": "formal", "agent": "dqn", "network": "n1",
+            "training_seed": 0, "run_dir": run_dir, "include": "true",
+        }
+        write_run_list(run_list, [row])
+        _, _, included = load_run_list(run_list)
+        with self.assertRaisesRegex(ValueError, "requires evaluation summary schema v2"):
+            validate_run(included[0])
+
+        config_path = run_dir / "config" / "resolved_config.yaml"
+        with config_path.open(encoding="utf-8") as handle:
+            config = yaml.safe_load(handle)
+        config["trainer"].update({
+            "episodes": 10, "steps": 3600, "action_interval": 10,
+            "evaluation_episodes": list(range(11)),
+            "resumable_checkpoint_episodes": [0, 10],
+        })
+        with config_path.open("w", encoding="utf-8") as handle:
+            yaml.safe_dump(config, handle, sort_keys=False)
+        config_hash = hashlib.sha256(config_path.read_bytes()).hexdigest()
+        manifest_path = run_dir / "run_manifest.json"
+        with manifest_path.open(encoding="utf-8") as handle:
+            manifest = json.load(handle)
+        manifest["config_hash"] = config_hash
+        write_json(manifest_path, manifest)
+        config_dir = run_dir / "config"
+        hashes = {
+            path.name: hashlib.sha256(path.read_bytes()).hexdigest()
+            for path in config_dir.iterdir() if path.name != "config_hashes.json"
+        }
+        write_json(config_dir / "config_hashes.json", {
+            "algorithm": "sha256", "files": hashes,
+        })
+        summary_path = run_dir / "evaluation" / "summary.json"
+        with summary_path.open(encoding="utf-8") as handle:
+            summary = json.load(handle)
+        summary["schema_version"] = 2
+        write_json(summary_path, summary)
+        with self.assertRaisesRegex(ValueError, "TRAIN episodes are incomplete"):
             validate_run(included[0])
 
 

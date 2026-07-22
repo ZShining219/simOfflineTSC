@@ -2,6 +2,9 @@ import hashlib
 import json
 from pathlib import Path
 
+import torch
+import yaml
+
 from utils.logger import StructuredMetricLogger, verify_config_archive
 from utils.run_config_compare import compare_runs
 
@@ -70,6 +73,102 @@ def _validate_trajectory_files(run_dir, spec, validation):
         raise ValueError(f"Trajectory validation/index count mismatch: {trajectory_dir}")
 
 
+def _checkpoint_episodes(directory, checkpoint_type, config_hash):
+    files = sorted(directory.glob("episode_*.pt"))
+    episodes = []
+    for path in files:
+        try:
+            payload = torch.load(path, map_location="cpu")
+        except Exception as error:
+            raise IOError(f"Cannot load checkpoint: {path}") from error
+        if (
+            not isinstance(payload, dict)
+            or payload.get("schema_version") != 1
+            or payload.get("checkpoint_type") != checkpoint_type
+            or payload.get("config_hash") != config_hash
+            or not isinstance(payload.get("episode"), int)
+        ):
+            raise ValueError(f"Invalid {checkpoint_type} checkpoint: {path}")
+        expected_name = f"episode_{payload['episode']:04d}.pt"
+        if path.name != expected_name:
+            raise ValueError(f"Checkpoint filename/episode mismatch: {path}")
+        episodes.append(payload["episode"])
+    return episodes
+
+
+def _validate_evaluation_protocol_v2(
+    run_dir, records, summary, resolved_config, config_hash, trajectory_validation,
+):
+    trainer = resolved_config.get("trainer") or {}
+    episodes = trainer.get("episodes")
+    evaluation_episodes = trainer.get("evaluation_episodes")
+    resumable_episodes = trainer.get("resumable_checkpoint_episodes")
+    expected_evaluations = list(range(episodes + 1)) if isinstance(episodes, int) else None
+    if evaluation_episodes != expected_evaluations:
+        raise ValueError(f"New protocol requires evaluation episodes 0..{episodes}: {run_dir}")
+    if (
+        not isinstance(resumable_episodes, list)
+        or not resumable_episodes
+        or resumable_episodes[0] != 0
+        or resumable_episodes[-1] != episodes
+        or resumable_episodes != sorted(set(resumable_episodes))
+        or any(item not in evaluation_episodes for item in resumable_episodes)
+    ):
+        raise ValueError(f"Invalid resumable checkpoint schedule: {run_dir}")
+
+    training = [row for row in records if row["record_type"] == "TRAIN"]
+    evaluations = [
+        row for row in records
+        if row["record_type"] in {"EVALUATION", "FINAL_EVALUATION"}
+    ]
+    if [row["episode"] for row in training] != list(range(1, episodes + 1)):
+        raise ValueError(f"TRAIN episodes are incomplete or non-contiguous: {run_dir}")
+    if [row["episode"] for row in evaluations] != expected_evaluations:
+        raise ValueError(f"Evaluation episodes are incomplete or non-contiguous: {run_dir}")
+    if (
+        any(row["record_type"] != "EVALUATION" for row in evaluations[:-1])
+        or evaluations[-1]["record_type"] != "FINAL_EVALUATION"
+    ):
+        raise ValueError(f"Invalid final evaluation record placement: {run_dir}")
+
+    if (
+        summary.get("evaluation_episodes") != evaluation_episodes
+        or summary.get("resumable_checkpoint_episodes") != resumable_episodes
+        or summary.get("evaluation_checkpoint_count") != len(evaluation_episodes)
+        or summary.get("resumable_checkpoint_count") != len(resumable_episodes)
+        or summary.get("evaluation_isolation_check_count") != len(evaluation_episodes)
+        or summary.get("evaluation_rng_unchanged") is not True
+        or [item.get("episode") for item in summary.get("evaluations", [])]
+        != evaluation_episodes
+    ):
+        raise ValueError(f"Evaluation summary does not match the new protocol: {run_dir}")
+
+    evaluation_checkpoints = _checkpoint_episodes(
+        run_dir / "checkpoints" / "evaluation", "evaluation", config_hash
+    )
+    resumable_checkpoints = _checkpoint_episodes(
+        run_dir / "checkpoints" / "resumable", "resumable", config_hash
+    )
+    if evaluation_checkpoints != evaluation_episodes:
+        raise ValueError(f"Evaluation checkpoint schedule mismatch: {run_dir}")
+    if resumable_checkpoints != resumable_episodes:
+        raise ValueError(f"Resumable checkpoint schedule mismatch: {run_dir}")
+
+    steps = trainer.get("steps")
+    action_interval = trainer.get("action_interval")
+    expected_transitions = (
+        episodes * ((steps + action_interval - 1) // action_interval)
+        if isinstance(steps, int) and isinstance(action_interval, int)
+        else None
+    )
+    if (
+        trajectory_validation.get("episode_count") != episodes
+        or trajectory_validation.get("transition_count") != expected_transitions
+        or trajectory_validation.get("evaluation_transition_count") != 0
+    ):
+        raise ValueError(f"Trajectory counts do not match the new protocol: {run_dir}")
+
+
 def validate_run(spec):
     run_dir = spec.run_dir
     if spec.role not in ALLOWED_ROLES:
@@ -104,6 +203,8 @@ def validate_run(spec):
     config_dir = run_dir / "config"
     verify_config_archive(str(config_dir))
     resolved_path = config_dir / "resolved_config.yaml"
+    with resolved_path.open(encoding="utf-8") as handle:
+        resolved_config = yaml.safe_load(handle)
     resolved_hash = _sha256(resolved_path)
     if manifest.get("config_hash") != resolved_hash:
         raise ValueError(
@@ -123,8 +224,14 @@ def validate_run(spec):
     summary_path = run_dir / "evaluation" / "summary.json"
     if summary_path.is_file():
         evaluation_summary = load_json(summary_path)
-        if evaluation_summary.get("schema_version") != 1:
+        if evaluation_summary.get("schema_version") not in {1, 2}:
             raise ValueError(f"Unsupported evaluation summary schema: {summary_path}")
+        if spec.agent == "dqn" and spec.role == "formal" and (
+            evaluation_summary.get("schema_version") != 2
+        ):
+            raise ValueError(
+                f"Formal DQN run requires evaluation summary schema v2: {summary_path}"
+            )
     elif spec.agent == "dqn" and spec.role in DQN_EVIDENCE_ROLES:
         raise FileNotFoundError(f"DQN {spec.role} evaluation summary is missing: {summary_path}")
 
@@ -139,6 +246,11 @@ def validate_run(spec):
         ):
             raise ValueError(f"Invalid DQN trajectory evidence: {trajectory_path}")
         _validate_trajectory_files(run_dir, spec, trajectory_validation)
+        if evaluation_summary.get("schema_version") == 2:
+            _validate_evaluation_protocol_v2(
+                run_dir, records, evaluation_summary, resolved_config,
+                manifest["config_hash"], trajectory_validation,
+            )
 
     return {
         "spec": spec,

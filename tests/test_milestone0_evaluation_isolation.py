@@ -1,6 +1,8 @@
 import unittest
+import random
 from collections import deque
 
+import numpy as np
 import torch
 
 from trainer.tsc_trainer import EvaluationIsolationGuard
@@ -42,6 +44,7 @@ class EvaluationIsolationTest(unittest.TestCase):
         self.assertEqual(0, trainer.evaluation_isolation_checks[0]['remember_calls'])
         self.assertEqual([3], trainer.evaluation_isolation_checks[0]['replay_lengths'])
         self.assertEqual(5, trainer.evaluation_isolation_checks[0]['trajectory_writes'])
+        self.assertTrue(trainer.evaluation_isolation_checks[0]['rng_unchanged'])
 
     def test_remember_call_fails_immediately(self):
         trainer = DummyTrainer()
@@ -63,6 +66,18 @@ class EvaluationIsolationTest(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, 'mutated protected'):
             with EvaluationIsolationGuard(trainer, 'EVALUATION'):
                 trainer.trajectory_writer.total_count += 1
+
+    def test_rng_mutations_fail(self):
+        mutations = (
+            random.random,
+            np.random.random,
+            lambda: torch.rand(1),
+        )
+        for mutation in mutations:
+            trainer = DummyTrainer()
+            with self.assertRaisesRegex(RuntimeError, 'mutated protected'):
+                with EvaluationIsolationGuard(trainer, 'EVALUATION'):
+                    mutation()
 
 
 if __name__ == '__main__':

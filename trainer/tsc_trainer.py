@@ -18,6 +18,8 @@ from utils.trajectory import EpisodeTrajectoryWriter
 def _state_values_equal(left, right):
     if isinstance(left, torch.Tensor) and isinstance(right, torch.Tensor):
         return torch.equal(left, right)
+    if isinstance(left, np.ndarray) and isinstance(right, np.ndarray):
+        return np.array_equal(left, right)
     if isinstance(left, dict) and isinstance(right, dict):
         return left.keys() == right.keys() and all(
             _state_values_equal(left[key], right[key]) for key in left
@@ -70,6 +72,12 @@ class EvaluationIsolationGuard:
             ),
             'gradient_updates': self.trainer.gradient_updates,
             'global_decision_step': self.trainer.global_decision_step,
+            'python_random_state': random.getstate(),
+            'numpy_random_state': np.random.get_state(),
+            'torch_cpu_rng_state': torch.get_rng_state(),
+            'torch_cuda_rng_states': (
+                torch.cuda.get_rng_state_all() if torch.cuda.is_available() else []
+            ),
         }
 
     def __enter__(self):
@@ -111,6 +119,7 @@ class EvaluationIsolationGuard:
             'trajectory_writes': after['trajectory_writes'],
             'gradient_updates': after['gradient_updates'],
             'global_decision_step': after['global_decision_step'],
+            'rng_unchanged': True,
         })
         return False
 
@@ -147,6 +156,13 @@ class TSCTrainer(BaseTrainer):
             Registry.mapping['trainer_mapping']['setting'].param.get(
                 'evaluation_episodes'
             )
+        )
+        configured_resumable = Registry.mapping['trainer_mapping']['setting'].param.get(
+            'resumable_checkpoint_episodes'
+        )
+        self.resumable_checkpoint_episodes = self._resolve_resumable_checkpoint_episodes(
+            self.evaluation_episodes
+            if configured_resumable is None else configured_resumable
         )
         self.global_decision_step = 0
         self.gradient_updates = 0
@@ -209,6 +225,34 @@ class TSCTrainer(BaseTrainer):
             raise ValueError('evaluation_episodes contains an out-of-range episode')
         return tuple(resolved)
 
+    def _resolve_resumable_checkpoint_episodes(self, configured):
+        if configured is None:
+            return None
+        if not isinstance(configured, (list, tuple)) or not all(
+            isinstance(item, int) for item in configured
+        ):
+            raise ValueError(
+                'resumable_checkpoint_episodes must be a list of integers'
+            )
+        resolved = sorted(set(configured))
+        if list(configured) != resolved:
+            raise ValueError(
+                'resumable_checkpoint_episodes must be sorted and unique'
+            )
+        if not resolved or resolved[0] != 0 or resolved[-1] != self.episodes:
+            raise ValueError(
+                'resumable_checkpoint_episodes must include 0 and the configured '
+                'episode count'
+            )
+        if self.evaluation_episodes is not None and any(
+            item not in self.evaluation_episodes for item in resolved
+        ):
+            raise ValueError(
+                'resumable_checkpoint_episodes must be a subset of '
+                'evaluation_episodes'
+            )
+        return tuple(resolved)
+
     def _uses_explicit_evaluation_schedule(self):
         return self.evaluation_episodes is not None
 
@@ -230,9 +274,25 @@ class TSCTrainer(BaseTrainer):
         best = min(ordered, key=lambda item: (item['travel_time'], item['episode']))
         final = self.evaluation_results.get(self.episodes)
         payload = {
-            'schema_version': 1,
+            'schema_version': 2,
             'selection_metric': 'travel_time',
             'selection_rule': 'minimum_then_earliest_episode',
+            'evaluation_episodes': list(self.evaluation_episodes or ()),
+            'resumable_checkpoint_episodes': list(
+                self.resumable_checkpoint_episodes or ()
+            ),
+            'evaluation_checkpoint_count': len(ordered),
+            'resumable_checkpoint_count': sum(
+                episode in (self.resumable_checkpoint_episodes or ())
+                for episode in self.evaluation_results
+            ),
+            'evaluation_isolation_check_count': len(
+                self.evaluation_isolation_checks
+            ),
+            'evaluation_rng_unchanged': all(
+                check.get('rng_unchanged') is True
+                for check in self.evaluation_isolation_checks
+            ),
             'best_episode': best['episode'],
             'best_travel_time': best['travel_time'],
             'best_checkpoint': os.path.relpath(
@@ -264,7 +324,9 @@ class TSCTrainer(BaseTrainer):
         return path
 
     def _run_scheduled_evaluation(self, completed_episodes):
-        self.save_milestone_checkpoints(completed_episodes)
+        self.save_checkpoint('evaluation', completed_episodes)
+        if completed_episodes in (self.resumable_checkpoint_episodes or ()):
+            self.save_checkpoint('resumable', completed_episodes)
         record_type = (
             'FINAL_EVALUATION'
             if completed_episodes == self.episodes else 'EVALUATION'

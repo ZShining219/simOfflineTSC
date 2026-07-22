@@ -12,10 +12,12 @@ from .aggregations import (
 )
 from .loaders import REQUIRED_RUN_LIST_FIELDS, load_run_list
 from .plotting import render_all
+from .plan2 import run_plan2_analysis
 from .validators import compare_dqn_run_configs, validate_run
 
 
 DEFAULT_OUTPUT_ROOT = Path("data/output_data/analysis/plan1")
+DEFAULT_PLAN2_OUTPUT_ROOT = Path("data/output_data/analysis/plan2")
 
 
 def _json_dump(path, value):
@@ -43,6 +45,14 @@ def build_parser():
     plan1.add_argument("--analysis-id", required=True, type=_analysis_id)
     plan1.add_argument("--output-root", default=str(DEFAULT_OUTPUT_ROOT))
     plan1.add_argument("--dpi", type=int, default=160)
+    plan2 = subparsers.add_parser("plan2", help="Validate and aggregate Plan 2 runs")
+    plan2.add_argument("--run-list", required=True, help="Explicit Plan 2 CSV run-list")
+    plan2.add_argument("--analysis-id", required=True, type=_analysis_id)
+    plan2.add_argument("--output-root", default=str(DEFAULT_PLAN2_OUTPUT_ROOT))
+    plan2.add_argument(
+        "--allow-incomplete", action="store_true",
+        help="Development-only: permit non-144k schedules and incomplete five-seed cells",
+    )
     return parser
 
 
@@ -121,6 +131,9 @@ def main(argv=None):
     if args.command == "plan1":
         output_dir = run_plan1(args)
         print(f"Plan 1 analysis completed: {output_dir}")
+    elif args.command == "plan2":
+        output_dir = run_plan2_analysis(args)
+        print(f"Plan 2 analysis completed: {output_dir}")
 
 
 if __name__ == "__main__":

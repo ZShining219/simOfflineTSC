@@ -10,17 +10,31 @@
 - 支持 DQN、FRAP、CoLight、PressLight、MPLight、MADDPG、MAGD、PPO 等强化学习方法。
 - 包含合成路网、杭州、纽约、科隆等多种实验数据与配置。
 - 提供 SUMO 与 CityFlow 路网、交通流格式转换工具。
+- 提供与 Online 入口隔离的 Plan 2 纯 Offline Batch-DQN/CQL-DQN 训练、数据校验、断点恢复和结果汇总能力。
+
+## Online 与 Offline 入口
+
+两种训练模式不能混用：
+
+| 模式 | 正确入口 | 配置 | 输出 |
+| --- | --- | --- | --- |
+| Online/传统 TSC | `run.py` | `configs/tsc/` | `data/output_data/tsc/` |
+| Plan 2 纯 Offline DQN | `offline_run.py` | `configs/offline_tsc/` | `data/output_data/offline_tsc/` |
+
+`offline_run.py` 只从已校验的 Plan 1 正式 trajectory 索引训练，SUMO 仅用于固定节点评估；训练期间不会向数据集写入 transition。不要通过 `run.py` 调用 `batch_dqn` 或 `cql_dqn`。完整说明见 [docs/plan2_offline_support.md](docs/plan2_offline_support.md)。
 
 ## 项目结构
 
 | 路径 | 说明 |
 | --- | --- |
 | run.py | 实验主入口和命令行参数定义 |
+| offline_run.py | Plan 2 数据准备、校验和纯离线训练入口 |
 | agent/ | 传统控制及强化学习智能体 |
 | world/ | CityFlow、SUMO 等仿真器适配层 |
 | trainer/ | 训练与评估流程 |
 | task/ | 交通信号控制任务编排 |
 | configs/tsc/ | 智能体和训练参数 |
+| configs/offline_tsc/ | Plan 2 Offline DQN 参数；不影响 Online 配置 |
 | configs/sim/ | 仿真器及路网配置 |
 | data/raw_data/ | 路网、交通流和信号方案数据 |
 | common/ | 注册器、配置加载、指标及格式转换工具 |
@@ -43,6 +57,8 @@ docs/ 用于保存与用户讨论后形成的 plan、goal，以及其他非永�
 - CityFlow 或 SUMO
 
 仓库中的 requirements.txt 仅包含核心 Python 依赖。PyTorch、仿真器及部分智能体所需的扩展库需要根据实际实验单独安装。
+
+Plan 2 额外固定使用 `d3rlpy==2.0.4`。为避免改动当前 Torch/Gym/NumPy，进入 `colight` 环境后使用 `python -m pip install --no-deps -r requirements-offline.txt`。第三方来源与适配边界见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
 
 ## 安装
 
@@ -146,6 +162,19 @@ python run.py \
 | --delay_type | apx | 延误计算方式，可选近似值 apx 或真实值 real |
 
 训练轮数、批量大小、学习率、测试频率和日志路径等参数位于 configs/tsc/*.yml；仿真路网、交通流文件和仿真参数位于 configs/sim/*.cfg。
+
+### Plan 2 Offline 快速入口
+
+Plan 2 分三步执行：先从明确的 Plan 1 正式运行白名单生成只读数据索引，再校验 manifest，最后训练：
+
+```bash
+python offline_run.py prepare-plan2 --run-list plan1_formal_runs.csv --dataset-id plan2_formal_v1
+python offline_run.py validate-dataset --manifest /path/to/manifest.json
+python offline_run.py train --agent batch_dqn --network sumohz1x1 \
+  --dataset-manifest /path/to/manifest.json --prefix p2_batch_seed1000 --seed 1000
+```
+
+`--seed` 在该入口中明确表示 `offline_training_seed`，正式取值为 1000～1004；源轨迹中的 0～4 始终记录为 `behavior_training_seeds`。更多命令、resume 和汇总格式见 [Plan 2 支持说明](docs/plan2_offline_support.md)。
 
 ## 输出结果
 

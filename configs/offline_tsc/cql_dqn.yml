@@ -1,0 +1,6 @@
+includes:
+  - configs/offline_tsc/base.yml
+
+model:
+  name: cql_dqn
+  cql_alpha: 1.0

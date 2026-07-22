@@ -1,0 +1,9 @@
+# Install after requirements.txt inside the existing colight environment.
+# Do not let pip replace the repository's Torch, Gym, or NumPy versions.
+d3rlpy==2.0.4
+structlog==20.2.0
+colorama==0.4.4
+dataclasses-json==0.5.14
+marshmallow==3.26.2
+typing-inspect==0.9.0
+mypy-extensions==1.1.0

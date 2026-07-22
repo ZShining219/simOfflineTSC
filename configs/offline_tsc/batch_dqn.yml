@@ -1,0 +1,6 @@
+includes:
+  - configs/offline_tsc/base.yml
+
+model:
+  name: batch_dqn
+  cql_alpha: 0.0

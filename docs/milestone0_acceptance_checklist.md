@@ -27,8 +27,8 @@
 | M0-04 | 相同 network 与 prefix 不会静默覆盖或混写 | 已通过 | unittest `test_duplicate_prefix_is_rejected` | 明确要求使用新 prefix | `442f2c0` |  |
 | M0-04A | configs/sim 源 cfg 运行前后哈希一致，SUMO 使用运行专属 resolved cfg | 已通过 | unittest 并发检查 + `sha256sum configs/sim/sumohz1x1.cfg` | 两 prefix 隔离；前后均为 `314f…9dbd` | `442f2c0` |  |
 | M0-04B | baseline_commit 被固定为分支创建时最新 origin/main 完整 SHA | 已通过 | `git rev-parse` + 实施契约 | `73d860bb3924ec15c30433a8f8b7af17787baeff` | `1eb3bd9` | 后续 origin/main 更新不改变本次基线 |
-| M0-05 | 运行身份、开始/结束时间、状态和失败原因可追溯 | 已通过 | 见 `docs/verification/milestone0/function2_run_state.md` | 完成与失败真实 Runner 路径均逐字段读取断言 | `60a2759` |  |
-| M0-06 | 失败运行不会被误判为正式完成结果 | 已通过 | 受控任务异常 smoke + 状态机 unittest | 失败状态、非零退出码和异常类型明确；终态不可转完成 | `60a2759` |  |
+| M0-05 | 运行身份、开始/结束时间、状态和失败原因可追溯 | 已通过 | 见 `docs/verification/milestone0/function2_run_state.md` | 完成、task 失败和 pre-archive 初始化失败均逐字段断言 | `60a2759` + 最终修复提交 |  |
+| M0-06 | 失败运行不会被误判为正式完成结果 | 已通过 | 受控 task/初始化异常 + 状态机 unittest | 失败状态、非零退出码和异常类型明确；终态不可转完成 | `60a2759` + 最终修复提交 |  |
 | M0-07 | README 明确未限定 seed 即 training_seed，且不管理 SUMO seed | 已通过 | README 审阅 + `docs/verification/milestone0/function3_reproducibility.md` | 边界已明确且未新增 SUMO seed 参数 | `fd0f7c4` | 对应决策 RD-001 |
 | M0-08 | 运行产物记录 training_seed 与 sumo_seed_mode=fixed_default | 已通过 | 两次真实 DQN manifest 逐字段断言 | training_seed=19，sumo_seed_mode=fixed_default | `fd0f7c4` |  |
 | M0-09 | 同 training_seed 的初始化模型和关键随机边界可检查 | 已通过 | 两次独立 DQN smoke + 哈希/RNG unittest | online/target hash、Python/NumPy 序列均一致 | `fd0f7c4` | 不承诺不同硬件完全位级一致 |

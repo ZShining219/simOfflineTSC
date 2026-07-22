@@ -109,6 +109,43 @@ class RunStateManager:
         _write_json_atomic(self.manifest_path, self.manifest)
         _write_json_atomic(self.status_path, self.status)
 
+    @classmethod
+    def record_initialization_failure(cls, config, output_path, error, exit_code=1):
+        """Record a failure after directory reservation but before config archival."""
+        command = config['command']
+        run_id = '/'.join((
+            command['task'], f"{command['world']}_{command['agent']}",
+            command['network'], command['prefix'],
+        ))
+        created_at = _utc_now()
+        manifest = {
+            'schema_version': RUN_SCHEMA_VERSION,
+            'run_id': run_id,
+            'task': command['task'],
+            'agent': command['agent'],
+            'world': command['world'],
+            'network': command['network'],
+            'prefix': command['prefix'],
+            'training_seed': command['seed'],
+            'sumo_seed_mode': 'fixed_default',
+            'baseline_commit': BASELINE_COMMIT,
+            'created_at_utc': created_at,
+            'config_hash': None,
+        }
+        status = {
+            'schema_version': RUN_SCHEMA_VERSION,
+            'run_id': run_id,
+            'status': '失败',
+            'started_at_utc': None,
+            'finished_at_utc': _utc_now(),
+            'exit_code': exit_code,
+            'error_type': type(error).__name__,
+            'error_message': _sanitize_error_message(error),
+        }
+        _write_json_atomic(os.path.join(output_path, 'run_manifest.json'), manifest)
+        _write_json_atomic(os.path.join(output_path, 'run_status.json'), status)
+        return manifest, status
+
     def transition(self, status, exit_code=None, error=None):
         if status not in RUN_STATUSES:
             raise ValueError(f'Invalid run status: {status}')

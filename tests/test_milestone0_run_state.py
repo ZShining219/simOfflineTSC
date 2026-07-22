@@ -69,6 +69,17 @@ class RunStateTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'requires exit_code=0'):
             state.transition('已完成', exit_code=2)
 
+    def test_pre_archive_initialization_failure_is_recorded(self):
+        error = RuntimeError('initialization failed')
+        manifest, status = RunStateManager.record_initialization_failure(
+            self.config, self.output, error
+        )
+        self.assertIsNone(manifest['config_hash'])
+        self.assertEqual('失败', status['status'])
+        self.assertIsNone(status['started_at_utc'])
+        self.assertEqual(1, status['exit_code'])
+        self.assertEqual('RuntimeError', status['error_type'])
+
 
 if __name__ == '__main__':
     unittest.main()

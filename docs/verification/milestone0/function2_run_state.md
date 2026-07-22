@@ -7,5 +7,6 @@
 - 失败 smoke：同一 agent/network/seed，通过临时内存任务对象抛出 `RuntimeError('controlled failure marker')`；进程退出码 1。
 - 失败产物：`data/output_data/tsc/sumo_fixedtime/sumohz1x1/m0f2_failure_20260722/run_status.json`；状态为“失败”，exit_code=1，error_type=`RuntimeError`，错误信息为受控标记。
 - 字段校验：run_id、task、agent、world、network、prefix、training_seed、sumo_seed_mode、baseline_commit、created/started/finished、status、exit_code、error_type、error_message、config_hash 均由两文件提供。
+- 最终审计补充：目录已独占创建但 config archive 尚未形成时若初始化失败，仍原子写 manifest/status；该失败 manifest 的 `config_hash=null` 表示 resolved_config 尚不存在，status 为“失败”、started_at_utc=null、非零退出码。重复 prefix 在目录预留前失败，不会改写既有运行。
 - 清理校验：临时 FixedTime YAML 已恢复；`configs/sim/sumohz1x1.cfg` SHA-256 仍为 `314f1915c21344269dfb096f71d48741b5d16205b49b0c242a0f962796bb9dbd`。
 - 行为边界：仅增加运行身份和状态生命周期，不改变算法或仿真数值语义。

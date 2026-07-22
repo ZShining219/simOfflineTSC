@@ -18,14 +18,18 @@ class Plan1BaselineConfigTest(unittest.TestCase):
                 f"{agent} must label its single final evaluation as episode 1",
             )
 
-    def test_formal_dqn_schedule_is_frozen(self):
+    def test_dqn_ab_sparse_schedule_is_explicit(self):
         path = PROJECT_ROOT / "configs" / "tsc" / "dqn.yml"
         with path.open(encoding="utf-8") as handle:
             config = yaml.safe_load(handle)
-        self.assertEqual(400, config["trainer"].get("episodes"))
+        self.assertEqual(5, config["trainer"].get("episodes"))
         self.assertEqual(
-            [0, 10, 25, 50, 100, 150, 200, 250, 300, 350, 400],
+            [0, 5],
             config["trainer"].get("evaluation_episodes"),
+        )
+        self.assertEqual(
+            [0, 5],
+            config["trainer"].get("resumable_checkpoint_episodes"),
         )
 
 

@@ -37,6 +37,29 @@ def _atomic_write(path, content):
         raise
 
 
+def verify_config_archive(config_path):
+    """Verify every archived file against the persisted SHA-256 manifest."""
+    manifest_path = os.path.join(config_path, 'config_hashes.json')
+    try:
+        manifest = json.loads(_read_bytes(manifest_path).decode('utf-8'))
+    except (FileNotFoundError, JSONDecodeError, UnicodeDecodeError) as error:
+        raise IOError(f'Invalid configuration hash manifest: {manifest_path}') from error
+    if manifest.get('algorithm') != 'sha256' or not isinstance(manifest.get('files'), dict):
+        raise IOError(f'Invalid configuration hash manifest schema: {manifest_path}')
+    for name, expected_hash in manifest['files'].items():
+        archived_path = os.path.join(config_path, name)
+        try:
+            actual_hash = hashlib.sha256(_read_bytes(archived_path)).hexdigest()
+        except FileNotFoundError as error:
+            raise IOError(f'Configuration archive file is missing: {name}') from error
+        if actual_hash != expected_hash:
+            raise IOError(
+                f'Configuration archive verification failed for {name}: '
+                f'expected {expected_hash}, got {actual_hash}'
+            )
+    return manifest['files']
+
+
 def capture_config_sources(config):
     """Capture immutable source configuration before simulator registration."""
     command = config['command']
@@ -73,13 +96,28 @@ def reserve_run_output(config):
     return output_path
 
 
+def resolve_simulator_config(config, source_content=None):
+    """Create and resolve the simulator config inside the reserved run directory."""
+    network = config['command']['network']
+    source_path = os.path.join('configs', 'sim', f'{network}.cfg')
+    if source_content is None:
+        source_content = _read_bytes(source_path)
+    resolved_path = os.path.join(
+        get_output_file_path(config), CONFIG_ARCHIVE_DIR, 'simulator_resolved.cfg'
+    )
+    _atomic_write(resolved_path, source_content)
+    other_world_settings = modify_config_file(resolved_path, config)
+    return resolved_path, other_world_settings
+
+
 def archive_run_config(config, source_snapshots, resolved_world):
     """Archive source and effective configuration before Trainer creation."""
     output_path = get_output_file_path(config)
     config_path = os.path.join(output_path, CONFIG_ARCHIVE_DIR)
-    simulator_path = os.path.join(
+    simulator_source_path = os.path.join(
         'configs', 'sim', f"{config['command']['network']}.cfg"
     )
+    simulator_path = os.path.join(config_path, 'simulator_resolved.cfg')
     snapshots = dict(source_snapshots)
     snapshots['simulator_resolved.cfg'] = _read_bytes(simulator_path)
 
@@ -93,7 +131,7 @@ def archive_run_config(config, source_snapshots, resolved_world):
                 'configs', config['command']['task'],
                 f"{config['command']['agent']}.yml"
             ),
-            simulator_path,
+            simulator_source_path,
         ],
     }
     snapshots['resolved_config.yaml'] = yaml.safe_dump(
@@ -112,19 +150,153 @@ def archive_run_config(config, source_snapshots, resolved_world):
     for name, content in snapshots.items():
         _atomic_write(os.path.join(config_path, name), content)
 
-    archived_hashes = json.loads(
-        _read_bytes(os.path.join(config_path, 'config_hashes.json')).decode('utf-8')
-    )['files']
-    for name, expected_hash in archived_hashes.items():
-        actual_hash = hashlib.sha256(
-            _read_bytes(os.path.join(config_path, name))
-        ).hexdigest()
-        if actual_hash != expected_hash:
-            raise IOError(
-                f'Configuration archive verification failed for {name}: '
-                f'expected {expected_hash}, got {actual_hash}'
-            )
+    verify_config_archive(config_path)
     return config_path
+
+
+def _json_value(value):
+    """Convert common scalar configuration values to JSON-safe values."""
+    if hasattr(value, 'item'):
+        return value.item()
+    if isinstance(value, (str, int, float, bool)) or value is None:
+        return value
+    return str(value)
+
+
+def _describe_torch_model(model):
+    if model is None:
+        return None
+
+    import torch.nn as nn
+
+    linear_layers = [module for module in model.modules() if isinstance(module, nn.Linear)]
+    description = {
+        'class': model.__class__.__name__,
+        'module': model.__class__.__module__,
+        'parameter_count': sum(parameter.numel() for parameter in model.parameters()),
+        'trainable_parameter_count': sum(
+            parameter.numel() for parameter in model.parameters() if parameter.requires_grad
+        ),
+        'linear_layers': [
+            {
+                'in_features': layer.in_features,
+                'out_features': layer.out_features,
+                'bias': layer.bias is not None,
+            }
+            for layer in linear_layers
+        ],
+    }
+    if linear_layers:
+        description.update({
+            'input_dim': linear_layers[0].in_features,
+            'hidden_layers': [layer.out_features for layer in linear_layers[:-1]],
+            'output_dim': linear_layers[-1].out_features,
+        })
+    if hasattr(model, 'activation_name'):
+        description['activation'] = _json_value(model.activation_name)
+    return description
+
+
+def _describe_optimizer(optimizer):
+    if optimizer is None:
+        return None
+    param_groups = []
+    for group in optimizer.param_groups:
+        param_groups.append({
+            key: _json_value(value)
+            for key, value in group.items()
+            if key != 'params'
+        })
+    return {
+        'class': optimizer.__class__.__name__,
+        'module': optimizer.__class__.__module__,
+        'defaults': {
+            key: _json_value(value)
+            for key, value in optimizer.defaults.items()
+        },
+        'param_groups': param_groups,
+    }
+
+
+def _describe_loss(criterion):
+    if criterion is None:
+        return None
+    description = {
+        'class': criterion.__class__.__name__,
+        'module': criterion.__class__.__module__,
+    }
+    if hasattr(criterion, 'reduction'):
+        description['reduction'] = criterion.reduction
+    return description
+
+
+def _describe_agent(agent, rank):
+    model = getattr(agent, 'model', None)
+    target_model = getattr(agent, 'target_model', None)
+    action_space = getattr(agent, 'action_space', None)
+    description = {
+        'rank': rank,
+        'class': agent.__class__.__name__,
+        'module': agent.__class__.__module__,
+        'action_dim': getattr(action_space, 'n', None),
+        'model': _describe_torch_model(model),
+        'target_model': _describe_torch_model(target_model),
+        'optimizer': _describe_optimizer(getattr(agent, 'optimizer', None)),
+        'loss': _describe_loss(getattr(agent, 'criterion', None)),
+    }
+    if model is not None and target_model is not None:
+        import torch
+
+        model_state = model.state_dict()
+        target_state = target_model.state_dict()
+        description['target_matches_model_at_archive'] = (
+            model_state.keys() == target_state.keys()
+            and all(
+                torch.equal(model_state[name], target_state[name])
+                for name in model_state
+            )
+        )
+    controller_parameters = {}
+    for name in ('t_fixed', 't_min'):
+        if hasattr(agent, name):
+            controller_parameters[name] = _json_value(getattr(agent, name))
+    if controller_parameters:
+        description['controller_parameters'] = controller_parameters
+    return description
+
+
+def _refresh_config_hashes(config_path):
+    files = {}
+    for name in sorted(os.listdir(config_path)):
+        path = os.path.join(config_path, name)
+        if name == 'config_hashes.json' or not os.path.isfile(path):
+            continue
+        files[name] = hashlib.sha256(_read_bytes(path)).hexdigest()
+    hash_content = (
+        json.dumps({'algorithm': 'sha256', 'files': files}, indent=2, sort_keys=True)
+        + '\n'
+    ).encode('utf-8')
+    _atomic_write(os.path.join(config_path, 'config_hashes.json'), hash_content)
+
+    verify_config_archive(config_path)
+
+
+def archive_runtime_model(config_path, trainer, agent_name):
+    """Record the models/controllers actually created before task execution."""
+    if trainer.agents is None:
+        raise RuntimeError('Cannot archive runtime model before agents are created')
+    description = {
+        'schema_version': 1,
+        'agent': agent_name,
+        'agents': [
+            _describe_agent(agent, rank)
+            for rank, agent in enumerate(trainer.agents)
+        ],
+    }
+    content = (json.dumps(description, indent=2, sort_keys=True) + '\n').encode('utf-8')
+    _atomic_write(os.path.join(config_path, 'model_resolved.json'), content)
+    _refresh_config_hashes(config_path)
+    return os.path.join(config_path, 'model_resolved.json')
 
 
 def modify_config_file(path, config):

@@ -57,7 +57,9 @@ class Runner:
 
         interface.Command_Setting_Interface(self.config)
         interface.Logger_param_Interface(self.config)  # register logger path
-        interface.World_param_Interface(self.config)
+        interface.World_param_Interface(
+            self.config, self.config_sources['simulator_source.cfg']
+        )
         if self.config['model'].get('graphic', False):
             param = Registry.mapping['world_mapping']['setting'].param
             if self.config['command']['world'] in ['cityflow', 'sumo']:
@@ -76,6 +78,11 @@ class Runner:
         logger = setup_logging(logging_level)
         self.trainer = Registry.mapping['trainer_mapping']\
             [Registry.mapping['command_mapping']['setting'].param['task']](logger)
+        self.model_archive_path = archive_runtime_model(
+            self.config_archive_path,
+            self.trainer,
+            Registry.mapping['command_mapping']['setting'].param['agent'],
+        )
         self.task = Registry.mapping['task_mapping']\
             [Registry.mapping['command_mapping']['setting'].param['task']](self.trainer)
         start_time = time.time()

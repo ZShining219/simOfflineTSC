@@ -21,12 +21,12 @@
 
 | 编号 | 验收项 | 状态 | 验证命令 | 关键结果/证据 | 关联提交 | 备注 |
 |---|---|---|---|---|---|---|
-| M0-01 | 源 YAML、simulator source/resolved 和最终配置自动归档 | 进行中 | 待独立分支复验 | 当前工作区已有实现，尚未按本契约形成独立功能提交 | 待填写 | 不提前判定通过 |
-| M0-02 | 运行时模型、target、optimizer、loss 或传统控制器参数被实际对象归档 | 进行中 | 待独立分支复验 | 当前工作区已有实现，尚未按本契约形成独立功能提交 | 待填写 | DQN 与 FixedTime 均需复验 |
-| M0-03 | 配置与运行时描述均进入 SHA-256 清单并通过回读校验 | 进行中 | 待独立分支复验 | 配置损坏/缺失失败路径也需验证 | 待填写 |  |
-| M0-04 | 相同 network 与 prefix 不会静默覆盖或混写 | 进行中 | 待独立分支复验 | 必须验证明确失败信息 | 待填写 |  |
-| M0-04A | configs/sim 源 cfg 运行前后哈希一致，SUMO 使用运行专属 resolved cfg | 未开始 |  |  |  | 包含两个不同 prefix 的并发解析检查 |
-| M0-04B | baseline_commit 被固定为分支创建时最新 origin/main 完整 SHA | 未开始 |  |  |  | 后续 origin/main 更新不改变本次基线 |
+| M0-01 | 源 YAML、simulator source/resolved 和最终配置自动归档 | 已通过 | 见 `docs/verification/milestone0/function1_config_archive.md` | FixedTime、DQN 真实产物含全部配置快照 | 本功能提交 |  |
+| M0-02 | 运行时模型、target、optimizer、loss 或传统控制器参数被实际对象归档 | 已通过 | 同上 | DQN 16→20→20→8/RMSprop/MSE；FixedTime `t_fixed=30` | 本功能提交 |  |
+| M0-03 | 配置与运行时描述均进入 SHA-256 清单并通过回读校验 | 已通过 | unittest + 真实产物 `verify_config_archive` | 正常、损坏和缺失文件路径均验证 | 本功能提交 |  |
+| M0-04 | 相同 network 与 prefix 不会静默覆盖或混写 | 已通过 | unittest `test_duplicate_prefix_is_rejected` | 明确要求使用新 prefix | 本功能提交 |  |
+| M0-04A | configs/sim 源 cfg 运行前后哈希一致，SUMO 使用运行专属 resolved cfg | 已通过 | unittest 并发检查 + `sha256sum configs/sim/sumohz1x1.cfg` | 两 prefix 隔离；前后均为 `314f…9dbd` | 本功能提交 |  |
+| M0-04B | baseline_commit 被固定为分支创建时最新 origin/main 完整 SHA | 已通过 | `git rev-parse` + 实施契约 | `73d860bb3924ec15c30433a8f8b7af17787baeff` | `1eb3bd9` | 后续 origin/main 更新不改变本次基线 |
 | M0-05 | 运行身份、开始/结束时间、状态和失败原因可追溯 | 未开始 |  |  |  |  |
 | M0-06 | 失败运行不会被误判为正式完成结果 | 未开始 |  |  |  |  |
 | M0-07 | README 明确未限定 seed 即 training_seed，且不管理 SUMO seed | 未开始 |  |  |  | 对应决策 RD-001 |

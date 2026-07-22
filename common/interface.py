@@ -1,6 +1,10 @@
 from common.utils import build_index_intersection_map_cityflow, build_index_intersection_map_sumo
 from common.registry import Registry
-from utils.logger import load_config_dict, modify_config_file, get_output_file_path
+from utils.logger import (
+    get_output_file_path,
+    load_config_dict,
+    resolve_simulator_config,
+)
 import os
 
 
@@ -38,10 +42,12 @@ class World_param_Interface(Interface):
     """
     use this interface to load and modify simulator configuration of logfiles
     """
-    def __init__(self, config):
+    def __init__(self, config, simulator_source=None):
         super(World_param_Interface, self).__init__()
-        path = os.path.join(os.getcwd(), 'configs/sim', config['command']['network'] + '.cfg')
-        other_world_settings = modify_config_file(path, config)
+        path, other_world_settings = resolve_simulator_config(
+            config, source_content=simulator_source
+        )
+        World_param_Interface.config_path = path
         World_param_Interface.param = load_config_dict(path, other_world_settings)
         
 

@@ -299,6 +299,7 @@ class DQNNet(nn.Module):
     '''
     def __init__(self, input_dim, output_dim):
         super(DQNNet, self).__init__()
+        self.activation_name = 'relu'
         self.dense_1 = nn.Linear(input_dim, 20)
         self.dense_2 = nn.Linear(20, 20)
         self.dense_3 = nn.Linear(20, output_dim)

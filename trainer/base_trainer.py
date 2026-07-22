@@ -18,7 +18,7 @@ class BaseTrainer(ABC):
         cpu=False,
         name="base"
     ):
-        self.path = os.path.join('configs/sim', Registry.mapping['command_mapping']['setting'].param['network'] + '.cfg')
+        self.path = Registry.mapping['world_mapping']['setting'].config_path
         self.save_replay = Registry.mapping['world_mapping']['setting'].param['saveReplay']
         if self.save_replay:
             if Registry.mapping['command_mapping']['setting'].param['world'] == 'cityflow':
@@ -136,4 +136,3 @@ class BaseTrainer(ABC):
     def test(self, drop_load=False):
         """Derived classes should implement this function."""
         
-

@@ -18,17 +18,17 @@ class Plan1BaselineConfigTest(unittest.TestCase):
                 f"{agent} must label its single final evaluation as episode 1",
             )
 
-    def test_dqn_ab_dense_schedule_is_explicit(self):
+    def test_dqn_new_pilot_schedule_is_explicit(self):
         path = PROJECT_ROOT / "configs" / "tsc" / "dqn.yml"
         with path.open(encoding="utf-8") as handle:
             config = yaml.safe_load(handle)
-        self.assertEqual(5, config["trainer"].get("episodes"))
+        self.assertEqual(100, config["trainer"].get("episodes"))
         self.assertEqual(
-            [0, 1, 2, 3, 4, 5],
+            list(range(101)),
             config["trainer"].get("evaluation_episodes"),
         )
         self.assertEqual(
-            [0, 5],
+            [0, 10, 25, 50, 100],
             config["trainer"].get("resumable_checkpoint_episodes"),
         )
 

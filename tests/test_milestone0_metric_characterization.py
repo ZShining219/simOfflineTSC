@@ -18,6 +18,12 @@ class DummyWorld:
     def get_real_delay(self):
         return 2.5
 
+    def get_average_waiting_time(self):
+        return 3.5
+
+    def get_unfinished_vehicle_count(self):
+        return 4
+
 
 class DummyAgent:
     def __init__(self, queue, delay):
@@ -43,10 +49,14 @@ class MetricCharacterizationTest(unittest.TestCase):
         self.assertEqual(2, metrics.delay())
         self.assertEqual(7, metrics.throughput())
         self.assertEqual(12.5, metrics.real_average_travel_time())
+        self.assertEqual(2.5, metrics.real_delay())
+        self.assertEqual(3.5, metrics.waiting_time())
+        self.assertEqual(4, metrics.unfinished_vehicles())
 
-    def test_real_delay_branch_delegates_to_world(self):
+    def test_real_delay_is_available_alongside_primary_approximate_delay(self):
         metrics = Metrics(['rewards', 'queue'], ['delay'], DummyWorld(), [])
-        self.assertEqual(2.5, metrics.delay())
+        self.assertEqual(0.0, metrics.delay())
+        self.assertEqual(2.5, metrics.real_delay())
 
 
 if __name__ == '__main__':

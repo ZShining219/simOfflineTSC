@@ -64,18 +64,26 @@ class Metrics(object):
         :param: None
         :return: real delay or approximate delay
         '''
-        # real_delay
-        if 'delay' not in self.lane_metrics.keys():
-            return self.world.get_real_delay()
-        
-        # apx_delay
-        else:
-            try:
-                result = self.lane_metrics['delay']
-                return np.sum(result) / (self.decision_num * len(self.world.intersections))
-            except KeyError:
-                print(('apx delay is not recorded in lane_metrics, please add it into the list'))
-                return None
+        return self.approximate_delay()
+
+    def approximate_delay(self):
+        if self.decision_num == 0:
+            return 0.0
+        try:
+            result = self.lane_metrics['delay']
+            return np.sum(result) / (self.decision_num * len(self.world.intersections))
+        except KeyError:
+            print(('apx delay is not recorded in lane_metrics, please add it into the list'))
+            return None
+
+    def real_delay(self):
+        return self.world.get_real_delay()
+
+    def waiting_time(self):
+        return self.world.get_average_waiting_time()
+
+    def unfinished_vehicles(self):
+        return self.world.get_unfinished_vehicle_count()
 
     # def lane_delay(self):
     #     try:
@@ -93,6 +101,8 @@ class Metrics(object):
         :param: None
         :return: total queue length
         '''
+        if self.decision_num == 0:
+            return 0.0
         try:
             result = self.lane_metrics['queue']
             return np.sum(result) / (self.decision_num * len(self.world.intersections))
@@ -123,6 +133,8 @@ class Metrics(object):
         :param: None
         :return: total rewards
         '''
+        if self.decision_num == 0:
+            return 0.0
         result = self.lane_metrics['rewards']
         return np.sum(result) / self.decision_num
     

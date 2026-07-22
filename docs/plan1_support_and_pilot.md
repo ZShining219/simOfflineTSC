@@ -140,4 +140,19 @@ Pilot 节点为 `[0, 10, 25, 50, 100]`。Pilot 通过后，正式节点冻结为
 
 ## 7. 执行记录
 
-后续按模块追加：提交哈希、测试命令、真实运行命令、产物地址、验收结论、异常和修复记录。
+### 模块 0：文档与执行基线
+
+- 状态：已通过；
+- 提交：`6bc3645 明确Plan 1项目支持与Pilot执行计划`；
+- 远端：已推送 `origin/codex/milestone0-experiment-infrastructure`。
+
+### 模块 1：双口径指标与诊断基础
+
+- 状态：已通过，待提交；
+- 实现：real delay 无副作用快照、活跃车辆平均累计等待、路网内未完成车辆数、动作分布、切相频率、replay/target 诊断和结构化指标 schema v2；
+- 兼容：schema v1 日志仍可验证和读取；
+- 自动检查：Milestone 0 共 24 项通过，Plan 1 指标新增 2 项通过；
+- 语法检查：`common/metrics.py`、`world/world_sumo.py`、`trainer/tsc_trainer.py`、`utils/logger.py` 和新增测试通过；
+- 已知环境提示：旧 Gym 弃用提示不影响本模块 CPU/SUMO 路径。
+
+后续继续追加真实运行命令、产物地址、验收结论、异常和修复记录。

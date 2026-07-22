@@ -12,7 +12,7 @@ class StructuredMetricLoggerTest(unittest.TestCase):
         self.logger = StructuredMetricLogger(self.temporary_directory.name)
         self.record = {field: None for field in METRIC_FIELDS}
         self.record.update({
-            'schema_version': 1,
+            'schema_version': 2,
             'record_type': 'TRAIN',
             'agent': 'dqn',
             'network': 'sumohz1x1',
@@ -23,6 +23,7 @@ class StructuredMetricLoggerTest(unittest.TestCase):
             'global_decision_step': 10,
             'gradient_updates': 1,
             'wall_time_seconds': 0.1,
+            'action_distribution': {'0': 0.75, '1': 0.25},
         })
 
     def tearDown(self):
@@ -36,7 +37,16 @@ class StructuredMetricLoggerTest(unittest.TestCase):
             records = [json.loads(line) for line in handle]
         self.assertEqual(['TRAIN', 'FINAL_EVALUATION'], [r['record_type'] for r in records])
         self.assertTrue(all(tuple(record) == METRIC_FIELDS for record in records))
+        self.assertEqual({'0': 0.75, '1': 0.25}, records[0]['action_distribution'])
         self.assertEqual(2, self.logger.validate())
+
+    def test_schema_v1_records_remain_readable(self):
+        from utils.logger import METRIC_FIELDS_V1
+
+        record = {field: self.record.get(field) for field in METRIC_FIELDS_V1}
+        record['schema_version'] = 1
+        self.logger.append(record)
+        self.assertEqual(1, self.logger.validate())
 
     def test_missing_extra_and_invalid_type_are_rejected(self):
         missing = dict(self.record)

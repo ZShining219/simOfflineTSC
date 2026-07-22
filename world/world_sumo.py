@@ -871,6 +871,21 @@ class World(object):
         # TODO: check if only trach left cars
         return throughput
 
+    def get_average_waiting_time(self):
+        """Return mean accumulated waiting time of vehicles currently in the network."""
+        vehicles = list(self.eng.vehicle.getIDList())
+        if not vehicles:
+            return 0.0
+        waiting_times = [
+            float(self.eng.vehicle.getAccumulatedWaitingTime(vehicle))
+            for vehicle in vehicles
+        ]
+        return sum(waiting_times) / len(waiting_times)
+
+    def get_unfinished_vehicle_count(self):
+        """Return the number of vehicles currently remaining in the network."""
+        return len(self.eng.vehicle.getIDList())
+
     def get_vehicle_lane(self):
         '''
         get_vehicle_lane
@@ -924,30 +939,29 @@ class World(object):
         :param: None
         :return avg_delay: average real delay of all vehicles
         '''
-        self.vehicle_trajectory, self.vehicle_maxspeed = self.get_vehicle_trajectory()
+        vehicle_delays = {}
+        active_vehicles = set(self.eng.vehicle.getIDList())
         for v in self.vehicle_trajectory:
             # get road level routes of vehicle
             routes = self.vehicle_trajectory[v] # lane_level
+            vehicle_delay = 0.0
             for idx, lane in enumerate(routes):
-                speed = min(self.eng.lane.getMaxSpeed(lane[0]), self.vehicle_maxspeed[(v,lane[0])])
+                lane_speed = self.eng.lane.getMaxSpeed(lane[0])
+                vehicle_speed = self.vehicle_maxspeed.get((v, lane[0]), lane_speed)
+                speed = min(lane_speed, vehicle_speed)
+                if speed <= 0:
+                    continue
                 lane_length = self.eng.lane.getLength(lane[0])
                 if idx == len(routes)-1: # the last lane
                     # judge whether the vehicle run over the whole lane.
-                    lane_length = self.eng.vehicle.getLanePosition(v) if v in self.eng.vehicle.getIDList() else lane_length
+                    lane_length = self.eng.vehicle.getLanePosition(v) if v in active_vehicles else lane_length
                 planned_tt = float(lane_length)/speed
                 real_delay = lane[-1] - planned_tt if lane[-1]>planned_tt else 0.
-                if v not in self.real_delay.keys():
-                    self.real_delay[v] = real_delay
-                else:
-                    self.real_delay[v] += real_delay
+                vehicle_delay += real_delay
+            vehicle_delays[v] = vehicle_delay
 
-        avg_delay = 0.
-        count = 0
-        for dic in self.real_delay.items():
-            avg_delay += dic[1]
-            count += 1
-        avg_delay = avg_delay / count
-        return avg_delay
-
+        if not vehicle_delays:
+            return 0.0
+        return sum(vehicle_delays.values()) / len(vehicle_delays)
 
 

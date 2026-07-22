@@ -131,6 +131,7 @@ class TSCTrainer(BaseTrainer):
         self.gradient_updates = 0
         self.target_updates = 0
         self.evaluation_isolation_checks = []
+        self._reset_action_diagnostics()
         self.structured_metrics = StructuredMetricLogger(
             Registry.mapping['logger_mapping']['path'].path
         )
@@ -173,13 +174,32 @@ class TSCTrainer(BaseTrainer):
         :param: None
         :return: None
         '''
-        if Registry.mapping['command_mapping']['setting'].param['delay_type'] == 'apx':
-            lane_metrics = ['rewards', 'queue', 'delay']
-            world_metrics = ['real avg travel time', 'throughput']
-        else:
-            lane_metrics = ['rewards', 'queue']
-            world_metrics = ['delay', 'real avg travel time', 'throughput']
+        lane_metrics = ['rewards', 'queue', 'delay']
+        world_metrics = ['delay', 'real avg travel time', 'throughput']
         self.metric = Metrics(lane_metrics, world_metrics, self.world, self.agents)
+
+    def _reset_action_diagnostics(self):
+        self.action_counts = {}
+        self.phase_switches = 0
+        self.previous_actions = None
+
+    def _record_actions(self, actions):
+        flattened = np.asarray(actions).reshape(-1)
+        for action in flattened:
+            key = str(int(action))
+            self.action_counts[key] = self.action_counts.get(key, 0) + 1
+        if self.previous_actions is not None:
+            self.phase_switches += int(np.sum(flattened != self.previous_actions))
+        self.previous_actions = flattened.copy()
+
+    def _action_distribution(self):
+        total = sum(self.action_counts.values())
+        if total == 0:
+            return {}
+        return {
+            action: count / total
+            for action, count in sorted(self.action_counts.items(), key=lambda item: int(item[0]))
+        }
 
     def create_agents(self):
         '''
@@ -227,6 +247,7 @@ class TSCTrainer(BaseTrainer):
             phase_started_at = time.perf_counter()
             # TODO: check this reset agent
             self.metric.clear()
+            self._reset_action_diagnostics()
             last_obs = self.env.reset()  # agent * [sub_agent, feature]
 
             for a in self.agents:
@@ -250,6 +271,7 @@ class TSCTrainer(BaseTrainer):
                         actions = np.stack(actions)  # [agent, intersections]
                     else:
                         actions = np.stack([ag.sample() for ag in self.agents])
+                    self._record_actions(actions)
 
                     actions_prob = []
                     for idx, ag in enumerate(self.agents):
@@ -511,6 +533,7 @@ class TSCTrainer(BaseTrainer):
             phase_started_at = time.perf_counter()
             obs = self.env.reset()
             self.metric.clear()
+            self._reset_action_diagnostics()
             for a in self.agents:
                 a.reset()
             for i in range(self.test_steps):
@@ -520,6 +543,7 @@ class TSCTrainer(BaseTrainer):
                     for idx, ag in enumerate(self.agents):
                         actions.append(ag.get_action(obs[idx], phases[idx], test=True))
                     actions = np.stack(actions)
+                    self._record_actions(actions)
                     rewards_list = []
                     for _ in range(self.action_interval):
                         obs, rewards, dones, _ = self.env.step(actions.flatten())
@@ -557,6 +581,7 @@ class TSCTrainer(BaseTrainer):
                 else:
                     self.env.eng.set_save_replay(False)
             self.metric.clear()
+            self._reset_action_diagnostics()
             if not drop_load:
                 [ag.load_model(self.episodes) for ag in self.agents]
             attention_mat_list = []
@@ -570,6 +595,7 @@ class TSCTrainer(BaseTrainer):
                     for idx, ag in enumerate(self.agents):
                         actions.append(ag.get_action(obs[idx], phases[idx], test=True))
                     actions = np.stack(actions)
+                    self._record_actions(actions)
                     rewards_list = []
                     for j in range(self.action_interval):
                         obs, rewards, dones, _ = self.env.step(actions.flatten())
@@ -597,8 +623,20 @@ class TSCTrainer(BaseTrainer):
         epsilon_values = [
             float(agent.epsilon) for agent in self.agents if hasattr(agent, 'epsilon')
         ]
+        replay_buffers = [
+            agent.replay_buffer for agent in self.agents
+            if hasattr(agent, 'replay_buffer')
+        ]
+        replay_size = None if not replay_buffers else sum(len(buffer) for buffer in replay_buffers)
+        replay_capacity = None if not replay_buffers else sum(
+            buffer.maxlen for buffer in replay_buffers if buffer.maxlen is not None
+        )
+        action_total = sum(self.action_counts.values())
+        previous_action_count = (
+            0 if self.previous_actions is None else len(self.previous_actions)
+        )
         self.structured_metrics.append({
-            'schema_version': 1,
+            'schema_version': 2,
             'record_type': record_type,
             'agent': command['agent'],
             'network': command['network'],
@@ -617,6 +655,18 @@ class TSCTrainer(BaseTrainer):
             'loss_mean': loss_mean,
             'epsilon': None if not epsilon_values else float(np.mean(epsilon_values)),
             'wall_time_seconds': wall_time_seconds,
+            'real_delay': self.metric.real_delay(),
+            'waiting_time': self.metric.waiting_time(),
+            'unfinished_vehicles': self.metric.unfinished_vehicles(),
+            'action_distribution': self._action_distribution(),
+            'phase_switches': self.phase_switches,
+            'phase_switch_frequency': (
+                0.0 if action_total <= previous_action_count else
+                self.phase_switches / (action_total - previous_action_count)
+            ),
+            'replay_size': replay_size,
+            'replay_capacity': replay_capacity,
+            'target_updates': self.target_updates,
         })
 
     def writeLog(self, mode, step, travel_time, loss, cur_rwd, cur_queue, cur_delay, cur_throughput):

@@ -19,12 +19,25 @@ RUN_SCHEMA_VERSION = 1
 BASELINE_COMMIT = '73d860bb3924ec15c30433a8f8b7af17787baeff'
 RUN_STATUSES = {'已创建', '运行中', '已完成', '失败'}
 METRIC_RECORD_TYPES = {'TRAIN', 'EVALUATION', 'FINAL_EVALUATION'}
-METRIC_FIELDS = (
+METRIC_FIELDS_V1 = (
     'schema_version', 'record_type', 'agent', 'network', 'training_seed',
     'episode', 'simulation_step', 'decision_step', 'global_decision_step',
     'gradient_updates', 'travel_time', 'reward_mean', 'reward_sum', 'queue',
     'delay', 'throughput', 'loss_mean', 'epsilon', 'wall_time_seconds',
 )
+METRIC_FIELDS = METRIC_FIELDS_V1 + (
+    'real_delay', 'waiting_time', 'unfinished_vehicles',
+    'action_distribution', 'phase_switches', 'phase_switch_frequency',
+    'replay_size', 'replay_capacity', 'target_updates',
+)
+
+
+def metric_fields_for_schema(schema_version):
+    if schema_version == 1:
+        return METRIC_FIELDS_V1
+    if schema_version == 2:
+        return METRIC_FIELDS
+    raise ValueError(f'Unsupported metric schema_version: {schema_version}')
 
 
 def _read_bytes(path):
@@ -299,6 +312,10 @@ def _json_value(value):
     """Convert common scalar configuration values to JSON-safe values."""
     if hasattr(value, 'item'):
         return value.item()
+    if isinstance(value, dict):
+        return {str(key): _json_value(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_json_value(item) for item in value]
     if isinstance(value, (str, int, float, bool)) or value is None:
         return value
     return str(value)
@@ -482,8 +499,9 @@ class StructuredMetricLogger:
 
     def append(self, record):
         self._validate_record(record)
+        fields = metric_fields_for_schema(record['schema_version'])
         content = json.dumps(
-            {field: _json_value(record[field]) for field in METRIC_FIELDS},
+            {field: _json_value(record[field]) for field in fields},
             ensure_ascii=False,
             separators=(',', ':'),
             allow_nan=False,
@@ -495,8 +513,11 @@ class StructuredMetricLogger:
 
     @staticmethod
     def _validate_record(record):
-        missing = [field for field in METRIC_FIELDS if field not in record]
-        extra = sorted(set(record) - set(METRIC_FIELDS))
+        if not isinstance(record, dict) or 'schema_version' not in record:
+            raise ValueError('Metric record is missing schema_version')
+        fields = metric_fields_for_schema(record['schema_version'])
+        missing = [field for field in fields if field not in record]
+        extra = sorted(set(record) - set(fields))
         if missing or extra:
             raise ValueError(
                 f'Invalid metric record fields; missing={missing}, extra={extra}'

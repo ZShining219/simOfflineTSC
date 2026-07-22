@@ -14,5 +14,5 @@ trainer:
   episodes: 5
   learning_start: 1000
   buffer_size: 5000
-  evaluation_episodes: [0, 5]
+  evaluation_episodes: [0, 1, 2, 3, 4, 5]
   resumable_checkpoint_episodes: [0, 5]

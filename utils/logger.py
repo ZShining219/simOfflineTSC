@@ -2,10 +2,12 @@ import os
 import sys
 import copy
 import yaml
+import numpy as np
 import logging
 import json
 import hashlib
 import tempfile
+import random
 from datetime import datetime
 from json import JSONDecodeError
 
@@ -258,6 +260,36 @@ def _json_value(value):
     return str(value)
 
 
+def hash_torch_state_dict(state_dict):
+    """Hash tensor content independently of torch serialization metadata."""
+    digest = hashlib.sha256()
+    for name in sorted(state_dict):
+        tensor = state_dict[name].detach().contiguous().cpu()
+        fields = (name, str(tensor.dtype), json.dumps(list(tensor.shape)))
+        for field in fields:
+            encoded = field.encode('utf-8')
+            digest.update(len(encoded).to_bytes(8, 'big'))
+            digest.update(encoded)
+        raw = tensor.numpy().tobytes(order='C')
+        digest.update(len(raw).to_bytes(8, 'big'))
+        digest.update(raw)
+    return digest.hexdigest()
+
+
+def controlled_random_probe(count=8):
+    """Read deterministic Python/NumPy samples and restore both RNG states."""
+    python_state = random.getstate()
+    numpy_state = np.random.get_state()
+    try:
+        return {
+            'python_random': [random.random() for _ in range(count)],
+            'numpy_random': np.random.random(count).tolist(),
+        }
+    finally:
+        random.setstate(python_state)
+        np.random.set_state(numpy_state)
+
+
 def _describe_torch_model(model):
     if model is None:
         return None
@@ -351,6 +383,8 @@ def _describe_agent(agent, rank):
                 for name in model_state
             )
         )
+        description['online_model_state_hash'] = hash_torch_state_dict(model_state)
+        description['target_model_state_hash'] = hash_torch_state_dict(target_state)
     controller_parameters = {}
     for name in ('t_fixed', 't_min'):
         if hasattr(agent, name):
@@ -383,6 +417,7 @@ def archive_runtime_model(config_path, trainer, agent_name):
     description = {
         'schema_version': 1,
         'agent': agent_name,
+        'reproducibility_probe': controlled_random_probe(),
         'agents': [
             _describe_agent(agent, rank)
             for rank, agent in enumerate(trainer.agents)

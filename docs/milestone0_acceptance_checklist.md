@@ -29,9 +29,9 @@
 | M0-04B | baseline_commit 被固定为分支创建时最新 origin/main 完整 SHA | 已通过 | `git rev-parse` + 实施契约 | `73d860bb3924ec15c30433a8f8b7af17787baeff` | `1eb3bd9` | 后续 origin/main 更新不改变本次基线 |
 | M0-05 | 运行身份、开始/结束时间、状态和失败原因可追溯 | 已通过 | 见 `docs/verification/milestone0/function2_run_state.md` | 完成与失败真实 Runner 路径均逐字段读取断言 | 本功能提交 |  |
 | M0-06 | 失败运行不会被误判为正式完成结果 | 已通过 | 受控任务异常 smoke + 状态机 unittest | 失败状态、非零退出码和异常类型明确；终态不可转完成 | 本功能提交 |  |
-| M0-07 | README 明确未限定 seed 即 training_seed，且不管理 SUMO seed | 未开始 |  |  |  | 对应决策 RD-001 |
-| M0-08 | 运行产物记录 training_seed 与 sumo_seed_mode=fixed_default | 未开始 |  |  |  | 不增加 SUMO seed 参数 |
-| M0-09 | 同 training_seed 的初始化模型和关键随机边界可检查 | 未开始 |  |  |  | 不承诺不同硬件完全位级一致 |
+| M0-07 | README 明确未限定 seed 即 training_seed，且不管理 SUMO seed | 已通过 | README 审阅 + `docs/verification/milestone0/function3_reproducibility.md` | 边界已明确且未新增 SUMO seed 参数 | 本功能提交 | 对应决策 RD-001 |
+| M0-08 | 运行产物记录 training_seed 与 sumo_seed_mode=fixed_default | 已通过 | 两次真实 DQN manifest 逐字段断言 | training_seed=19，sumo_seed_mode=fixed_default | 本功能提交 |  |
+| M0-09 | 同 training_seed 的初始化模型和关键随机边界可检查 | 已通过 | 两次独立 DQN smoke + 哈希/RNG unittest | online/target hash、Python/NumPy 序列均一致 | 本功能提交 | 不承诺不同硬件完全位级一致 |
 | M0-10 | TRAIN 与 TEST 指标具有机器可读、来源明确的结构化日志 | 未开始 |  |  |  | 保留现有文本日志兼容性 |
 | M0-11 | 结构化日志明确 episode、decision/global counter 和单位 | 未开始 |  |  |  | 不改变训练调度 |
 | M0-12 | 评估不改变 online/target、optimizer、epsilon、replay 和 gradient counter | 未开始 |  |  |  | 依赖项必须做评估前后快照检查 |

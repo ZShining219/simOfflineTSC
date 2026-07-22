@@ -83,6 +83,8 @@ python -c "import sumolib, traci; print('SUMO Python API 可用')"
 
 使用 SUMO 时，run.py 的 --interface 参数可以选择 libsumo（默认、速度较快）或 traci。
 
+实验命令中未加限定词的 `seed` 均指训练侧 `training_seed`，即 `run.py --seed`。它用于项目现有的 Python、NumPy 和 PyTorch 随机初始化与采样。当前项目不新增或管理 SUMO seed，也不向 SUMO 启动命令传递 seed；运行证据固定记录 `sumo_seed_mode=fixed_default`。因此，不同 training seed 不能解释为不同的 SUMO 微观交通随机实现。
+
 ### 5. 可选智能体依赖
 
 部分智能体需要额外依赖。例如，PPO/PFRL 实现需要安装 pfrl：

@@ -31,10 +31,10 @@ Codex 不得用“推荐方案”代替“用户决定”。没有明确决定�
 - 可选方案：A. 增加 SUMO seed 管理；B. 保持现状并明确 training_seed 边界
 - 推荐方案：B
 - 用户决定：后续未明确限定的 seed 均为 training_seed，即 run.py --seed；不额外管理 SUMO seed；记录 sumo_seed_mode=fixed_default
-- 状态：已决定
+- 状态：已验证
 - 影响里程碑：Milestone 0 及全部后续实验
-- 实现提交：待填写
-- 验证证据：README 声明、运行 manifest/结构化记录和 SUMO 启动命令审计
+- 实现提交：本功能提交
+- 验证证据：`docs/verification/milestone0/function3_reproducibility.md`；README 声明、两次同 seed 运行 manifest、模型哈希与随机序列一致性
 
 ### RD-002：Learning starts 边界条件
 

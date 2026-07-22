@@ -203,7 +203,8 @@ Pilot 节点为 `[0, 10, 25, 50, 100]`。Pilot 通过后，正式节点冻结为
 ### 模块 5：集成验收
 
 - 状态：已通过；
-- 提交信息：`完成Plan 1启动能力集成验收`；
+- 提交：`8e20c40 完成Plan 1启动能力集成验收`；
+- 远端：已推送当前分支；
 - 自动检查：Milestone 0 共 24 项、Plan 1 共 11 项全部通过；新增传统基线配置回归 1 项；相关 Python 文件通过 `py_compile`，`git diff --check` 无错误；
 - DQN 证据：复用模块 3 已通过的 `data/output_data/tsc/sumo_dqn/sumohz1x1/p1m3_eval_smoke_20260722_1/`，包含训练、固定评估、checkpoint、trajectory 和 schema v2 指标；
 - FixedTime 命令：`SUMO_HOME=/home/dev/miniforge3/envs/colight/lib/python3.10/site-packages/sumo /home/dev/miniforge3/envs/colight/bin/python3.10 run.py -w sumo -a fixedtime -n sumohz1x1 --prefix p1m5_fixedtime_smoke_20260722_1 --seed 41 --interface libsumo --delay_type apx`；
@@ -215,5 +216,31 @@ Pilot 节点为 `[0, 10, 25, 50, 100]`。Pilot 通过后，正式节点冻结为
 - 混合作图：三类 agent 通过同一个显式 run-list 生成规范化表格和 10 组 PNG/PDF，证据目录为 `data/output_data/analysis/plan1/p1m5_integrated_smoke_20260722_2/`；
 - 配置源核对：运行后 `base.yml`、`dqn.yml`、`fixedtime.yml` 和 `sumohz1x1.cfg` 哈希与运行前一致；`maxpressure.yml` 仅包含已审核的 `episodes: 1` 永久修复；
 - 结论：Plan 1 启动所需项目能力全部通过，可以执行 16 次传统基线确定性验证。
+
+### 传统基线：16 次确定性验证
+
+- 状态：已通过；
+- 提交信息：`完成Plan 1传统基线确定性验证`；
+- 矩阵：四个实际 network × FixedTime/MaxPressure × 两次重复，共 16 次；统一 training seed 0、SUMO fixed default、libsumo、3600 simulation steps、360 decisions；
+- prefix 规则：`p1_baseline_<agent>_<network>_seed0_r<repeat>_20260722`；
+- 通用命令：`SUMO_HOME=/home/dev/miniforge3/envs/colight/lib/python3.10/site-packages/sumo /home/dev/miniforge3/envs/colight/bin/python3.10 run.py -w sumo -a <fixedtime|maxpressure> -n <network> --prefix <prefix> --seed 0 --interface libsumo --delay_type apx`；
+- 完整 run-list：`data/output_data/analysis/plan1/p1_baseline_16_seed0_20260722/inputs/runs.csv`；
+- 分析目录：`data/output_data/analysis/plan1/p1_baseline_16_seed0_20260722/`，包含 16 个运行的规范化表格、配置校验清单和 10 组 PNG/PDF；
+- 完整性：16 个运行均为 `已完成`、exit code 0、episode 1、schema v2、3600 steps/360 decisions，配置归档哈希全部通过；
+- 确定性：每个 network/controller 的 repeat 1 与 repeat 2 在删除 `wall_time_seconds` 后完整结构化 JSON 相等，8/8 组通过；
+- 作废边界：模块 5 中 episode 元数据错误的 `p1m5_maxpressure_smoke_20260722_1` 不属于本 16 次矩阵，也不进入基线结论。
+
+| network | agent | travel time | approximate delay | real delay | queue | throughput | waiting time | unfinished |
+|---|---|---:|---:|---:|---:|---:|---:|---:|
+| `sumohz1x1_config2` | FixedTime | 129.3201 | 3.1596 | 71.6354 | 25.6722 | 1340 | 34.3175 | 63 |
+| `sumohz1x1_config2` | MaxPressure | 74.8343 | 3.1834 | 15.3985 | 5.0500 | 1382 | 2.2069 | 29 |
+| `sumohz1x1` | FixedTime | 233.1649 | 4.3998 | 170.3684 | 68.7917 | 1631 | 44.9864 | 147 |
+| `sumohz1x1` | MaxPressure | 80.5145 | 4.1474 | 21.6156 | 10.2611 | 1969 | 24.3469 | 49 |
+| `sumohz1x1_config4` | FixedTime | 170.1606 | 3.4259 | 112.7313 | 40.2778 | 1407 | 39.4919 | 124 |
+| `sumohz1x1_config4` | MaxPressure | 78.0718 | 3.5427 | 19.4514 | 7.7139 | 1615 | 19.6429 | 56 |
+| `sumohz1x1_config3` | FixedTime | 132.0780 | 1.8659 | 73.4434 | 14.9278 | 705 | 34.8947 | 38 |
+| `sumohz1x1_config3` | MaxPressure | 68.0784 | 1.3949 | 9.4207 | 1.5194 | 727 | 0.0625 | 16 |
+
+基线结论：MaxPressure 在四个 network 上均降低 travel time、real delay、queue、waiting time 和 unfinished vehicles，并提高 throughput。`sumohz1x1_config2` 与 `sumohz1x1_config4` 的 approximate delay 略高于 FixedTime，因此后续必须同时报告 approximate/real delay，不得由单一 delay 口径替代综合交通指标。FixedTime 与 MaxPressure 的 reward 不做跨控制器比较或排名。
 
 后续继续追加真实运行命令、产物地址、验收结论、异常和修复记录。

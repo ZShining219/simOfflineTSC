@@ -60,6 +60,8 @@ def render_learning_metrics(rows, output_base, metrics, title, dpi=160):
         plotted = False
         for run_index, run_key in enumerate(run_keys):
             run_rows = [row for row in rows if row["run_key"] == run_key]
+            if run_rows and run_rows[0]["role"] == "baseline":
+                continue
             for series_name, record_types, linestyle in (
                 ("train", {"TRAIN"}, "-"),
                 ("evaluation", {"EVALUATION", "FINAL_EVALUATION"}, "--"),

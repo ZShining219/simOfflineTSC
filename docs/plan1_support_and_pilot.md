@@ -3,7 +3,7 @@
 ## 1. 状态与范围
 
 - 所属总 Plan：`docs/plan0721.md`
-- 当前状态：执行中
+- 当前状态：已通过
 - 执行分支：`codex/milestone0-experiment-infrastructure`
 - 目标：补齐 Plan 1 启动所需项目能力，完成传统基线确定性验证和四场景 DQN Pilot。
 - 非目标：本子计划不执行 20 次正式 DQN 训练。
@@ -220,7 +220,8 @@ Pilot 节点为 `[0, 10, 25, 50, 100]`。Pilot 通过后，正式节点冻结为
 ### 传统基线：16 次确定性验证
 
 - 状态：已通过；
-- 提交信息：`完成Plan 1传统基线确定性验证`；
+- 提交：`a0c49c0 完成Plan 1传统基线确定性验证`；
+- 远端：已推送当前分支；
 - 矩阵：四个实际 network × FixedTime/MaxPressure × 两次重复，共 16 次；统一 training seed 0、SUMO fixed default、libsumo、3600 simulation steps、360 decisions；
 - prefix 规则：`p1_baseline_<agent>_<network>_seed0_r<repeat>_20260722`；
 - 通用命令：`SUMO_HOME=/home/dev/miniforge3/envs/colight/lib/python3.10/site-packages/sumo /home/dev/miniforge3/envs/colight/bin/python3.10 run.py -w sumo -a <fixedtime|maxpressure> -n <network> --prefix <prefix> --seed 0 --interface libsumo --delay_type apx`；
@@ -242,5 +243,42 @@ Pilot 节点为 `[0, 10, 25, 50, 100]`。Pilot 通过后，正式节点冻结为
 | `sumohz1x1_config3` | MaxPressure | 68.0784 | 1.3949 | 9.4207 | 1.5194 | 727 | 0.0625 | 16 |
 
 基线结论：MaxPressure 在四个 network 上均降低 travel time、real delay、queue、waiting time 和 unfinished vehicles，并提高 throughput。`sumohz1x1_config2` 与 `sumohz1x1_config4` 的 approximate delay 略高于 FixedTime，因此后续必须同时报告 approximate/real delay，不得由单一 delay 口径替代综合交通指标。FixedTime 与 MaxPressure 的 reward 不做跨控制器比较或排名。
+
+### DQN Pilot：四场景 seed 0、100 episode
+
+- 状态：已通过；
+- 提交信息：`完成Plan 1 Pilot并冻结正式训练配置`；
+- 统一命令：`SUMO_HOME=/home/dev/miniforge3/envs/colight/lib/python3.10/site-packages/sumo /home/dev/miniforge3/envs/colight/bin/python3.10 run.py -w sumo -a dqn -n <network> --prefix p1_pilot_dqn_<network>_seed0_100ep_20260722 --seed 0 --interface libsumo --delay_type apx`；
+- Pilot 配置：100 episodes，评估节点 `[0,10,25,50,100]`，`configs/tsc/dqn.yml` 的 Pilot SHA-256 为 `5d3343ed0e5977adc7c7dc342d20f6b86e80e8eb8a13ce5b413327719ddc439c`；四个运行归档的 `dqn.yml` 哈希一致；
+- 配置可比性：四个运行通过 `utils/run_config_compare.py`，除 network、prefix、training seed 和场景路径外无差异，runtime input/action dimension 一致；
+- 运行完整性：四个运行均为 `已完成`、exit code 0，各 100 条 TRAIN + 4 条 EVALUATION + 1 条 FINAL_EVALUATION，共 105 条 schema v2 记录；
+- trajectory：每场景 100 个 NPZ 分片、36,000 transitions、evaluation transitions 0；validation、index 连续性和所有分片 SHA-256 均通过；
+- 评估/checkpoint：每场景评估节点均为 `[0,10,25,50,100]`，evaluation/resumable checkpoint 均为 5/5；四场景 best 均为 episode 100；
+- 更新计数：每场景最终为 35,000 gradient updates、3,500 target updates、replay size/capacity `5000/5000`；
+- 数值安全：结构化 JSON、trajectory 数值、动作范围和 terminal flags 均通过，无 NaN/Inf 或非法动作；
+- 动作诊断：初始未训练模型在部分场景存在 0.95 以上单动作占比，但最终最大单动作占比降至 `0.2806～0.4306`，未形成持续动作坍缩；
+- 方向诊断：四场景从 episode 0 到 100 的 travel time、real delay、queue 和 reward 均显著改善；最终 DQN travel time 和 real delay 均优于相同 network 的 MaxPressure 基线；
+- 作图优化：学习曲线只将传统控制器绘制为 reference line，不再重复画 episode 1 点；相关自动测试继续通过；
+- 最终分析目录：`data/output_data/analysis/plan1/p1_pilot_seed0_100ep_20260722_v2/`，其 `inputs/runs.csv` 同时列出四个 Pilot 和八个基线参考；
+- 数据边界：Pilot trajectory 仅用于验证 writer 和诊断，不作为 Plan 2 正式 Offline DQN 数据；Plan 2 仍只允许使用 Plan 1 正式训练产生的 trajectory。
+
+| network | initial travel time | final/best travel time | MaxPressure travel time | final real delay | final queue | throughput | max action share | total measured wall time (s) |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| `sumohz1x1_config2` | 211.4344 | 70.4699 | 74.8343 | 11.2681 | 3.3194 | 1379 | 0.2806 | 1068.69 |
+| `sumohz1x1` | 209.0610 | 77.2457 | 80.5145 | 18.0280 | 8.1556 | 1974 | 0.3694 | 1315.38 |
+| `sumohz1x1_config4` | 330.7812 | 73.7432 | 78.0718 | 14.6373 | 5.3111 | 1620 | 0.4306 | 1189.45 |
+| `sumohz1x1_config3` | 296.0610 | 65.9477 | 68.0784 | 7.5021 | 1.0417 | 727 | 0.3056 | 751.13 |
+
+### 正式训练配置冻结
+
+- 状态：已冻结，尚未执行 20 次正式 DQN 训练；
+- `episodes: 400`；
+- `evaluation_episodes: [0,10,25,50,100,150,200,250,300,350,400]`；
+- 其余 DQN、trainer、SUMO 和 network 配置保持 Pilot 口径；
+- 正式 `configs/tsc/dqn.yml` SHA-256：`77a2ef0ccca2b6c5045da42d314b74862703d166380721a3f51635ecf2d31016`；
+- 自动回归：`tests/test_plan1_baseline_config.py` 明确检查 400 episodes 和完整正式评估节点，防止配置意外漂移；
+- 最终回归：Milestone 0 共 24 项、Plan 1 共 12 项全部通过，相关语法检查和 `git diff --check` 通过。
+
+本子计划结论：Plan 1 启动能力、传统基线和四场景 Pilot 全部通过。下一工作包应另行拆分 Plan 1 正式 Online DQN（四场景 × 五个 training seed，共 20 次），不得直接复用 Pilot prefix 或将 Pilot trajectory 混入正式数据。
 
 后续继续追加真实运行命令、产物地址、验收结论、异常和修复记录。

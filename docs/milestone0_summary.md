@@ -1,5 +1,7 @@
 # Milestone 0：公共实验基础设施总结
 
+> 后续状态说明：本轮 M1 优化与科研决策整理已关闭，但 Plan 0、Plan 1 及后续实验仍未执行。不得将规则确认或文档关闭状态解释为实验完成；详见 `docs/m1_optimization_closure.md`。
+
 ## 1. 范围与结论
 
 Milestone 0 已完成公共实验基础设施，不包含 100 episode Pilot、20 次正式 Online 训练、Offline 训练或 Sequential 正式实验，也未合并 main。行为基线固定为 `73d860bb3924ec15c30433a8f8b7af17787baeff`。

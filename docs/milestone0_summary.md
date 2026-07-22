@@ -71,22 +71,22 @@ Milestone 0 未改变 state、reward、action mapping、DQN loss、terminal/trun
 - 短 smoke 中 travel time=0 可能只表示尚无完成车辆，不能解释为零旅行时间或性能最优。
 - Milestone 0 不提供失败目录内 resume；重试必须新 prefix。
 
-## 8. 待用户决定的科研事项
+## 8. Milestone 0 后续科研决定
 
-- RD-002：learning-start 使用严格大于还是大于等于。
-- RD-003：learning-start 前完全随机还是 epsilon-greedy。
-- RD-004：epsilon schedule 的单位与形式。
-- RD-005：terminated/truncated bootstrap 语义。
-- RD-006：正式实验 delay 主口径。
-- RD-007：best checkpoint 指标与并列规则。
-- RD-009：不同底层定义的 reward 是否跨控制器比较。
+- RD-002 已决定：保持 `total_decision_num > learning_start` 的严格大于边界。
+- RD-003 已决定：learning start 前保持完全随机预热。
+- RD-004 已决定：保持按成功梯度更新次数执行现有 epsilon 乘法衰减。
+- RD-005 已决定：TD target 保持始终 bootstrap，同时在 trajectory 中分别记录 terminated/truncated。
+- RD-006 已决定：同时记录 approximate/real delay，以 approximate 为主、real 为辅助。
+- RD-007 已决定：final checkpoint 为主；诊断性 best 按最低 average travel time 选择，并列时取较早节点。
+- RD-009 已推迟：保持各控制器 reward 现状，在后续实验启动前专项讨论跨控制器比较边界。
 
-RD-001 与 RD-008 已实现并验证。
+RD-001 与 RD-008 已实现并验证；RD-002 至 RD-007 的决定需要在 Plan 1 启动门中逐项落实和验收。
 
 ## 9. 下一 Milestone 进入条件
 
-1. 用户明确决定 RD-002、RD-003、RD-004、RD-005、RD-006、RD-007 和 RD-009 中影响 Plan 1 的项目。
-2. 冻结 Plan 1 正式 DQN 配置、评估节点、主指标与 best 规则。
+1. 将 RD-002 至 RD-007 的已确认语义落实到 Plan 1 冻结配置、轨迹、指标和 checkpoint 选择协议，并完成针对性验收。
+2. 冻结 Plan 1 正式 DQN 配置、评估节点、主指标与 best 规则；RD-009 在后续实验启动前另行专项讨论，讨论完成前禁止跨控制器直接比较 reward。
 3. 实现并验收 append-only trajectory，届时再证明 evaluation transition count=0。
 4. 用户审阅本分支并自行决定是否合并；Codex 不自动合并 main。
 5. 上述条件满足后才运行 100 episode Pilot；Pilot 通过后才允许 20 次正式 Online 训练。

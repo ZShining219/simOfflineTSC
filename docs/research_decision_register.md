@@ -45,9 +45,9 @@ Codex 不得用“推荐方案”代替“用户决定”。没有明确决定�
 - 差距：原项目在第 1000 与第 1001 个 decision 附近的语义可能与常见解释不同
 - 科研影响：改变首次更新时刻，影响 Pilot 曲线和复现实验
 - 可选方案：A. 保留原项目严格大于；B. 改为大于等于并统一全部正式实验
-- 推荐方案：正式实验前结合计数定义一次性确定
-- 用户决定：尚未决定
-- 状态：待决定
+- 推荐方案：A。在强调保留现有 Online DQN 数值语义的前提下，保持严格大于，并在正式配置中明确边界
+- 用户决定：采用 A。保持 `total_decision_num > learning_start`；`learning_start=1000` 时，累计 decision 数严格超过 1000 后才允许使用训练期动作策略和执行更新
+- 状态：已决定
 - 影响里程碑：Plan 1、Plan 3、Plan 4；Milestone 0 只记录现状
 - 实现提交：无
 - 验证证据：trainer/tsc_trainer.py 训练条件审计
@@ -61,9 +61,9 @@ Codex 不得用“推荐方案”代替“用户决定”。没有明确决定�
 - 差距：配置 epsilon 在预热阶段不生效
 - 科研影响：改变早期数据覆盖和 Plan 2 的早期数据分布
 - 可选方案：A. 保留完全随机预热；B. 全程使用 epsilon-greedy
-- 推荐方案：若强调保持 LibSignal 基线，优先 A，并在配置定义中明确
-- 用户决定：尚未决定
-- 状态：待决定
+- 推荐方案：A。保持 LibSignal 基线，并在配置定义中明确预热阶段不使用 epsilon-greedy
+- 用户决定：采用 A。Learning starts 前继续调用 `agent.sample` 执行完全随机预热；严格超过 learning start 后才使用 epsilon-greedy
+- 状态：已决定
 - 影响里程碑：Plan 1、Plan 2 数据来源；Milestone 0 不修改
 - 实现提交：无
 - 验证证据：trainer/tsc_trainer.py 动作选择分支审计
@@ -72,14 +72,14 @@ Codex 不得用“推荐方案”代替“用户决定”。没有明确决定�
 
 - 决策编号：RD-004
 - 议题：epsilon 按何种计数衰减
-- 项目当前行为：每次 DQN 梯度更新后乘 0.995，最低 0.01
+- 项目当前行为：每次 DQN 梯度更新成功后，若更新前 epsilon 大于 0.01，则乘 0.995；当前代码不执行 `max` 截断，因此最后一次衰减可能轻微低于 0.01
 - Plan要求：冻结 epsilon start、end、decay，但尚未明确单位
 - 差距：Plan 文本不足以复现当前 schedule
 - 科研影响：探索强度影响 Online 性能、轨迹覆盖与 Offline 数据质量
 - 可选方案：A. 保留按梯度更新乘法衰减；B. 改为按 decision step 的显式 schedule
-- 推荐方案：正式实验前集中决定，不在 Milestone 0 修改
-- 用户决定：尚未决定
-- 状态：待决定
+- 推荐方案：A。在更新频率一并冻结的前提下保留现有按梯度更新计数的乘法衰减
+- 用户决定：采用 A。保持按成功梯度更新次数衰减；每次成功更新后按现有代码乘 0.995，并保留当前 epsilon 下限检查的精确实现，不改为按 decision step 的 schedule，也不新增 `max` 截断
+- 状态：已决定
 - 影响里程碑：Plan 1、Plan 3、Plan 4
 - 实现提交：无
 - 验证证据：agent/dqn.py epsilon 更新位置审计
@@ -93,9 +93,9 @@ Codex 不得用“推荐方案”代替“用户决定”。没有明确决定�
 - 差距：后续 Online/Offline DQN 无法按终止类型一致计算 target
 - 科研影响：直接改变 DQN 与 Offline DQN loss
 - 可选方案：A. 保留始终 bootstrap；B. terminated 不 bootstrap、truncated bootstrap；C. 两者均不 bootstrap
-- 推荐方案：Plan 1 轨迹实现前决定
-- 用户决定：尚未决定
-- 状态：已推迟
+- 推荐方案：A。优先保持现有 Online DQN loss，同时在轨迹中完整记录终止类型
+- 用户决定：采用 A。Online 和后续同口径 Offline DQN 的 TD target 保持始终 bootstrap；append-only trajectory 仍分别保存 `terminated` 和 `truncated`，但二者不进入当前 target mask
+- 状态：已决定
 - 影响里程碑：Plan 1、Plan 2
 - 实现提交：无
 - 验证证据：agent/dqn.py replay 与 TD target 审计
@@ -109,9 +109,9 @@ Codex 不得用“推荐方案”代替“用户决定”。没有明确决定�
 - 差距：尚未决定正式实验主口径
 - 科研影响：直接影响主要结果和不同控制器比较
 - 可选方案：A. apx 为主；B. real 为主；C. 二者都报但预先指定主指标
-- 推荐方案：指标审计完成后集中决定
-- 用户决定：尚未决定
-- 状态：已推迟
+- 推荐方案：C，并指定 approximate delay 为主、real delay 为辅助诊断
+- 用户决定：采用 C1。正式结果同时记录 approximate delay 和 real delay；以 approximate delay 为 delay 主口径，real delay 只作辅助诊断。跨方法主要性能排序仍优先使用 average travel time
+- 状态：已决定
 - 影响里程碑：Plan 1 及后续报告；Milestone 0 只审计
 - 实现提交：无
 - 验证证据：common/metrics.py 与 world/world_sumo.py 指标来源审计
@@ -125,9 +125,9 @@ Codex 不得用“推荐方案”代替“用户决定”。没有明确决定�
 - 差距：best 的选择指标和并列处理尚未冻结；checkpoint 的 online/target 内容由 RD-008 单独决定
 - 科研影响：选择规则可能造成选择性报告
 - 可选方案：A. 按预设评估节点的 average travel time；B. 按 delay；C. 只保存但不自动选择
-- 推荐方案：Plan 1 评估协议确定时决定
-- 用户决定：尚未决定
-- 状态：已推迟
+- 推荐方案：A。最终 checkpoint 保持主结果；诊断性 best 按预设评估节点的 average travel time 选择
+- 用户决定：采用 A。主要结果使用最终 checkpoint；best checkpoint 仅作稳定性诊断，按预设评估节点中最低 average travel time 选择，数值完全相同时选择较早的评估节点
+- 状态：已决定
 - 影响里程碑：Plan 1
 - 实现提交：无
 - 验证证据：checkpoint 与评估机制审计
@@ -157,9 +157,9 @@ Codex 不得用“推荐方案”代替“用户决定”。没有明确决定�
 - 差距：同名 reward 实际来自不同底层交通量，直接横向比较会造成错误解释
 - 科研影响：影响基线控制器与 DQN 的 reward 表格、曲线和结论；不影响 travel time、queue、delay、throughput 的独立报告
 - 可选方案：A. reward 仅用于各控制器内部诊断，不做跨控制器比较；B. 后续统一 reward 定义并重跑全部相关实验；C. 同时报原始 reward 与另行定义的共同诊断 reward
-- 推荐方案：在 Plan 1 正式报告协议确定时决定，不在 Milestone 0 改公式
-- 用户决定：尚未决定
-- 状态：待决定
+- 推荐方案：在后续实验启动前专项讨论，不在当前阶段修改公式或扩大跨控制器解释
+- 用户决定：保持各控制器当前 reward 定义不变，将跨控制器 reward 比较与报告边界推迟到后续实验启动前专项讨论；本决定不授权把不同底层定义的 reward 直接作为同口径结果比较
+- 状态：已推迟
 - 影响里程碑：Plan 1 及后续跨控制器结果报告；Milestone 0 只审计并保持现状
 - 实现提交：无
 - 验证证据：`docs/verification/milestone0/function7_metric_audit.md`；agent/dqn.py、agent/fixedtime.py、agent/maxpressure.py reward_generator 审计

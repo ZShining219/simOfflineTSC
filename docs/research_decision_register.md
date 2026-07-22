@@ -33,7 +33,7 @@ Codex 不得用“推荐方案”代替“用户决定”。没有明确决定�
 - 用户决定：后续未明确限定的 seed 均为 training_seed，即 run.py --seed；不额外管理 SUMO seed；记录 sumo_seed_mode=fixed_default
 - 状态：已验证
 - 影响里程碑：Milestone 0 及全部后续实验
-- 实现提交：本功能提交
+- 实现提交：`fd0f7c4`
 - 验证证据：`docs/verification/milestone0/function3_reproducibility.md`；README 声明、两次同 seed 运行 manifest、模型哈希与随机序列一致性
 
 ### RD-002：Learning starts 边界条件
@@ -145,7 +145,7 @@ Codex 不得用“推荐方案”代替“用户决定”。没有明确决定�
 - 用户决定：采用 B。evaluation checkpoint 保存 online Q-network，并以 online Q-network 评估；resumable checkpoint 保存 online、target、optimizer、epsilon、训练计数器、随机状态和恢复所需 replay 状态
 - 状态：已验证
 - 影响里程碑：Milestone 0、Plan 1、Plan 3、Plan 4
-- 实现提交：本功能提交
+- 实现提交：`214486c`
 - 验证证据：`docs/verification/milestone0/function6_checkpoints.md`；evaluation online hash 一致；resume 后继续一次 optimizer update；旧 target-only 文件无 checkpoint_type
 
 ### RD-009：跨控制器 Reward 口径与报告边界

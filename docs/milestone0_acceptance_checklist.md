@@ -27,8 +27,8 @@
 | M0-04 | 相同 network 与 prefix 不会静默覆盖或混写 | 已通过 | unittest `test_duplicate_prefix_is_rejected` | 明确要求使用新 prefix | `442f2c0` |  |
 | M0-04A | configs/sim 源 cfg 运行前后哈希一致，SUMO 使用运行专属 resolved cfg | 已通过 | unittest 并发检查 + `sha256sum configs/sim/sumohz1x1.cfg` | 两 prefix 隔离；前后均为 `314f…9dbd` | `442f2c0` |  |
 | M0-04B | baseline_commit 被固定为分支创建时最新 origin/main 完整 SHA | 已通过 | `git rev-parse` + 实施契约 | `73d860bb3924ec15c30433a8f8b7af17787baeff` | `1eb3bd9` | 后续 origin/main 更新不改变本次基线 |
-| M0-05 | 运行身份、开始/结束时间、状态和失败原因可追溯 | 已通过 | 见 `docs/verification/milestone0/function2_run_state.md` | 完成、task 失败和 pre-archive 初始化失败均逐字段断言 | `60a2759` + 最终修复提交 |  |
-| M0-06 | 失败运行不会被误判为正式完成结果 | 已通过 | 受控 task/初始化异常 + 状态机 unittest | 失败状态、非零退出码和异常类型明确；终态不可转完成 | `60a2759` + 最终修复提交 |  |
+| M0-05 | 运行身份、开始/结束时间、状态和失败原因可追溯 | 已通过 | 见 `docs/verification/milestone0/function2_run_state.md` | 完成、task 失败和 pre-archive 初始化失败均逐字段断言 | `60a2759` + `4040f97` |  |
+| M0-06 | 失败运行不会被误判为正式完成结果 | 已通过 | 受控 task/初始化异常 + 状态机 unittest | 失败状态、非零退出码和异常类型明确；终态不可转完成 | `60a2759` + `4040f97` |  |
 | M0-07 | README 明确未限定 seed 即 training_seed，且不管理 SUMO seed | 已通过 | README 审阅 + `docs/verification/milestone0/function3_reproducibility.md` | 边界已明确且未新增 SUMO seed 参数 | `fd0f7c4` | 对应决策 RD-001 |
 | M0-08 | 运行产物记录 training_seed 与 sumo_seed_mode=fixed_default | 已通过 | 两次真实 DQN manifest 逐字段断言 | training_seed=19，sumo_seed_mode=fixed_default | `fd0f7c4` |  |
 | M0-09 | 同 training_seed 的初始化模型和关键随机边界可检查 | 已通过 | 两次独立 DQN smoke + 哈希/RNG unittest | online/target hash、Python/NumPy 序列均一致 | `fd0f7c4` | 不承诺不同硬件完全位级一致 |
@@ -41,13 +41,13 @@
 | M0-16 | 当前 travel time、delay、queue、throughput、reward 口径有代码证据 | 已通过 | 见 `docs/verification/milestone0/function7_metric_audit.md` | 逐项源码链路与 characterization 输出已记录；reward 差异关联 RD-009 | `cd7fc54` | real delay 空车辆除零作为已知风险保留 |
 | M0-17 | 未经用户决定不修改指标公式或主指标口径 | 已通过 | `git diff` + characterization tests | 本功能未修改 metrics/world/agent/generator/run 公式 | `cd7fc54` | RD-006、RD-009 未擅自决定 |
 | M0-18 | 跨 network/seed 配置一致性工具按契约允许字段规范化比较 | 已通过 | 见 `docs/verification/milestone0/function8_run_config_compare.md` | 四个真实 DQN network 比较 compatible=true；非法 trainer/dimension 差异失败 | `c871bcb` | input_dim/action_dim 不一致直接失败 |
-| M0-19 | FixedTime 最小真实 SUMO smoke 通过 | 未开始 |  |  |  | 记录完整命令和指标 |
-| M0-20 | MaxPressure 最小真实 SUMO smoke 通过 | 未开始 |  |  |  | 记录完整命令和指标 |
-| M0-21 | DQN 最小真实 SUMO smoke 通过 | 未开始 |  |  |  | 临时 YAML 必须恢复 |
-| M0-22 | 全部针对性语法、导入、哈希和失败路径检查通过 | 未开始 |  |  |  |  |
-| M0-23 | smoke 后无临时 YAML、simulator cfg 或其他非目标变化 | 未开始 |  |  |  |  |
-| M0-24 | 每个功能均有独立中文提交并已推送指定远端分支 | 未开始 |  |  |  | 不 force push |
-| M0-25 | Milestone 0 最终 diff review 和整体回归通过 | 未开始 |  |  |  | 不自动合并 main |
+| M0-19 | FixedTime 最小真实 SUMO smoke 通过 | 已通过 | 见 `docs/verification/milestone0/function9_final_regression.md` | 1 episode/3600 steps；travel time 233.164929；throughput 1631 | 最终回归提交 | 完整环境 smoke |
+| M0-20 | MaxPressure 最小真实 SUMO smoke 通过 | 已通过 | 同上 | 1 episode/3600 steps；travel time 80.514474；throughput 1969 | 最终回归提交 | 完整环境 smoke |
+| M0-21 | DQN 最小真实 SUMO smoke 通过 | 已通过 | 同上 | 700 train + 2×100 eval；6 gradient、1 target update、checkpoint/隔离通过 | 最终回归提交 | 临时 YAML 已恢复 |
+| M0-22 | 全部针对性语法、导入、哈希和失败路径检查通过 | 已通过 | 23 项 unittest + py_compile + artifact parser + diff check | 正常、缺失、损坏、非法状态/type/hash/dimension/突变路径覆盖 | 最终回归提交 |  |
+| M0-23 | smoke 后无临时 YAML、simulator cfg 或其他非目标变化 | 已通过 | `git status`、`git diff`、source cfg SHA-256 | 临时 YAML 恢复；source cfg hash `314f…9dbd`；output 未跟踪 | 最终回归提交 |  |
+| M0-24 | 每个功能均有独立中文提交并已推送指定远端分支 | 已通过 | `git log` + 本地/远端 SHA | 功能 1–8、修复和最终回归均独立提交，无 force push | 最终同步提交 | 不自动合并 main |
+| M0-25 | Milestone 0 最终 diff review 和整体回归通过 | 已通过 | baseline-to-HEAD diff review + 三类回归 | protected 算法/指标公式未改；三类真实 SUMO 和完整产物审计通过 | 最终回归提交 | 不自动合并 main |
 
 ## 3. 固定验收语义
 

@@ -34,8 +34,8 @@
 | M0-09 | 同 training_seed 的初始化模型和关键随机边界可检查 | 已通过 | 两次独立 DQN smoke + 哈希/RNG unittest | online/target hash、Python/NumPy 序列均一致 | 本功能提交 | 不承诺不同硬件完全位级一致 |
 | M0-10 | TRAIN 与 TEST 指标具有机器可读、来源明确的结构化日志 | 已通过 | 见 `docs/verification/milestone0/function4_structured_metrics.md` | DQN 生成 TRAIN/FINAL_EVALUATION；FixedTime 生成 FINAL_EVALUATION；文本日志保留 | 本功能提交 | 结构化类型使用契约名称 EVALUATION，不沿用旧 TEST |
 | M0-11 | 结构化日志明确 episode、decision/global counter 和单位 | 已通过 | JSONL 逐字段解析 + counter in-process 断言 | 700 simulation/70 decision、6 gradient、1 target update；评估不推进全局计数 | 本功能提交 | 不改变训练调度 |
-| M0-12 | 评估不改变 online/target、optimizer、epsilon、replay 和 gradient counter | 未开始 |  |  |  | 依赖项必须做评估前后快照检查 |
-| M0-13 | 评估不调用 remember，且 replay 长度和当前 dataset 写入计数不变 | 未开始 |  |  |  | 正式 trajectory transition count 留到 Plan 1 验收 |
+| M0-12 | 评估不改变 online/target、optimizer、epsilon、replay 和 gradient counter | 已通过 | 见 `docs/verification/milestone0/function5_evaluation_isolation.md` | 真实 DQN 两次评估通过深度快照；故意模型/counter 突变失败测试通过 | 本功能提交 |  |
+| M0-13 | 评估不调用 remember，且 replay 长度和当前 dataset 写入计数不变 | 已通过 | remember 阻断测试 + in-process SUMO 断言 | 两次评估 remember=0、replay=[70]、dataset_writes=0 | 本功能提交 | 正式 trajectory transition count 留到 Plan 1 验收 |
 | M0-14 | evaluation checkpoint 保存并评估 online Q-network；resumable checkpoint 语义明确 | 未开始 |  |  |  | 对应决策 RD-008 |
 | M0-15 | resumable checkpoint 保存恢复所需训练状态并可做最小恢复验证 | 未开始 |  |  |  | 不改变当前更新算法 |
 | M0-16 | 当前 travel time、delay、queue、throughput、reward 口径有代码证据 | 未开始 |  |  |  | 缺失或歧义登记科研决策表 |

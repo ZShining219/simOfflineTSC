@@ -143,10 +143,10 @@ Codex 不得用“推荐方案”代替“用户决定”。没有明确决定�
 - 可选方案：A. 保持旧 target-only checkpoint；B. evaluation checkpoint 保存并评估 online，resumable checkpoint 保存 online、target 及完整训练状态；C. 两类文件均保存两套网络但另行决定评估网络
 - 推荐方案：B
 - 用户决定：采用 B。evaluation checkpoint 保存 online Q-network，并以 online Q-network 评估；resumable checkpoint 保存 online、target、optimizer、epsilon、训练计数器、随机状态和恢复所需 replay 状态
-- 状态：已决定
+- 状态：已验证
 - 影响里程碑：Milestone 0、Plan 1、Plan 3、Plan 4
-- 实现提交：待填写
-- 验证证据：evaluation checkpoint 与当前 online state hash 一致；resume 后继续至少一次 optimizer update；旧 target-only 文件不被误标为新格式
+- 实现提交：本功能提交
+- 验证证据：`docs/verification/milestone0/function6_checkpoints.md`；evaluation online hash 一致；resume 后继续一次 optimizer update；旧 target-only 文件无 checkpoint_type
 
 ## 3. 同步要求
 

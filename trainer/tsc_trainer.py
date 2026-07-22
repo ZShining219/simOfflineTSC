@@ -1,6 +1,10 @@
 import os
 import time
 import copy
+import json
+import random
+import tempfile
+from collections import deque
 import numpy as np
 import torch
 from common.metrics import Metrics
@@ -130,6 +134,9 @@ class TSCTrainer(BaseTrainer):
         self.structured_metrics = StructuredMetricLogger(
             Registry.mapping['logger_mapping']['path'].path
         )
+        self.output_path = Registry.mapping['logger_mapping']['path'].path
+        with open(os.path.join(self.output_path, 'run_manifest.json'), encoding='utf-8') as handle:
+            self.config_hash = json.load(handle)['config_hash']
         # replay file is only valid in cityflow now. 
         # TODO: support SUMO and Openengine later
         
@@ -214,7 +221,7 @@ class TSCTrainer(BaseTrainer):
         :param: None
         :return: None
         '''
-        total_decision_num = 0
+        total_decision_num = self.global_decision_step
         flush = 0
         for e in range(self.episodes):
             phase_started_at = time.perf_counter()
@@ -270,11 +277,7 @@ class TSCTrainer(BaseTrainer):
                 if total_decision_num > self.learning_start and\
                         total_decision_num % self.update_model_rate == self.update_model_rate - 1:
 
-                    current_losses = []
-                    for agent in self.agents:
-                        current_losses.append(agent.train())
-                        self.gradient_updates += 1
-                    cur_loss_q = np.stack(current_losses)  # TODO: training
+                    cur_loss_q = np.stack(self.optimizer_update_from_replay())
                     episode_loss.append(cur_loss_q)
                 if total_decision_num > self.learning_start and \
                         total_decision_num % self.update_target_rate == self.update_target_rate - 1:
@@ -295,6 +298,7 @@ class TSCTrainer(BaseTrainer):
                 0 if mean_loss is None else mean_loss, self.metric.rewards(), self.metric.queue(), self.metric.delay(), int(self.metric.throughput())))
             if e % self.save_rate == 0:
                 [ag.save_model(e=e) for ag in self.agents]
+                self.save_milestone_checkpoints(e)
             self.logger.info("episode:{}/{}, real avg travel time:{}".format(e, self.episodes, self.metric.real_average_travel_time()))
             for j in range(len(self.world.intersections)):
                 self.logger.debug("intersection:{}, mean_episode_reward:{}, mean_queue:{}".format(j, self.metric.lane_rewards()[j],\
@@ -303,6 +307,197 @@ class TSCTrainer(BaseTrainer):
                 self.train_test(e)
         # self.dataset.flush([ag.replay_buffer for ag in self.agents])
         [ag.save_model(e=self.episodes) for ag in self.agents]
+        self.save_milestone_checkpoints(self.episodes)
+
+    def optimizer_update_from_replay(self):
+        losses = []
+        for agent in self.agents:
+            losses.append(agent.train())
+            self.gradient_updates += 1
+        return losses
+
+    def _supports_dqn_checkpoint(self):
+        return bool(self.agents) and all(
+            all(hasattr(agent, name) for name in (
+                'model', 'target_model', 'optimizer', 'epsilon', 'replay_buffer',
+            )) and agent.model is not None and agent.target_model is not None
+            for agent in self.agents
+        )
+
+    def _checkpoint_path(self, checkpoint_type, episode):
+        return os.path.join(
+            self.output_path, 'checkpoints', checkpoint_type,
+            f'episode_{episode:04d}.pt',
+        )
+
+    @staticmethod
+    def _atomic_torch_save(payload, path):
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        descriptor, temporary_path = tempfile.mkstemp(
+            prefix='tmp-checkpoint-', suffix='.pt', dir=os.path.dirname(path)
+        )
+        os.close(descriptor)
+        try:
+            torch.save(payload, temporary_path)
+            os.replace(temporary_path, path)
+        except Exception:
+            if os.path.exists(temporary_path):
+                os.unlink(temporary_path)
+            raise
+
+    def save_checkpoint(self, checkpoint_type, episode):
+        if checkpoint_type not in {'evaluation', 'resumable'}:
+            raise ValueError(f'Invalid checkpoint_type: {checkpoint_type}')
+        if not self._supports_dqn_checkpoint():
+            return None
+        payload = {
+            'schema_version': 1,
+            'checkpoint_type': checkpoint_type,
+            'episode': episode,
+            'global_decision_step': self.global_decision_step,
+            'gradient_updates': self.gradient_updates,
+            'config_hash': self.config_hash,
+            'agents': [],
+        }
+        for rank, agent in enumerate(self.agents):
+            agent_payload = {
+                'rank': getattr(agent, 'rank', rank),
+                'online_model_state_dict': copy.deepcopy(agent.model.state_dict()),
+            }
+            if checkpoint_type == 'resumable':
+                agent_payload.update({
+                    'target_model_state_dict': copy.deepcopy(agent.target_model.state_dict()),
+                    'optimizer_state_dict': copy.deepcopy(agent.optimizer.state_dict()),
+                    'epsilon': agent.epsilon,
+                    'replay_state': {
+                        'capacity': agent.replay_buffer.maxlen,
+                        'items': list(agent.replay_buffer),
+                    },
+                })
+            payload['agents'].append(agent_payload)
+        if checkpoint_type == 'resumable':
+            payload.update({
+                'training_counters': {
+                    'global_decision_step': self.global_decision_step,
+                    'gradient_updates': self.gradient_updates,
+                    'target_updates': self.target_updates,
+                    'epoch': self.epoch,
+                    'step': self.step,
+                },
+                'python_random_state': random.getstate(),
+                'numpy_random_state': np.random.get_state(),
+                'torch_cpu_rng_state': torch.get_rng_state(),
+                'torch_cuda_rng_states': torch.cuda.get_rng_state_all()
+                if torch.cuda.is_available() else [],
+            })
+        self.validate_checkpoint_payload(payload)
+        path = self._checkpoint_path(checkpoint_type, episode)
+        self._atomic_torch_save(payload, path)
+        return path
+
+    def save_milestone_checkpoints(self, episode):
+        if not self._supports_dqn_checkpoint():
+            return []
+        return [
+            self.save_checkpoint('evaluation', episode),
+            self.save_checkpoint('resumable', episode),
+        ]
+
+    @staticmethod
+    def validate_checkpoint_payload(payload, expected_type=None):
+        required = {
+            'schema_version', 'checkpoint_type', 'episode',
+            'global_decision_step', 'gradient_updates', 'config_hash', 'agents',
+        }
+        missing = sorted(required - set(payload)) if isinstance(payload, dict) else sorted(required)
+        if missing:
+            raise ValueError(f'Checkpoint missing required fields: {missing}')
+        checkpoint_type = payload['checkpoint_type']
+        if checkpoint_type not in {'evaluation', 'resumable'}:
+            raise ValueError(f'Invalid checkpoint_type: {checkpoint_type}')
+        if expected_type is not None and checkpoint_type != expected_type:
+            raise ValueError(
+                f'Checkpoint type mismatch: expected {expected_type}, got {checkpoint_type}'
+            )
+        if payload['schema_version'] != 1 or not isinstance(payload['agents'], list):
+            raise ValueError('Invalid checkpoint schema_version or agents')
+        if not isinstance(payload['config_hash'], str) or len(payload['config_hash']) != 64:
+            raise ValueError('Invalid checkpoint config_hash')
+        agent_required = {'rank', 'online_model_state_dict'}
+        if checkpoint_type == 'resumable':
+            agent_required |= {
+                'target_model_state_dict', 'optimizer_state_dict', 'epsilon', 'replay_state',
+            }
+            top_required = {
+                'training_counters', 'python_random_state', 'numpy_random_state',
+                'torch_cpu_rng_state', 'torch_cuda_rng_states',
+            }
+            missing_top = sorted(top_required - set(payload))
+            if missing_top:
+                raise ValueError(f'Resumable checkpoint missing fields: {missing_top}')
+            counter_required = {
+                'global_decision_step', 'gradient_updates', 'target_updates', 'epoch', 'step',
+            }
+            missing_counters = sorted(counter_required - set(payload['training_counters']))
+            if missing_counters:
+                raise ValueError(
+                    f'Resumable checkpoint missing training counters: {missing_counters}'
+                )
+        for agent_payload in payload['agents']:
+            missing_agent = sorted(agent_required - set(agent_payload))
+            if missing_agent:
+                raise ValueError(f'Checkpoint agent missing fields: {missing_agent}')
+            if checkpoint_type == 'resumable':
+                replay = agent_payload['replay_state']
+                if not isinstance(replay, dict) or not {'capacity', 'items'} <= set(replay):
+                    raise ValueError('Invalid resumable replay_state')
+        return payload
+
+    @classmethod
+    def load_checkpoint_payload(cls, path, expected_type=None):
+        try:
+            payload = torch.load(path, map_location='cpu')
+        except Exception as error:
+            raise IOError(f'Cannot load checkpoint: {path}') from error
+        return cls.validate_checkpoint_payload(payload, expected_type=expected_type)
+
+    def load_evaluation_checkpoint(self, path):
+        payload = self.load_checkpoint_payload(path, expected_type='evaluation')
+        if len(payload['agents']) != len(self.agents):
+            raise ValueError('Checkpoint agent count does not match trainer')
+        for rank, (agent, agent_payload) in enumerate(zip(self.agents, payload['agents'])):
+            if agent_payload['rank'] != getattr(agent, 'rank', rank):
+                raise ValueError('Checkpoint agent rank does not match trainer')
+            agent.model.load_state_dict(agent_payload['online_model_state_dict'])
+        return payload
+
+    def load_resumable_checkpoint(self, path):
+        payload = self.load_checkpoint_payload(path, expected_type='resumable')
+        if payload['config_hash'] != self.config_hash:
+            raise ValueError('Checkpoint config_hash does not match current run')
+        if len(payload['agents']) != len(self.agents):
+            raise ValueError('Checkpoint agent count does not match trainer')
+        for rank, (agent, agent_payload) in enumerate(zip(self.agents, payload['agents'])):
+            if agent_payload['rank'] != getattr(agent, 'rank', rank):
+                raise ValueError('Checkpoint agent rank does not match trainer')
+            agent.model.load_state_dict(agent_payload['online_model_state_dict'])
+            agent.target_model.load_state_dict(agent_payload['target_model_state_dict'])
+            agent.optimizer.load_state_dict(agent_payload['optimizer_state_dict'])
+            agent.epsilon = agent_payload['epsilon']
+            replay = agent_payload['replay_state']
+            agent.replay_buffer = deque(replay['items'], maxlen=replay['capacity'])
+        counters = payload['training_counters']
+        self.global_decision_step = counters['global_decision_step']
+        self.gradient_updates = counters['gradient_updates']
+        self.target_updates = counters['target_updates']
+        self.epoch = counters['epoch']
+        self.step = counters['step']
+        random.setstate(payload['python_random_state'])
+        np.random.set_state(payload['numpy_random_state'])
+        torch.set_rng_state(payload['torch_cpu_rng_state'])
+        if torch.cuda.is_available() and payload['torch_cuda_rng_states']:
+            torch.cuda.set_rng_state_all(payload['torch_cuda_rng_states'])
+        return payload
 
     def train_test(self, e):
         '''

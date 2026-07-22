@@ -36,8 +36,8 @@
 | M0-11 | 结构化日志明确 episode、decision/global counter 和单位 | 已通过 | JSONL 逐字段解析 + counter in-process 断言 | 700 simulation/70 decision、6 gradient、1 target update；评估不推进全局计数 | 本功能提交 | 不改变训练调度 |
 | M0-12 | 评估不改变 online/target、optimizer、epsilon、replay 和 gradient counter | 已通过 | 见 `docs/verification/milestone0/function5_evaluation_isolation.md` | 真实 DQN 两次评估通过深度快照；故意模型/counter 突变失败测试通过 | 本功能提交 |  |
 | M0-13 | 评估不调用 remember，且 replay 长度和当前 dataset 写入计数不变 | 已通过 | remember 阻断测试 + in-process SUMO 断言 | 两次评估 remember=0、replay=[70]、dataset_writes=0 | 本功能提交 | 正式 trajectory transition count 留到 Plan 1 验收 |
-| M0-14 | evaluation checkpoint 保存并评估 online Q-network；resumable checkpoint 语义明确 | 未开始 |  |  |  | 对应决策 RD-008 |
-| M0-15 | resumable checkpoint 保存恢复所需训练状态并可做最小恢复验证 | 未开始 |  |  |  | 不改变当前更新算法 |
+| M0-14 | evaluation checkpoint 保存并评估 online Q-network；resumable checkpoint 语义明确 | 已通过 | 见 `docs/verification/milestone0/function6_checkpoints.md` | evaluation online hash 与被评估状态一致；legacy target-only 未误标 | 本功能提交 | 对应决策 RD-008 |
+| M0-15 | resumable checkpoint 保存恢复所需训练状态并可做最小恢复验证 | 已通过 | 真实保存→扰动→加载→optimizer update | replay=70、gradient 6→7，online hash 更新；RNG/optimizer/counter 字段齐全 | 本功能提交 | 不改变当前更新算法 |
 | M0-16 | 当前 travel time、delay、queue、throughput、reward 口径有代码证据 | 未开始 |  |  |  | 缺失或歧义登记科研决策表 |
 | M0-17 | 未经用户决定不修改指标公式或主指标口径 | 未开始 |  |  |  |  |
 | M0-18 | 跨 network/seed 配置一致性工具按契约允许字段规范化比较 | 未开始 |  |  |  | input_dim/action_dim 不一致直接失败 |

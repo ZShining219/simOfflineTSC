@@ -40,7 +40,7 @@
 | M0-15 | resumable checkpoint 保存恢复所需训练状态并可做最小恢复验证 | 已通过 | 真实保存→扰动→加载→optimizer update | replay=70、gradient 6→7，online hash 更新；RNG/optimizer/counter 字段齐全 | 本功能提交 | 不改变当前更新算法 |
 | M0-16 | 当前 travel time、delay、queue、throughput、reward 口径有代码证据 | 已通过 | 见 `docs/verification/milestone0/function7_metric_audit.md` | 逐项源码链路与 characterization 输出已记录；reward 差异关联 RD-009 | 本功能提交 | real delay 空车辆除零作为已知风险保留 |
 | M0-17 | 未经用户决定不修改指标公式或主指标口径 | 已通过 | `git diff` + characterization tests | 本功能未修改 metrics/world/agent/generator/run 公式 | 本功能提交 | RD-006、RD-009 未擅自决定 |
-| M0-18 | 跨 network/seed 配置一致性工具按契约允许字段规范化比较 | 未开始 |  |  |  | input_dim/action_dim 不一致直接失败 |
+| M0-18 | 跨 network/seed 配置一致性工具按契约允许字段规范化比较 | 已通过 | 见 `docs/verification/milestone0/function8_run_config_compare.md` | 四个真实 DQN network 比较 compatible=true；非法 trainer/dimension 差异失败 | 本功能提交 | input_dim/action_dim 不一致直接失败 |
 | M0-19 | FixedTime 最小真实 SUMO smoke 通过 | 未开始 |  |  |  | 记录完整命令和指标 |
 | M0-20 | MaxPressure 最小真实 SUMO smoke 通过 | 未开始 |  |  |  | 记录完整命令和指标 |
 | M0-21 | DQN 最小真实 SUMO smoke 通过 | 未开始 |  |  |  | 临时 YAML 必须恢复 |

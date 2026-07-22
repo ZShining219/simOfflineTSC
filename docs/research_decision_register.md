@@ -148,6 +148,22 @@ Codex 不得用“推荐方案”代替“用户决定”。没有明确决定�
 - 实现提交：本功能提交
 - 验证证据：`docs/verification/milestone0/function6_checkpoints.md`；evaluation online hash 一致；resume 后继续一次 optimizer update；旧 target-only 文件无 checkpoint_type
 
+### RD-009：跨控制器 Reward 口径与报告边界
+
+- 决策编号：RD-009
+- 议题：DQN、FixedTime 和 MaxPressure 的 reward 是否可作为同口径指标直接比较
+- 项目当前行为：DQN 使用 incoming lane waiting_count 的负平均值乘 12；FixedTime 和 MaxPressure 使用 incoming lane_count 的负平均值乘 12；Metrics 仅按 decision 聚合传入 reward
+- Plan要求：记录 reward 曲线并保持现有算法 reward，但尚未明确跨控制器 reward 的报告边界
+- 差距：同名 reward 实际来自不同底层交通量，直接横向比较会造成错误解释
+- 科研影响：影响基线控制器与 DQN 的 reward 表格、曲线和结论；不影响 travel time、queue、delay、throughput 的独立报告
+- 可选方案：A. reward 仅用于各控制器内部诊断，不做跨控制器比较；B. 后续统一 reward 定义并重跑全部相关实验；C. 同时报原始 reward 与另行定义的共同诊断 reward
+- 推荐方案：在 Plan 1 正式报告协议确定时决定，不在 Milestone 0 改公式
+- 用户决定：尚未决定
+- 状态：待决定
+- 影响里程碑：Plan 1 及后续跨控制器结果报告；Milestone 0 只审计并保持现状
+- 实现提交：无
+- 验证证据：`docs/verification/milestone0/function7_metric_audit.md`；agent/dqn.py、agent/fixedtime.py、agent/maxpressure.py reward_generator 审计
+
 ## 3. 同步要求
 
 用户决定导致 plan0721.md 发生变化时，必须在同一功能周期同步本表。状态从“已决定”进入“已实现”后必须填写提交；进入“已验证”后必须填写验证命令或证据路径。sumo_seed_mode=fixed_default 是已确认边界，不再作为待决策功能。

@@ -3,14 +3,14 @@
 ## 1. 状态、目标与边界
 
 - 所属总 Plan：`docs/plan0721.md`
-- 当前状态：执行中
+- 当前状态：已通过
 - 执行分支：`codex/milestone0-experiment-infrastructure`
 - 目标：完成四个实际 network × 五个 training seed 的 20 次独立 Online DQN 训练，并形成 Plan 2 唯一允许使用的正式 trajectory 白名单。
 - 正式矩阵：`sumohz1x1_config2`、`sumohz1x1`、`sumohz1x1_config4`、`sumohz1x1_config3` × seed `[0,1,2,3,4]`。
 - 固定环境：SUMO、DQN、libsumo、`delay_type=apx`、SUMO fixed default、3600 simulation steps、action interval 10。
 - 非目标：不优化既有 plotting 范围，不修改 state/action/reward、DQN 核心超参数、SUMO、replay 或 trajectory 定义。
 
-传统基线继续有效。2026-07-22 的四场景旧 Pilot 仅保留为旧 evaluation/checkpoint 协议的历史工程证据，不再作为新正式协议的启动证据，其 trajectory 仍禁止进入 Plan 2。旧正式配置 SHA-256 `77a2ef0ccca2b6c5045da42d314b74862703d166380721a3f51635ecf2d31016` 已因协议调整失效；新 Pilot 通过后重新冻结正式配置和哈希。
+传统基线继续有效。2026-07-22 的四场景旧 Pilot 仅保留为旧 evaluation/checkpoint 协议的历史工程证据，不再作为新正式协议的启动证据，其 trajectory 仍禁止进入 Plan 2。旧正式配置 SHA-256 `77a2ef0ccca2b6c5045da42d314b74862703d166380721a3f51635ecf2d31016` 已因协议调整失效；新协议正式配置已经冻结并完成 20 次正式运行。
 
 ## 2. 新评估与 checkpoint 协议
 
@@ -93,4 +93,34 @@ Plan 2 白名单只包含通过全部强验收的 20 个正式 run trajectory。
 - 正式配置提交：`126cf4a 冻结Plan 1逐回合评估正式配置`，已推送当前远端分支。
 - 冻结回归：Milestone 0 共 25 项、Plan 1 共 13 项通过；相关语法检查和 `git diff --check` 通过。
 
-后续按 Wave 1～3、最终分析与交付顺序继续追加真实命令和证据。
+### 7.3 正式 Wave 1～3
+
+- 统一命令：`SUMO_HOME=/home/dev/miniforge3/envs/colight/lib/python3.10/site-packages/sumo /home/dev/miniforge3/envs/colight/bin/python3.10 run.py -w sumo -a dqn -n <network> --prefix <prefix> --seed <seed> --interface libsumo --delay_type apx`；每个 run 均以独立、完整命令直接启动，没有使用 launcher、batch、watch 或服务脚本。
+- Wave 1：四个 seed 0 首批进程在约 12:57 同步受到外部终止，没有 traceback 或 OOM；分别停止于 `sumohz1x1` episode 139、`sumohz1x1_config2` episode 179、`sumohz1x1_config4` episode 164、`sumohz1x1_config3` episode 248。原目录保持“运行中”并原样保留，随后以 `_r2` 新目录完成四个有效替代运行。四个 `_r2` 全部强验收通过后才进入 Wave 2。
+- Wave 2：seed 1、2 × 四个 network，共 8 runs，全部完成并通过强验收。
+- Wave 3：seed 3、4 × 四个 network，共 8 runs，全部完成并通过强验收。
+- 20 个有效运行均满足：状态“已完成”且 exit code 0；正式归档配置哈希正确；400 TRAIN + 401 次连续 evaluation；401/11 个 checkpoint 可加载；400 个 trajectory 分片和 144,000 transitions；evaluation 零写入且 RNG isolation true；index、SHA、连续性、terminal 语义、有限指标、best 规则和最终原始动作分布均有效；最终 global decision step 144,000、gradient updates 143,000、target updates 14,300、replay 5000/5000。跨运行配置比较通过。
+- 作废边界：上述四个首批 seed 0 目录、四个用户取消的 `p1_pilot_v3_*` 目录、旧 Pilot、A/B 与传统基线 trajectory 均不进入正式分析或 Plan 2，也不删除、覆盖或修改状态。
+
+### 7.4 正式分析与主要结果
+
+- 显式 run-list：`data/output_data/analysis/plan1/p1_formal_20_runlist_20260722.csv`，精确包含 20 个 `role=formal` DQN 和 8 个 reference baseline。
+- 分析命令：`PYTHONPATH=. /home/dev/miniforge3/envs/colight/bin/python3.10 -m tools.experiment_plotting plan1 --run-list data/output_data/analysis/plan1/p1_formal_20_runlist_20260722.csv --analysis-id p1_formal_20_seed0to4_20260722`。
+- 结果目录：`data/output_data/analysis/plan1/p1_formal_20_seed0to4_20260722/`；manifest 记录 28/28 个列出运行、配置兼容，并生成全部表格及 10 组 PNG/PDF。完整审计见该目录的 `plan1_audit_report.md`。
+- Episode 400 travel time（五 seed 均值 ± 样本标准差）：`sumohz1x1_config2 70.6772±0.5292`、`sumohz1x1 77.0530±0.9924`、`sumohz1x1_config4 73.1903±0.8804`、`sumohz1x1_config3 65.3878±0.3148`；相对 FixedTime 改善 45.35%～66.95%，相对 MaxPressure 改善 3.95%～6.25%。reward 不用于跨控制器排名。
+- Final approximate delay 依次为 `0.2577±0.0150`、`0.4063±0.0225`、`0.2953±0.0088`、`0.1035±0.0072`；real delay 为 `11.4354±0.5802`、`17.7610±1.0168`、`14.1442±0.8920`、`6.8735±0.3062`。queue、throughput、waiting、unfinished、loss、epsilon、replay 和逐运行结果均见审计报告与机器可读表格。
+- First-100 travel-time AUC 的 EVALUATION/TRAIN 均值：config2 `9902.955/8674.317`、sumohz1x1 `11740.682/10163.977`、config4 `10417.347/9164.182`、config3 `8196.952/7442.454`；完整 AUC 见 `tables/first_100_auc.csv`。
+- FixedTime、MaxPressure 与 final 110% 三类门槛的单点/连续 5 次均由 5/5 seeds 达到；EVALUATION 中位数分别见 `tables/learning_speed.csv`，四场景 final 110% 为 `31/34`、`39/48`、`36/45`、`19/23`。
+- 实测 20-run 总墙钟时间为 27.7440 小时。人工复核全部 run 的最终及末 20 次 evaluation，最高单动作占比为 0.469，未发现持续单动作坍缩，reward、travel time 和两类 delay 尾段稳定，无人工警告需要判失败。
+
+### 7.5 Plan 2 白名单与结论
+
+- 白名单：`data/output_data/analysis/plan1/p1_formal_20_trajectory_whitelist_20260722.csv`，字段为 `run_path,network,behavior_training_seed`，恰好包含四场景 × seeds 0～4 的 20 个通过强验收运行；seed 0 仅使用四个 `_r2` 替代运行。
+- 结论：Plan 1 正式 Online DQN 状态为“已通过”。20 个运行可作为独立 Online 参照，白名单中的 append-only training trajectory 可进入 Plan 2；所有 Pilot、失败、取消、evaluation、基线及其他 Plan 的轨迹仍禁止使用。
+
+### 7.6 最终回归与交付门禁
+
+- 重新执行正式 28-run 分析强校验：28/28 纳入、`config_compatible=true`、10 组 PNG/PDF（20 个图文件）生成；复核目录为 `data/output_data/analysis/plan1/p1_formal_20_seed0to4_20260722_finalcheck/`。
+- Plan 2 数据准备器接受 20 行白名单并完成只读索引；抽查 `sumohz1x1/full` 为 2,000 shards、720,000 transitions、`valid=true`。
+- 自动回归：Milestone 0 共 25 项、Plan 1 共 13 项、Plan 2 共 5 项全部通过。
+- `configs/tsc/dqn.yml` SHA-256、400 episodes、401 个 evaluation 节点和 11 个 resumable 节点复核通过；相关 Python 文件 `py_compile` 通过。

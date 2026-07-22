@@ -9,9 +9,9 @@
 按照以下文件完成 Milestone 0：公共实验基础设施：
 
 - AGENTS.md
-- docs/online_offline_experiment_execution_contract.md
-- docs/milestone0_acceptance_checklist.md
-- docs/research_decision_register.md
+- docs/done/online_offline_experiment_execution_contract.md
+- docs/done/milestone0_acceptance_checklist.md
+- docs/done/research_decision_register.md
 - docs/plan0721.md
 
 这些文件共同构成执行依据。严格遵守其中的优先级、科研语义保护门、验证要求和 Git 规则。不要重新设计已确认规则。
@@ -72,7 +72,7 @@ Git 启动步骤不得自行简化：先记录当前 HEAD、origin/main 和工�
 1. 将发现严格分类为：原项目既有行为、Plan 要求的新能力、行为保持型工程优化、需要用户确认的科研语义。
 2. 对 Plan 新能力和行为保持型工程优化自主实施。
 3. 不得自行改变 state、reward、action、DQN loss、terminal/truncated bootstrap、epsilon、learning-start、更新频率、replay sampling、指标公式或实验预算。
-4. 发现上述问题时，在 docs/research_decision_register.md 使用中文字段和中文状态登记，暂停依赖部分，继续其他不受影响的功能。
+4. 发现上述问题时，在 docs/done/research_decision_register.md 使用中文字段和中文状态登记，暂停依赖部分，继续其他不受影响的功能。
 5. 不得用“推荐方案”代替“用户决定”。
 6. 已决定采用 checkpoint B 方案：evaluation checkpoint 保存并评估 online Q-network；resumable checkpoint 保存 online、target、optimizer、epsilon、训练计数器、随机状态和恢复所需 replay 状态。不得继续用旧 target-only 文件代表新的 evaluation checkpoint。
 
@@ -113,7 +113,7 @@ Git 启动步骤不得自行简化：先记录当前 HEAD、origin/main 和工�
 
 完成条件：
 
-1. docs/milestone0_acceptance_checklist.md 中所有未阻塞项均为“已通过”，且有命令、结果、产物和提交证据。
+1. docs/done/milestone0_acceptance_checklist.md 中所有未阻塞项均为“已通过”，且有命令、结果、产物和提交证据。
 2. 被阻塞项均关联明确的科研决策编号。
 3. 每个功能均已独立提交并推送 codex/milestone0-experiment-infrastructure。
 4. FixedTime、MaxPressure 和 DQN 整体回归通过。

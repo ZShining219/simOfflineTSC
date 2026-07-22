@@ -44,6 +44,6 @@
 ## 5. 关联文档
 
 - `docs/plan0721.md`
-- `docs/research_decision_register.md`
-- `docs/milestone0_summary.md`
-- `docs/online_offline_experiment_execution_contract.md`
+- `docs/done/research_decision_register.md`
+- `docs/done/milestone0_summary.md`
+- `docs/done/online_offline_experiment_execution_contract.md`

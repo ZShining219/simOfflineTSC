@@ -1,6 +1,6 @@
 # 集中科研决策表
 
-> 本轮 M1 优化与决策整理已关闭；关闭仅表示本轮确认工作结束，不表示 `docs/plan0721.md` 中任何 Plan 已执行。RD-009 仍为已推迟，必须在后续实验启动前专项重开。详见 `docs/m1_optimization_closure.md`。
+> 本轮 M1 优化与决策整理已关闭；关闭仅表示本轮确认工作结束，不表示 `docs/plan0721.md` 中任何 Plan 已执行。RD-009 仍为已推迟，必须在后续实验启动前专项重开。详见 `docs/done/m1_optimization_closure.md`。
 
 ## 1. 使用规则
 
@@ -36,7 +36,7 @@ Codex 不得用“推荐方案”代替“用户决定”。没有明确决定�
 - 状态：已验证
 - 影响里程碑：Milestone 0 及全部后续实验
 - 实现提交：`fd0f7c4`
-- 验证证据：`docs/verification/milestone0/function3_reproducibility.md`；README 声明、两次同 seed 运行 manifest、模型哈希与随机序列一致性
+- 验证证据：`docs/done/verification/milestone0/function3_reproducibility.md`；README 声明、两次同 seed 运行 manifest、模型哈希与随机序列一致性
 
 ### RD-002：Learning starts 边界条件
 
@@ -148,7 +148,7 @@ Codex 不得用“推荐方案”代替“用户决定”。没有明确决定�
 - 状态：已验证
 - 影响里程碑：Milestone 0、Plan 1、Plan 3、Plan 4
 - 实现提交：`214486c`
-- 验证证据：`docs/verification/milestone0/function6_checkpoints.md`；evaluation online hash 一致；resume 后继续一次 optimizer update；旧 target-only 文件无 checkpoint_type
+- 验证证据：`docs/done/verification/milestone0/function6_checkpoints.md`；evaluation online hash 一致；resume 后继续一次 optimizer update；旧 target-only 文件无 checkpoint_type
 
 ### RD-009：跨控制器 Reward 口径与报告边界
 
@@ -164,7 +164,7 @@ Codex 不得用“推荐方案”代替“用户决定”。没有明确决定�
 - 状态：已推迟
 - 影响里程碑：Plan 1 及后续跨控制器结果报告；Milestone 0 只审计并保持现状
 - 实现提交：无
-- 验证证据：`docs/verification/milestone0/function7_metric_audit.md`；agent/dqn.py、agent/fixedtime.py、agent/maxpressure.py reward_generator 审计
+- 验证证据：`docs/done/verification/milestone0/function7_metric_audit.md`；agent/dqn.py、agent/fixedtime.py、agent/maxpressure.py reward_generator 审计
 
 ## 3. 同步要求
 

@@ -1,6 +1,6 @@
 # Milestone 0：公共实验基础设施总结
 
-> 后续状态说明：本轮 M1 优化与科研决策整理已关闭，但 Plan 0、Plan 1 及后续实验仍未执行。不得将规则确认或文档关闭状态解释为实验完成；详见 `docs/m1_optimization_closure.md`。
+> 后续状态说明：本轮 M1 优化与科研决策整理已关闭，但 Plan 0、Plan 1 及后续实验仍未执行。不得将规则确认或文档关闭状态解释为实验完成；详见 `docs/done/m1_optimization_closure.md`。
 
 ## 1. 范围与结论
 
@@ -45,7 +45,7 @@ Milestone 0 未改变 state、reward、action mapping、DQN loss、terminal/trun
 - 配置：四场景 runtime input_dim=16、action_dim=8、hidden=[20,20]、RMSprop、MSELoss，规范化比较无非法差异。
 - 清理：无临时 YAML 或 simulator source cfg 变化；大型运行产物保持 Git ignore。
 
-详细命令和结果位于 `docs/verification/milestone0/function1_config_archive.md` 至 `function9_final_regression.md`。
+详细命令和结果位于 `docs/done/verification/milestone0/function1_config_archive.md` 至 `function9_final_regression.md`。
 
 ## 6. 提交与远端分支
 

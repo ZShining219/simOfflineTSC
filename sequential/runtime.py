@@ -169,9 +169,36 @@ class SequentialChildRunner:
         atomic_json(progress_path, {'schema_version': 1, **progress})
         if int(progress['simulation_step']) != 180:
             return
-        self.journal.record_event('FAULT_TRIGGER_READY', {
-            'fault_point': self.child['fault_point'],
+        self._await_fault_signal(self.child['fault_point'], {
             'progress_path': progress_path, **progress,
+        })
+
+    def _await_fault_signal(self, fault_point, payload=None):
+        if not (
+            self.child.get('variant') == 'fault'
+            and self.child.get('fault_point') == fault_point
+        ):
+            return
+        payload = payload or {}
+        expected_stage = {
+            'after_REPLAY_POLICY_APPLIED_before_local0': 2,
+            'stage2_matrix_half_complete': 2,
+            'stage3_episode4_simulation_step180': 3,
+        }[fault_point]
+        if int(payload.get('stage_index', -1)) != expected_stage:
+            return
+        operation_key = f'fault_trigger:{fault_point}'
+        if self.journal.operation_completed(operation_key):
+            return
+        trigger_path = os.path.join(
+            self.attempt_dir, 'fault_triggers', f'{fault_point}.json'
+        )
+        atomic_json(trigger_path, {
+            'schema_version': 1, 'fault_point': fault_point, **payload,
+        })
+        self.journal.record_operation(operation_key, trigger_path, payload)
+        self.journal.record_event('FAULT_TRIGGER_READY', {
+            'fault_point': fault_point, 'trigger_path': trigger_path, **payload,
         })
         # Give the external harness a deterministic observation window.  A
         # real SIGTERM interrupts this wait through the installed handler.
@@ -272,11 +299,18 @@ class SequentialChildRunner:
             self.journal.transition(SequentialRunPhase.MATRIX_EVALUATION_IN_PROGRESS)
         training_network = self.networks[stage_index - 1]
         global_episode = self._stage_global_base(stage_index) + local_episode
-        for evaluation_network in self.networks:
+        for matrix_position, evaluation_network in enumerate(self.networks, start=1):
             self._evaluate_cell(
                 stage_index, training_network, evaluation_network,
                 local_episode, global_episode,
             )
+            if stage_index == 2 and matrix_position == 2:
+                self._await_fault_signal('stage2_matrix_half_complete', {
+                    'stage_index': stage_index,
+                    'local_episode': local_episode,
+                    'matrix_cells_complete': matrix_position,
+                    'matrix_cell_count': len(self.networks),
+                })
         if self.journal.phase == SequentialRunPhase.MATRIX_EVALUATION_IN_PROGRESS:
             self.journal.transition(SequentialRunPhase.MATRIX_EVALUATION_COMPLETE)
 
@@ -473,6 +507,11 @@ class SequentialChildRunner:
                 network = self.networks[stage_index - 1]
                 self._apply_policy(stage_index, network)
                 self.journal.transition(SequentialRunPhase.REPLAY_POLICY_APPLIED)
+                self._await_fault_signal(
+                    'after_REPLAY_POLICY_APPLIED_before_local0', {
+                        'stage_index': stage_index, 'local_episode': 0,
+                    },
+                )
             elif phase == SequentialRunPhase.REPLAY_POLICY_APPLIED:
                 network = self.networks[stage_index - 1]
                 global_episode = self._stage_global_base(stage_index)

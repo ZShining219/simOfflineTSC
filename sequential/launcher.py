@@ -319,6 +319,9 @@ class SequentialLauncher:
                         started_at_unix=time.time(),
                     )
                     process = subprocess.Popen(command, stdout=stdout, stderr=stderr)
+                    lineage.update_attempt(
+                        attempt['attempt_id'], 'running', pid=process.pid,
+                    )
                     self.processes[logical_id] = process
                     process._sequential_context = (lineage, attempt, lock, stdout, stderr)
                 time.sleep(0.1)

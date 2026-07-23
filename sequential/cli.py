@@ -103,6 +103,13 @@ def _parser():
     reproduction_parser.add_argument('--network', required=True)
     reproduction_parser.add_argument('--training-seed', type=int, default=0)
     reproduction_parser.add_argument('--output', required=True)
+
+    fault_parser = subparsers.add_parser('pilot-fault')
+    fault_parser.add_argument('--manifest', required=True)
+    fault_parser.add_argument('--output-root', required=True)
+    fault_parser.add_argument('--logical-run-id', required=True)
+    fault_parser.add_argument('--timeout-seconds', type=int, default=3600)
+    fault_parser.add_argument('--max-child', type=int, choices=(8, 6, 4), default=4)
     return parser
 
 
@@ -246,6 +253,12 @@ def main(argv=None):
             'valid': report['valid'], 'network': args.network,
             'output': os.path.abspath(args.output), 'checks': report['checks'],
         }
+    elif args.command == 'pilot-fault':
+        from .fault_harness import run_fault_recovery
+        result = run_fault_recovery(
+            args.manifest, args.output_root, args.logical_run_id,
+            timeout_seconds=args.timeout_seconds, max_child=args.max_child,
+        )
     else:
         raise AssertionError(args.command)
     print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))

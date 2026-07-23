@@ -116,6 +116,7 @@ class SequentialRuntimeSupportTests(unittest.TestCase):
             }
             runner.attempt_dir = directory
             runner.journal = mock.Mock()
+            runner.journal.operation_completed.return_value = False
             progress = {
                 'stage_index': 3, 'local_episode': 4, 'global_episode': 419,
                 'decision_index': 18, 'simulation_step': 180,
@@ -131,6 +132,27 @@ class SequentialRuntimeSupportTests(unittest.TestCase):
             self.assertEqual(
                 runner.journal.record_event.call_args.args[0], 'FAULT_TRIGGER_READY'
             )
+            runner.journal.record_operation.assert_called_once()
+
+    def test_fault_trigger_is_stage_scoped_and_idempotent(self):
+        with tempfile.TemporaryDirectory() as directory:
+            runner = SequentialChildRunner.__new__(SequentialChildRunner)
+            runner.child = {
+                'variant': 'fault',
+                'fault_point': 'after_REPLAY_POLICY_APPLIED_before_local0',
+            }
+            runner.attempt_dir = directory
+            runner.journal = mock.Mock()
+            runner.journal.operation_completed.return_value = False
+            runner._await_fault_signal(
+                'after_REPLAY_POLICY_APPLIED_before_local0', {'stage_index': 3}
+            )
+            runner.journal.record_event.assert_not_called()
+            runner.journal.operation_completed.return_value = True
+            runner._await_fault_signal(
+                'after_REPLAY_POLICY_APPLIED_before_local0', {'stage_index': 2}
+            )
+            runner.journal.record_event.assert_not_called()
 
 
 if __name__ == '__main__':

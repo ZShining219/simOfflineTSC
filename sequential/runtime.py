@@ -152,8 +152,32 @@ class SequentialChildRunner:
                 self.diagnostics.load_state_dict(extra['replay_diagnostics'])
         self.trainer = SequentialStageTrainer(
             self.agent, self.world, self.trainer_config,
+            decision_hook=self._decision_progress_hook,
             replay_diagnostics=self.diagnostics,
         )
+
+    def _decision_progress_hook(self, progress):
+        if not (
+            self.child.get('variant') == 'fault'
+            and self.child.get('fault_point')
+            == 'stage3_episode4_simulation_step180'
+            and int(progress['stage_index']) == 3
+            and int(progress['local_episode']) == 4
+        ):
+            return
+        progress_path = os.path.join(self.attempt_dir, 'training_progress.json')
+        atomic_json(progress_path, {'schema_version': 1, **progress})
+        if int(progress['simulation_step']) != 180:
+            return
+        self.journal.record_event('FAULT_TRIGGER_READY', {
+            'fault_point': self.child['fault_point'],
+            'progress_path': progress_path, **progress,
+        })
+        # Give the external harness a deterministic observation window.  A
+        # real SIGTERM interrupts this wait through the installed handler.
+        deadline = time.monotonic() + 30.0
+        while time.monotonic() < deadline:
+            time.sleep(0.05)
 
     def _checkpoint_extra_state(self):
         return {'replay_diagnostics': self.diagnostics.state_dict()}

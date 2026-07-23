@@ -183,6 +183,10 @@ class SequentialJournal:
         })
         return self._append_event('CONTEXT_UPDATED', payload or {})
 
+    def record_event(self, event_type, payload=None):
+        """Persist an audit-only event without changing run semantics."""
+        return self._append_event(str(event_type), payload or {})
+
     def operation_completed(self, operation_key):
         return operation_key in self.state['completed_operations']
 

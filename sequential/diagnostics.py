@@ -17,6 +17,7 @@ class ReplayDiagnostics:
         self.thresholds = {}
         self.previous_historical_ratio = None
         self.full_batches = []
+        self.sampling_windows = []
 
     @staticmethod
     def _increment(mapping, key, amount=1):
@@ -27,10 +28,23 @@ class ReplayDiagnostics:
             self.transitions_written_by_scene, metadata.source_network
         )
 
-    def record_update(self, update, gradient_updates):
+    def record_update(self, update, gradient_updates, replay_composition=None):
         for source in update['sample_sources']:
             self._increment(self.samples_drawn_by_scene, source)
         self.sample_ages.extend(int(age) for age in update['sample_ages'])
+        if replay_composition is not None:
+            sample_counts = {}
+            for source in update['sample_sources']:
+                self._increment(sample_counts, source)
+            self.sampling_windows.append({
+                'gradient_updates': int(gradient_updates),
+                'replay_size': int(replay_composition['size']),
+                'population_count_by_scene': dict(
+                    replay_composition['count_by_scene']
+                ),
+                'sample_count_by_scene': sample_counts,
+                'sample_size': len(update['sample_sources']),
+            })
         if self.trace_samples or gradient_updates % self.sparse_interval == 0:
             self.full_batches.append({
                 'gradient_updates': int(gradient_updates),
@@ -90,6 +104,7 @@ class ReplayDiagnostics:
             'target_updates': agent.counters.target_updates,
             'replacement_thresholds': dict(self.thresholds),
             'sparse_full_batches': list(self.full_batches),
+            'sampling_windows': list(self.sampling_windows),
         }
         path = os.path.join(
             self.output_dir,
@@ -98,6 +113,7 @@ class ReplayDiagnostics:
         atomic_json(path, record)
         self.sample_ages = []
         self.full_batches = []
+        self.sampling_windows = []
         return path, record
 
     def state_dict(self):
@@ -108,6 +124,7 @@ class ReplayDiagnostics:
             'thresholds': dict(self.thresholds),
             'previous_historical_ratio': self.previous_historical_ratio,
             'full_batches': list(self.full_batches),
+            'sampling_windows': list(self.sampling_windows),
         }
 
     def load_state_dict(self, state):
@@ -119,3 +136,4 @@ class ReplayDiagnostics:
         self.thresholds = dict(state['thresholds'])
         self.previous_historical_ratio = state['previous_historical_ratio']
         self.full_batches = list(state['full_batches'])
+        self.sampling_windows = list(state.get('sampling_windows', []))

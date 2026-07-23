@@ -1,6 +1,7 @@
 import os
 import tempfile
 import unittest
+from unittest import mock
 from types import SimpleNamespace
 
 import numpy as np
@@ -9,8 +10,9 @@ from sequential.core import (
     ReplayMetadata, ReplayRecord, SequentialReplay, TrainingPayload,
 )
 from sequential.diagnostics import ReplayDiagnostics
-from sequential.io import atomic_json
+from sequential.io import atomic_json, read_json
 from sequential.manifest import build_pilot_plan
+from sequential.runtime import SequentialChildRunner
 
 
 class SequentialRuntimeSupportTests(unittest.TestCase):
@@ -46,7 +48,7 @@ class SequentialRuntimeSupportTests(unittest.TestCase):
                 'sample_sources': [old] * 32 + [current] * 32,
                 'sample_ages': list(range(64)),
                 'sample_transition_ids': [f't{index}' for index in range(64)],
-            }, 143001)
+            }, 143001, replay_composition=replay.composition())
             path, result = diagnostics.episode_record(agent, 2, 1, 401)
             self.assertTrue(os.path.isfile(path))
             self.assertEqual(result['replay_count_by_scene'], {old: 50, current: 50})
@@ -54,6 +56,11 @@ class SequentialRuntimeSupportTests(unittest.TestCase):
             self.assertEqual(result['historical_sample_fraction'], 0.5)
             self.assertEqual(result['sample_age_p50'], 31.5)
             self.assertEqual(result['sparse_full_batches'], [])
+            self.assertEqual(len(result['sampling_windows']), 1)
+            self.assertEqual(
+                result['sampling_windows'][0]['population_count_by_scene'],
+                {old: 50, current: 50},
+            )
             self.assertIn('0.5', result['replacement_thresholds'])
 
     def test_sparse_and_explicit_replay_trace_rules(self):
@@ -99,6 +106,31 @@ class SequentialRuntimeSupportTests(unittest.TestCase):
                 for child in plan['children']
             ))
             self.assertTrue(plan['launch_authorized'])
+
+    def test_matched_fault_persists_exact_step_180_trigger(self):
+        with tempfile.TemporaryDirectory() as directory:
+            runner = SequentialChildRunner.__new__(SequentialChildRunner)
+            runner.child = {
+                'variant': 'fault',
+                'fault_point': 'stage3_episode4_simulation_step180',
+            }
+            runner.attempt_dir = directory
+            runner.journal = mock.Mock()
+            progress = {
+                'stage_index': 3, 'local_episode': 4, 'global_episode': 419,
+                'decision_index': 18, 'simulation_step': 180,
+                'transition_id': 'transition-18',
+            }
+            with mock.patch(
+                'sequential.runtime.time.monotonic', side_effect=[0.0, 31.0]
+            ), mock.patch('sequential.runtime.time.sleep'):
+                runner._decision_progress_hook(progress)
+            persisted = read_json(os.path.join(directory, 'training_progress.json'))
+            self.assertEqual(persisted['simulation_step'], 180)
+            runner.journal.record_event.assert_called_once()
+            self.assertEqual(
+                runner.journal.record_event.call_args.args[0], 'FAULT_TRIGGER_READY'
+            )
 
 
 if __name__ == '__main__':

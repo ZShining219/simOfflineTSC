@@ -41,6 +41,15 @@ def _parser():
     validate_parser.add_argument(
         '--plan', default=os.path.join(DEFAULT_OUTPUT, 'formal_60_child_manifest.json')
     )
+    validate_parser.add_argument('--output-root', default=None)
+
+    analyze_parser = subparsers.add_parser('analyze')
+    analyze_parser.add_argument('--manifest', required=True)
+    analyze_parser.add_argument('--output-root', required=True)
+    analyze_parser.add_argument(
+        '--parent-catalog', default=os.path.join(DEFAULT_OUTPUT, 'parent_catalog.json')
+    )
+    analyze_parser.add_argument('--output', required=True)
 
     snapshot_parser = subparsers.add_parser('snapshot-parent')
     snapshot_parser.add_argument('--parent-import', required=True)
@@ -107,7 +116,16 @@ def main(argv=None):
             'child_count': plan['child_count'], 'plan_digest': plan['plan_digest'],
         }
     elif args.command == 'validate':
-        result = validate_formal_plan(args.plan)
+        if args.output_root:
+            from .validation import validate_experiment_outputs
+            result = validate_experiment_outputs(args.plan, args.output_root)
+        else:
+            result = validate_formal_plan(args.plan)
+    elif args.command == 'analyze':
+        from .analysis import analyze_experiment
+        result = analyze_experiment(
+            args.manifest, args.output_root, args.parent_catalog, args.output,
+        )
     elif args.command == 'snapshot-parent':
         import torch
         from .evaluator import save_online_state_snapshot

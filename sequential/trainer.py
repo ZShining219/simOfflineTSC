@@ -105,6 +105,7 @@ class SequentialStageTrainer:
                 if self.replay_diagnostics is not None:
                     self.replay_diagnostics.record_update(
                         update, self.agent.counters.gradient_updates,
+                        replay_composition=self.agent.replay.composition(),
                     )
             if self.decision_hook is not None:
                 self.decision_hook({

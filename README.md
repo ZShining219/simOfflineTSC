@@ -5,23 +5,36 @@
 ## 主要功能
 
 - 支持 CityFlow 与 SUMO 交通仿真器。
-- 使用统一入口组织训练、测试、日志与模型保存。
+- 原有 Online/传统控制实验通过 `run.py` 组织训练、测试、日志与模型保存。
 - 支持固定时制、SOTL、MaxPressure 等传统控制方法。
 - 支持 DQN、FRAP、CoLight、PressLight、MPLight、MADDPG、MAGD、PPO 等强化学习方法。
 - 包含合成路网、杭州、纽约、科隆等多种实验数据与配置。
 - 提供 SUMO 与 CityFlow 路网、交通流格式转换工具。
 - 提供与 Online 入口隔离的 Plan 2 纯 Offline Batch-DQN/CQL-DQN 训练、数据校验、断点恢复和结果汇总能力。
 
-## Online 与 Offline 入口
+## 原项目能力与 Offline 扩展边界
 
-两种训练模式不能混用：
+本仓库保留原有 LibSignal Online/传统控制流程，并在其旁路新增 Plan 2 纯 Offline DQN。Offline 是独立扩展，不会替换或改变原有实验入口。两种训练模式不能混用：
 
-| 模式 | 正确入口 | 配置 | 输出 |
-| --- | --- | --- | --- |
-| Online/传统 TSC | `run.py` | `configs/tsc/` | `data/output_data/tsc/` |
-| Plan 2 纯 Offline DQN | `offline_run.py` | `configs/offline_tsc/` | `data/output_data/offline_tsc/` |
+| 项目 | 原项目 Online/传统 TSC | Plan 2 纯 Offline DQN 扩展 |
+| --- | --- | --- |
+| 正确入口 | `run.py` | `offline_run.py` |
+| 配置目录 | `configs/tsc/` | `configs/offline_tsc/` |
+| 支持算法 | 原有 DQN、传统控制及其他既有 agent | `batch_dqn`、`cql_dqn` |
+| 训练数据 | 运行中与仿真器交互，并使用 Online replay | 只读使用已验收的 Plan 1 正式 trajectory |
+| 仿真器用途 | 参与训练和评估 | 只在固定节点参与评估，不参与训练数据生成 |
+| 训练输出 | `data/output_data/tsc/` | `data/output_data/offline_tsc/` |
+| 额外依赖 | `requirements.txt` 及对应 agent/仿真器依赖 | 另加 `requirements-offline.txt` |
 
-`offline_run.py` 只从已校验的 Plan 1 正式 trajectory 索引训练，SUMO 仅用于固定节点评估；训练期间不会向数据集写入 transition。不要通过 `run.py` 调用 `batch_dqn` 或 `cql_dqn`。完整说明见 [docs/plan2_offline_support.md](docs/plan2_offline_support.md)。
+调用规则：
+
+- 运行原有 Online DQN、FixedTime、MaxPressure 或其他原有 agent 时，只使用 `run.py`。
+- 运行 Plan 2 Batch-DQN/CQL-DQN 时，只使用 `offline_run.py train`。
+- 不要通过 `run.py --agent batch_dqn` 或 `run.py --agent cql_dqn` 启动 Offline。
+- 不要通过 `offline_run.py` 启动原有 Online DQN 或传统控制实验。
+- `offline_run.py` 训练期间不会向数据集追加 transition，也不会修改源 Plan 1 NPZ。
+
+完整的 Offline 数据门禁、算法语义、恢复和汇总说明见 [docs/plan2_offline_support.md](docs/plan2_offline_support.md)。
 
 ## 项目结构
 
@@ -99,7 +112,7 @@ python -c "import sumolib, traci; print('SUMO Python API 可用')"
 
 使用 SUMO 时，run.py 的 --interface 参数可以选择 libsumo（默认、速度较快）或 traci。
 
-实验命令中未加限定词的 `seed` 均指训练侧 `training_seed`，即 `run.py --seed`。它用于项目现有的 Python、NumPy 和 PyTorch 随机初始化与采样。当前项目不新增或管理 SUMO seed，也不向 SUMO 启动命令传递 seed；运行证据固定记录 `sumo_seed_mode=fixed_default`。因此，不同 training seed 不能解释为不同的 SUMO 微观交通随机实现。
+seed 的含义由入口明确区分：`run.py --seed` 是原有 Online 流程的 `training_seed`；`offline_run.py train --seed` 是 Plan 2 的 `offline_training_seed`。Offline 数据来源中的 Online seeds 另行记录为 `behavior_training_seeds`，不能与 Offline 重复 seed 混用。两种入口都不新增或管理 SUMO seed，也不向 SUMO 启动命令传递 seed；运行证据固定记录 `sumo_seed_mode=fixed_default`。因此，这些训练 seed 都不能解释为不同的 SUMO 微观交通随机实现。
 
 ### 5. 可选智能体依赖
 
@@ -111,9 +124,9 @@ python -m pip install pfrl
 
 CoLight 的部分实现可能需要 PyTorch Geometric 及其扩展。请按 PyTorch 与 CUDA 版本参考 [PyTorch Geometric 安装文档](https://pytorch-geometric.readthedocs.io/en/latest/install/installation.html)。
 
-## 快速开始
+## 原项目 Online/传统实验快速开始
 
-实验统一通过 run.py 启动：
+原有 Online 和传统控制实验通过 `run.py` 启动：
 
 ~~~bash
 python run.py
@@ -145,7 +158,7 @@ python run.py \
   --seed 0
 ~~~
 
-### 常用参数
+### `run.py` 常用参数（仅限原有 Online/传统流程）
 
 | 参数 | 默认值 | 说明 |
 | --- | --- | --- |
@@ -163,7 +176,7 @@ python run.py \
 
 训练轮数、批量大小、学习率、测试频率和日志路径等参数位于 configs/tsc/*.yml；仿真路网、交通流文件和仿真参数位于 configs/sim/*.cfg。
 
-### Plan 2 Offline 快速入口
+## Plan 2 Offline 扩展快速开始
 
 Plan 2 分三步执行：先从明确的 Plan 1 正式运行白名单生成只读数据索引，再校验 manifest，最后训练：
 
@@ -176,15 +189,33 @@ python offline_run.py train --agent batch_dqn --network sumohz1x1 \
 
 `--seed` 在该入口中明确表示 `offline_training_seed`，正式取值为 1000～1004；源轨迹中的 0～4 始终记录为 `behavior_training_seeds`。更多命令、resume 和汇总格式见 [Plan 2 支持说明](docs/plan2_offline_support.md)。
 
-## 输出结果
+## 输出结果与目录隔离
 
-默认情况下，实验输出保存在：
+原有 Online/传统实验输出保存在：
 
 ~~~text
-data/output_data/<task>/<model>/<network>/<prefix>/
+data/output_data/tsc/<world>_<agent>/<network>/<prefix>/
 ~~~
 
-具体目录会依据配置生成，通常包含运行日志、仿真回放、模型参数和数据集文件。data/output_data/ 已在 .gitignore 中忽略，避免将大量实验产物提交到仓库。
+Plan 2 生成的只读数据索引保存在：
+
+~~~text
+data/output_data/offline_datasets/plan2/<dataset_id>/
+~~~
+
+Plan 2 Offline 训练输出保存在：
+
+~~~text
+data/output_data/offline_tsc/sumo_<batch_dqn|cql_dqn>/<network>/<prefix>/
+~~~
+
+Plan 2 汇总输出保存在：
+
+~~~text
+data/output_data/analysis/plan2/<analysis_id>/
+~~~
+
+这些目录彼此隔离。Offline 数据索引只引用 Plan 1 trajectory，不复制或修改源 NPZ；Offline checkpoint、指标和日志也不会写入原有 Online 运行目录。`data/output_data/` 已在 `.gitignore` 中忽略，避免提交大型实验产物。
 
 ## 格式转换
 

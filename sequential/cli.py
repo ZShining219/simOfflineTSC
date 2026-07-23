@@ -41,6 +41,21 @@ def _parser():
     validate_parser.add_argument(
         '--plan', default=os.path.join(DEFAULT_OUTPUT, 'formal_60_child_manifest.json')
     )
+
+    snapshot_parser = subparsers.add_parser('snapshot-parent')
+    snapshot_parser.add_argument('--parent-import', required=True)
+    snapshot_parser.add_argument('--output', required=True)
+
+    evaluate_parser = subparsers.add_parser('evaluate-cell')
+    evaluate_parser.add_argument('--snapshot', required=True)
+    evaluate_parser.add_argument('--network', required=True)
+    evaluate_parser.add_argument('--output-root', required=True)
+    evaluate_parser.add_argument('--stage-index', type=int, required=True)
+    evaluate_parser.add_argument('--training-network', required=True)
+    evaluate_parser.add_argument('--local-episode', type=int, required=True)
+    evaluate_parser.add_argument('--global-episode', type=int, required=True)
+    evaluate_parser.add_argument('--interface', choices=('libsumo', 'traci'), default='libsumo')
+    evaluate_parser.add_argument('--timeout-seconds', type=int, default=300)
     return parser
 
 
@@ -61,6 +76,49 @@ def main(argv=None):
         }
     elif args.command == 'validate':
         result = validate_formal_plan(args.plan)
+    elif args.command == 'snapshot-parent':
+        import torch
+        from .evaluator import save_online_state_snapshot
+        from .io import read_json
+
+        parent = read_json(args.parent_import)
+        checkpoint = torch.load(parent['checkpoint_path'], map_location='cpu')
+        payload = save_online_state_snapshot(
+            checkpoint['agents'][0]['online_model_state_dict'], {
+                'input_dim': parent['dimensions']['model_input_dim'],
+                'output_dim': parent['dimensions']['action_dim'],
+                'phase': True, 'one_hot': True,
+            }, args.output, {
+                'source_parent_import': os.path.abspath(args.parent_import),
+                'stage_index': 1, 'global_episode': 400,
+            },
+        )
+        result = {
+            'output': os.path.abspath(args.output),
+            'checkpoint_digest': payload['online_parameter_digest'],
+        }
+    elif args.command == 'evaluate-cell':
+        from .config import simulator_config_path
+        from .evaluator import IndependentEvaluator
+
+        evaluator = IndependentEvaluator(
+            args.output_root, retries=3,
+            timeout_seconds=args.timeout_seconds,
+        )
+        result = evaluator.evaluate(
+            args.snapshot, args.network, {
+                'simulator_config': simulator_config_path(args.network),
+                'interface': args.interface,
+                'steps': 3600, 'action_interval': 10,
+                'sumo_seed_mode': 'fixed_default',
+            }, {
+                'stage_index': args.stage_index,
+                'training_network': args.training_network,
+                'evaluation_network': args.network,
+                'local_episode': args.local_episode,
+                'global_episode': args.global_episode,
+            },
+        )
     else:
         raise AssertionError(args.command)
     print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))

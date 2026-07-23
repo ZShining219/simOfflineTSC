@@ -8,8 +8,9 @@ from pathlib import Path
 
 import yaml
 
-from tools.experiment_plotting.cli import run_plan1
+from tools.experiment_plotting.cli import build_parser, run_plan1
 from tools.experiment_plotting.loaders import load_run_list
+from tools.experiment_plotting.profiles import get_profile
 from tools.experiment_plotting.validators import validate_run
 from utils.logger import METRIC_FIELDS
 
@@ -187,17 +188,52 @@ class Plan1PlottingTest(unittest.TestCase):
         self.assertTrue((output / "tables" / "metrics.csv").is_file())
         self.assertTrue((output / "tables" / "first_100_auc.csv").is_file())
         self.assertTrue((output / "tables" / "learning_speed.csv").is_file())
-        self.assertTrue((output / "figures" / "travel_time.png").is_file())
-        self.assertTrue((output / "figures" / "travel_time.pdf").is_file())
+        self.assertTrue((output / "tables" / "efficiency.csv").is_file())
+        self.assertTrue((output / "tables" / "aulc.csv").is_file())
+        self.assertTrue((output / "figures" / "results" / "final_travel_time.png").is_file())
+        self.assertTrue((output / "figures" / "results" / "final_travel_time.pdf").is_file())
+        self.assertTrue((output / "figures" / "diagnostics" / "individual_travel_time.png").is_file())
         with open(output / "plotting_manifest.json", encoding="utf-8") as handle:
             manifest = json.load(handle)
         self.assertEqual(2, manifest["included_run_count"])
         self.assertTrue(manifest["config_compatible"])
+        self.assertEqual(2, manifest["schema_version"])
+        self.assertEqual("plan1", manifest["plot_profile"])
+        self.assertTrue(manifest["figure_groups"]["results"])
+        self.assertTrue(manifest["figure_groups"]["diagnostics"])
+        result_stems = {
+            Path(path).stem for path in manifest["figure_groups"]["results"]
+        }
+        diagnostic_stems = {
+            Path(path).stem for path in manifest["figure_groups"]["diagnostics"]
+        }
+        self.assertEqual({
+            "final_travel_time", "evaluation_learning_curve",
+            "learning_speed_auc", "action_concentration", "training_cost",
+            "travel_time_vs_transitions", "travel_time_vs_gradient_updates",
+            "travel_time_vs_wall_time", "replay_fill_fraction",
+            "update_to_data_ratio", "raw_travel_time_aulc",
+            "normalized_control_aulc",
+        }, result_stems)
+        self.assertIn("action_distribution", diagnostic_stems)
+        self.assertIn("individual_travel_time", diagnostic_stems)
         with open(output / "tables" / "first_100_auc.csv", newline="", encoding="utf-8") as handle:
             auc_rows = list(csv.DictReader(handle))
         self.assertEqual({"TRAIN", "EVALUATION"}, {
             row["curve_source"] for row in auc_rows
         })
+
+    def test_generic_analyze_command_keeps_named_profile_explicit(self):
+        args = build_parser().parse_args([
+            "analyze", "--profile", "plan1", "--run-list", "runs.csv",
+            "--analysis-id", "analysis_1",
+        ])
+        self.assertEqual("analyze", args.command)
+        self.assertEqual("plan1", args.profile)
+        self.assertEqual("runs.csv", args.run_list)
+        self.assertEqual(
+            "sumohz1x1_config2", get_profile("plan1").network_order[0],
+        )
 
     def test_duplicate_and_failed_runs_are_rejected(self):
         run_dir = write_run(self.root, "run_a")

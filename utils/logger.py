@@ -1,6 +1,8 @@
 import os
 import sys
 import copy
+import csv
+import re
 import yaml
 import numpy as np
 import logging
@@ -30,6 +32,12 @@ METRIC_FIELDS = METRIC_FIELDS_V1 + (
     'action_distribution', 'phase_switches', 'phase_switch_frequency',
     'replay_size', 'replay_capacity', 'target_updates',
 )
+METRIC_FIELDS_V3 = METRIC_FIELDS + (
+    'collected_transitions', 'sampled_transitions',
+    'unique_sampled_transitions', 'unique_coverage', 'update_to_data_ratio',
+    'sample_count_mean', 'sample_count_median', 'sample_count_p95',
+    'sample_count_max', 'sampled_transition_mean_age',
+)
 
 
 def metric_fields_for_schema(schema_version):
@@ -37,6 +45,8 @@ def metric_fields_for_schema(schema_version):
         return METRIC_FIELDS_V1
     if schema_version == 2:
         return METRIC_FIELDS
+    if schema_version == 3:
+        return METRIC_FIELDS_V3
     raise ValueError(f'Unsupported metric schema_version: {schema_version}')
 
 
@@ -729,6 +739,8 @@ def get_output_file_path(config):
     set output path
     """
     param = config['command']
+    if param.get('output_path'):
+        return os.path.abspath(param['output_path'])
     path = os.path.join(config['world']['dir'] , 'output_data', param['task'], 
         f"{param['world']}_{param['agent']}", param['network'], param['prefix'])
     return path
@@ -781,3 +793,329 @@ def setup_logging(level):
         handler_file.setLevel(level)  # TODO: SET LEVEL
         root.addHandler(handler_file)
     return root
+
+
+EVALUATION_REQUIRED_METRICS = (
+    'reward', 'queue', 'delay', 'throughput', 'travel_time',
+)
+EVALUATION_SUMMARY_FIELDS = (
+    'controller_id', 'agent', 'network', 'training_seed', 'evaluation_seed',
+    'checkpoint_episode', 'checkpoint_path', 'checkpoint_sha256',
+    'simulation_steps', 'decision_steps', 'travel_time', 'reward_mean',
+    'queue', 'delay', 'real_delay', 'throughput', 'waiting_time',
+    'unfinished_vehicles', 'wall_time_seconds',
+)
+EVALUATION_RECORD_FIELDS = (
+    'schema_version', 'record_type', 'controller_id', 'agent', 'network',
+    'training_seed', 'evaluation_seed', 'checkpoint_episode',
+    'checkpoint_path', 'checkpoint_sha256', 'simulation_time_seconds',
+    'decision_step', 'action_interval_seconds', 'actions', 'reward_agents',
+    'controller_reward_agents',
+    'reward_network_mean', 'reward_network_sum', 'queue_lanes',
+    'queue_intersections', 'queue_network_mean', 'queue_network_sum',
+    'delay_lanes', 'lane_vehicle_counts', 'delay_intersections',
+    'delay_network_weighted_mean', 'throughput_interval',
+    'throughput_cumulative',
+)
+
+
+def _sha256_file(path):
+    digest = hashlib.sha256()
+    with open(path, 'rb') as handle:
+        for block in iter(lambda: handle.read(1024 * 1024), b''):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def load_evaluation_collection_manifest(path):
+    """Validate and normalize an explicit best-checkpoint evaluation manifest."""
+    manifest_path = os.path.abspath(path)
+    with open(manifest_path, encoding='utf-8') as handle:
+        payload = json.load(handle)
+    required = {
+        'schema_version', 'package_id', 'world', 'evaluation_seeds',
+        'sampling_interval_seconds', 'smoothing_window_seconds', 'metrics',
+        'controllers',
+    }
+    missing = sorted(required - set(payload)) if isinstance(payload, dict) else sorted(required)
+    if missing:
+        raise ValueError(f'Evaluation collection manifest missing fields: {missing}')
+    if payload['schema_version'] != 1 or payload['world'] != 'sumo':
+        raise ValueError('Evaluation collection manifest requires schema_version=1 and world=sumo')
+    seeds = payload['evaluation_seeds']
+    if not isinstance(seeds, list) or not seeds or any(
+        not isinstance(seed, int) or seed < 0 for seed in seeds
+    ) or len(set(seeds)) != len(seeds):
+        raise ValueError('evaluation_seeds must be a non-empty unique integer list')
+    if payload['sampling_interval_seconds'] <= 0:
+        raise ValueError('sampling_interval_seconds must be positive')
+    if payload['smoothing_window_seconds'] < payload['sampling_interval_seconds']:
+        raise ValueError('smoothing_window_seconds cannot be shorter than sampling interval')
+    missing_metrics = sorted(set(EVALUATION_REQUIRED_METRICS) - set(payload['metrics']))
+    if missing_metrics:
+        raise ValueError(f'Evaluation collection manifest missing metrics: {missing_metrics}')
+    normalized = copy.deepcopy(payload)
+    normalized['source_manifest'] = manifest_path
+    seen_ids = set()
+    normalized_controllers = []
+    for controller in payload['controllers']:
+        controller_required = {
+            'controller_id', 'agent', 'network', 'training_seed',
+            'run_dir', 'checkpoint',
+        }
+        missing_controller = sorted(controller_required - set(controller))
+        if missing_controller:
+            raise ValueError(
+                f"Controller {controller.get('controller_id')} missing fields: "
+                f'{missing_controller}'
+            )
+        controller_id = controller['controller_id']
+        if not isinstance(controller_id, str) or not re.fullmatch(
+            r'[A-Za-z0-9][A-Za-z0-9._-]*', controller_id
+        ):
+            raise ValueError(f'Unsafe controller_id: {controller_id!r}')
+        if controller_id in seen_ids:
+            raise ValueError(f'Duplicate controller_id: {controller_id}')
+        seen_ids.add(controller_id)
+        if controller['agent'] not in {'dqn', 'fixedtime', 'maxpressure'}:
+            raise ValueError(f"Unsupported evaluation agent: {controller['agent']}")
+        run_dir = os.path.abspath(os.path.expanduser(controller['run_dir']))
+        with open(os.path.join(run_dir, 'run_manifest.json'), encoding='utf-8') as handle:
+            run_manifest = json.load(handle)
+        with open(os.path.join(run_dir, 'run_status.json'), encoding='utf-8') as handle:
+            run_status = json.load(handle)
+        if run_status.get('status') != '已完成' or run_status.get('exit_code') != 0:
+            raise ValueError(f'Evaluation source run did not complete: {run_dir}')
+        for field in ('agent', 'network', 'training_seed'):
+            if run_manifest.get(field) != controller[field]:
+                raise ValueError(
+                    f'Controller {controller_id} {field} does not match source run'
+                )
+        verify_config_archive(os.path.join(run_dir, 'config'))
+        checkpoint = controller['checkpoint']
+        checkpoint_path = None
+        checkpoint_episode = None
+        checkpoint_sha256 = None
+        if controller['agent'] == 'dqn':
+            if not isinstance(checkpoint, str) or not checkpoint:
+                raise ValueError(f'DQN controller {controller_id} requires checkpoint')
+            checkpoint_path = (
+                checkpoint if os.path.isabs(checkpoint)
+                else os.path.join(run_dir, checkpoint)
+            )
+            checkpoint_path = os.path.abspath(checkpoint_path)
+            with open(os.path.join(run_dir, 'evaluation', 'summary.json'), encoding='utf-8') as handle:
+                evaluation_summary = json.load(handle)
+            expected = os.path.abspath(os.path.join(run_dir, evaluation_summary['best_checkpoint']))
+            if checkpoint_path != expected:
+                raise ValueError(
+                    f'DQN controller {controller_id} checkpoint is not the recorded best checkpoint'
+                )
+            if not os.path.isfile(checkpoint_path):
+                raise FileNotFoundError(checkpoint_path)
+            checkpoint_episode = int(evaluation_summary['best_episode'])
+            checkpoint_sha256 = _sha256_file(checkpoint_path)
+        elif checkpoint is not None:
+            raise ValueError(f'Baseline controller {controller_id} checkpoint must be null')
+        item = copy.deepcopy(controller)
+        item.update({
+            'run_dir': run_dir,
+            'checkpoint_path': checkpoint_path,
+            'checkpoint_episode': checkpoint_episode,
+            'checkpoint_sha256': checkpoint_sha256,
+        })
+        normalized_controllers.append(item)
+    normalized['controllers'] = normalized_controllers
+    expected_controllers = payload.get('expected_controller_count')
+    if expected_controllers is not None and expected_controllers != len(normalized_controllers):
+        raise ValueError('Evaluation controller count does not match expected_controller_count')
+    expected_episodes = payload.get('expected_episode_count')
+    actual_episodes = len(normalized_controllers) * len(seeds)
+    if expected_episodes is not None and expected_episodes != actual_episodes:
+        raise ValueError('Evaluation episode count does not match expected_episode_count')
+    normalized['expected_episode_count'] = actual_episodes
+    return manifest_path, normalized
+
+
+class EvaluationPackageWriter:
+    """Crash-visible writer for one immutable decision-level evaluation package."""
+
+    def __init__(self, output_dir, collection_manifest):
+        self.output_dir = os.path.abspath(output_dir)
+        try:
+            os.makedirs(self.output_dir)
+        except FileExistsError as error:
+            raise FileExistsError(
+                f'Evaluation output already exists: {self.output_dir}'
+            ) from error
+        self.records_path = os.path.join(self.output_dir, 'records.jsonl')
+        self.summary_path = os.path.join(self.output_dir, 'summary.csv')
+        self.collection_path = os.path.join(self.output_dir, 'collection_manifest.json')
+        self.manifest_path = os.path.join(self.output_dir, 'manifest.json')
+        self.attempts_dir = os.path.join(self.output_dir, 'attempts')
+        os.makedirs(self.attempts_dir)
+        self.collection_manifest = copy.deepcopy(collection_manifest)
+        _write_json_atomic(self.collection_path, self.collection_manifest)
+        self.summaries = []
+        self.record_count = 0
+
+    def attempt_dir(self, controller_id, evaluation_seed):
+        path = os.path.join(
+            self.attempts_dir, f'{controller_id}__eval_seed_{evaluation_seed}'
+        )
+        os.makedirs(path)
+        return path
+
+    def append_record(self, record):
+        missing = [field for field in EVALUATION_RECORD_FIELDS if field not in record]
+        extra = sorted(set(record) - set(EVALUATION_RECORD_FIELDS))
+        if missing or extra or record.get('schema_version') != 1:
+            raise ValueError(
+                f'Invalid evaluation decision record; missing={missing}, extra={extra}'
+            )
+        content = json.dumps(
+            {field: _json_value(record[field]) for field in EVALUATION_RECORD_FIELDS},
+            ensure_ascii=False, separators=(',', ':'), allow_nan=False,
+        ) + '\n'
+        with open(self.records_path, 'a', encoding='utf-8') as handle:
+            handle.write(content)
+            handle.flush()
+            os.fsync(handle.fileno())
+        self.record_count += 1
+
+    def append_summary(self, summary):
+        missing = [field for field in EVALUATION_SUMMARY_FIELDS if field not in summary]
+        if missing:
+            raise ValueError(f'Evaluation summary missing fields: {missing}')
+        self.summaries.append({field: _json_value(summary[field]) for field in EVALUATION_SUMMARY_FIELDS})
+        descriptor, temporary_path = tempfile.mkstemp(prefix='.tmp-', dir=self.output_dir)
+        try:
+            with os.fdopen(descriptor, 'w', newline='', encoding='utf-8') as handle:
+                writer = csv.DictWriter(handle, fieldnames=EVALUATION_SUMMARY_FIELDS)
+                writer.writeheader()
+                writer.writerows(self.summaries)
+                handle.flush()
+                os.fsync(handle.fileno())
+            os.replace(temporary_path, self.summary_path)
+        except Exception:
+            if os.path.exists(temporary_path):
+                os.unlink(temporary_path)
+            raise
+
+    def finalize(self):
+        expected = self.collection_manifest['expected_episode_count']
+        if len(self.summaries) != expected:
+            raise ValueError(
+                f'Evaluation package has {len(self.summaries)} episodes; expected {expected}'
+            )
+        manifest = {
+            'schema_version': 1,
+            'package_id': self.collection_manifest['package_id'],
+            'status': 'completed',
+            'created_at_utc': _utc_now(),
+            'episode_count': len(self.summaries),
+            'decision_record_count': self.record_count,
+            'files': {
+                name: {'sha256': _sha256_file(os.path.join(self.output_dir, name))}
+                for name in ('collection_manifest.json', 'records.jsonl', 'summary.csv')
+            },
+        }
+        _write_json_atomic(self.manifest_path, manifest)
+        validate_evaluation_package(self.output_dir)
+        return self.manifest_path
+
+
+def validate_evaluation_package(output_dir):
+    output_dir = os.path.abspath(output_dir)
+    with open(os.path.join(output_dir, 'manifest.json'), encoding='utf-8') as handle:
+        manifest = json.load(handle)
+    if manifest.get('schema_version') != 1 or manifest.get('status') != 'completed':
+        raise ValueError('Evaluation package is not a completed schema v1 package')
+    for name, identity in manifest.get('files', {}).items():
+        path = os.path.join(output_dir, name)
+        if _sha256_file(path) != identity.get('sha256'):
+            raise IOError(f'Evaluation package hash mismatch: {name}')
+    with open(os.path.join(output_dir, 'collection_manifest.json'), encoding='utf-8') as handle:
+        collection = json.load(handle)
+    with open(os.path.join(output_dir, 'summary.csv'), newline='', encoding='utf-8') as handle:
+        summaries = list(csv.DictReader(handle))
+    expected = collection['expected_episode_count']
+    if len(summaries) != expected or manifest['episode_count'] != expected:
+        raise ValueError('Evaluation package episode count is incomplete')
+    identities = {
+        (row['controller_id'], int(row['evaluation_seed'])) for row in summaries
+    }
+    expected_identities = {
+        (controller['controller_id'], seed)
+        for controller in collection['controllers']
+        for seed in collection['evaluation_seeds']
+    }
+    if identities != expected_identities:
+        raise ValueError('Evaluation package summary identities are incomplete or duplicated')
+    controller_by_id = {
+        item['controller_id']: item for item in collection['controllers']
+    }
+    records_by_identity = {}
+    record_count = 0
+    with open(os.path.join(output_dir, 'records.jsonl'), encoding='utf-8') as handle:
+        for line_number, line in enumerate(handle, start=1):
+            try:
+                record = json.loads(line)
+            except json.JSONDecodeError as error:
+                raise IOError(
+                    f'Invalid evaluation record at line {line_number}'
+                ) from error
+            missing = [field for field in EVALUATION_RECORD_FIELDS if field not in record]
+            extra = sorted(set(record) - set(EVALUATION_RECORD_FIELDS))
+            if missing or extra or record.get('schema_version') != 1:
+                raise ValueError(
+                    f'Evaluation record {line_number} has invalid fields; '
+                    f'missing={missing}, extra={extra}'
+                )
+            controller = controller_by_id.get(record['controller_id'])
+            if controller is None or any(
+                record[field] != controller[field]
+                for field in ('agent', 'network', 'training_seed')
+            ):
+                raise ValueError(
+                    f'Evaluation record {line_number} controller identity mismatch'
+                )
+            identity = (record['controller_id'], int(record['evaluation_seed']))
+            if identity not in expected_identities:
+                raise ValueError(
+                    f'Evaluation record {line_number} has unexpected identity'
+                )
+            records_by_identity.setdefault(identity, []).append(record)
+            record_count += 1
+    if record_count != manifest['decision_record_count']:
+        raise ValueError('Evaluation package decision record count mismatch')
+    if set(records_by_identity) != expected_identities:
+        raise ValueError('Evaluation package decision identities are incomplete')
+    summaries_by_identity = {
+        (row['controller_id'], int(row['evaluation_seed'])): row
+        for row in summaries
+    }
+    for identity, records in records_by_identity.items():
+        records.sort(key=lambda item: item['decision_step'])
+        expected_steps = list(range(1, len(records) + 1))
+        if [item['decision_step'] for item in records] != expected_steps:
+            raise ValueError(f'Non-contiguous evaluation decision steps: {identity}')
+        interval = collection['sampling_interval_seconds']
+        if any(
+            item['simulation_time_seconds'] != item['decision_step'] * interval
+            or item['action_interval_seconds'] != interval
+            for item in records
+        ):
+            raise ValueError(f'Invalid evaluation simulation-time continuity: {identity}')
+        summary = summaries_by_identity[identity]
+        if (
+            int(summary['decision_steps']) != len(records)
+            or int(summary['simulation_steps']) != int(records[-1]['simulation_time_seconds'])
+        ):
+            raise ValueError(f'Evaluation summary/decision count mismatch: {identity}')
+    return {
+        'manifest': manifest,
+        'collection': collection,
+        'summaries': summaries,
+        'record_count': record_count,
+    }

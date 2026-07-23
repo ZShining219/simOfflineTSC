@@ -25,6 +25,14 @@ class DQNAgent(RLAgent):
         super().__init__(world, world.intersection_ids[rank])
         self.buffer_size = Registry.mapping['trainer_mapping']['setting'].param['buffer_size']
         self.replay_buffer = deque(maxlen=self.buffer_size)
+        # Low-overhead cumulative replay diagnostics.  Only counters and a
+        # histogram are retained; sampled mini-batches are never logged.
+        self.replay_total_collected = 0
+        self.replay_sample_total = 0
+        self.replay_sample_counts = {}
+        self.replay_sample_count_histogram = {}
+        self.replay_insert_step = {}
+        self.replay_sample_age_sum = 0.0
 
         self.world = world
         self.sub_agents = 1
@@ -198,7 +206,120 @@ class DQNAgent(RLAgent):
         :param key: key to store this record, e.g., episode_step_agentid
         :return: None
         '''
+        self._ensure_replay_utilization_counters()
+        if self.replay_buffer.maxlen and len(self.replay_buffer) == self.replay_buffer.maxlen:
+            evicted_key = self.replay_buffer[0][0]
+            self.replay_insert_step.pop(evicted_key, None)
+        self.replay_total_collected += 1
+        self.replay_insert_step[key] = self.replay_total_collected
         self.replay_buffer.append((key, (last_obs, last_phase, actions, rewards, obs, cur_phase)))
+
+    def _ensure_replay_utilization_counters(self):
+        defaults = {
+            'replay_total_collected': 0,
+            'replay_sample_total': 0,
+            'replay_sample_counts': {},
+            'replay_sample_count_histogram': {},
+            'replay_insert_step': {},
+            'replay_sample_age_sum': 0.0,
+        }
+        for name, value in defaults.items():
+            if not hasattr(self, name):
+                setattr(self, name, value)
+
+    def _record_replay_samples(self, samples):
+        self._ensure_replay_utilization_counters()
+        for key, _ in samples:
+            previous = self.replay_sample_counts.get(key, 0)
+            if previous:
+                remaining = self.replay_sample_count_histogram[previous] - 1
+                if remaining:
+                    self.replay_sample_count_histogram[previous] = remaining
+                else:
+                    del self.replay_sample_count_histogram[previous]
+            current = previous + 1
+            self.replay_sample_counts[key] = current
+            self.replay_sample_count_histogram[current] = (
+                self.replay_sample_count_histogram.get(current, 0) + 1
+            )
+            inserted_at = self.replay_insert_step.get(key)
+            if inserted_at is not None:
+                self.replay_sample_age_sum += self.replay_total_collected - inserted_at
+        self.replay_sample_total += len(samples)
+
+    def _sample_count_value_at(self, index):
+        zero_count = self.replay_total_collected - len(self.replay_sample_counts)
+        if index < zero_count:
+            return 0.0
+        offset = index - zero_count
+        cumulative = 0
+        for sample_count in sorted(self.replay_sample_count_histogram):
+            cumulative += self.replay_sample_count_histogram[sample_count]
+            if offset < cumulative:
+                return float(sample_count)
+        return 0.0
+
+    def _sample_count_percentile(self, quantile):
+        if self.replay_total_collected <= 0:
+            return 0.0
+        position = (self.replay_total_collected - 1) * quantile
+        lower = int(np.floor(position))
+        upper = int(np.ceil(position))
+        lower_value = self._sample_count_value_at(lower)
+        upper_value = self._sample_count_value_at(upper)
+        return lower_value + (upper_value - lower_value) * (position - lower)
+
+    def replay_utilization(self):
+        collected = self.replay_total_collected
+        sampled_unique = len(self.replay_sample_counts)
+        return {
+            'collected_transitions': collected,
+            'sampled_transitions': self.replay_sample_total,
+            'unique_sampled_transitions': sampled_unique,
+            'unique_coverage': 0.0 if not collected else sampled_unique / collected,
+            'sample_count_mean': (
+                0.0 if not collected else self.replay_sample_total / collected
+            ),
+            'sample_count_median': self._sample_count_percentile(0.5),
+            'sample_count_p95': self._sample_count_percentile(0.95),
+            'sample_count_max': float(max(self.replay_sample_count_histogram, default=0)),
+            'sampled_transition_mean_age': (
+                0.0 if not self.replay_sample_total
+                else self.replay_sample_age_sum / self.replay_sample_total
+            ),
+        }
+
+    def replay_utilization_state(self):
+        return {
+            'total_collected': self.replay_total_collected,
+            'sample_total': self.replay_sample_total,
+            'sample_counts': dict(self.replay_sample_counts),
+            'sample_count_histogram': dict(self.replay_sample_count_histogram),
+            'insert_step': dict(self.replay_insert_step),
+            'sample_age_sum': self.replay_sample_age_sum,
+        }
+
+    def load_replay_utilization_state(self, state):
+        if not state:
+            return
+        self.replay_total_collected = int(state['total_collected'])
+        self.replay_sample_total = int(state['sample_total'])
+        self.replay_sample_counts = dict(state['sample_counts'])
+        self.replay_sample_count_histogram = {
+            int(key): int(value)
+            for key, value in state['sample_count_histogram'].items()
+        }
+        self.replay_insert_step = dict(state['insert_step'])
+        self.replay_sample_age_sum = float(state['sample_age_sum'])
+
+    def initialize_replay_utilization_from_buffer(self, total_collected):
+        """Compatibility fallback for checkpoints created before replay counters."""
+        self.replay_total_collected = max(int(total_collected), len(self.replay_buffer))
+        first_step = self.replay_total_collected - len(self.replay_buffer) + 1
+        self.replay_insert_step = {
+            item[0]: first_step + index
+            for index, item in enumerate(self.replay_buffer)
+        }
 
     def _batchwise(self, samples):
         '''
@@ -237,6 +358,7 @@ class DQNAgent(RLAgent):
         :return: value of loss
         '''
         samples = random.sample(self.replay_buffer, self.batch_size)
+        self._record_replay_samples(samples)
         b_t, b_tp, rewards, actions = self._batchwise(samples)
         out = self.target_model(b_tp, train=False)
         target = rewards + self.gamma * torch.max(out, dim=1)[0]

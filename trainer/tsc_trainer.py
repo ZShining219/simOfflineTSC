@@ -628,6 +628,10 @@ class TSCTrainer(BaseTrainer):
                         'items': list(agent.replay_buffer),
                     },
                 })
+                if hasattr(agent, 'replay_utilization_state'):
+                    agent_payload['replay_utilization_state'] = (
+                        agent.replay_utilization_state()
+                    )
             payload['agents'].append(agent_payload)
         if checkpoint_type == 'resumable':
             payload.update({
@@ -740,6 +744,14 @@ class TSCTrainer(BaseTrainer):
             agent.epsilon = agent_payload['epsilon']
             replay = agent_payload['replay_state']
             agent.replay_buffer = deque(replay['items'], maxlen=replay['capacity'])
+            if hasattr(agent, 'load_replay_utilization_state'):
+                utilization_state = agent_payload.get('replay_utilization_state')
+                if utilization_state:
+                    agent.load_replay_utilization_state(utilization_state)
+                elif hasattr(agent, 'initialize_replay_utilization_from_buffer'):
+                    agent.initialize_replay_utilization_from_buffer(
+                        payload['global_decision_step']
+                    )
         counters = payload['training_counters']
         self.global_decision_step = counters['global_decision_step']
         self.gradient_updates = counters['gradient_updates']
@@ -752,6 +764,129 @@ class TSCTrainer(BaseTrainer):
         if torch.cuda.is_available() and payload['torch_cuda_rng_states']:
             torch.cuda.set_rng_state_all(payload['torch_cuda_rng_states'])
         return payload
+
+    def _evaluation_timeseries_record(
+        self, context, decision_step, rewards, actions, previous_throughput,
+    ):
+        lane_queue = self.world.get_lane_waiting_vehicle_count()
+        lane_delay = self.world.get_lane_delay()
+        lane_vehicle_count = self.world.get_lane_vehicle_count()
+        queue_intersections = [float(agent.get_queue()) for agent in self.agents]
+        delay_intersections = [float(agent.get_delay()) for agent in self.agents]
+        controller_reward_agents = np.asarray(rewards, dtype=float).reshape(-1)
+        # Agent reward generators are not semantically identical across the
+        # legacy controllers.  Use negative queued vehicles as the stable
+        # cross-controller diagnostic reward and preserve the raw values too.
+        reward_agents = -np.asarray(queue_intersections, dtype=float)
+        total_vehicles = sum(float(value) for value in lane_vehicle_count.values())
+        weighted_delay = sum(
+            float(lane_delay.get(lane, 0.0)) * float(vehicle_count)
+            for lane, vehicle_count in lane_vehicle_count.items()
+        )
+        cumulative_throughput = int(self.world.get_cur_throughput())
+        record = {
+            'schema_version': 1,
+            'record_type': 'DECISION_METRICS',
+            'controller_id': context['controller_id'],
+            'agent': context['agent'],
+            'network': context['network'],
+            'training_seed': context.get('training_seed'),
+            'evaluation_seed': context['evaluation_seed'],
+            'checkpoint_episode': context.get('checkpoint_episode'),
+            'checkpoint_path': context.get('checkpoint_path'),
+            'checkpoint_sha256': context.get('checkpoint_sha256'),
+            'simulation_time_seconds': float(self.world.get_current_time()),
+            'decision_step': int(decision_step),
+            'action_interval_seconds': int(self.action_interval),
+            'actions': np.asarray(actions).reshape(-1).astype(int).tolist(),
+            'controller_reward_agents': controller_reward_agents.tolist(),
+            'reward_agents': reward_agents.tolist(),
+            'reward_network_mean': float(np.mean(reward_agents)),
+            'reward_network_sum': float(np.sum(reward_agents)),
+            'queue_lanes': {
+                str(key): float(value) for key, value in sorted(lane_queue.items())
+            },
+            'queue_intersections': queue_intersections,
+            'queue_network_mean': (
+                0.0 if not lane_queue else float(np.mean(list(lane_queue.values())))
+            ),
+            'queue_network_sum': float(sum(lane_queue.values())),
+            'delay_lanes': {
+                str(key): float(value) for key, value in sorted(lane_delay.items())
+            },
+            'lane_vehicle_counts': {
+                str(key): int(value)
+                for key, value in sorted(lane_vehicle_count.items())
+            },
+            'delay_intersections': delay_intersections,
+            'delay_network_weighted_mean': (
+                0.0 if total_vehicles <= 0 else float(weighted_delay / total_vehicles)
+            ),
+            'throughput_interval': cumulative_throughput - previous_throughput,
+            'throughput_cumulative': cumulative_throughput,
+        }
+        return record, cumulative_throughput
+
+    def evaluate_once(self, context, record_callback=None):
+        """Run one isolated deterministic evaluation episode with decision records."""
+        with EvaluationIsolationGuard(self, 'BEST_CHECKPOINT_REEVALUATION'):
+            phase_started_at = time.perf_counter()
+            output_dir = context.get('attempt_output_dir')
+            if output_dir and hasattr(self.world, 'configure_evaluation_output'):
+                self.world.configure_evaluation_output(output_dir)
+            obs = self.env.reset()
+            self.metric.clear()
+            self._reset_action_diagnostics()
+            for agent in self.agents:
+                agent.reset()
+            previous_throughput = 0
+            simulation_steps = 0
+            while simulation_steps < self.test_steps:
+                phases = np.stack([agent.get_phase() for agent in self.agents])
+                actions = np.stack([
+                    agent.get_action(obs[index], phases[index], test=True)
+                    for index, agent in enumerate(self.agents)
+                ])
+                self._record_actions(actions)
+                rewards_list = []
+                dones = [False] * len(self.agents)
+                for _ in range(min(self.action_interval, self.test_steps - simulation_steps)):
+                    obs, rewards, dones, _ = self.env.step(actions.flatten())
+                    simulation_steps += 1
+                    rewards_list.append(np.stack(rewards))
+                    if all(dones):
+                        break
+                rewards = np.mean(rewards_list, axis=0)
+                self.metric.update(rewards)
+                record, previous_throughput = self._evaluation_timeseries_record(
+                    context, self.metric.decision_num, rewards, actions,
+                    previous_throughput,
+                )
+                if record_callback is not None:
+                    record_callback(record)
+                if all(dones):
+                    break
+            wall_time_seconds = time.perf_counter() - phase_started_at
+            self.last_evaluation_record = self.writeStructuredLog(
+                'FINAL_EVALUATION', context.get('checkpoint_episode') or 0,
+                simulation_steps, self.metric.decision_num, None,
+                wall_time_seconds,
+            )
+            summary = dict(context)
+            summary.update({
+                'simulation_steps': simulation_steps,
+                'decision_steps': self.metric.decision_num,
+                'travel_time': float(self.metric.real_average_travel_time()),
+                'reward_mean': float(self.metric.rewards()),
+                'queue': float(self.metric.queue()),
+                'delay': float(self.metric.delay()),
+                'real_delay': float(self.metric.real_delay()),
+                'throughput': int(self.metric.throughput()),
+                'waiting_time': float(self.metric.waiting_time()),
+                'unfinished_vehicles': int(self.metric.unfinished_vehicles()),
+                'wall_time_seconds': wall_time_seconds,
+            })
+        return _json_safe_value(summary)
 
     def train_test(self, e, record_type='EVALUATION'):
         '''
@@ -867,8 +1002,21 @@ class TSCTrainer(BaseTrainer):
         previous_action_count = (
             0 if self.previous_actions is None else len(self.previous_actions)
         )
+        replay_diagnostics = [
+            agent.replay_utilization() for agent in self.agents
+            if hasattr(agent, 'replay_utilization')
+        ]
+        collected_transitions = sum(
+            item['collected_transitions'] for item in replay_diagnostics
+        )
+        sampled_transitions = sum(
+            item['sampled_transitions'] for item in replay_diagnostics
+        )
+        unique_sampled_transitions = sum(
+            item['unique_sampled_transitions'] for item in replay_diagnostics
+        )
         record = {
-            'schema_version': 2,
+            'schema_version': 3,
             'record_type': record_type,
             'agent': command['agent'],
             'network': command['network'],
@@ -899,6 +1047,40 @@ class TSCTrainer(BaseTrainer):
             'replay_size': replay_size,
             'replay_capacity': replay_capacity,
             'target_updates': self.target_updates,
+            'collected_transitions': collected_transitions,
+            'sampled_transitions': sampled_transitions,
+            'unique_sampled_transitions': unique_sampled_transitions,
+            'unique_coverage': (
+                0.0 if not collected_transitions
+                else unique_sampled_transitions / collected_transitions
+            ),
+            'update_to_data_ratio': (
+                0.0 if not collected_transitions
+                else self.gradient_updates / collected_transitions
+            ),
+            'sample_count_mean': (
+                0.0 if not replay_diagnostics else
+                float(np.mean([item['sample_count_mean'] for item in replay_diagnostics]))
+            ),
+            'sample_count_median': (
+                0.0 if not replay_diagnostics else
+                float(np.mean([item['sample_count_median'] for item in replay_diagnostics]))
+            ),
+            'sample_count_p95': (
+                0.0 if not replay_diagnostics else
+                float(np.mean([item['sample_count_p95'] for item in replay_diagnostics]))
+            ),
+            'sample_count_max': (
+                0.0 if not replay_diagnostics else
+                float(max(item['sample_count_max'] for item in replay_diagnostics))
+            ),
+            'sampled_transition_mean_age': (
+                0.0 if not sampled_transitions else
+                sum(
+                    item['sampled_transition_mean_age'] * item['sampled_transitions']
+                    for item in replay_diagnostics
+                ) / sampled_transitions
+            ),
         }
         self.structured_metrics.append(record)
         return record

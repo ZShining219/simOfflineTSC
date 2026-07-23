@@ -28,6 +28,16 @@ LEARNING_SPEED_FIELDS = (
     "curve_source", "reference", "criterion", "threshold", "status",
     "episode",
 )
+EFFICIENCY_FIELDS = (
+    "run_key", "role", "agent", "network", "training_seed", "run_dir",
+    "episode", "travel_time", "environment_transitions", "gradient_updates",
+    "cumulative_wall_time_seconds", "replay_fill_fraction",
+    "update_to_data_ratio",
+)
+AULC_SUMMARY_FIELDS = (
+    "run_key", "role", "agent", "network", "training_seed", "run_dir",
+    "curve", "point_count", "x_start", "x_end", "aulc",
+)
 
 
 def _finite(value):
@@ -244,6 +254,142 @@ def calculate_learning_speed(metric_rows):
                         "status": "reached" if episode is not None else "not_reached",
                         "episode": episode,
                     })
+    return results
+
+
+def build_efficiency_rows(metric_rows):
+    """Align evaluation quality with cumulative interaction and compute cost."""
+    rows = []
+    run_keys = list(dict.fromkeys(
+        row["run_key"] for row in metric_rows
+        if row["agent"] == "dqn" and row["role"] != "baseline"
+    ))
+    for run_key in run_keys:
+        run_rows = [row for row in metric_rows if row["run_key"] == run_key]
+        training = sorted(
+            (row for row in run_rows if row["record_type"] == "TRAIN"),
+            key=lambda row: row["episode"],
+        )
+        cumulative_wall = {}
+        elapsed = 0.0
+        for row in training:
+            if _finite(row.get("wall_time_seconds")):
+                elapsed += float(row["wall_time_seconds"])
+            cumulative_wall[row["episode"]] = elapsed
+        evaluations = sorted(
+            (
+                row for row in run_rows
+                if row["record_type"] in {"EVALUATION", "FINAL_EVALUATION"}
+                and _finite(row.get("travel_time"))
+            ),
+            key=lambda row: row["episode"],
+        )
+        for row in evaluations:
+            transitions = row.get("collected_transitions")
+            if not _finite(transitions) or transitions == 0:
+                transitions = row.get("global_decision_step")
+            capacity = row.get("replay_capacity")
+            replay_size = row.get("replay_size")
+            replay_fill = (
+                float(replay_size) / float(capacity)
+                if _finite(replay_size) and _finite(capacity) and capacity > 0
+                else None
+            )
+            utd = row.get("update_to_data_ratio")
+            if not _finite(utd):
+                updates = row.get("gradient_updates")
+                utd = (
+                    float(updates) / float(transitions)
+                    if _finite(updates) and _finite(transitions) and transitions > 0
+                    else 0.0
+                )
+            wall_time = cumulative_wall.get(row["episode"], 0.0)
+            rows.append({
+                **{key: row[key] for key in (
+                    "run_key", "role", "agent", "network",
+                    "training_seed", "run_dir",
+                )},
+                "episode": row["episode"],
+                "travel_time": row["travel_time"],
+                "environment_transitions": transitions,
+                "gradient_updates": row.get("gradient_updates"),
+                "cumulative_wall_time_seconds": wall_time,
+                "replay_fill_fraction": replay_fill,
+                "update_to_data_ratio": utd,
+            })
+    return rows
+
+
+def _mean_curve_area(points):
+    if not points:
+        return None
+    x_values = np.asarray([point[0] for point in points], dtype=float)
+    y_values = np.asarray([point[1] for point in points], dtype=float)
+    if len(points) == 1 or x_values[-1] == x_values[0]:
+        return float(y_values[-1])
+    return float(np.trapz(y_values, x_values) / (x_values[-1] - x_values[0]))
+
+
+def calculate_efficiency_aulc(efficiency_rows, metric_rows):
+    """Calculate raw travel-time AULC and baseline-normalized AULC."""
+    baselines = {}
+    for row in metric_rows:
+        if (
+            row["role"] == "baseline"
+            and row["agent"] in {"fixedtime", "maxpressure"}
+            and _finite(row.get("travel_time"))
+        ):
+            baselines[(row["network"], row["agent"])] = float(row["travel_time"])
+    results = []
+    by_run = {}
+    for row in efficiency_rows:
+        by_run.setdefault(row["run_key"], []).append(row)
+    normalized_by_seed = {}
+    for run_key, rows in by_run.items():
+        rows = sorted(rows, key=lambda row: row["environment_transitions"])
+        identity = {key: rows[0][key] for key in (
+            "run_key", "role", "agent", "network", "training_seed", "run_dir",
+        )}
+        raw_points = [
+            (row["environment_transitions"], row["travel_time"])
+            for row in rows
+            if _finite(row.get("environment_transitions"))
+            and _finite(row.get("travel_time"))
+        ]
+        raw_aulc = _mean_curve_area(raw_points)
+        if raw_aulc is not None:
+            results.append({
+                **identity, "curve": "raw_travel_time",
+                "point_count": len(raw_points), "x_start": raw_points[0][0],
+                "x_end": raw_points[-1][0], "aulc": raw_aulc,
+            })
+        fixed = baselines.get((identity["network"], "fixedtime"))
+        pressure = baselines.get((identity["network"], "maxpressure"))
+        if fixed is None or pressure is None or fixed == pressure:
+            continue
+        normalized_points = [
+            (x_value, (fixed - travel_time) / (fixed - pressure))
+            for x_value, travel_time in raw_points
+        ]
+        normalized_aulc = _mean_curve_area(normalized_points)
+        results.append({
+            **identity, "curve": "normalized_control_score",
+            "point_count": len(normalized_points),
+            "x_start": normalized_points[0][0], "x_end": normalized_points[-1][0],
+            "aulc": normalized_aulc,
+        })
+        normalized_by_seed.setdefault(identity["training_seed"], []).append(
+            normalized_aulc
+        )
+    for training_seed, values in sorted(normalized_by_seed.items()):
+        results.append({
+            "run_key": f"cross_scene_seed_{training_seed}", "role": "formal",
+            "agent": "dqn", "network": "all_scenarios",
+            "training_seed": training_seed, "run_dir": "",
+            "curve": "cross_scene_normalized_control_score",
+            "point_count": len(values), "x_start": None, "x_end": None,
+            "aulc": float(np.mean(values)),
+        })
     return results
 
 

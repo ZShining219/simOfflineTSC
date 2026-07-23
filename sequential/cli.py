@@ -96,6 +96,13 @@ def _parser():
     pilot_parser.add_argument('--output', required=True)
     pilot_parser.add_argument('--later-stage-episodes', type=int, default=15)
     pilot_parser.add_argument('--config', default='configs/sequential/plan34.yml')
+
+    reproduction_parser = subparsers.add_parser('compare-plan1-reproduction')
+    reproduction_parser.add_argument('--source-run', required=True)
+    reproduction_parser.add_argument('--reproduction-run', required=True)
+    reproduction_parser.add_argument('--network', required=True)
+    reproduction_parser.add_argument('--training-seed', type=int, default=0)
+    reproduction_parser.add_argument('--output', required=True)
     return parser
 
 
@@ -228,6 +235,16 @@ def main(argv=None):
             'child_count': plan['child_count'],
             'plan_digest': plan['plan_digest'],
             'later_stage_episodes': args.later_stage_episodes,
+        }
+    elif args.command == 'compare-plan1-reproduction':
+        from .reproduction import compare_plan1_reproduction
+        report = compare_plan1_reproduction(
+            args.source_run, args.reproduction_run, args.network,
+            output_path=args.output, training_seed=args.training_seed,
+        )
+        result = {
+            'valid': report['valid'], 'network': args.network,
+            'output': os.path.abspath(args.output), 'checks': report['checks'],
         }
     else:
         raise AssertionError(args.command)

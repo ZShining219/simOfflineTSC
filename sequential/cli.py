@@ -110,6 +110,11 @@ def _parser():
     fault_parser.add_argument('--logical-run-id', required=True)
     fault_parser.add_argument('--timeout-seconds', type=int, default=3600)
     fault_parser.add_argument('--max-child', type=int, choices=(8, 6, 4), default=4)
+
+    calibration_parser = subparsers.add_parser('compare-evaluator-calibration')
+    calibration_parser.add_argument('--legacy', required=True)
+    calibration_parser.add_argument('--new-alias', required=True)
+    calibration_parser.add_argument('--output', required=True)
     return parser
 
 
@@ -259,6 +264,17 @@ def main(argv=None):
             args.manifest, args.output_root, args.logical_run_id,
             timeout_seconds=args.timeout_seconds, max_child=args.max_child,
         )
+    elif args.command == 'compare-evaluator-calibration':
+        from .calibration import compare_evaluator_calibration
+        report = compare_evaluator_calibration(
+            args.legacy, args.new_alias, args.output,
+        )
+        result = {
+            'valid': report['valid'], 'network': report['network'],
+            'output': os.path.abspath(args.output),
+            'action_sequence_equal': report['action_sequence_equal'],
+            'metric_checks': report['metric_checks'],
+        }
     else:
         raise AssertionError(args.command)
     print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))

@@ -34,7 +34,17 @@ def main(argv=None):
     checkpoint_path = os.path.join(
         source_run, 'checkpoints', 'resumable', 'episode_0400.pt'
     )
-    trainer.load_resumable_checkpoint(checkpoint_path)
+    checkpoint = trainer.load_checkpoint_payload(
+        checkpoint_path, expected_type='resumable'
+    )
+    if len(checkpoint['agents']) != len(trainer.agents):
+        raise ValueError('Checkpoint agent count does not match frozen trainer')
+    for rank, (agent, agent_payload) in enumerate(zip(
+        trainer.agents, checkpoint['agents']
+    )):
+        if agent_payload['rank'] != getattr(agent, 'rank', rank):
+            raise ValueError('Checkpoint agent rank does not match frozen trainer')
+        agent.model.load_state_dict(agent_payload['online_model_state_dict'])
     action_sequence = []
     original_record = trainer._record_actions
 
@@ -53,7 +63,19 @@ def main(argv=None):
         runner.run_state.transition('失败', exit_code=1, error=error)
         raise
     finally:
-        close_report = trainer.world.close()
+        try:
+            if hasattr(trainer.world, 'close'):
+                close_report = trainer.world.close()
+            elif hasattr(trainer.world.eng, 'close'):
+                trainer.world.eng.close()
+                close_report = {'closed': True, 'method': 'world.eng.close'}
+            else:
+                close_report = {'closed': False, 'reason': 'no_close_api'}
+        except BaseException as close_error:
+            close_report = {
+                'closed': False, 'error_type': type(close_error).__name__,
+                'error_message': str(close_error),
+            }
     payload = {
         'schema_version': 1, 'frozen_checkout': checkout,
         'source_run': source_run, 'checkpoint_path': checkpoint_path,

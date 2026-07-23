@@ -168,10 +168,11 @@ def _validate_frozen_config(run_path, source, checkpoint, source_validation):
         'lane_feature_count': 8,
     }
 
-def validate_parent_source(source):
+def validate_parent_source(source, require_plan1_formal=True):
     source_validation = _validate_source_run(
         source.run_path, source.network, source.training_seed,
         EXPECTED_PARENT_EPISODE,
+        require_plan1_formal=require_plan1_formal,
     )
     checkpoint_path = _checkpoint_path(source.run_path)
     if not os.path.isfile(checkpoint_path):

@@ -52,10 +52,12 @@ def plan1_trajectory_digest(run_path):
     }
 
 
-def plan1_reproduction_signature(run_path, network, training_seed=0):
+def plan1_reproduction_signature(
+    run_path, network, training_seed=0, require_plan1_formal=True,
+):
     parent = validate_parent_source(ParentSource(
         os.path.abspath(run_path), network, int(training_seed),
-    ))
+    ), require_plan1_formal=require_plan1_formal)
     return {
         'run_path': os.path.abspath(run_path), 'network': network,
         'training_seed': int(training_seed),
@@ -78,7 +80,8 @@ def compare_plan1_reproduction(source_run, reproduction_run, network,
                                output_path=None, training_seed=0):
     source = plan1_reproduction_signature(source_run, network, training_seed)
     reproduction = plan1_reproduction_signature(
-        reproduction_run, network, training_seed
+        reproduction_run, network, training_seed,
+        require_plan1_formal=False,
     )
     fields = (
         'online_parameter_digest', 'target_parameter_digest',

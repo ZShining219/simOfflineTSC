@@ -247,7 +247,9 @@ def _verify_config_archive(run_path):
         raise ValueError(f'{run_path}: ' + '; '.join(errors))
 
 
-def _validate_source_run(run_path, network, behavior_seed, expected_episodes):
+def _validate_source_run(
+    run_path, network, behavior_seed, expected_episodes, require_plan1_formal=True,
+):
     run_path = os.path.abspath(run_path)
     manifest = _read_json(os.path.join(run_path, 'run_manifest.json'))
     status = _read_json(os.path.join(run_path, 'run_status.json'))
@@ -263,7 +265,10 @@ def _validate_source_run(run_path, network, behavior_seed, expected_episodes):
         or manifest.get('agent') != 'dqn'
     ):
         raise ValueError(f'{run_path}: source is not a TSC DQN run')
-    if not str(manifest.get('prefix', '')).startswith('p1_formal_'):
+    if (
+        require_plan1_formal
+        and not str(manifest.get('prefix', '')).startswith('p1_formal_')
+    ):
         raise ValueError(f'{run_path}: source is not marked as a Plan 1 formal run')
     if manifest.get('network') != network:
         raise ValueError(f'{run_path}: network does not match run-list')

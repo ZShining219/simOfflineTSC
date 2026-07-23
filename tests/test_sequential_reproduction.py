@@ -8,7 +8,8 @@ import numpy as np
 
 from sequential.io import sha256_file
 from sequential.reproduction import (
-    compare_plan1_reproduction, plan1_trajectory_digest,
+    compare_plan1_reproduction, plan1_reproduction_signature,
+    plan1_trajectory_digest,
 )
 
 
@@ -83,6 +84,38 @@ class SequentialReproductionTests(unittest.TestCase):
             )
             self.assertFalse(report['valid'])
             self.assertFalse(report['checks']['rng_state_digest'])
+
+    @mock.patch('sequential.reproduction.validate_parent_source')
+    @mock.patch('sequential.reproduction.plan1_trajectory_digest')
+    def test_reproduction_signature_can_validate_nonformal_frozen_run(
+        self, trajectory_digest, validate_parent_source,
+    ):
+        trajectory_digest.return_value = {
+            'canonical_trajectory_digest': 'trajectory',
+            'episode_digests': [],
+        }
+        validate_parent_source.return_value = {
+            'digests': {
+                'online_parameter_digest': 'online',
+                'target_parameter_digest': 'target',
+                'optimizer_state_digest': 'optimizer',
+                'replay_content_digest': 'replay-content',
+                'replay_metadata_digest': 'replay-metadata',
+                'rng_state_digest': 'rng',
+            },
+            'epsilon': 0.01, 'global_decision_step': 144000,
+            'gradient_updates': 143000, 'target_updates': 14300,
+            'next_target_sync_update': 143009,
+        }
+
+        plan1_reproduction_signature(
+            '/frozen-reproduction', 'network',
+            require_plan1_formal=False,
+        )
+
+        self.assertFalse(
+            validate_parent_source.call_args.kwargs['require_plan1_formal']
+        )
 
 
 if __name__ == '__main__':

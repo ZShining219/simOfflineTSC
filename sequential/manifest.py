@@ -36,6 +36,7 @@ def build_formal_plan(parent_catalog_path, output_path,
                     'parent_checkpoint_file_sha256': parent['checkpoint_file_sha256'],
                     'parent_digests': parent['digests'],
                     'trace_replay_samples': False,
+                    'estimated_output_bytes': 2 * 1024 ** 3,
                     'status': 'planned',
                 })
     payload = {

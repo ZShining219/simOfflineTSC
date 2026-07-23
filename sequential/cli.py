@@ -56,6 +56,22 @@ def _parser():
     evaluate_parser.add_argument('--global-episode', type=int, required=True)
     evaluate_parser.add_argument('--interface', choices=('libsumo', 'traci'), default='libsumo')
     evaluate_parser.add_argument('--timeout-seconds', type=int, default=300)
+
+    launch_parser = subparsers.add_parser('launch')
+    launch_parser.add_argument('--manifest', required=True)
+    launch_parser.add_argument('--output-root', required=True)
+    launch_parser.add_argument('--logical-run-id', action='append', default=None)
+    launch_parser.add_argument('--authorize-formal', action='store_true')
+    launch_parser.add_argument('--max-child', type=int, choices=(8, 6, 4), default=8)
+
+    status_parser = subparsers.add_parser('status')
+    status_parser.add_argument('--output-root', required=True)
+
+    resume_parser = subparsers.add_parser('resume-failed')
+    resume_parser.add_argument('--manifest', required=True)
+    resume_parser.add_argument('--output-root', required=True)
+    resume_parser.add_argument('--authorize-formal', action='store_true')
+    resume_parser.add_argument('--max-child', type=int, choices=(8, 6, 4), default=8)
     return parser
 
 
@@ -119,6 +135,47 @@ def main(argv=None):
                 'global_episode': args.global_episode,
             },
         )
+    elif args.command == 'launch':
+        from .launcher import SequentialLauncher
+        launcher = SequentialLauncher(
+            args.manifest, args.output_root,
+            initial_concurrency=args.max_child,
+        )
+        result = {
+            'runs': launcher.launch(
+                logical_run_ids=args.logical_run_id,
+                authorize_formal=args.authorize_formal,
+            )
+        }
+    elif args.command == 'status':
+        from .launcher import collect_status
+        result = collect_status(args.output_root)
+    elif args.command == 'resume-failed':
+        from .launcher import (
+            AttemptLineage, SequentialLauncher, collect_status,
+            is_auto_recoverable,
+        )
+        statuses = collect_status(args.output_root)['runs']
+        eligible = []
+        for run in statuses:
+            latest = run['attempts'][-1] if run['attempts'] else None
+            if latest is None or latest['status'] not in ('failed', 'interrupted'):
+                continue
+            lineage = AttemptLineage(args.output_root, run['logical_run_id'])
+            recovery = lineage.latest_recovery_checkpoint()
+            if is_auto_recoverable(latest.get('failure_class'), recovery):
+                eligible.append(run['logical_run_id'])
+        launcher = SequentialLauncher(
+            args.manifest, args.output_root,
+            initial_concurrency=args.max_child,
+        )
+        result = {
+            'eligible': eligible,
+            'runs': launcher.launch(
+                logical_run_ids=eligible,
+                authorize_formal=args.authorize_formal,
+            ) if eligible else [],
+        }
     else:
         raise AssertionError(args.command)
     print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))

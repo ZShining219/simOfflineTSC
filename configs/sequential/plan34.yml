@@ -1,0 +1,35 @@
+schema_version: 1
+parent_source: plan1_formal_episode_400_resumable
+orders:
+  O1: [sumohz1x1_config3, sumohz1x1_config2, sumohz1x1_config4, sumohz1x1]
+  O2: [sumohz1x1, sumohz1x1_config4, sumohz1x1_config2, sumohz1x1_config3]
+  O3: [sumohz1x1_config2, sumohz1x1_config3, sumohz1x1, sumohz1x1_config4]
+  O4: [sumohz1x1_config4, sumohz1x1, sumohz1x1_config3, sumohz1x1_config2]
+training_seeds: [0, 1, 2, 3, 4]
+policies: [clear, fifo, fifo_matched_wait]
+trainer:
+  stage_episodes: [400, 100, 100, 100]
+  pilot_stage_episodes: [400, 15, 15, 15]
+  steps: 3600
+  test_steps: 3600
+  action_interval: 10
+  learning_start: 1000
+  buffer_size: 5000
+  batch_size: 64
+  update_model_rate: 1
+  target_update_interval: 10
+  evaluation_retries: 3
+  max_child_concurrency: 8
+  max_evaluator_concurrency: 8
+model:
+  learning_rate: 0.001
+  gamma: 0.95
+  epsilon_decay: 0.995
+  epsilon_min: 0.01
+  grad_clip: 5.0
+  phase: true
+  one_hot: true
+analysis:
+  seed: 20260723
+  resamples: 10000
+  primary_metric: normalized_travel_time_auc_0_100

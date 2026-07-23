@@ -419,6 +419,11 @@ class SequentialDQNAgent:
         return {
             'loss': float(loss.detach().cpu().item()),
             'sample_transition_ids': [r.metadata.transition_id for r in records],
+            'sample_sources': [r.metadata.source_network for r in records],
+            'sample_ages': [
+                self.counters.global_decision_step - r.metadata.written_global_step
+                for r in records
+            ],
             'target_synced': target_synced,
         }
 

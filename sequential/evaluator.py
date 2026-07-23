@@ -329,8 +329,17 @@ class IndependentEvaluator:
                 atomic_json(request_path, request)
                 context = multiprocessing.get_context('spawn')
                 process = context.Process(target=self.worker_target, args=(request_path,))
-                process.start()
-                process.join(self.timeout_seconds)
+                try:
+                    process.start()
+                    process.join(self.timeout_seconds)
+                except BaseException:
+                    if process.pid is not None and process.is_alive():
+                        process.terminate()
+                        process.join(10)
+                        if process.is_alive():
+                            process.kill()
+                            process.join(10)
+                    raise
                 if process.is_alive():
                     process.terminate()
                     process.join(10)

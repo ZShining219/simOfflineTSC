@@ -34,11 +34,15 @@ class EpisodeTransaction:
         self.transitions = []
         self.started = False
 
-    def begin(self):
+    def begin(self, extra_state=None):
         if os.path.exists(self.marker_path):
             raise FileExistsError('Episode is already committed')
+        if os.path.exists(self.shard_path):
+            os.unlink(self.shard_path)
         self._discard_uncommitted_temporary_files()
-        self.recovery.save_episode_start(self.agent, self.identity)
+        self.recovery.save_episode_start(
+            self.agent, self.identity, extra_state=extra_state,
+        )
         self.transitions = []
         self.started = True
         return self
@@ -82,8 +86,13 @@ class EpisodeTransaction:
                 os.unlink(temporary)
             raise
 
-    def commit(self):
+    def prepare_shard(self):
         self._write_shard()
+        return self.shard_path
+
+    def commit(self):
+        if not os.path.isfile(self.shard_path):
+            self._write_shard()
         transition_digests = [
             canonical_transition_digest(transition)
             for transition in self.transitions

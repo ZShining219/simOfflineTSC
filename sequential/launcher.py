@@ -8,7 +8,7 @@ import subprocess
 import sys
 import time
 
-from .checkpoint import RollingRecoveryManager
+from .checkpoint import RollingRecoveryManager, load_full_checkpoint
 from .io import atomic_json, read_json
 
 
@@ -168,6 +168,31 @@ class AttemptLineage:
 
     def latest_recovery_checkpoint(self):
         for attempt in reversed(self.manifest['attempts']):
+            pointer = os.path.join(attempt['attempt_dir'], 'resume_pointer.json')
+            if os.path.isfile(pointer):
+                path = read_json(pointer).get('checkpoint_path')
+                if path and os.path.isfile(path):
+                    try:
+                        load_full_checkpoint(path)
+                        return path
+                    except (IOError, ValueError):
+                        pass
+            committed_dir = os.path.join(
+                attempt['attempt_dir'], 'checkpoints', 'committed'
+            )
+            if os.path.isdir(committed_dir):
+                candidates = sorted(
+                    (os.path.join(committed_dir, name)
+                     for name in os.listdir(committed_dir)
+                     if name.endswith('.pt')),
+                    reverse=True,
+                )
+                for path in candidates:
+                    try:
+                        load_full_checkpoint(path)
+                        return path
+                    except (IOError, ValueError):
+                        continue
             directory = os.path.join(attempt['attempt_dir'], 'checkpoints', 'recovery')
             try:
                 return RollingRecoveryManager(directory).latest_valid()[0]
@@ -267,6 +292,7 @@ class SequentialLauncher:
                         )
                     lock_path = os.path.join(lineage.root, 'run.lock')
                     lock = LogicalRunLock(lock_path).acquire()
+                    previous_attempt = lineage.latest_attempt()
                     recovery = lineage.latest_recovery_checkpoint()
                     attempt = lineage.create_attempt(resume_from=recovery)
                     stdout_path = os.path.join(attempt['attempt_dir'], 'stdout.log')
@@ -281,6 +307,12 @@ class SequentialLauncher:
                     ]
                     if recovery:
                         command += ['--resume', recovery]
+                        if previous_attempt is not None:
+                            previous_state = os.path.join(
+                                previous_attempt['attempt_dir'], 'current_state.json'
+                            )
+                            if os.path.isfile(previous_state):
+                                command += ['--resume-state', previous_state]
                     lineage.update_attempt(
                         attempt['attempt_id'], 'running', command=command,
                         stdout_path=stdout_path, stderr_path=stderr_path,

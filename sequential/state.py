@@ -44,7 +44,8 @@ ALLOWED_TRANSITIONS = {
 
 
 class SequentialJournal:
-    def __init__(self, run_dir, logical_run_id, attempt_id, initial_stage=1):
+    def __init__(self, run_dir, logical_run_id, attempt_id, initial_stage=1,
+                 resume_state_path=None):
         self.run_dir = os.path.abspath(run_dir)
         self.state_path = os.path.join(self.run_dir, 'current_state.json')
         self.events_path = os.path.join(self.run_dir, 'events.jsonl')
@@ -56,6 +57,21 @@ class SequentialJournal:
             if self.state['attempt_id'] != attempt_id:
                 raise ValueError('Journal attempt ID mismatch')
             self._reconcile_events()
+        elif resume_state_path is not None:
+            source = read_json(resume_state_path)
+            if source['logical_run_id'] != logical_run_id:
+                raise ValueError('Resume journal logical run ID mismatch')
+            self.state = dict(source)
+            self.state['attempt_id'] = attempt_id
+            self.state['event_sequence'] = 0
+            self.state['completed_operations'] = dict(
+                source.get('completed_operations', {})
+            )
+            atomic_json(self.state_path, self.state)
+            self._append_event('ATTEMPT_RESUMED', {
+                'source_state_path': os.path.abspath(resume_state_path),
+                'source_attempt_id': source['attempt_id'],
+            })
         else:
             self.state = {
                 'schema_version': 1,
@@ -104,7 +120,7 @@ class SequentialJournal:
                     'payload': payload.get('payload', {}),
                     'completed_at_unix': payload['completed_at_unix'],
                 }
-            elif event_type == 'EPISODE_COMMITTED':
+            elif event_type in ('EPISODE_COMMITTED', 'CONTEXT_UPDATED'):
                 self.state.update({
                     'stage_index': int(event['stage_index']),
                     'local_episode': int(event['local_episode']),
@@ -158,6 +174,14 @@ class SequentialJournal:
             'global_episode': int(global_episode),
         })
         return self._append_event('EPISODE_COMMITTED', payload or {})
+
+    def set_context(self, stage_index, local_episode, global_episode, payload=None):
+        self.state.update({
+            'stage_index': int(stage_index),
+            'local_episode': int(local_episode),
+            'global_episode': int(global_episode),
+        })
+        return self._append_event('CONTEXT_UPDATED', payload or {})
 
     def operation_completed(self, operation_key):
         return operation_key in self.state['completed_operations']

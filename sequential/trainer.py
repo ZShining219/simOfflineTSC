@@ -10,6 +10,9 @@ class SequentialTrainingEnvironment:
 
     def reset(self):
         self.world.reset()
+        # SUMO reset replaces Intersection objects; refresh every generator
+        # through the single audited agent API before reading observations.
+        self.agent.rebind_environment(self.world)
         return self.agent.get_ob()
 
     def step(self, action):
@@ -19,7 +22,7 @@ class SequentialTrainingEnvironment:
 
 class SequentialStageTrainer:
     def __init__(self, agent, world, trainer_config, trajectory_sink=None,
-                 decision_hook=None):
+                 decision_hook=None, replay_diagnostics=None):
         self.agent = agent
         self.world = world
         self.steps = int(trainer_config['steps'])
@@ -31,6 +34,7 @@ class SequentialStageTrainer:
             raise ValueError('Frozen Sequential protocol requires update_model_rate=1')
         self.trajectory_sink = trajectory_sink
         self.decision_hook = decision_hook
+        self.replay_diagnostics = replay_diagnostics
         self.environment = SequentialTrainingEnvironment(world, agent)
 
     def rebind_environment(self, world, expected_signature=None):
@@ -74,6 +78,8 @@ class SequentialStageTrainer:
                 local_episode=local_episode, decision_index=decision_index,
                 terminated=terminated, truncated=truncated,
             )
+            if self.replay_diagnostics is not None:
+                self.replay_diagnostics.record_transition(metadata)
             transition = {
                 'stage_index': self.agent.current_stage_index,
                 'local_episode': int(local_episode),
@@ -96,6 +102,10 @@ class SequentialStageTrainer:
             update = self.agent.successful_gradient_update()
             if update is not None:
                 losses.append(update)
+                if self.replay_diagnostics is not None:
+                    self.replay_diagnostics.record_update(
+                        update, self.agent.counters.gradient_updates,
+                    )
             if self.decision_hook is not None:
                 self.decision_hook({
                     'stage_index': self.agent.current_stage_index,

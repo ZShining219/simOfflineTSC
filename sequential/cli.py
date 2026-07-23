@@ -2,7 +2,7 @@ import argparse
 import json
 import os
 
-from .manifest import build_formal_plan, validate_formal_plan
+from .manifest import build_formal_plan, build_pilot_plan, validate_formal_plan
 from .parents import import_parents, validate_parent_catalog
 
 
@@ -72,11 +72,27 @@ def _parser():
     resume_parser.add_argument('--output-root', required=True)
     resume_parser.add_argument('--authorize-formal', action='store_true')
     resume_parser.add_argument('--max-child', type=int, choices=(8, 6, 4), default=8)
+
+    child_parser = subparsers.add_parser('run-child')
+    child_parser.add_argument('--manifest', required=True)
+    child_parser.add_argument('--logical-run-id', required=True)
+    child_parser.add_argument('--attempt-dir', required=True)
+    child_parser.add_argument('--resume', default=None)
+    child_parser.add_argument('--resume-state', default=None)
+
+    pilot_parser = subparsers.add_parser('build-pilot')
+    pilot_parser.add_argument(
+        '--parent-catalog', default=os.path.join(DEFAULT_OUTPUT, 'parent_catalog.json')
+    )
+    pilot_parser.add_argument('--output', required=True)
+    pilot_parser.add_argument('--later-stage-episodes', type=int, default=15)
+    pilot_parser.add_argument('--config', default='configs/sequential/plan34.yml')
     return parser
 
 
 def main(argv=None):
     args = _parser().parse_args(argv)
+    exit_code = 0
     if args.command == 'import-parents':
         catalog, parents = import_parents(args.whitelist, args.output_dir, args.config)
         result = {'catalog': catalog, 'parent_count': len(parents), 'valid': True}
@@ -176,7 +192,26 @@ def main(argv=None):
                 authorize_formal=args.authorize_formal,
             ) if eligible else [],
         }
+    elif args.command == 'run-child':
+        from .runtime import run_child
+        result = run_child(
+            args.manifest, args.logical_run_id, args.attempt_dir,
+            resume_path=args.resume, resume_state_path=args.resume_state,
+        )
+        exit_code = int(result.get('exit_code', 0))
+    elif args.command == 'build-pilot':
+        plan = build_pilot_plan(
+            args.parent_catalog, args.output,
+            later_stage_episodes=args.later_stage_episodes,
+            config_path=args.config,
+        )
+        result = {
+            'output': os.path.abspath(args.output),
+            'child_count': plan['child_count'],
+            'plan_digest': plan['plan_digest'],
+            'later_stage_episodes': args.later_stage_episodes,
+        }
     else:
         raise AssertionError(args.command)
     print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))
-    return 0
+    return exit_code

@@ -85,3 +85,52 @@ def validate_formal_plan(path):
     if canonical_digest(digest_payload) != recorded:
         raise ValueError('Formal plan digest mismatch')
     return {'valid': True, 'child_count': 60, 'plan_digest': recorded}
+
+
+def build_pilot_plan(parent_catalog_path, output_path, later_stage_episodes=15,
+                     config_path='configs/sequential/plan34.yml'):
+    config = load_sequential_config(config_path)
+    if int(later_stage_episodes) <= 0:
+        raise ValueError('Pilot stage episodes must be positive')
+    catalog = read_json(parent_catalog_path)
+    parent = next(
+        item for item in catalog['parents']
+        if item['order_id'] == 'O1' and int(item['training_seed']) == 0
+    )
+    fault_points = {
+        'clear': 'after_REPLAY_POLICY_APPLIED_before_local0',
+        'fifo': 'stage2_matrix_half_complete',
+        'fifo_matched_wait': 'stage3_episode4_simulation_step180',
+    }
+    children = []
+    for policy in FORMAL_POLICIES:
+        for variant in ('control', 'fault'):
+            children.append({
+                'logical_run_id': f'pilot_O1_seed0_{policy}_{variant}',
+                'order_id': 'O1', 'training_seed': 0,
+                'policy': policy, 'variant': variant,
+                'fault_point': fault_points[policy] if variant == 'fault' else None,
+                'networks': list(config['orders']['O1']),
+                'stage_episodes': [400] + [int(later_stage_episodes)] * 3,
+                'parent_import_manifest': parent['import_manifest_path'],
+                'parent_checkpoint': parent['checkpoint_path'],
+                'parent_checkpoint_file_sha256': parent['checkpoint_file_sha256'],
+                'parent_digests': parent['digests'],
+                'trace_replay_samples': False,
+                'estimated_output_bytes': 2 * 1024 ** 3,
+                'interface': 'libsumo', 'status': 'planned',
+            })
+    payload = {
+        'schema_version': PLAN_SCHEMA_VERSION,
+        'mode': 'pilot', 'launch_authorized': True,
+        'child_count': 6,
+        'orders': {'O1': config['orders']['O1']},
+        'training_seeds': [0], 'policies': list(FORMAL_POLICIES),
+        'trainer': config['trainer'], 'model': config['model'],
+        'analysis': config['analysis'],
+        'parent_catalog_path': os.path.abspath(parent_catalog_path),
+        'children': children,
+    }
+    payload['plan_digest'] = canonical_digest(payload)
+    atomic_json(output_path, payload)
+    return payload

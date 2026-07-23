@@ -25,15 +25,19 @@ def atomic_torch_save(payload, path):
         raise
 
 
-def build_full_checkpoint(agent, checkpoint_type, identity):
+def build_full_checkpoint(agent, checkpoint_type, identity, extra_state=None):
     agent_state = agent.full_state_dict()
-    return {
+    payload = {
         'schema_version': CHECKPOINT_SCHEMA_VERSION,
         'checkpoint_type': checkpoint_type,
         'identity': dict(identity),
         'agent_state': agent_state,
         'canonical_state_digest': canonical_digest(agent_state),
     }
+    if extra_state is not None:
+        payload['extra_state'] = extra_state
+        payload['extra_state_digest'] = canonical_digest(extra_state)
+    return payload
 
 
 def validate_full_checkpoint(payload, expected_type=None):
@@ -43,6 +47,10 @@ def validate_full_checkpoint(payload, expected_type=None):
         raise ValueError('Sequential checkpoint type mismatch')
     if canonical_digest(payload['agent_state']) != payload.get('canonical_state_digest'):
         raise ValueError('Sequential checkpoint canonical digest mismatch')
+    if 'extra_state' in payload and canonical_digest(
+        payload['extra_state']
+    ) != payload.get('extra_state_digest'):
+        raise ValueError('Sequential checkpoint extra-state digest mismatch')
     return payload
 
 
@@ -61,8 +69,10 @@ class RollingRecoveryManager:
         self.previous_path = os.path.join(self.directory, 'previous.pt')
         os.makedirs(self.directory, exist_ok=True)
 
-    def save_episode_start(self, agent, identity):
-        payload = build_full_checkpoint(agent, 'episode_start_recovery', identity)
+    def save_episode_start(self, agent, identity, extra_state=None):
+        payload = build_full_checkpoint(
+            agent, 'episode_start_recovery', identity, extra_state=extra_state,
+        )
         temporary_latest = self.latest_path + '.new'
         atomic_torch_save(payload, temporary_latest)
         if os.path.isfile(self.latest_path):
@@ -91,7 +101,9 @@ class RollingRecoveryManager:
         return path, payload
 
 
-def save_stage_checkpoint(agent, path, identity):
-    payload = build_full_checkpoint(agent, 'stage_boundary', identity)
+def save_stage_checkpoint(agent, path, identity, extra_state=None):
+    payload = build_full_checkpoint(
+        agent, 'stage_boundary', identity, extra_state=extra_state,
+    )
     atomic_torch_save(payload, path)
     return payload

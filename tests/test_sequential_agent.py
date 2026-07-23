@@ -283,6 +283,30 @@ class SequentialAgentTests(unittest.TestCase):
         self.assertEqual(agent.replay.stage_insertions, 2)
         self.assertTrue(result['transitions'][-1]['truncated'])
 
+    def test_full_checkpoint_restore_preserves_fifo_metadata_and_scheduler(self):
+        agent = self._agent()
+        agent.replay = SequentialReplay(5000, [self._record(index) for index in range(100)])
+        agent.replay.stage_insertions = 17
+        agent.policy = 'fifo'
+        agent.current_stage_index = 2
+        agent.current_network = 'sumohz1x1_config2'
+        agent.counters = SequentialCounters(144017, 143017, 14301)
+        agent.target_scheduler = TargetUpdateScheduler(10, 143019)
+        before = agent.training_state_digests()
+        state = agent.full_state_dict()
+        agent.replay.append(self._record(100, stage=2))
+        agent.epsilon = 0.5
+        agent.counters.gradient_updates += 1
+        agent.target_scheduler.next_update += 10
+        agent.load_full_state_dict(state)
+        after = agent.training_state_digests()
+        self.assertEqual(before, after)
+        self.assertEqual(agent.replay.stage_insertions, 17)
+        self.assertEqual(
+            [record.metadata.transition_id for record in agent.replay.records],
+            [str(index) for index in range(100)],
+        )
+
 
 if __name__ == '__main__':
     unittest.main()

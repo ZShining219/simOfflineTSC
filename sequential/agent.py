@@ -421,3 +421,55 @@ class SequentialDQNAgent:
             'sample_transition_ids': [r.metadata.transition_id for r in records],
             'target_synced': target_synced,
         }
+
+    def full_state_dict(self):
+        return {
+            'schema_version': 1,
+            'online_model_state_dict': copy.deepcopy(self.model.state_dict()),
+            'target_model_state_dict': copy.deepcopy(self.target_model.state_dict()),
+            'optimizer_state_dict': copy.deepcopy(self.optimizer.state_dict()),
+            'epsilon': float(self.epsilon),
+            'replay_state': self.replay.state_dict(),
+            'counters': {
+                'global_decision_step': self.counters.global_decision_step,
+                'gradient_updates': self.counters.gradient_updates,
+                'target_updates': self.counters.target_updates,
+            },
+            'target_scheduler': {
+                'interval': self.target_scheduler.interval,
+                'next_update': self.target_scheduler.next_update,
+            },
+            'policy': self.policy,
+            'current_stage_index': self.current_stage_index,
+            'current_network': self.current_network,
+            'rng_state': capture_rng_state(),
+        }
+
+    def load_full_state_dict(self, state):
+        if state.get('schema_version') != 1:
+            raise ValueError('Unsupported Sequential agent state schema')
+        self.model.load_state_dict(state['online_model_state_dict'])
+        self.target_model.load_state_dict(state['target_model_state_dict'])
+        self.optimizer.load_state_dict(state['optimizer_state_dict'])
+        self.epsilon = float(state['epsilon'])
+        self.replay = SequentialReplay.from_state_dict(state['replay_state'])
+        counters = state['counters']
+        self.counters = SequentialCounters(
+            int(counters['global_decision_step']),
+            int(counters['gradient_updates']), int(counters['target_updates']),
+        )
+        scheduler = state['target_scheduler']
+        self.target_scheduler = TargetUpdateScheduler(
+            int(scheduler['interval']), int(scheduler['next_update']),
+        )
+        self.policy = state['policy']
+        self.current_stage_index = int(state['current_stage_index'])
+        self.current_network = state['current_network']
+        rng = state['rng_state']
+        random.setstate(rng['python_random_state'])
+        np.random.set_state(rng['numpy_random_state'])
+        torch.set_rng_state(rng['torch_cpu_rng_state'])
+        if torch.cuda.is_available() and rng['torch_cuda_rng_states']:
+            torch.cuda.set_rng_state_all(rng['torch_cuda_rng_states'])
+        self.last_observation = None
+        return self

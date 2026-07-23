@@ -12,6 +12,8 @@ import os
 import re
 import tempfile
 import time
+import subprocess
+from concurrent.futures import ProcessPoolExecutor
 
 from dataset.offline_trajectory_dataset import (
     prepare_plan2_datasets,
@@ -46,6 +48,26 @@ def _percentage_schedule(total_updates):
     return sorted(set(int(total_updates * fraction) for fraction in (0, .1, .25, .5, .75, 1)))
 
 
+def _git_commit():
+    try:
+        return subprocess.check_output(
+            ['git', 'rev-parse', 'HEAD'], text=True, stderr=subprocess.DEVNULL
+        ).strip()
+    except (OSError, subprocess.CalledProcessError):
+        return 'unknown'
+
+
+def _benchmark_dataset_worker(arguments):
+    from dataset.offline_trajectory_dataset import OfflineTrajectoryDataset
+    manifest, source_root, seed, batch_size, sample_batches = arguments
+    dataset = OfflineTrajectoryDataset(
+        manifest, seed=seed, source_root=source_root
+    )
+    return dataset.performance_profile(
+        batch_size=batch_size, sample_batches=sample_batches
+    )
+
+
 def build_parser():
     parser = argparse.ArgumentParser(
         description='Plan 2 pure Offline DQN entry (separate from run.py Online TSC)'
@@ -60,12 +82,25 @@ def build_parser():
     prepare.add_argument(
         '--output-root', default='data/output_data/offline_datasets/plan2'
     )
+    prepare.add_argument('--source-root', default=None)
+    prepare.add_argument('--source-root-id', default='plan1_formal_root', type=_identifier)
 
     validate = subparsers.add_parser(
         'validate-dataset', help='Verify a generated offline dataset manifest and shards'
     )
     validate.add_argument('--manifest', required=True)
     validate.add_argument('--skip-shard-hashes', action='store_true')
+    validate.add_argument('--source-root', default=None)
+
+    benchmark = subparsers.add_parser(
+        'benchmark-dataset', help='Benchmark one-time NPZ loading and in-memory sampling'
+    )
+    benchmark.add_argument('--manifest', required=True)
+    benchmark.add_argument('--source-root', default=None)
+    benchmark.add_argument('--seed', type=int, default=0)
+    benchmark.add_argument('--batch-size', type=int, default=64)
+    benchmark.add_argument('--sample-batches', type=int, default=1000)
+    benchmark.add_argument('--workers', type=int, default=1)
 
     train = subparsers.add_parser(
         'train', help='Train Batch-DQN or CQL-DQN without training-time simulation'
@@ -79,6 +114,11 @@ def build_parser():
         '--seed', type=int, required=True,
         help='offline_training_seed (Plan 2 formal values: 1000..1004)',
     )
+    train.add_argument('--model-seed', type=int, default=None)
+    train.add_argument('--dataset-sampler-seed', type=int, default=None)
+    train.add_argument('--evaluation-seed', type=int, default=None)
+    train.add_argument('--sumo-seed', type=int, default=None)
+    train.add_argument('--source-root', default=None)
     train.add_argument('--backend', choices=('d3rlpy', 'native', 'auto'), default='d3rlpy')
     train.add_argument('--resume', default=None, help='Resumable offline checkpoint path')
     train.add_argument('--thread_num', type=int, default=4)
@@ -92,6 +132,8 @@ def build_parser():
         help='Override 144000 only for development smoke tests',
     )
     train.add_argument('--log-interval', type=int, default=None)
+    train.add_argument('--evaluation-timeout-seconds', type=int, default=None)
+    train.add_argument('--evaluation-retries', type=int, default=None)
     train.set_defaults(task='offline_tsc', dataset='offline_readonly')
     return parser
 
@@ -123,6 +165,15 @@ class OfflineRunner:
         self.verify_config_archive = verify_config_archive
         self.args = args
         self.config, self.duplicate_config = build_config(args)
+        command = self.config['command']
+        command['model_seed'] = args.seed if args.model_seed is None else args.model_seed
+        command['dataset_sampler_seed'] = (
+            args.seed + 10000 if args.dataset_sampler_seed is None
+            else args.dataset_sampler_seed
+        )
+        command['evaluation_seed'] = (
+            args.seed + 20000 if args.evaluation_seed is None else args.evaluation_seed
+        )
         self.config['model']['offline_backend'] = args.backend
         if args.total_updates is not None:
             if args.total_updates <= 0:
@@ -136,6 +187,14 @@ class OfflineRunner:
             if args.log_interval <= 0:
                 raise ValueError('--log-interval must be positive')
             self.config['trainer']['log_interval'] = args.log_interval
+        if args.evaluation_timeout_seconds is not None:
+            if args.evaluation_timeout_seconds <= 0:
+                raise ValueError('--evaluation-timeout-seconds must be positive')
+            self.config['trainer']['evaluation_timeout_seconds'] = args.evaluation_timeout_seconds
+        if args.evaluation_retries is not None:
+            if args.evaluation_retries < 0:
+                raise ValueError('--evaluation-retries must be non-negative')
+            self.config['trainer']['evaluation_retries'] = args.evaluation_retries
         self.config_sources = capture_config_sources(self.config)
         self.output_path = reserve_run_output(self.config)
         self.run_state = None
@@ -177,8 +236,15 @@ class OfflineRunner:
             dataset_manifest = json.load(handle)
         manifest.update({
             'training_mode': 'pure_offline',
+            'created_by_commit': _git_commit(),
             'seed_role': 'offline_training_seed',
             'offline_training_seed': self.args.seed,
+            'seed_roles': {
+                'model_init_seed': self.config['command']['model_seed'],
+                'dataset_sampler_seed': self.config['command']['dataset_sampler_seed'],
+                'evaluation_seed': self.config['command']['evaluation_seed'],
+                'sumo_seed': self.args.sumo_seed,
+            },
             'behavior_training_seeds': dataset_manifest['behavior_training_seeds'],
             'dataset_id': dataset_manifest['dataset_id'],
             'dataset_kind': dataset_manifest['dataset_kind'],
@@ -190,10 +256,14 @@ class OfflineRunner:
 
     def run(self):
         Registry = self.Registry
+        self.trainer = None
         try:
             logger = self.setup_logging(logging.DEBUG if self.args.debug else logging.INFO)
             trainer_class = Registry.mapping['trainer_mapping']['offline_tsc']
-            self.trainer = trainer_class(logger)
+            # Keep the partially constructed trainer reachable so finally can close
+            # a SUMO world even if agent/metric/dataset initialization later fails.
+            self.trainer = trainer_class.__new__(trainer_class)
+            trainer_class.__init__(self.trainer, logger)
             self.archive_runtime_model(
                 self.config_archive_path, self.trainer, self.args.agent
             )
@@ -207,25 +277,81 @@ class OfflineRunner:
                 handler.flush()
             self.verify_config_archive(self.config_archive_path)
             self.trainer.structured_metrics.validate(require_records=True)
+            close_report = self.trainer.world.close()
+            if close_report.get('close_error') or close_report.get('process_alive'):
+                raise RuntimeError(f'SUMO final cleanup failed: {close_report}')
             self.run_state.transition('已完成', exit_code=0)
         except Exception as error:
             if self.run_state.status['status'] in {'已创建', '运行中'}:
                 self.run_state.transition('失败', exit_code=1, error=error)
             raise
+        finally:
+            world = None if self.trainer is None else getattr(self.trainer, 'world', None)
+            if world is not None and hasattr(world, 'close'):
+                world.close()
 
 
 def main(argv=None):
     args = build_parser().parse_args(argv)
     if args.offline_command == 'prepare-plan2':
         path = prepare_plan2_datasets(
-            args.run_list, args.output_root, args.dataset_id
+            args.run_list, args.output_root, args.dataset_id,
+            source_root=args.source_root, source_root_id=args.source_root_id,
         )
         print(f'Plan 2 dataset indexes prepared: {path}')
         return path
     if args.offline_command == 'validate-dataset':
         result = validate_offline_dataset(
-            args.manifest, verify_hashes=not args.skip_shard_hashes
+            args.manifest, verify_hashes=not args.skip_shard_hashes,
+            source_root=args.source_root,
         )
+        print(json.dumps(result, ensure_ascii=False, sort_keys=True))
+        return result
+    if args.offline_command == 'benchmark-dataset':
+        if args.workers <= 0:
+            raise ValueError('--workers must be positive')
+        started = time.perf_counter()
+        arguments = [
+            (
+                args.manifest, args.source_root, args.seed + worker,
+                args.batch_size, args.sample_batches,
+            )
+            for worker in range(args.workers)
+        ]
+        if args.workers == 1:
+            profiles = [_benchmark_dataset_worker(arguments[0])]
+        else:
+            with ProcessPoolExecutor(max_workers=args.workers) as executor:
+                profiles = list(executor.map(_benchmark_dataset_worker, arguments))
+        wall_seconds = time.perf_counter() - started
+        total_batches = args.workers * args.sample_batches
+        result = {
+            'workers': args.workers,
+            'wall_seconds': wall_seconds,
+            'total_sample_batches': total_batches,
+            'aggregate_sample_batches_per_second_including_load': (
+                total_batches / wall_seconds if wall_seconds else None
+            ),
+            'aggregate_sampling_only_batches_per_second': sum(
+                profile['sample_batches_per_second'] for profile in profiles
+            ),
+            'max_dataset_load_seconds': max(
+                profile['dataset_load_seconds'] for profile in profiles
+            ),
+            'sum_resident_array_bytes': sum(
+                profile['resident_array_bytes'] for profile in profiles
+            ),
+            'sum_peak_rss_delta_bytes': sum(
+                profile['peak_rss_delta_bytes'] for profile in profiles
+            ),
+            'storage_strategies': sorted({
+                profile['storage_strategy'] for profile in profiles
+            }),
+            'source_shards_open_after_load': max(
+                profile['source_shards_open_after_load'] for profile in profiles
+            ),
+            'worker_profiles': profiles,
+        }
         print(json.dumps(result, ensure_ascii=False, sort_keys=True))
         return result
     os.environ['CUDA_VISIBLE_DEVICES'] = args.ngpu

@@ -17,6 +17,7 @@ from common.registry import Registry
 import json
 import re
 import copy
+import time
 
 import sumolib
 import libsumo
@@ -368,6 +369,10 @@ class World(object):
     World Class is mainly used for creating a SUMO engine and maintain information about SUMO world.
     '''
     def __init__(self, sumo_config, placeholder=0, **kwargs):
+        self._connection_open = False
+        self._sumo_stdout_handle = None
+        self.evaluation_output_dir = None
+        self.last_close_report = None
         if kwargs['interface'] == 'libsumo':
             self.interface_flag = True
         elif kwargs['interface'] == 'traci':
@@ -390,21 +395,17 @@ class World(object):
         self.net = os.path.join(sumo_dict['dir'], sumo_dict['roadnetFile'])
         self.route = os.path.join(sumo_dict['dir'], sumo_dict['flowFile'])
         self.sumo_cmd = sumo_cmd
+        configured_sumo_seed = Registry.mapping['command_mapping']['setting'].param.get(
+            'sumo_seed'
+        )
+        if configured_sumo_seed is not None:
+            self.sumo_cmd += ['--seed', str(int(configured_sumo_seed))]
         self.warning = sumo_dict['no_warning']
         print("building world...")
         self.connection_name = sumo_dict['name']
         self.map = sumo_dict['roadnetFile'].split('/')[-1].split('.')[0]
         
-        if self.interface_flag:
-            libsumo.start(sumo_cmd)
-            self.eng = libsumo
-        else:
-            if not sumo_dict['name']:
-                traci.start(sumo_cmd)
-                self.eng = traci
-            else:
-                traci.start(sumo_cmd, label=sumo_dict['name'])
-                self.eng = traci.getConnection(sumo_dict['name'])
+        self._start_engine()
         # TODO: roadnet not implemented but not necessary
         self.RIGHT = True  # TODO: currently set to be true
         self.interval = sumo_dict['interval']
@@ -442,14 +443,7 @@ class World(object):
         self.vehicles = dict()
         for intsec in self.intersections:
             intsec.observe(self.step_length, self.max_distance)
-        if self.interface_flag:
-            if not self.connection_name: 
-                libsumo.switch(self.connection_name)  # TODO: make sure what's this step doing
-            libsumo.close()
-        else:
-            if not self.connection_name: 
-                traci.switch(self.connection_name)  # TODO: make sure what's this step doing
-            traci.close()
+        self.close()
         # self.connection_name = self.map + '-' + self.connection_name
         if not os.path.exists(os.path.join(Registry.mapping['logger_mapping']['path'].path,
                                            self.connection_name)):
@@ -561,23 +555,12 @@ class World(object):
         :param: None
         :return: None
         '''
-        if self.run != 0:
-            # TODO: test why need switch in original code
-            if self.interface_flag:
-                libsumo.close()
-            else:
-                traci.close()
+        self.close()
         self.run = 0
         self.vehicles = dict()
         self.inside_vehicles = dict()
         # TODO: check when to close traci
-        if self.interface_flag:
-            libsumo.start(self.sumo_cmd)
-            # TODO: set trip info output
-            self.eng = libsumo
-        else:
-            traci.start(self.sumo_cmd, label=self.connection_name)
-            self.eng = traci.getConnection(self.connection_name)
+        self._start_engine()
         self.id2intersection = dict()
         self.intersections = []
         for ts in self.eng.trafficlight.getIDList():
@@ -595,6 +578,93 @@ class World(object):
         self.vehicle_trajectory = {}
         self.vehicle_maxspeed = {}
         self.real_delay= {}
+
+    def configure_evaluation_output(self, output_dir):
+        """Route the next SUMO start into an evaluation-attempt directory."""
+        self.evaluation_output_dir = os.path.abspath(output_dir)
+        os.makedirs(self.evaluation_output_dir, exist_ok=True)
+
+    def _start_engine(self):
+        if self._connection_open:
+            raise RuntimeError('SUMO connection is already open')
+        command = list(self.sumo_cmd)
+        stdout = None
+        if self.evaluation_output_dir is not None:
+            command += [
+                '--log', os.path.join(self.evaluation_output_dir, 'sumo.log'),
+                '--error-log', os.path.join(self.evaluation_output_dir, 'sumo.stderr.log'),
+            ]
+            if not self.interface_flag:
+                self._sumo_stdout_handle = open(
+                    os.path.join(self.evaluation_output_dir, 'sumo.stdout.log'),
+                    'ab', buffering=0,
+                )
+                stdout = self._sumo_stdout_handle
+        try:
+            if self.interface_flag:
+                libsumo.start(command)
+                self.eng = libsumo
+            else:
+                traci.start(
+                    command, port=None, label=self.connection_name, stdout=stdout
+                )
+                self.eng = traci.getConnection(self.connection_name)
+            self._connection_open = True
+        except Exception:
+            if self._sumo_stdout_handle is not None:
+                self._sumo_stdout_handle.close()
+                self._sumo_stdout_handle = None
+            raise
+
+    def close(self):
+        """Idempotently close TraCI/libsumo and reap its owned subprocess."""
+        report = {
+            'connection_was_open': self._connection_open,
+            'terminated': False, 'killed': False, 'process_alive': False,
+        }
+        process = None
+        if not self.interface_flag and self._connection_open:
+            process = getattr(self.eng, '_process', None)
+        try:
+            if self._connection_open:
+                if self.interface_flag:
+                    libsumo.close()
+                else:
+                    self.eng.close(wait=False)
+        except Exception as error:
+            report['close_error'] = f'{type(error).__name__}: {error}'
+        finally:
+            self._connection_open = False
+        if process is not None:
+            try:
+                process.wait(timeout=5)
+            except Exception:
+                if process.poll() is None:
+                    process.terminate()
+                    report['terminated'] = True
+                    try:
+                        process.wait(timeout=5)
+                    except Exception:
+                        if process.poll() is None:
+                            process.kill()
+                            report['killed'] = True
+                            process.wait(timeout=5)
+            report['process_alive'] = process.poll() is None
+        if self._sumo_stdout_handle is not None:
+            self._sumo_stdout_handle.close()
+            self._sumo_stdout_handle = None
+        report['closed_at_unix'] = time.time()
+        self.last_close_report = report
+        return report
+
+    def __del__(self):
+        # Best-effort fallback for exceptions raised while World.__init__ is still
+        # constructing and has not yet returned the instance to the trainer.
+        if hasattr(self, '_connection_open'):
+            try:
+                self.close()
+            except Exception:
+                pass
 
     def get_current_time(self):
         '''
@@ -963,5 +1033,3 @@ class World(object):
         if not vehicle_delays:
             return 0.0
         return sum(vehicle_delays.values()) / len(vehicle_delays)
-
-

@@ -7,6 +7,7 @@ Double-DQN CQL, while this project requires full-Q-vector MSE and plain DQN.
 """
 
 import importlib
+from dataclasses import dataclass
 
 import numpy as np
 import torch
@@ -17,6 +18,86 @@ from common.registry import Registry
 
 
 SUPPORTED_D3RLPY_VERSION = '2.0.4'
+
+
+@dataclass
+class OfflineLossTensors:
+    q_values: torch.Tensor
+    full_target: torch.Tensor
+    td_target: torch.Tensor
+    actions: torch.Tensor
+    td_loss: torch.Tensor
+    cql_loss: torch.Tensor
+    total_loss: torch.Tensor
+
+
+def normalize_discrete_actions(actions, batch_size, action_dim, device=None):
+    raw = torch.as_tensor(actions, device=device)
+    if raw.dtype == torch.bool or raw.dtype.is_floating_point:
+        raise TypeError('Offline discrete actions must have an integer dtype')
+    normalized = raw.to(dtype=torch.long).reshape(-1)
+    if normalized.shape != (batch_size,):
+        raise ValueError(
+            f'Offline actions must contain exactly {batch_size} values; '
+            f'got shape {tuple(raw.shape)}'
+        )
+    if torch.any(normalized < 0) or torch.any(normalized >= action_dim):
+        raise ValueError(f'Offline action is outside [0, {action_dim})')
+    return normalized
+
+
+def build_full_q_mse_target(q_values, actions, td_target):
+    """Replace only the data-action entries in a detached Q-vector copy."""
+    if q_values.ndim != 2:
+        raise ValueError('q_values must have shape [batch_size, action_dim]')
+    batch_size, action_dim = q_values.shape
+    actions = normalize_discrete_actions(
+        actions, batch_size, action_dim, device=q_values.device
+    )
+    td_target = torch.as_tensor(
+        td_target, dtype=q_values.dtype, device=q_values.device
+    ).reshape(-1)
+    if td_target.shape != (batch_size,):
+        raise ValueError('td_target must have shape [batch_size]')
+    full_target = q_values.detach().clone()
+    full_target[torch.arange(batch_size, device=q_values.device), actions] = (
+        td_target.detach()
+    )
+    if full_target.requires_grad or full_target.grad_fn is not None:
+        raise RuntimeError('Offline full-Q target must be detached')
+    return full_target, actions
+
+
+def compute_offline_loss_tensors(
+    model, target_model, observations, next_observations, actions, rewards,
+    gamma, cql_alpha, criterion, retain_q_grad=False,
+):
+    observations = torch.as_tensor(observations, dtype=torch.float32)
+    next_observations = torch.as_tensor(next_observations, dtype=torch.float32)
+    rewards = torch.as_tensor(rewards, dtype=torch.float32).reshape(-1)
+    if observations.ndim != 2 or next_observations.shape != observations.shape:
+        raise ValueError('Offline observations must be matching rank-2 tensors')
+    if rewards.shape != (len(observations),):
+        raise ValueError('Offline rewards must contain one value per observation')
+    alpha = float(cql_alpha)
+    with torch.no_grad():
+        next_q = target_model(next_observations, train=True)
+        td_target = rewards + float(gamma) * torch.max(next_q, dim=1)[0]
+    q_values = model(observations, train=True)
+    if retain_q_grad:
+        q_values.retain_grad()
+    full_target, actions = build_full_q_mse_target(
+        q_values, actions, td_target
+    )
+    td_loss = criterion(q_values, full_target)
+    selected_q = q_values.gather(1, actions[:, None]).squeeze(1)
+    cql_loss = (torch.logsumexp(q_values, dim=1) - selected_q).mean()
+    total_loss = td_loss + alpha * cql_loss
+    return OfflineLossTensors(
+        q_values=q_values, full_target=full_target, td_target=td_target.detach(),
+        actions=actions, td_loss=td_loss, cql_loss=cql_loss,
+        total_loss=total_loss,
+    )
 
 
 def resolve_offline_backend(requested):
@@ -81,7 +162,10 @@ class OfflineDQNMixin:
         if self.backend['name'] == 'd3rlpy':
             d3rlpy = importlib.import_module('d3rlpy')
             d3rlpy.seed(
-                int(Registry.mapping['command_mapping']['setting'].param['seed'])
+                int(Registry.mapping['command_mapping']['setting'].param.get(
+                    'model_seed',
+                    Registry.mapping['command_mapping']['setting'].param['seed'],
+                ))
             )
         super().__init__(world, rank)
         if self.backend['name'] == 'd3rlpy':
@@ -101,35 +185,19 @@ class OfflineDQNMixin:
         self.epsilon = 0.0
 
     def train_offline_batch(self, batch):
-        observations = torch.as_tensor(batch.observations, dtype=torch.float32)
-        next_observations = torch.as_tensor(
-            batch.next_observations, dtype=torch.float32
+        loss_tensors = compute_offline_loss_tensors(
+            self.model, self.target_model, batch.observations,
+            batch.next_observations, batch.actions, batch.rewards, self.gamma,
+            self.cql_alpha, self.criterion,
         )
-        actions = torch.as_tensor(batch.actions, dtype=torch.long).reshape(-1)
-        rewards = torch.as_tensor(batch.rewards, dtype=torch.float32).reshape(-1)
-
-        with torch.no_grad():
-            next_q = self.target_model(next_observations, train=True)
-            td_target = rewards + self.gamma * torch.max(next_q, dim=1)[0]
-            full_target = self.model(observations, train=True).detach().clone()
-            full_target[torch.arange(len(actions)), actions] = td_target
-
-        predicted_q = self.model(observations, train=True)
-        td_loss = self.criterion(predicted_q, full_target)
-        selected_q = predicted_q.gather(1, actions.reshape(-1, 1)).reshape(-1)
-        conservative_loss = (
-            torch.logsumexp(predicted_q, dim=1) - selected_q
-        ).mean()
-        loss = td_loss + self.cql_alpha * conservative_loss
-
         self.optimizer.zero_grad()
-        loss.backward()
+        loss_tensors.total_loss.backward()
         gradient_norm = clip_grad_norm_(self.model.parameters(), self.grad_clip)
         self.optimizer.step()
         return {
-            'loss': float(loss.detach().cpu()),
-            'td_loss': float(td_loss.detach().cpu()),
-            'conservative_loss': float(conservative_loss.detach().cpu()),
+            'total_loss': float(loss_tensors.total_loss.detach().cpu()),
+            'td_loss': float(loss_tensors.td_loss.detach().cpu()),
+            'cql_loss': float(loss_tensors.cql_loss.detach().cpu()),
             'gradient_norm': float(np.asarray(gradient_norm.detach().cpu())),
         }
 

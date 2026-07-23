@@ -6,9 +6,11 @@ import json
 import math
 import shutil
 import statistics
+import copy
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
+import yaml
 
 from utils.logger import verify_config_archive
 
@@ -47,6 +49,26 @@ def _load_json(path):
 
 def _sha256(path):
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+
+def _normalized_config_sha256(path):
+    with Path(path).open(encoding='utf-8') as handle:
+        config = yaml.safe_load(handle)
+    normalized = copy.deepcopy(config)
+    command = normalized.get('command', {})
+    for field in (
+        'prefix', 'seed', 'model_seed', 'dataset_sampler_seed',
+        'evaluation_seed', 'resume',
+    ):
+        if field in command:
+            command[field] = '<PER_RUN>'
+    record = normalized.get('config_record')
+    if isinstance(record, dict):
+        record.pop('created_at_utc', None)
+    encoded = json.dumps(
+        normalized, sort_keys=True, separators=(',', ':'), ensure_ascii=False
+    ).encode('utf-8')
+    return hashlib.sha256(encoded).hexdigest()
 
 
 def _parse_include(value, line_number):
@@ -94,13 +116,25 @@ def load_plan2_run_list(path):
 
 def _load_records(path):
     records = []
+    previous_update = -1
+    seen = set()
     with Path(path).open(encoding='utf-8') as handle:
         for line_number, line in enumerate(handle, start=1):
+            if not line.endswith('\n'):
+                raise ValueError(f'Incomplete offline metric line at {path}:{line_number}')
             if not line.strip():
                 raise ValueError(f'Blank offline metric line at {path}:{line_number}')
             record = json.loads(line)
             if record.get('schema_version') != 1:
                 raise ValueError(f'Unsupported offline metric schema at {path}:{line_number}')
+            update = record.get('training_update')
+            if not isinstance(update, int) or update < previous_update:
+                raise ValueError(f'Non-monotonic offline metric update at {path}:{line_number}')
+            key = (record.get('record_type'), update)
+            if key in seen:
+                raise ValueError(f'Duplicate offline metric record {key}: {path}')
+            seen.add(key)
+            previous_update = update
             records.append(record)
     if not records:
         raise ValueError(f'No offline metric records: {path}')
@@ -144,6 +178,74 @@ def validate_plan2_run(spec, formal=True):
     if metadata.get('training_environment_interactions') != 0:
         raise ValueError(f'Offline run reports training environment interactions: {spec.run_dir}')
     dataset = metadata.get('dataset', {})
+    if formal:
+        required_metadata = {
+            'created_by_commit', 'logical_run_id', 'physical_run_id',
+            'seed_roles', 'training_config', 'evaluation_config', 'dataset_io',
+        }
+        missing_metadata = sorted(required_metadata - set(metadata))
+        if missing_metadata:
+            raise ValueError(
+                f'Offline metadata missing formal fields {missing_metadata}: {spec.run_dir}'
+            )
+        if manifest.get('created_by_commit') != metadata['created_by_commit']:
+            raise ValueError(f'Offline run code commit mismatch: {spec.run_dir}')
+        if metadata['physical_run_id'] != manifest.get('run_id'):
+            raise ValueError(f'Offline physical run id mismatch: {spec.run_dir}')
+        expected_seed_roles = {
+            'base_seed': spec.offline_training_seed,
+            'model_init_seed': spec.offline_training_seed,
+            'dataset_sampler_seed': spec.offline_training_seed + 10000,
+            'evaluation_seed': spec.offline_training_seed + 20000,
+            'sumo_seed': None,
+            'sumo_seed_mode': 'fixed_default',
+        }
+        if metadata['seed_roles'] != expected_seed_roles:
+            raise ValueError(f'Offline seed-role configuration drift: {spec.run_dir}')
+        required_dataset_schema = {
+            'schema_version': 2,
+            'dataset_builder_version': '2.0.0',
+            'feature_schema_version': 1,
+            'trajectory_schema_version': 1,
+        }
+        for field, expected_value in required_dataset_schema.items():
+            if dataset.get(field) != expected_value:
+                raise ValueError(
+                    f'Offline dataset schema mismatch {field}: {spec.run_dir}'
+                )
+        semantic_fields = set(dataset.get('semantic_compatibility_fields', []))
+        required_semantics = {
+            'roadnet_control_topology_sha256', 'tl_program_sha256',
+            'action_mapping_sha256', 'feature_schema_sha256',
+            'reward_definition_sha256',
+        }
+        if semantic_fields != required_semantics:
+            raise ValueError(f'Offline semantic hash set mismatch: {spec.run_dir}')
+        scene_semantics = dataset.get('scene_semantics', {})
+        if set(scene_semantics) != set(dataset.get('source_networks', [])):
+            raise ValueError(f'Offline scene semantic coverage mismatch: {spec.run_dir}')
+        for scene, semantics in scene_semantics.items():
+            missing_semantics = sorted(
+                (required_semantics | {'roadnet_sha256'}) - set(semantics)
+            )
+            if missing_semantics:
+                raise ValueError(
+                    f'Offline scene {scene} missing semantic hashes {missing_semantics}'
+                )
+            if semantics.get('controlled_intersection_count') != 1:
+                raise ValueError(f'Offline scene intersection count mismatch: {scene}')
+            if semantics.get('green_action_count') != dataset.get('action_dim'):
+                raise ValueError(f'Offline scene action mapping count mismatch: {scene}')
+        if dataset.get('transition_unique_key') != [
+            'run_id', 'shard_sha256', 'episode_id', 'decision_step'
+        ]:
+            raise ValueError(f'Offline transition identity schema mismatch: {spec.run_dir}')
+        expected_io = {
+            'storage_strategy': 'eager_in_memory_npz_load_once',
+            'source_shards_open_after_load': 0,
+        }
+        if any(metadata['dataset_io'].get(key) != value for key, value in expected_io.items()):
+            raise ValueError(f'Unsafe offline dataset I/O strategy: {spec.run_dir}')
     dataset_manifest_path = Path(metadata['dataset_manifest'])
     if (
         not dataset_manifest_path.is_file()
@@ -185,6 +287,16 @@ def validate_plan2_run(spec, formal=True):
         }
         if metadata.get('training_config') != expected_training_config:
             raise ValueError(f'Offline training configuration drift: {spec.run_dir}')
+        expected_evaluation_config = {
+            'test_steps': 3600, 'action_interval': 10,
+            'timeout_seconds': 300, 'retries': 1,
+            'isolated_attempt_directories': True,
+            'interface': 'libsumo',
+            'port_allocation': 'not_applicable_libsumo_in_process',
+            'process_cleanup': 'libsumo_close_in_process',
+        }
+        if metadata.get('evaluation_config') != expected_evaluation_config:
+            raise ValueError(f'Offline evaluation configuration drift: {spec.run_dir}')
 
     records = _load_records(spec.run_dir / 'metrics' / 'offline_records.jsonl')
     for record in records:
@@ -199,7 +311,19 @@ def validate_plan2_run(spec, formal=True):
         )
         if identity != expected_identity:
             raise ValueError(f'Offline metric identity mismatch: {spec.run_dir}')
-        for field in ('loss', 'travel_time', 'delay', 'real_delay', 'queue', 'throughput'):
+        if formal:
+            if record.get('logical_run_id') != metadata['logical_run_id']:
+                raise ValueError(f'Offline logical run id mismatch: {spec.run_dir}')
+            if not record.get('physical_run_id'):
+                raise ValueError(f'Offline metric has no physical run id: {spec.run_dir}')
+            interval = metadata['training_config']['target_update_interval']
+            expected_targets = record['training_update'] // interval
+            if record.get('target_updates') != expected_targets:
+                raise ValueError(f'Offline target update count mismatch: {spec.run_dir}')
+        for field in (
+            'total_loss', 'td_loss', 'cql_loss', 'gradient_norm',
+            'travel_time', 'delay', 'real_delay', 'queue', 'throughput',
+        ):
             value = record.get(field)
             if value is not None and (not isinstance(value, (int, float)) or not math.isfinite(value)):
                 raise ValueError(f'Invalid offline metric {field}: {spec.run_dir}')
@@ -221,6 +345,20 @@ def validate_plan2_run(spec, formal=True):
     if summary.get('final_update') != total_updates:
         raise ValueError(f'Offline final checkpoint update mismatch: {spec.run_dir}')
     for update in evaluation_updates:
+        evaluation_record = next(
+            record for record in evaluation_records
+            if record['training_update'] == update
+        )
+        evaluation_checkpoint = (
+            spec.run_dir / 'checkpoints' / 'evaluation' / f'update_{update:06d}.pt'
+        )
+        if formal:
+            if evaluation_record.get('evaluation_status') != 'complete':
+                raise ValueError(f'Incomplete SUMO evaluation status: {spec.run_dir}')
+            if evaluation_record.get('evaluation_seed') != metadata['seed_roles']['evaluation_seed']:
+                raise ValueError(f'Offline evaluation seed mismatch: {spec.run_dir}')
+            if evaluation_record.get('checkpoint_sha256') != _sha256(evaluation_checkpoint):
+                raise ValueError(f'Offline evaluation checkpoint hash mismatch: {spec.run_dir}')
         for checkpoint_type in ('evaluation', 'resumable'):
             checkpoint = (
                 spec.run_dir / 'checkpoints' / checkpoint_type /
@@ -242,6 +380,10 @@ def validate_plan2_run(spec, formal=True):
                 or payload.get('dataset_manifest_sha256')
                 != metadata['dataset_manifest_sha256']
                 or payload.get('resume_fingerprint') != metadata['resume_fingerprint']
+                or (
+                    formal and float(payload.get('cql_alpha', float('nan')))
+                    != float(metadata['training_config']['cql_alpha'])
+                )
             ):
                 raise ValueError(f'Offline checkpoint identity mismatch: {checkpoint}')
             online_state = payload.get('online_model_state_dict')
@@ -260,6 +402,13 @@ def validate_plan2_run(spec, formal=True):
                 }
                 if not required_resume <= set(payload):
                     raise ValueError(f'Incomplete resumable checkpoint: {checkpoint}')
+                if formal:
+                    if update not in {int(key) for key in payload.get('evaluation_results', {})}:
+                        raise ValueError(
+                            f'Resumable checkpoint misses completed evaluation: {checkpoint}'
+                        )
+                    if payload.get('logical_run_id') != metadata['logical_run_id']:
+                        raise ValueError(f'Resumable logical run id mismatch: {checkpoint}')
     return {
         'spec': spec,
         'manifest': manifest,
@@ -267,6 +416,7 @@ def validate_plan2_run(spec, formal=True):
         'summary': summary,
         'records': records,
         'config_hash': manifest['config_hash'],
+        'normalized_config_sha256': _normalized_config_sha256(resolved_config),
         'dataset_manifest_sha256': metadata['dataset_manifest_sha256'],
     }
 
@@ -336,6 +486,34 @@ def _validate_matrix(validated):
     dataset_ids = {run['spec'].dataset_id for run in validated}
     if len(dataset_ids) != 1:
         raise ValueError(f'Formal Plan 2 analysis requires one dataset_id: {dataset_ids}')
+    comparable_groups = {}
+    for run in validated:
+        spec = run['spec']
+        key = (
+            spec.algorithm, spec.dataset_id, spec.dataset_kind,
+            spec.dataset_stage, spec.evaluation_network,
+        )
+        metadata = run['metadata']
+        dataset = metadata['dataset']
+        signature = json.dumps({
+            'training_config': metadata['training_config'],
+            'evaluation_config': metadata['evaluation_config'],
+            'backend': metadata['backend'],
+            'dataset_manifest_sha256': metadata['dataset_manifest_sha256'],
+            'dataset_schema': {
+                field: dataset[field] for field in (
+                    'schema_version', 'dataset_builder_version',
+                    'feature_schema_version', 'trajectory_schema_version',
+                )
+            },
+            'scene_semantics': dataset['scene_semantics'],
+            'created_by_commit': metadata['created_by_commit'],
+            'normalized_config_sha256': run['normalized_config_sha256'],
+        }, sort_keys=True, separators=(',', ':'))
+        comparable_groups.setdefault(key, set()).add(signature)
+    drifted = {key: len(signatures) for key, signatures in comparable_groups.items() if len(signatures) != 1}
+    if drifted:
+        raise ValueError(f'Plan 2 comparison group configuration drift: {drifted}')
     present = {
         (
             run['spec'].algorithm, run['spec'].dataset_kind,

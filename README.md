@@ -112,7 +112,7 @@ python -c "import sumolib, traci; print('SUMO Python API 可用')"
 
 使用 SUMO 时，run.py 的 --interface 参数可以选择 libsumo（默认、速度较快）或 traci。
 
-seed 的含义由入口明确区分：`run.py --seed` 是原有 Online 流程的 `training_seed`；`offline_run.py train --seed` 是 Plan 2 的 `offline_training_seed`。Offline 数据来源中的 Online seeds 另行记录为 `behavior_training_seeds`，不能与 Offline 重复 seed 混用。两种入口都不新增或管理 SUMO seed，也不向 SUMO 启动命令传递 seed；运行证据固定记录 `sumo_seed_mode=fixed_default`。因此，这些训练 seed 都不能解释为不同的 SUMO 微观交通随机实现。
+seed 的含义由入口明确区分：`run.py --seed` 是原有 Online 流程的 `training_seed`；`offline_run.py train --seed` 是 Plan 2 的 base/offline training seed。Offline 默认显式派生 `model_init_seed=base`、`dataset_sampler_seed=base+10000`、`evaluation_seed=base+20000`，并分别写入 metadata/checkpoint；也可通过对应 CLI 参数覆盖。源轨迹中的 Online seeds 始终另记为 `behavior_training_seeds`。SUMO 默认仍采用固定默认随机实现并记录 `sumo_seed=null`、`sumo_seed_mode=fixed_default`；只有显式传入 `--sumo-seed` 才会加入 SUMO 命令。
 
 ### 5. 可选智能体依赖
 
@@ -181,13 +181,15 @@ python run.py \
 Plan 2 分三步执行：先从明确的 Plan 1 正式运行白名单生成只读数据索引，再校验 manifest，最后训练：
 
 ```bash
-python offline_run.py prepare-plan2 --run-list plan1_formal_runs.csv --dataset-id plan2_formal_v1
-python offline_run.py validate-dataset --manifest /path/to/manifest.json
+python offline_run.py prepare-plan2 --run-list plan1_formal_runs.csv \
+  --dataset-id plan2_formal_v2 --source-root /data/plan1
+python offline_run.py validate-dataset --manifest /path/to/manifest.json \
+  --source-root /data/plan1
 python offline_run.py train --agent batch_dqn --network sumohz1x1 \
   --dataset-manifest /path/to/manifest.json --prefix p2_batch_seed1000 --seed 1000
 ```
 
-`--seed` 在该入口中明确表示 `offline_training_seed`，正式取值为 1000～1004；源轨迹中的 0～4 始终记录为 `behavior_training_seeds`。更多命令、resume 和汇总格式见 [Plan 2 支持说明](docs/plan2_offline_support.md)。
+当前 manifest schema 为 v2，保存 source root ID、相对路径、原绝对路径、SHA-256、builder/feature/trajectory schema 和场景语义哈希；旧 v1 manifest 会被明确拒绝，必须用新 dataset ID 重建。`--source-root` 可在数据移动或 mount point 变化后重定位。更多命令、resume、I/O 基准和汇总格式见 [Plan 2 支持说明](docs/plan2_offline_support.md)。
 
 ## 输出结果与目录隔离
 

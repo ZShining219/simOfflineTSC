@@ -30,6 +30,8 @@ trainer:
   test_when_train: False
   log_interval: 100
   evaluation_updates: [0, 14400, 36000, 72000, 108000, 144000]
+  evaluation_timeout_seconds: 300
+  evaluation_retries: 1
 
 model:
   name: offline_dqn

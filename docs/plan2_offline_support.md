@@ -2,7 +2,7 @@
 
 ## 状态与边界
 
-截至 2026-07-22，Plan 2 工程能力已经实现并通过 1-update SUMO 冒烟，但正式 Plan 2 实验尚未开始。正式实验必须等待 Plan 1 四场景 × 五个 behavior training seed 的 20 个正式运行全部通过验收；Pilot、失败或未完成的轨迹仍禁止进入正式数据集。
+截至 2026-07-23，Plan 1 四场景 × 五个 behavior training seed 的 20 个正式运行及 trajectory 白名单已经通过。Plan 2 工程能力已完成算法、数据、恢复、SUMO 生命周期、日志、汇总和并发 I/O 门禁，但正式 Plan 2 科研训练尚未开始；Pilot、失败或未完成轨迹仍禁止进入正式数据集。
 
 Online 与 Offline 是两个明确隔离的入口：
 
@@ -60,16 +60,27 @@ run_path,network,behavior_training_seed
 ```bash
 python offline_run.py prepare-plan2 \
   --run-list /absolute/path/plan1_formal_runs.csv \
-  --dataset-id plan2_formal_v1
+  --dataset-id plan2_formal_v2 \
+  --source-root /absolute/plan1/root \
+  --source-root-id plan1_formal_root
 ```
 
-输出位于 `data/output_data/offline_datasets/plan2/plan2_formal_v1/`，包括源运行列表、带 SHA-256 的 shard 索引、Q1～Q4/full 和四折 leave-one-out manifest。源 NPZ 不复制、不修改。
+输出位于 `data/output_data/offline_datasets/plan2/<dataset_id>/`，包括源运行列表、带 SHA-256 的 shard 索引、Q1～Q4/full 和四折 leave-one-out manifest。源 NPZ 不复制、不修改。schema v2 同时保存 `source_root_id`、相对路径、原绝对路径、builder/feature/trajectory schema、创建 commit、路网/信号程序/动作映射/特征/奖励语义哈希及去重前后计数；transition 唯一键固定为 `run_id + shard_sha256 + episode_id + decision_step`。旧 v1 manifest 不做静默解释，必须使用新 dataset ID 重建。
 
 单个 manifest 验证：
 
 ```bash
 python offline_run.py validate-dataset \
-  --manifest data/output_data/offline_datasets/plan2/plan2_formal_v1/datasets/sumohz1x1/full/manifest.json
+  --manifest /path/to/plan2_formal_v2/datasets/sumohz1x1/full/manifest.json \
+  --source-root /new/mount/plan1/root
+```
+
+读取策略为训练启动时每个所需 NPZ shard 只打开、解压一次，随后关闭文件并合并为连续内存数组；`sample_batch` 不再访问磁盘。正式运行前可执行：
+
+```bash
+python offline_run.py benchmark-dataset --manifest /path/to/manifest.json \
+  --source-root /new/mount/plan1/root --batch-size 64 \
+  --sample-batches 1000 --workers 8
 ```
 
 ## 离线训练
@@ -80,14 +91,17 @@ python offline_run.py validate-dataset \
 python offline_run.py train \
   --agent batch_dqn \
   --network sumohz1x1 \
-  --dataset-manifest data/output_data/offline_datasets/plan2/plan2_formal_v1/datasets/sumohz1x1/full/manifest.json \
+  --dataset-manifest /path/to/plan2_formal_v2/datasets/sumohz1x1/full/manifest.json \
+  --source-root /new/mount/plan1/root \
   --prefix p2_full_batch_seed1000 \
   --seed 1000 \
   --backend d3rlpy \
   --ngpu -1
 ```
 
-CQL 只把 `--agent` 改为 `cql_dqn`。正式 offline training seeds 固定为 1000～1004。`--total-updates` 仅供开发冒烟；正式汇总会拒绝不是 144,000 updates 和固定评估节点的运行。
+CQL 只把 `--agent` 改为 `cql_dqn`。正式 base/offline seeds 固定为 1000～1004；默认派生 model=`base`、sampler=`base+10000`、evaluation=`base+20000`，SUMO 保持 fixed-default。四者均有独立 CLI 参数和结构化记录。`--total-updates` 仅供开发冒烟；正式汇总会拒绝不是 144,000 updates 和固定评估节点的运行。
+
+`training_update=N` 明确表示已完成 N 次梯度更新。初始化时 target 与 online 同步；update 0 评估随机初始化策略，不做 target update；interval=10 时完成第 10、20…次梯度更新后同步。恢复于 update 9 或 10 时沿用同一口径。
 
 恢复必须使用新的 prefix，避免覆盖不可变运行目录：
 
@@ -97,7 +111,9 @@ python offline_run.py train ... \
   --resume /absolute/path/checkpoints/resumable/update_072000.pt
 ```
 
-resumable checkpoint 保存 online/target、optimizer、update/target 计数、数据采样 RNG、Python/NumPy/Torch RNG 和已完成评估。恢复时会校验算法、数据 manifest、核心超参数和 offline seed 指纹。
+resumable checkpoint 保存 online/target、optimizer、update/target 计数、数据采样 RNG、Python/NumPy/Torch RNG、CQL alpha、logical run ID、metrics 和已完成评估。评估成功写入 metrics/evaluation results 后才保存 resumable checkpoint；因此 update 0 和其他固定节点恢复时不会重复执行或产生重复日志。
+
+每次 SUMO 评估使用 `evaluation/runs/update_N/attempt_M/` 独立目录，默认 300 秒超时、失败后重试一次。默认 libsumo 是进程内接口，不使用端口或子进程；选择 TraCI 时自动申请空闲端口，并将 stdout/log/error-log 分离。连接始终在 `finally` 清理，TraCI 子进程若未退出会依次 terminate/kill；清理失败会使 run 标记为失败，不会写 completed evaluation 或 completed run。
 
 ## 结果汇总
 
@@ -115,13 +131,16 @@ python -m tools.experiment_plotting plan2 \
   --analysis-id plan2_formal_v1
 ```
 
-默认强制每个实验单元包含 seeds 1000～1004、144,000 updates、六个固定评估点、两类 checkpoint、完成状态、有效配置归档、无目标场景泄漏和零训练环境交互。输出包括训练曲线、同场景、数据阶段、leave-one-out、数据统计、逐运行摘要和报告。`--allow-incomplete` 只用于工程冒烟。
+默认强制每个实验单元包含 seeds 1000～1004、144,000 updates、六个固定评估点、两类 checkpoint、完成状态、有效配置归档、无目标场景泄漏和零训练环境交互。它还从结构化 metadata 校验 feature/reward/action/tl/topology hashes、模型/优化器、gamma/batch/target/alpha、dataset manifest、evaluation config、backend 和代码 commit；同名但配置不同的运行会被拒绝。prefix 仅供人读，不承担属性解析。metrics 必须以 update 单调、无重复、完整换行的 JSONL 存在，evaluation 还必须匹配 checkpoint SHA-256 与 evaluation seed。`--allow-incomplete` 只用于工程冒烟。
 
 ## 已执行验证
 
-- 单元测试：Q1/Q4/full 切分、源 shard 哈希、最后 transition 保留、相位 one-hot、leave-one-out 泄漏拒绝、场景均衡确定性采样、Batch/CQL loss 差异。
+- 20 项 Plan 2 专项测试：全 Q target/梯度、batch 1/64、可变 action dim、Batch 与 CQL alpha=0 的 loss/梯度/step/target 完全等价、CQL 极值有限性、初始化 target 同步、target 0/1/9/10/11 与真实 resume 参数边界。
+- trajectory/schema：terminated/truncated bool、episode 内链、末 transition、Q1/Q4 无丢失重复、dtype/NaN/Inf/动作范围/one-hot、source-root 重定位、v1 拒绝和 run/shard/content 去重。
+- 正式数据重建：schema v2 校验 8,000 shards、2,880,000 transitions，raw 与 deduplicated 计数一致。
+- I/O 基准（full 单场景 720,000 transitions）：单进程加载约 7.14 秒、驻留数组约 125.3 MB、10,000 batch 采样约 13,123 batch/s；8 workers 最大加载约 7.74 秒、合计驻留约 1.00 GB；16 workers 最大加载约 8.55 秒、合计驻留约 2.00 GB，均无打开 shard 文件。
 - d3rlpy 兼容性：Python 3.10、Torch 1.13.1、Gym 0.26.2 下导入和项目适配后端通过。
-- SUMO 冒烟：`sumohz1x1`、Batch-DQN、offline seed 1000、1 update、命令使用 `--total-updates 1`；update 0/1 完成评估与两类 checkpoint。
+- TraCI SUMO 冒烟：`sumohz1x1`、Batch-DQN、offline seed 1000、1 update；update 0/1 均完成，checkpoint hash 匹配，attempt 独立日志与 close report 有效，结束后无残留 SUMO 进程。一次故障注入运行因日志 schema 错误被正确标记为失败且无残留进程，修正后的新 prefix 运行完成。
 - resume 冒烟：从 `update_000001.pt` 在新 prefix 恢复；恢复后旅行时间 `454.31529850746267`，与原运行最终评估一致。
 
 上述冒烟只验证工程路径，不是 Plan 2 科研结果，也不能进入正式统计。

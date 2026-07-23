@@ -1,10 +1,13 @@
 """Pure offline training loop with SUMO interaction restricted to evaluation."""
 
 import copy
+import contextlib
 import hashlib
 import json
 import os
 import random
+import signal
+import subprocess
 import tempfile
 import time
 
@@ -18,6 +21,52 @@ from utils.logger import hash_torch_state_dict
 
 
 OFFLINE_METRIC_SCHEMA_VERSION = 1
+
+
+def should_update_target(completed_updates, interval):
+    if not isinstance(completed_updates, int) or completed_updates < 0:
+        raise ValueError('completed_updates must be a non-negative integer')
+    if not isinstance(interval, int) or interval <= 0:
+        raise ValueError('target update interval must be a positive integer')
+    return completed_updates > 0 and completed_updates % interval == 0
+
+
+@contextlib.contextmanager
+def isolated_random_seed(seed):
+    python_state = random.getstate()
+    numpy_state = np.random.get_state()
+    torch_state = torch.get_rng_state()
+    cuda_states = torch.cuda.get_rng_state_all() if torch.cuda.is_available() else []
+    try:
+        random.seed(seed)
+        np.random.seed(seed)
+        torch.manual_seed(seed)
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed_all(seed)
+        yield
+    finally:
+        random.setstate(python_state)
+        np.random.set_state(numpy_state)
+        torch.set_rng_state(torch_state)
+        if torch.cuda.is_available() and cuda_states:
+            torch.cuda.set_rng_state_all(cuda_states)
+
+
+@contextlib.contextmanager
+def evaluation_timeout(seconds):
+    if not hasattr(signal, 'SIGALRM'):
+        yield
+        return
+    previous_handler = signal.getsignal(signal.SIGALRM)
+    def raise_timeout(signum, frame):
+        raise TimeoutError(f'SUMO evaluation exceeded {seconds} seconds')
+    signal.signal(signal.SIGALRM, raise_timeout)
+    signal.setitimer(signal.ITIMER_REAL, seconds)
+    try:
+        yield
+    finally:
+        signal.setitimer(signal.ITIMER_REAL, 0)
+        signal.signal(signal.SIGALRM, previous_handler)
 
 
 def _atomic_json(path, payload):
@@ -44,6 +93,15 @@ def _sha256(path):
     return digest.hexdigest()
 
 
+def _git_commit():
+    try:
+        return subprocess.check_output(
+            ['git', 'rev-parse', 'HEAD'], text=True, stderr=subprocess.DEVNULL
+        ).strip()
+    except (OSError, subprocess.CalledProcessError):
+        return 'unknown'
+
+
 def _json_safe(value):
     if isinstance(value, dict):
         return {str(key): _json_safe(item) for key, item in value.items()}
@@ -56,14 +114,16 @@ def _json_safe(value):
 
 class OfflineMetricLogger:
     REQUIRED_FIELDS = {
-        'schema_version', 'record_type', 'algorithm', 'backend', 'network',
+        'schema_version', 'record_type', 'logical_run_id', 'physical_run_id',
+        'algorithm', 'backend', 'network',
         'offline_training_seed', 'dataset_id', 'dataset_kind', 'dataset_stage',
-        'training_update', 'gradient_updates', 'target_updates', 'loss',
-        'td_loss', 'conservative_loss', 'gradient_norm', 'source_network_counts',
+        'training_update', 'gradient_updates', 'target_updates', 'total_loss',
+        'td_loss', 'cql_loss', 'gradient_norm', 'source_network_counts',
         'travel_time', 'reward_mean', 'reward_sum', 'queue', 'delay',
         'real_delay', 'waiting_time', 'unfinished_vehicles', 'throughput',
         'action_distribution', 'phase_switches', 'phase_switch_frequency',
-        'wall_time_seconds',
+        'wall_time_seconds', 'evaluation_seed', 'checkpoint_sha256',
+        'evaluation_status', 'online_model_state_hash',
     }
 
     def __init__(self, output_path):
@@ -79,6 +139,15 @@ class OfflineMetricLogger:
             raise ValueError('Invalid offline metric schema version')
         if record['record_type'] not in {'TRAIN', 'EVALUATION', 'FINAL_EVALUATION'}:
             raise ValueError('Invalid offline metric record type')
+        existing, latest_update = self._record_state()
+        key = (record['record_type'], record['training_update'])
+        if key in existing:
+            raise ValueError(f'Duplicate offline metric record: {key}')
+        if record['training_update'] < latest_update:
+            raise ValueError(
+                'Offline metric updates are not monotonic: '
+                f'{record["training_update"]} < {latest_update}'
+            )
         line = json.dumps(
             _json_safe(record), ensure_ascii=False, separators=(',', ':'),
             allow_nan=False,
@@ -89,6 +158,32 @@ class OfflineMetricLogger:
             os.fsync(handle.fileno())
         return record
 
+    def _record_keys(self):
+        return self._record_state()[0]
+
+    def _record_state(self):
+        keys = set()
+        latest_update = -1
+        if not os.path.isfile(self.path):
+            return keys, latest_update
+        with open(self.path, encoding='utf-8') as handle:
+            for line_number, line in enumerate(handle, start=1):
+                if not line.endswith('\n'):
+                    raise ValueError(
+                        f'Incomplete offline metric line {line_number}: {self.path}'
+                    )
+                if not line.strip():
+                    raise ValueError(f'Blank offline metric line {line_number}')
+                record = json.loads(line)
+                key = (record['record_type'], record['training_update'])
+                if key in keys:
+                    raise ValueError(f'Duplicate offline metric record: {key}')
+                keys.add(key)
+                if record['training_update'] < latest_update:
+                    raise ValueError('Offline metric updates are not monotonic')
+                latest_update = record['training_update']
+        return keys, latest_update
+
     def validate(self, require_records=True):
         count = 0
         if not os.path.isfile(self.path):
@@ -96,7 +191,11 @@ class OfflineMetricLogger:
                 raise ValueError(f'Missing offline metric file: {self.path}')
             return 0
         with open(self.path, encoding='utf-8') as handle:
+            previous_update = -1
+            seen = set()
             for line_number, line in enumerate(handle, start=1):
+                if not line.endswith('\n'):
+                    raise ValueError(f'Incomplete offline metric line {line_number}')
                 if not line.strip():
                     raise ValueError(f'Blank offline metric line {line_number}')
                 record = json.loads(line)
@@ -107,10 +206,25 @@ class OfflineMetricLogger:
                         f'Invalid offline metric line {line_number}; '
                         f'missing={missing}, extra={extra}'
                     )
+                update = record['training_update']
+                if update < previous_update:
+                    raise ValueError('Offline metric updates are not monotonic')
+                key = (record['record_type'], update)
+                if key in seen:
+                    raise ValueError(f'Duplicate offline metric record: {key}')
+                seen.add(key)
+                previous_update = update
                 count += 1
         if require_records and count == 0:
             raise ValueError('Offline metric file contains no records')
         return count
+
+    def records(self):
+        if not os.path.isfile(self.path):
+            return []
+        self.validate(require_records=False)
+        with open(self.path, encoding='utf-8') as handle:
+            return [json.loads(line) for line in handle]
 
 
 @Registry.register_trainer('offline_tsc')
@@ -128,14 +242,24 @@ class OfflineTSCTrainer(TSCTrainer):
         self.batch_size = int(model['batch_size'])
         self.target_update_interval = int(trainer['target_update_interval'])
         self.log_interval = int(trainer.get('log_interval', 100))
+        self.evaluation_timeout_seconds = int(
+            trainer.get('evaluation_timeout_seconds', 300)
+        )
+        self.evaluation_retries = int(trainer.get('evaluation_retries', 1))
         self.evaluation_updates = self._validate_evaluation_updates(
             trainer['evaluation_updates']
         )
         self.offline_training_seed = int(command['seed'])
+        self.model_init_seed = int(command['model_seed'])
+        self.dataset_sampler_seed = int(command['dataset_sampler_seed'])
+        self.evaluation_seed = int(command['evaluation_seed'])
+        self.sumo_seed = command.get('sumo_seed')
+        self.sumo_interface = command['interface']
         self.output_path = Registry.mapping['logger_mapping']['path'].path
         self.offline_dataset = OfflineTrajectoryDataset(
-            command['dataset_manifest'], seed=self.offline_training_seed,
+            command['dataset_manifest'], seed=self.dataset_sampler_seed,
             verify_hashes=not command.get('skip_dataset_hash_check', False),
+            source_root=command.get('source_root'),
         )
         self.dataset = self.offline_dataset
         self.structured_metrics = OfflineMetricLogger(self.output_path)
@@ -144,6 +268,9 @@ class OfflineTSCTrainer(TSCTrainer):
         self.target_updates = 0
         self.evaluation_results = {}
         self.final_evaluation_completed = False
+        self.physical_run_id = self._read_physical_run_id()
+        self.logical_run_id = self.physical_run_id
+        self.pending_evaluation_context = None
 
         if len(self.agents) != 1:
             raise ValueError('Plan 2 currently supports exactly one controlled intersection')
@@ -163,6 +290,16 @@ class OfflineTSCTrainer(TSCTrainer):
         self._write_metadata()
         if command.get('resume'):
             self.load_resumable_checkpoint(command['resume'])
+            self._write_metadata()
+
+    def load_seed_from_config(self):
+        command = Registry.mapping['command_mapping']['setting'].param
+        self.seed = int(command.get('model_seed', command['seed']))
+        super().load_seed_from_config()
+
+    def _read_physical_run_id(self):
+        with open(os.path.join(self.output_path, 'run_manifest.json'), encoding='utf-8') as handle:
+            return json.load(handle)['run_id']
 
     def _validate_evaluation_updates(self, configured):
         if not isinstance(configured, list) or not all(
@@ -190,6 +327,16 @@ class OfflineTSCTrainer(TSCTrainer):
             'target_update_interval': self.target_update_interval,
             'total_updates': self.total_updates,
             'offline_training_seed': self.offline_training_seed,
+            'seed_roles': {
+                'base_seed': self.offline_training_seed,
+                'model_init_seed': self.model_init_seed,
+                'dataset_sampler_seed': self.dataset_sampler_seed,
+                'evaluation_seed': self.evaluation_seed,
+                'sumo_seed': self.sumo_seed,
+                'sumo_seed_mode': (
+                    'fixed_default' if self.sumo_seed is None else 'explicit'
+                ),
+            },
         }
         encoded = json.dumps(payload, sort_keys=True, separators=(',', ':')).encode('utf-8')
         return hashlib.sha256(encoded).hexdigest()
@@ -198,6 +345,7 @@ class OfflineTSCTrainer(TSCTrainer):
         agent = self.agents[0]
         payload = {
             'schema_version': 1,
+            'created_by_commit': _git_commit(),
             'training_mode': 'pure_offline',
             'algorithm': agent.offline_algorithm,
             'backend': agent.backend,
@@ -205,11 +353,43 @@ class OfflineTSCTrainer(TSCTrainer):
             'behavior_training_seeds': self.offline_dataset.manifest[
                 'behavior_training_seeds'
             ],
-            'sumo_seed_mode': 'fixed_default',
+            'sumo_seed_mode': (
+                'fixed_default' if self.sumo_seed is None else 'explicit'
+            ),
+            'logical_run_id': self.logical_run_id,
+            'physical_run_id': self.physical_run_id,
+            'seed_roles': {
+                'base_seed': self.offline_training_seed,
+                'model_init_seed': self.model_init_seed,
+                'dataset_sampler_seed': self.dataset_sampler_seed,
+                'evaluation_seed': self.evaluation_seed,
+                'sumo_seed': self.sumo_seed,
+                'sumo_seed_mode': (
+                    'fixed_default' if self.sumo_seed is None else 'explicit'
+                ),
+            },
             'dataset_manifest': self.offline_dataset.manifest_path,
             'dataset_manifest_sha256': self.dataset_manifest_sha256,
             'dataset': self.offline_dataset.manifest,
             'dataset_statistics': self.offline_dataset.statistics(),
+            'dataset_io': {
+                'storage_strategy': self.offline_dataset.storage_strategy,
+                'dataset_load_seconds': self.offline_dataset.load_seconds,
+                'dataset_load_cpu_user_seconds': (
+                    self.offline_dataset.load_cpu_user_seconds
+                ),
+                'dataset_load_cpu_system_seconds': (
+                    self.offline_dataset.load_cpu_system_seconds
+                ),
+                'dataset_load_block_input_operations': (
+                    self.offline_dataset.load_block_input_operations
+                ),
+                'source_shard_count': self.offline_dataset.source_shard_count,
+                'source_npz_bytes': self.offline_dataset.source_npz_bytes,
+                'resident_array_bytes': self.offline_dataset.resident_array_bytes,
+                'peak_rss_delta_bytes': self.offline_dataset.peak_rss_delta_bytes,
+                'source_shards_open_after_load': 0,
+            },
             'training_config': {
                 'network_hidden_layers': [20, 20],
                 'batch_size': self.batch_size,
@@ -228,6 +408,24 @@ class OfflineTSCTrainer(TSCTrainer):
             },
             'total_updates': self.total_updates,
             'evaluation_updates': list(self.evaluation_updates),
+            'evaluation_config': {
+                'test_steps': self.test_steps,
+                'action_interval': self.action_interval,
+                'timeout_seconds': self.evaluation_timeout_seconds,
+                'retries': self.evaluation_retries,
+                'isolated_attempt_directories': True,
+                'interface': self.sumo_interface,
+                'port_allocation': (
+                    'traci_automatic_free_port'
+                    if self.sumo_interface == 'traci'
+                    else 'not_applicable_libsumo_in_process'
+                ),
+                'process_cleanup': (
+                    'traci_close_then_terminate_kill'
+                    if self.sumo_interface == 'traci'
+                    else 'libsumo_close_in_process'
+                ),
+            },
             'resume_fingerprint': self.resume_fingerprint,
             'training_environment_interactions': 0,
             'evaluation_environment_interactions_only': True,
@@ -240,6 +438,8 @@ class OfflineTSCTrainer(TSCTrainer):
         return {
             'schema_version': OFFLINE_METRIC_SCHEMA_VERSION,
             'record_type': record_type,
+            'logical_run_id': self.logical_run_id,
+            'physical_run_id': self.physical_run_id,
             'algorithm': agent.offline_algorithm,
             'backend': agent.backend['name'],
             'network': Registry.mapping['command_mapping']['setting'].param['network'],
@@ -250,9 +450,9 @@ class OfflineTSCTrainer(TSCTrainer):
             'training_update': update,
             'gradient_updates': self.gradient_updates,
             'target_updates': self.target_updates,
-            'loss': None,
+            'total_loss': None,
             'td_loss': None,
-            'conservative_loss': None,
+            'cql_loss': None,
             'gradient_norm': None,
             'source_network_counts': {},
             'travel_time': None,
@@ -268,6 +468,10 @@ class OfflineTSCTrainer(TSCTrainer):
             'phase_switches': None,
             'phase_switch_frequency': None,
             'wall_time_seconds': wall_time_seconds,
+            'evaluation_seed': None,
+            'checkpoint_sha256': None,
+            'evaluation_status': None,
+            'online_model_state_hash': None,
         }
 
     def _write_train_record(self, update, losses, source_counts, wall_time_seconds):
@@ -281,6 +485,8 @@ class OfflineTSCTrainer(TSCTrainer):
         wall_time_seconds,
     ):
         record = self._base_record(record_type, episode, wall_time_seconds)
+        if self.pending_evaluation_context is None:
+            raise RuntimeError('Missing offline evaluation context')
         rewards = self.metric.lane_metrics.get('rewards')
         action_total = sum(self.action_counts.values())
         previous_action_count = 0 if self.previous_actions is None else len(self.previous_actions)
@@ -300,8 +506,11 @@ class OfflineTSCTrainer(TSCTrainer):
                 0.0 if action_total <= previous_action_count else
                 self.phase_switches / (action_total - previous_action_count)
             ),
+            'evaluation_seed': self.pending_evaluation_context['evaluation_seed'],
+            'checkpoint_sha256': self.pending_evaluation_context['checkpoint_sha256'],
+            'evaluation_status': 'complete',
         })
-        return self.structured_metrics.append(record)
+        return record
 
     def _checkpoint_path(self, checkpoint_type, update):
         return os.path.join(
@@ -336,6 +545,7 @@ class OfflineTSCTrainer(TSCTrainer):
             'gradient_updates': self.gradient_updates,
             'target_updates': self.target_updates,
             'algorithm': agent.offline_algorithm,
+            'cql_alpha': float(agent.cql_alpha),
             'backend': agent.backend,
             'dataset_manifest_sha256': self.dataset_manifest_sha256,
             'resume_fingerprint': self.resume_fingerprint,
@@ -346,6 +556,8 @@ class OfflineTSCTrainer(TSCTrainer):
                 'target_model_state_dict': copy.deepcopy(agent.target_model.state_dict()),
                 'optimizer_state_dict': copy.deepcopy(agent.optimizer.state_dict()),
                 'evaluation_results': copy.deepcopy(self.evaluation_results),
+                'logical_run_id': self.logical_run_id,
+                'metric_records': self.structured_metrics.records(),
                 'dataset_rng_state': self.offline_dataset.rng_state(),
                 'python_random_state': random.getstate(),
                 'numpy_random_state': np.random.get_state(),
@@ -373,12 +585,20 @@ class OfflineTSCTrainer(TSCTrainer):
         self.gradient_updates = int(payload['gradient_updates'])
         self.target_updates = int(payload['target_updates'])
         self.evaluation_results = copy.deepcopy(payload.get('evaluation_results', {}))
+        self.logical_run_id = payload.get('logical_run_id', self.logical_run_id)
+        if not self.structured_metrics.records():
+            for record in payload.get('metric_records', []):
+                self.structured_metrics.append(record)
         self.offline_dataset.set_rng_state(payload['dataset_rng_state'])
         random.setstate(payload['python_random_state'])
         np.random.set_state(payload['numpy_random_state'])
         torch.set_rng_state(payload['torch_cpu_rng_state'])
         if torch.cuda.is_available() and payload['torch_cuda_rng_states']:
             torch.cuda.set_rng_state_all(payload['torch_cuda_rng_states'])
+        self.final_evaluation_completed = (
+            self.current_update == self.total_updates
+            and self.current_update in self.evaluation_results
+        )
         return payload
 
     def _write_evaluation_summary(self):
@@ -411,19 +631,68 @@ class OfflineTSCTrainer(TSCTrainer):
         _atomic_json(os.path.join(self.output_path, 'evaluation', 'summary.json'), payload)
 
     def _evaluate(self, update):
+        if update in self.evaluation_results:
+            return self.evaluation_results[update]
         transition_count = len(self.offline_dataset)
-        self.save_checkpoint('evaluation', update)
-        self.save_checkpoint('resumable', update)
+        checkpoint_path = self.save_checkpoint('evaluation', update)
+        self.pending_evaluation_context = {
+            'evaluation_seed': self.evaluation_seed,
+            'checkpoint_sha256': _sha256(checkpoint_path),
+        }
         record_type = 'FINAL_EVALUATION' if update == self.total_updates else 'EVALUATION'
-        self.train_test(update, record_type=record_type)
+        try:
+            last_error = None
+            for attempt in range(1, self.evaluation_retries + 2):
+                attempt_dir = os.path.join(
+                    self.output_path, 'evaluation', 'runs',
+                    f'update_{update:06d}', f'attempt_{attempt:02d}',
+                )
+                os.makedirs(attempt_dir, exist_ok=False)
+                self.world.configure_evaluation_output(attempt_dir)
+                attempt_status = {
+                    'schema_version': 1, 'training_update': update,
+                    'attempt': attempt, 'evaluation_seed': self.evaluation_seed,
+                    'status': 'running',
+                }
+                _atomic_json(os.path.join(attempt_dir, 'status.json'), attempt_status)
+                try:
+                    with isolated_random_seed(self.evaluation_seed):
+                        with evaluation_timeout(self.evaluation_timeout_seconds):
+                            self.train_test(update, record_type=record_type)
+                    close_report = self.world.close()
+                    if close_report.get('close_error'):
+                        raise RuntimeError(
+                            'SUMO connection close failed: ' + close_report['close_error']
+                        )
+                    if close_report.get('process_alive'):
+                        raise RuntimeError('SUMO subprocess remained alive after evaluation')
+                    attempt_status.update({'status': 'complete', 'close': close_report})
+                    _atomic_json(os.path.join(attempt_dir, 'status.json'), attempt_status)
+                    last_error = None
+                    break
+                except Exception as error:
+                    last_error = error
+                    close_report = self.world.close()
+                    attempt_status.update({
+                        'status': 'failed', 'close': close_report,
+                        'error_type': type(error).__name__,
+                        'error_message': ' '.join(str(error).split())[:1000],
+                    })
+                    _atomic_json(os.path.join(attempt_dir, 'status.json'), attempt_status)
+            if last_error is not None:
+                raise last_error
+        finally:
+            self.pending_evaluation_context = None
         if len(self.offline_dataset) != transition_count:
             raise RuntimeError('Evaluation mutated the frozen offline dataset')
         record = dict(self.last_evaluation_record)
         record['online_model_state_hash'] = hash_torch_state_dict(
             self.agents[0].model.state_dict()
         )
+        record = self.structured_metrics.append(record)
         self.evaluation_results[update] = _json_safe(record)
         self._write_evaluation_summary()
+        self.save_checkpoint('resumable', update)
         if update == self.total_updates:
             self.final_evaluation_completed = True
 
@@ -441,14 +710,14 @@ class OfflineTSCTrainer(TSCTrainer):
             self.current_update = update
             self.global_decision_step = update
             self.gradient_updates += 1
-            if update % self.target_update_interval == self.target_update_interval - 1:
+            if should_update_target(update, self.target_update_interval):
                 self.agents[0].update_target_network()
                 self.target_updates += 1
 
             if update % self.log_interval == 0 or update in self.evaluation_updates:
                 mean_losses = {
                     key: float(np.mean([item[key] for item in accumulated]))
-                    for key in ('loss', 'td_loss', 'conservative_loss', 'gradient_norm')
+                    for key in ('total_loss', 'td_loss', 'cql_loss', 'gradient_norm')
                 }
                 self._write_train_record(
                     update, mean_losses, source_counts,

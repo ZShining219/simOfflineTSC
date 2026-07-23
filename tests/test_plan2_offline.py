@@ -1,6 +1,7 @@
 import csv
 import hashlib
 import json
+import shutil
 import tempfile
 import unittest
 from pathlib import Path
@@ -39,6 +40,16 @@ def write_source_run(root, network, seed, episodes=4, per_episode=2):
     trajectory = run / 'trajectory'
     shards = trajectory / 'episodes'
     shards.mkdir(parents=True)
+    roadnet = root / 'fixture.net.xml'
+    if not roadnet.exists():
+        roadnet.write_text(
+            '<net><edge id="in" from="a" to="i"><lane id="in_0" index="0"/></edge>'
+            '<edge id="out" from="i" to="b"><lane id="out_0" index="0"/></edge>'
+            '<connection from="in" to="out" fromLane="0" toLane="0" tl="i" linkIndex="0"/>'
+            '<tlLogic id="i" programID="0" type="static"><phase duration="30" state="G"/>'
+            '<phase duration="5" state="y"/><phase duration="30" state="g"/></tlLogic></net>',
+            encoding='utf-8',
+        )
 
     resolved = {
         'command': {
@@ -63,6 +74,9 @@ def write_source_run(root, network, seed, episodes=4, per_episode=2):
         },
     }
     config.mkdir()
+    write_json(config / 'simulator_resolved.cfg', {
+        'dir': '', 'roadnetFile': str(roadnet),
+    })
     with (config / 'resolved_config.yaml').open('w', encoding='utf-8') as handle:
         yaml.safe_dump(resolved, handle, sort_keys=False)
     write_json(config / 'model_resolved.json', {
@@ -99,6 +113,15 @@ def write_source_run(root, network, seed, episodes=4, per_episode=2):
         values = np.arange(per_episode, dtype=np.float32) + episode * 10
         np.savez_compressed(
             shard,
+            schema_version=np.asarray(1, dtype=np.int64),
+            network=np.asarray(network),
+            scene_id=np.asarray(network),
+            behavior_training_seed=np.asarray(seed, dtype=np.int64),
+            episode_id=np.full(per_episode, episode, dtype=np.int64),
+            decision_step=np.arange(1, per_episode + 1, dtype=np.int64),
+            global_step=np.arange(
+                global_step, global_step + per_episode, dtype=np.int64
+            ),
             state=np.stack((values, values + .5), axis=1).reshape(per_episode, 1, 1, 2),
             current_phase=np.asarray([0, 1], dtype=np.int64).reshape(per_episode, 1, 1),
             action=np.asarray([0, 1], dtype=np.int64).reshape(per_episode, 1, 1),
@@ -169,6 +192,10 @@ class Plan2OfflineDatasetTest(unittest.TestCase):
         q1 = self.dataset_root / 'datasets' / 'n1' / 'Q1' / 'manifest.json'
         validation = validate_offline_dataset(q1)
         self.assertEqual(4, validation['transition_count'])
+        self.assertEqual(
+            2, dataset_manifest := json.loads(q1.read_text(encoding='utf-8'))
+            ['scene_semantics']['n1']['green_action_count']
+        )
         dataset = OfflineTrajectoryDataset(q1, seed=1000)
         self.assertEqual(4, len(dataset))
         self.assertEqual(4, dataset.observation_dim)
@@ -176,6 +203,49 @@ class Plan2OfflineDatasetTest(unittest.TestCase):
         self.assertEqual(4, len(arrays['actions']))
         np.testing.assert_array_equal(arrays['observations'][-1, -2:], [0, 1])
         np.testing.assert_array_equal(arrays['next_observations'][-1, -2:], [1, 0])
+        self.assertEqual(np.float32, arrays['observations'].dtype)
+        self.assertEqual(np.int64, arrays['actions'].dtype)
+        self.assertEqual(np.bool_, arrays['terminated'].dtype)
+        self.assertEqual(np.bool_, arrays['truncated'].dtype)
+        np.testing.assert_array_equal(arrays['episode_id'], [1, 1, 2, 2])
+        np.testing.assert_array_equal(arrays['decision_step'], [1, 2, 1, 2])
+        np.testing.assert_array_equal(arrays['global_step'], [1, 2, 3, 4])
+        np.testing.assert_array_equal(arrays['terminated'], [False] * 4)
+        np.testing.assert_array_equal(arrays['truncated'], [False, True] * 2)
+        np.testing.assert_array_equal(arrays['observations'][:, -2:].sum(axis=1), 1)
+        np.testing.assert_array_equal(
+            arrays['next_observations'][:, -2:].sum(axis=1), 1
+        )
+        # The last next_state is retained as recorded; it is not linked to episode 2.
+        self.assertFalse(np.array_equal(
+            arrays['next_observations'][1], arrays['observations'][2]
+        ))
+
+        q4 = self.dataset_root / 'datasets' / 'n1' / 'Q4' / 'manifest.json'
+        q4_arrays = OfflineTrajectoryDataset(q4, seed=1000)._arrays['n1']
+        np.testing.assert_array_equal(q4_arrays['episode_id'], [3, 3, 4, 4])
+        q1_keys = set(zip(arrays['episode_id'], arrays['decision_step']))
+        q4_keys = set(zip(q4_arrays['episode_id'], q4_arrays['decision_step']))
+        self.assertFalse(q1_keys & q4_keys)
+        self.assertEqual(8, len(q1_keys | q4_keys))
+
+    def test_source_root_relocation_and_old_schema_rejection(self):
+        manifest = self.dataset_root / 'datasets' / 'n1' / 'Q1' / 'manifest.json'
+        relocated = self.root / 'relocated_mount'
+        for run in self.runs:
+            relative = run.relative_to(self.root)
+            shutil.copytree(run / 'trajectory', relocated / relative / 'trajectory')
+        dataset = OfflineTrajectoryDataset(
+            manifest, seed=1000, source_root=relocated
+        )
+        self.assertEqual(4, len(dataset))
+
+        old_manifest = self.root / 'old_manifest.json'
+        payload = json.loads(manifest.read_text(encoding='utf-8'))
+        payload['schema_version'] = 1
+        write_json(old_manifest, payload)
+        with self.assertRaisesRegex(ValueError, 'rebuild'):
+            OfflineTrajectoryDataset(old_manifest, seed=1000)
 
     def test_leave_one_out_rejects_leakage_and_sampling_is_deterministic(self):
         manifest = (
@@ -226,15 +296,17 @@ class OfflineDQNLossTest(unittest.TestCase):
             actions=np.asarray([0, 1]),
             rewards=np.ones(2, dtype=np.float32),
             next_observations=np.zeros((2, 2), dtype=np.float32),
+            terminated=np.asarray([False, False]),
+            truncated=np.asarray([False, True]),
             source_network='n1',
         )
         batch_result = self._agent(BatchDQNAgent, 0.0).train_offline_batch(batch)
         cql_result = self._agent(CQLDQNAgent, 1.0).train_offline_batch(batch)
         self.assertAlmostEqual(.5, batch_result['td_loss'], places=6)
-        self.assertAlmostEqual(batch_result['td_loss'], batch_result['loss'], places=6)
-        self.assertAlmostEqual(np.log(2), cql_result['conservative_loss'], places=6)
+        self.assertAlmostEqual(batch_result['td_loss'], batch_result['total_loss'], places=6)
+        self.assertAlmostEqual(np.log(2), cql_result['cql_loss'], places=6)
         self.assertAlmostEqual(
-            batch_result['td_loss'] + np.log(2), cql_result['loss'], places=6
+            batch_result['td_loss'] + np.log(2), cql_result['total_loss'], places=6
         )
 
 
@@ -301,6 +373,7 @@ class Plan2AnalysisTest(unittest.TestCase):
                     'offline_training_seed': 1000, 'dataset_id': 'fixture',
                     'dataset_kind': 'single_scene', 'dataset_stage': 'Q1',
                     'training_update': 0, 'travel_time': 10.0,
+                    'online_model_state_hash': None,
                 },
                 {
                     'schema_version': 1, 'record_type': 'TRAIN',
@@ -308,6 +381,7 @@ class Plan2AnalysisTest(unittest.TestCase):
                     'offline_training_seed': 1000, 'dataset_id': 'fixture',
                     'dataset_kind': 'single_scene', 'dataset_stage': 'Q1',
                     'training_update': 1, 'loss': 1.0,
+                    'online_model_state_hash': None,
                 },
                 {
                     'schema_version': 1, 'record_type': 'FINAL_EVALUATION',
@@ -315,6 +389,7 @@ class Plan2AnalysisTest(unittest.TestCase):
                     'offline_training_seed': 1000, 'dataset_id': 'fixture',
                     'dataset_kind': 'single_scene', 'dataset_stage': 'Q1',
                     'training_update': 1, 'travel_time': 9.0,
+                    'online_model_state_hash': None,
                 },
             ]
             with (metrics / 'offline_records.jsonl').open('w', encoding='utf-8') as handle:

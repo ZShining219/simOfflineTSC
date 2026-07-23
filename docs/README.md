@@ -12,8 +12,8 @@
 | 本轮 M1 优化与科研决策整理 | 已关闭并归档 | 仅表示本轮规则审核和决策确认结束，见 `done/m1_optimization_closure.md` |
 | Plan 0 环境、算法和场景冻结 | 未执行 | `plan0721.md` 中的后续执行计划，不得因 M1 优化关闭而视为完成 |
 | Plan 1 启动能力与 Pilot | 已完成 | append-only trajectory、固定评估/checkpoint 和作图能力已通过，见 `plan1_support_and_pilot.md` |
-| Plan 1 四场景正式 Online DQN | 执行中 | 20 次正式运行未全部完成，继续以 `plan1_formal_online_dqn.md` 为准 |
-| Plan 2 纯 Offline DQN 工程支持 | 已实现，正式实验未启动 | 独立入口、只读数据索引、Batch/CQL、resume、汇总和冒烟已完成；仍等待 Plan 1 完整白名单，见 `plan2_offline_support.md` |
+| Plan 1 四场景正式 Online DQN | 已通过 | 20 次正式运行和 Plan 2 trajectory 白名单均已验收，见 `plan1_formal_online_dqn.md` |
+| Plan 2 纯 Offline DQN 工程支持 | 已实现，正式实验未启动 | 算法梯度、schema v2、resume、SUMO 清理、严格汇总及 8/16 并发 I/O 门禁已通过，见 `plan2_offline_support.md` |
 | Plan 3～Plan 4 | 未执行 | 继续受 `plan0721.md` 的依赖关系和启动门约束 |
 
 状态解释：

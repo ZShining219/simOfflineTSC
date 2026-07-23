@@ -90,6 +90,43 @@ class SequentialLauncherTests(unittest.TestCase):
             with self.assertRaisesRegex(PermissionError, 'authorize-formal'):
                 launcher.launch()
 
+    def test_launcher_runs_real_child_process_and_records_failure_artifacts(self):
+        class PassingGate:
+            @staticmethod
+            def check(output_root, pending_output_bytes, concurrency_slots):
+                return {
+                    'valid': True, 'disk_free_bytes': 1, 'disk_required_bytes': 1,
+                    'memory_available_bytes': 1, 'memory_required_bytes': 1,
+                    'concurrency_slots': concurrency_slots,
+                }
+
+        with tempfile.TemporaryDirectory() as directory:
+            manifest = os.path.join(directory, 'pilot.json')
+            atomic_json(manifest, {
+                'mode': 'pilot', 'children': [{
+                    'logical_run_id': 'real_failed_child',
+                    'networks': ['missing'], 'stage_episodes': [400],
+                    'policy': 'clear', 'training_seed': 0,
+                    'parent_import_manifest': os.path.join(directory, 'missing.json'),
+                    'estimated_output_bytes': 0,
+                }],
+                'model': {}, 'trainer': {},
+            })
+            output_root = os.path.join(directory, 'runs')
+            result = SequentialLauncher(
+                manifest, output_root, resource_gate=PassingGate(),
+                initial_concurrency=4,
+            ).launch()
+            self.assertEqual(result[0]['status'], 'failed')
+            lineage = collect_status(output_root)['runs'][0]
+            self.assertEqual(lineage['status'], 'failed')
+            attempt = lineage['attempts'][0]
+            self.assertNotEqual(attempt['returncode'], 0)
+            self.assertTrue(os.path.isfile(attempt['stdout_path']))
+            self.assertTrue(os.path.isfile(attempt['stderr_path']))
+            with open(attempt['stderr_path'], encoding='utf-8') as handle:
+                self.assertIn('FileNotFoundError', handle.read())
+
 
 if __name__ == '__main__':
     unittest.main()

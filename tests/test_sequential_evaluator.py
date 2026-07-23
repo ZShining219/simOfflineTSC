@@ -38,6 +38,23 @@ def fixture_evaluation_worker(request_path):
     })
 
 
+def fixture_success_worker(request_path):
+    request = read_json(request_path)
+    attempt_dir = request['attempt_dir']
+    attempt = int(os.path.basename(attempt_dir).split('_')[1])
+    summary_path = os.path.join(attempt_dir, 'summary.json')
+    decisions_path = os.path.join(attempt_dir, 'decisions.jsonl')
+    atomic_json(summary_path, {
+        'travel_time': 1.0, 'attempt': attempt,
+        'checkpoint_digest': request['checkpoint_digest'],
+    })
+    atomic_json(decisions_path, {'actions': [0]})
+    atomic_json(os.path.join(attempt_dir, 'success.json'), {
+        'valid': True, 'summary_path': summary_path,
+        'decisions_path': decisions_path,
+    })
+
+
 class DummySnapshotAgent:
     def __init__(self):
         self.model = DQNNet(16, 8)
@@ -141,6 +158,14 @@ class SequentialEvaluatorTests(unittest.TestCase):
                 ),
                 ['attempt_1', 'attempt_2', 'attempt_3'],
             )
+
+            resumed = IndependentEvaluator(
+                os.path.join(directory, 'evaluation'), retries=3,
+                timeout_seconds=30, worker_target=fixture_success_worker,
+            ).evaluate(snapshot, 'always_fail', self._protocol(), identity)
+            self.assertEqual(resumed['physical']['successful_attempt'], 4)
+            self.assertTrue(os.path.isfile(os.path.join(cell, 'committed.json')))
+            self.assertFalse(os.path.exists(os.path.join(cell, 'attempt_5')))
 
 
 if __name__ == '__main__':

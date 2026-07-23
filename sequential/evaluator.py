@@ -307,9 +307,8 @@ class IndependentEvaluator:
                 for name in os.listdir(physical_dir)
                 if name.startswith('attempt_') and name.split('_', 1)[1].isdigit()
             }
-            for attempt in range(1, self.retries + 1):
-                if attempt in attempted:
-                    continue
+            first_attempt = max(attempted, default=0) + 1
+            for attempt in range(first_attempt, first_attempt + self.retries):
                 attempt_dir = os.path.join(physical_dir, f'attempt_{attempt}')
                 os.makedirs(attempt_dir, exist_ok=False)
                 request = {

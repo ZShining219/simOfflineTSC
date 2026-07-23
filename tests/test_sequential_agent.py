@@ -17,6 +17,7 @@ from sequential.core import (
 )
 from sequential.parents import convert_parent_replay
 from sequential.trainer import SequentialStageTrainer
+from sequential.evaluator import save_online_snapshot
 
 
 class FakeIntersection:
@@ -306,6 +307,35 @@ class SequentialAgentTests(unittest.TestCase):
             [record.metadata.transition_id for record in agent.replay.records],
             [str(index) for index in range(100)],
         )
+
+    def test_evaluation_snapshots_preserve_next_sample_loss_and_model_update(self):
+        with tempfile.TemporaryDirectory() as directory:
+            agent = self._agent()
+            agent.replay = SequentialReplay(
+                5000, [self._record(index) for index in range(1001)]
+            )
+            agent.policy = 'fifo'
+            base_state = agent.full_state_dict()
+
+            agent.load_full_state_dict(base_state)
+            direct = agent.successful_gradient_update()
+            direct_digest = online_parameter_digest(agent.model.state_dict())
+
+            agent.load_full_state_dict(base_state)
+            for index in range(4):
+                save_online_snapshot(
+                    agent, os.path.join(directory, f'evaluation_{index}.pt'),
+                    {'stage_index': 2, 'evaluation_index': index},
+                )
+            evaluated = agent.successful_gradient_update()
+            evaluated_digest = online_parameter_digest(agent.model.state_dict())
+
+            self.assertEqual(
+                direct['sample_transition_ids'],
+                evaluated['sample_transition_ids'],
+            )
+            self.assertEqual(direct['loss'], evaluated['loss'])
+            self.assertEqual(direct_digest, evaluated_digest)
 
 
 if __name__ == '__main__':

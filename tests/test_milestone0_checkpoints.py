@@ -1,9 +1,11 @@
 import os
+import random
 import tempfile
 import unittest
 from collections import deque
 
 import torch
+import numpy as np
 
 from trainer.tsc_trainer import TSCTrainer
 from utils.logger import hash_torch_state_dict
@@ -49,6 +51,8 @@ class CheckpointTest(unittest.TestCase):
 
     def test_evaluation_checkpoint_contains_online_only(self):
         trainer = dummy_trainer(self.temporary_directory.name)
+        trainer.world = object()
+        world_before = trainer.world
         expected = hash_torch_state_dict(trainer.agents[0].model.state_dict())
         path = trainer.save_checkpoint('evaluation', 4)
         payload = trainer.load_checkpoint_payload(path, 'evaluation')
@@ -61,6 +65,7 @@ class CheckpointTest(unittest.TestCase):
             trainer.agents[0].model.weight.add_(5)
         trainer.load_evaluation_checkpoint(path)
         self.assertEqual(expected, hash_torch_state_dict(trainer.agents[0].model.state_dict()))
+        self.assertIs(world_before, trainer.world)
 
     def test_resumable_round_trip_restores_training_state(self):
         trainer = dummy_trainer(self.temporary_directory.name)
@@ -80,6 +85,32 @@ class CheckpointTest(unittest.TestCase):
         trainer.optimizer_update_from_replay()
         self.assertEqual(4, trainer.gradient_updates)
         self.assertNotEqual(old_hash, hash_torch_state_dict(trainer.agents[0].model.state_dict()))
+
+    def test_resumable_online_only_load_preserves_training_state(self):
+        trainer = dummy_trainer(self.temporary_directory.name)
+        path = trainer.save_checkpoint('resumable', 4)
+        expected_hash = hash_torch_state_dict(trainer.agents[0].model.state_dict())
+        epsilon = trainer.agents[0].epsilon
+        replay = list(trainer.agents[0].replay_buffer)
+        counters = (trainer.global_decision_step, trainer.gradient_updates,
+                    trainer.target_updates, trainer.epoch, trainer.step)
+        python_state = random.getstate()
+        numpy_state = np.random.get_state()
+        torch_state = torch.get_rng_state().clone()
+        with torch.no_grad():
+            trainer.agents[0].model.weight.add_(7)
+        trainer.load_online_checkpoint(path, expected_type='resumable')
+        self.assertEqual(expected_hash, hash_torch_state_dict(
+            trainer.agents[0].model.state_dict()))
+        self.assertEqual(epsilon, trainer.agents[0].epsilon)
+        self.assertEqual(replay, list(trainer.agents[0].replay_buffer))
+        self.assertEqual(counters, (trainer.global_decision_step,
+                                   trainer.gradient_updates, trainer.target_updates,
+                                   trainer.epoch, trainer.step))
+        self.assertEqual(python_state, random.getstate())
+        self.assertEqual(numpy_state[0], np.random.get_state()[0])
+        np.testing.assert_array_equal(numpy_state[1], np.random.get_state()[1])
+        self.assertTrue(torch.equal(torch_state, torch.get_rng_state()))
 
     def test_invalid_type_missing_field_corrupt_and_hash_mismatch_fail(self):
         trainer = dummy_trainer(self.temporary_directory.name)

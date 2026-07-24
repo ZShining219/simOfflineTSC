@@ -49,6 +49,13 @@ class RunStateTest(unittest.TestCase):
         self.assertIsNotNone(completed['finished_at_utc'])
         self.assertEqual(0, completed['exit_code'])
 
+    def test_explicit_evaluation_seed_is_recorded_without_changing_default(self):
+        self.config['command']['sumo_seed'] = 10000
+        RunStateManager(self.config, self.config_path)
+        manifest = self.read('run_manifest.json')
+        self.assertEqual('explicit_evaluation_seed', manifest['sumo_seed_mode'])
+        self.assertEqual(10000, manifest['sumo_seed'])
+
     def test_failure_is_terminal_and_redacts_environment_values(self):
         state = RunStateManager(self.config, self.config_path)
         state.transition('运行中')

@@ -2,13 +2,15 @@
 
 `tools.experiment_plotting` 用于读取已经完成的实验产物，执行输入校验、指标聚合、表格导出和可复现绘图。本文件是该模块的唯一权威介绍与维护入口；使用者和 Codex CLI 在解释图包、修改工具或扩展实验类型前，都应先阅读本文件。
 
-当前稳定解释基准为工具版本 `2.1.0` 生成的 Plan 1 正式图包：
+当前工具版本为 `2.2.0`。Plan 1 正式结果图包的稳定解释基准仍为版本 `2.1.0` 生成的：
 
 ```text
 data/output_data/analysis/plan1/p1_formal_20_plotting_v21_20260723/
 ```
 
 该图包包含 45 个唯一图项，每项同时输出 PNG 和 PDF。PNG 与 PDF 是同一图的两种格式，不应计作两个分析功能。
+
+版本 `2.2.0` 在不改变上述 45 项正式图语义的前提下，将 S1–S4 适应性诊断 profile、schema-v2 冻结评估和 DQN 训练状态覆盖图集成进正式工具代码。相关 phase 写入独立的 `analysis/s1_s4_adaptation_diagnostics/`，不属于 Plan 1 正式 v2.1 图包计数。
 
 ## 1. 功能边界
 
@@ -19,6 +21,7 @@ data/output_data/analysis/plan1/p1_formal_20_plotting_v21_20260723/
 - 将原始记录转换为稳定的分析表格。
 - 按固定的 network、控制器、seed 和统计语义生成图包。
 - 可选读取已经完成的 best-checkpoint decision-level evaluation package，绘制一次评估 episode 内的时间序列。
+- 可读取 Plan 1 episode 级 trajectory，在既有 FixedTime PCA 参考坐标中比较 DQN 不同训练阶段访问的状态分布。
 - 写出 `plotting_manifest.json`，记录本次分析的输入、工具版本、表格、图、依赖版本和关键统计语义。
 
 本工具不负责：
@@ -28,6 +31,7 @@ data/output_data/analysis/plan1/p1_formal_20_plotting_v21_20260723/
 - 自动判断失败、取消、Pilot 或其他目录是否可以进入正式分析。
 - 根据绘图结果反向修改原始实验数据。
 - 在缺少决策级记录时推测 episode 内的 reward、queue、delay 或 throughput 曲线。
+- 将训练 trajectory 的 epsilon-greedy/random-warmup 状态误称为 greedy checkpoint evaluation 状态。
 
 SUMO 重评估属于上游数据获取流程，复用 `run.py --evaluation-manifest ... --evaluation-output ...`。plotting 只消费上游完成并通过校验的 evaluation package。无法从既有产物追溯的字段，应补充上游采集功能，不能在绘图阶段人工构造。
 
@@ -54,6 +58,46 @@ PYTHONPATH=. conda run -n colight python -m tools.experiment_plotting.cli analyz
 - 不提供 evaluation package 时，仍可生成训练与 episode-level 分析，但不会生成 best-checkpoint 时间序列图及其汇总表。
 - `plan1` 子命令是 Plan 1 的兼容入口；新调用优先使用具名 profile。
 - `plan2` profile 用于严格校验和聚合纯离线实验。Plan 2 正式实验尚未完成时，不得把开发或空输出描述为正式 plotting 结果。
+
+### 2.1 S1–S4 diagnostics profile
+
+`s1_s4_diagnostics` 是独立于 Plan 1 正式 45 项图包的具名 profile。CLI 支持以下 phase：
+
+| phase | 作用 |
+| --- | --- |
+| `phase1` | 读取 20 个正式 DQN run，分析收敛预算和最终动作边际分布 |
+| `prepare-evaluation-manifests` | 生成 final-checkpoint cross-scene 与公共 FixedTime probe 的 schema-v2 evaluation manifests |
+| `phase2` | 校验并聚合 20×4 final-checkpoint 冻结跨场景评估 |
+| `phase3` | 在公共 FixedTime probe 上分析策略 disagreement、状态距离、PCA 和场景可分类性 |
+| `training-state-coverage` | 在固定 FixedTime PCA 参考中比较五个 DQN 训练阶段的状态分布 |
+| `phase4` | 汇总迁移退化、动作/策略差异和状态距离，选择后续 high/low-conflict pair |
+| `prepare-g0` | 准备 episode-100 pair-gate 冻结评估 manifest |
+| `g0` | 聚合 same-seed episode-100 pair gate 并输出继续/停止证据 |
+
+各 phase 使用同一个显式 run-list、scene mapping 和独立 manifest；已有 phase 产物默认不可覆盖。`--refresh-existing` 仅用于明确支持重算的派生分析，不改变不可变评估包或训练运行。schema-v2 evaluation manifest、target scene 配置、显式 evaluation traffic seed、checkpoint role 和隔离检查由 `run.py`、`TSCTrainer.evaluate_once` 与 `utils.logger` 共同提供，plotting 只消费通过校验的包。
+
+### 2.2 S1–S4 DQN 训练状态覆盖诊断
+
+该 phase 复用已经完成的 S1–S4 Phase 3 FixedTime 状态参考和 Plan 1 正式 DQN trajectory，不运行 SUMO、不重新训练模型：
+
+```bash
+PYTHONPATH=. conda run -n colight python -m tools.experiment_plotting analyze \
+  --profile s1_s4_diagnostics \
+  --phase training-state-coverage \
+  --run-list data/output_data/analysis/plan1/p1_formal_20_runlist_20260722.csv \
+  --analysis-id s1_s4_adaptation_diagnostics \
+  --output-root analysis \
+  --scene-mapping analysis/s1_s4_adaptation_diagnostics/config/scene_mapping.csv \
+  --dpi 160
+```
+
+输入要求：
+
+- run-list 必须完整包含四个 network × training seed `0–4` 的 20 个正式 DQN 运行。
+- 每个运行必须有通过校验的 400-episode trajectory；每 episode 为 360 个 decision states。
+- 目标 analysis 目录必须已有 Phase 3 的 `processed/probe_states_fixedtime.csv` 和 `processed/state_pca.csv`，且 FixedTime 参考严格为 7200 个平衡状态。
+- PCA 的 `StandardScaler` 和二维投影只用 FixedTime 16 维 model input 重建；DQN 状态只执行 `transform`，不得与 DQN 数据联合重新拟合 PCA。
+- 已存在该 phase 的输出时默认拒绝覆盖；`--refresh-existing` 只允许重建这组派生图和 manifest，不改变上游 trajectory 或 FixedTime 表格。
 
 run-list 至少包含以下字段：
 
@@ -94,6 +138,21 @@ run-list 至少包含以下字段：
 ```
 
 `plotting_manifest.json` 是一个图包的唯一机器入口。它记录工具版本、输入 run-list、可选 evaluation package、纳入运行数量、表格和图文件列表、依赖库版本以及统计语义。后续自动化不得只扫描目录并凭文件名猜测图包来源。
+
+S1–S4 training-state phase 另写出：
+
+```text
+analysis/s1_s4_adaptation_diagnostics/
+├── training_state_coverage_manifest.json
+└── figures/
+    ├── state_pca_dqn_training_ep001_010.png/.pdf
+    ├── state_pca_dqn_training_ep041_050.png/.pdf
+    ├── state_pca_dqn_training_ep091_100.png/.pdf
+    ├── state_pca_dqn_training_ep291_300.png/.pdf
+    └── state_pca_dqn_training_ep391_400.png/.pdf
+```
+
+`training_state_coverage_manifest.json` 记录 FixedTime/PCA 来源、全范围与参考范围坐标轴、每阶段状态数、每个 scene/seed 的 epsilon 范围、行为模式和实际图文件。精确来源应读取该 manifest，不应从图面猜测。
 
 目录语义：
 
@@ -246,6 +305,35 @@ diagnostics/best_checkpoint_timeseries/throughput_cumulative_training_seed_means
 diagnostics/best_checkpoint_timeseries/throughput_cumulative_raw_episodes
 ```
 
+### 7.3 S1–S4 DQN training-state coverage（5 项）
+
+五项分别对应 episode 窗口 `1–10`、`41–50`、`91–100`、`291–300`、`391–400`。每个窗口严格包含 10 个训练 episodes；Plan 1 没有 episode 0 training trajectory，因此不使用 `0–10` 表述。
+
+每张图的固定结构为：
+
+- 2×2 主面板分别展示 S1、S2、S3、S4；每个面板包含同场景的 1800 个 FixedTime reference states 和 18,000 个 DQN training states。
+- FixedTime 全部原始 PCA 点以低透明度灰色绘制；灰色虚线和灰色填充表示基于全部 FixedTime 点估计的 50%、80%、95% highest-density regions。
+- DQN 彩色实线表示基于该阶段落入 reference-scale 矩形内的全部同场景训练状态估计的 50%、80%、95% highest-density regions；浅色散点是从这些视野内状态确定性抽取的代表性原始点，仅用于保留点阵质感。
+- 四个主面板使用同一个 FixedTime reference-scale 坐标范围；面板左上角报告有多少 DQN 状态位于这个矩形视野内。该百分比描述视野包含率，不是 FixedTime/DQN 分布重叠率。
+- 底部 full-range context 使用五张图完全相同的全范围坐标轴，展示早期探索产生的远端状态；虚线矩形对应上方主面板的 reference-scale 范围。
+- 五张图的 FixedTime 数据、PCA、主/全范围坐标、密度计算、抽样方式、配色和布局保持不变；图间唯一变化的数据是 DQN episode 窗口。
+
+这些图允许支持以下描述：
+
+- 同一训练阶段四个场景的 DQN 状态分布在 FixedTime 参考空间中的位置、范围和高密度区域不同。
+- 同一场景的 DQN 高密度区域相对 FixedTime reference 发生扩张、收缩或位移。
+- 在统一坐标下，不同训练阶段的 DQN training-behavior state coverage 存在变化。
+
+禁止以下误读：
+
+- DQN 点来自 random warm-up/epsilon-greedy 训练 trajectory，不是 checkpoint 的无探索 greedy evaluation。
+- PCA 前两轴只解释 FixedTime 标准化 16 维输入的一部分方差，二维轮廓不能替代原始高维分布检验。
+- 密度轮廓独立按每个 source/scene 的概率质量归一，轮廓面积和位置可比较，但颜色深浅或线宽不表示跨 source 的绝对样本数量。
+- `inside reference-scale view` 只表示点是否落在固定显示矩形内，不能称为覆盖率、Jaccard overlap 或支持集包含率。
+- 代表性散点没有用于密度计算；FixedTime 密度使用完整 reference 集合，DQN 主面板密度使用所有落入 reference-scale 视野的状态。视野外状态保留在底部 full-range context 中。
+
+该呈现采用 high-density scatterplot 的成熟处理：使用 small multiples 避免四组轮廓在单轴中形成 hairball，以 density contours 代替数万点直接叠加，并保留统一全范围上下文。设计依据可参考 [Seaborn bivariate distributions](https://seaborn.pydata.org/tutorial/distributions.html)、[Matplotlib hexbin](https://matplotlib.org/stable/api/_as_gen/matplotlib.pyplot.hexbin.html) 和 Claus Wilke 的 [Visualizing many distributions at once](https://clauswilke.com/dataviz/overlapping-points.html)。
+
 ## 8. Best-checkpoint 重评估统计层级
 
 正式 v2.1 evaluation package 的统计层级固定如下：
@@ -315,7 +403,7 @@ diagnostics/best_checkpoint_timeseries/throughput_cumulative_raw_episodes
 - 不同路网的 action 数量、相位含义或路网级指标定义确有差异时，允许做局部适配，但适配规则必须显式、可验证且记录在本文件。
 - 新图必须有唯一文件名、明确研究问题、数据来源、横纵轴、统计单位、好坏方向和禁止误读说明。
 - 新增数据需求时先检查既有原始产物是否可追溯；不可追溯则修改上游采集流程，不在 plotting 中推导伪数据。
-- 开发中的 S1–S4 convergence、budget sufficiency、action distribution distance 和 cross-scene diagnostics 在形成经过验证的正式图包前，不属于本文件承诺的稳定 v2.1 产出。
+- S1–S4 diagnostics 与 Plan 1 正式 v2.1 图包保持独立 manifest 和输出边界；不得把 diagnostic phase 的图项并入正式 45 项计数。
 
 ## 12. README 强制维护契约
 
@@ -345,4 +433,5 @@ diagnostics/best_checkpoint_timeseries/throughput_cumulative_raw_episodes
 
 | 日期 | 工具版本 | 说明 |
 | --- | --- | --- |
+| 2026-07-24 | 2.2.0 | 集成 S1–S4 schema-v2 冻结评估和 phase1–4/G0 diagnostics；新增 `training-state-coverage`，在固定 FixedTime PCA 参考中读取 Plan 1 全量 trajectory，输出五个 DQN 训练阶段的四场景 small-multiple 密度对比图、统一 full-range context 和独立 manifest；明确 random-warmup/epsilon-greedy 与 greedy evaluation 的边界 |
 | 2026-07-23 | 2.1.0 | 建立模块权威介绍文档；冻结 Plan 1 正式 v2.1 图包的 45 个图项、输入输出、统计口径、解读边界及 README 同提交维护契约 |

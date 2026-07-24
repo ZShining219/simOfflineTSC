@@ -42,10 +42,13 @@ class World_param_Interface(Interface):
     """
     use this interface to load and modify simulator configuration of logfiles
     """
-    def __init__(self, config, simulator_source=None):
+    def __init__(
+        self, config, simulator_source=None, protected_world_fields=(),
+    ):
         super(World_param_Interface, self).__init__()
         path, other_world_settings = resolve_simulator_config(
-            config, source_content=simulator_source
+            config, source_content=simulator_source,
+            protected_world_fields=protected_world_fields,
         )
         World_param_Interface.config_path = path
         World_param_Interface.param = load_config_dict(path, other_world_settings)

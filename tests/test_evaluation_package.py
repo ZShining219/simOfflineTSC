@@ -108,6 +108,8 @@ class EvaluationPackageTest(unittest.TestCase):
         validated = validate_evaluation_package(output)
         self.assertEqual(2, validated["manifest"]["episode_count"])
         self.assertEqual(12, validated["record_count"])
+        with self.assertRaisesRegex(FileExistsError, 'already exists'):
+            EvaluationPackageWriter(output, collection)
 
         figures = render_evaluation_timeseries(
             records, self.root / "figures", 60, get_profile("plan1"), dpi=30,

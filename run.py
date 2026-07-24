@@ -140,20 +140,31 @@ class EvaluationManifestRunner:
 
     @staticmethod
     def _source_snapshots(controller):
-        config_dir = os.path.join(controller['run_dir'], 'config')
-        names = ('base.yml', f"{controller['agent']}.yml", 'simulator_source.cfg')
+        source_config_dir = os.path.join(controller['run_dir'], 'config')
+        target_config_dir = os.path.join(
+            controller.get('target_run_dir', controller['run_dir']), 'config'
+        )
         snapshots = {}
-        for name in names:
-            path = os.path.join(config_dir, name)
+        for name in ('base.yml', f"{controller['agent']}.yml"):
+            path = os.path.join(source_config_dir, name)
             with open(path, 'rb') as handle:
                 snapshots[name] = handle.read()
+        with open(os.path.join(source_config_dir, 'simulator_source.cfg'), 'rb') as handle:
+            snapshots['source_simulator_source.cfg'] = handle.read()
+        with open(os.path.join(target_config_dir, 'simulator_source.cfg'), 'rb') as handle:
+            snapshots['simulator_source.cfg'] = handle.read()
         return snapshots
 
     @staticmethod
-    def _configure_registry(config, simulator_source):
+    def _configure_registry(
+        config, simulator_source, protected_world_fields=(),
+    ):
         interface.Command_Setting_Interface(config)
         interface.Logger_param_Interface(config)
-        interface.World_param_Interface(config, simulator_source)
+        interface.World_param_Interface(
+            config, simulator_source,
+            protected_world_fields=protected_world_fields,
+        )
         interface.Logger_path_Interface(config)
         os.makedirs(Registry.mapping['logger_mapping']['path'].path, exist_ok=True)
         interface.Trainer_param_Interface(config)
@@ -185,7 +196,7 @@ class EvaluationManifestRunner:
         command = config['command']
         command.update({
             'agent': controller['agent'],
-            'network': controller['network'],
+            'network': controller.get('target_network', controller['network']),
             'seed': controller['training_seed'],
             'sumo_seed': evaluation_seed,
             'prefix': os.path.basename(attempt_dir),
@@ -195,36 +206,144 @@ class EvaluationManifestRunner:
         config['model']['train_model'] = False
         config['model']['test_model'] = False
         config['model']['load_model'] = False
-        config['world']['saveReplay'] = False
         config['logger']['save_model'] = False
         snapshots = self._source_snapshots(controller)
-        self._configure_registry(config, snapshots['simulator_source.cfg'])
+        if self.collection['schema_version'] == 2:
+            config['world'] = compose_evaluation_world_config(
+                config['world'], snapshots['simulator_source.cfg']
+            )
+            config['world']['saveReplay'] = False
+            protected_world_fields = tuple(
+                field for field in config['world']
+                if field not in EVALUATION_SOURCE_WORLD_RUNTIME_FIELDS
+            )
+        else:
+            config['world']['saveReplay'] = False
+            protected_world_fields = ()
+        self._configure_registry(
+            config, snapshots['simulator_source.cfg'], protected_world_fields
+        )
+        traffic_identity = validate_cross_scene_traffic_identity(
+            snapshots['source_simulator_source.cfg'],
+            snapshots['simulator_source.cfg'],
+            Registry.mapping['world_mapping']['setting'].config_path,
+            controller.get('source_network', controller['network']),
+            controller.get('target_network', controller['network']),
+        )
+        expected_vehicles = controller.get('expected_vehicle_count')
+        if (
+            expected_vehicles is not None
+            and int(expected_vehicles)
+            != traffic_identity['target']['expected_vehicle_count']
+        ):
+            raise ValueError(
+                'Manifest expected_vehicle_count does not match target route: '
+                f'{expected_vehicles} != '
+                f'{traffic_identity["target"]["expected_vehicle_count"]}'
+            )
         config_archive_path = archive_run_config(
             config, snapshots, Registry.mapping['world_mapping']['setting'].param
         )
+        attempt_metadata = {
+            'schema_version': 1,
+            'controller_id': controller['controller_id'],
+            'source_scene': controller.get('source_scene'),
+            'source_network': controller.get(
+                'source_network', controller['network']
+            ),
+            'target_scene': controller.get('target_scene'),
+            'target_network': controller.get(
+                'target_network', controller['network']
+            ),
+            'source_checkpoint_path': controller['checkpoint_path'],
+            'source_checkpoint_sha256': controller['checkpoint_sha256'],
+            'checkpoint_role': controller.get('checkpoint_role', 'best'),
+            'checkpoint_audit': controller.get('checkpoint_audit'),
+            'evaluation_traffic_seed': evaluation_seed,
+            'target_simulator_config_path': os.path.join(
+                controller.get('target_run_dir', controller['run_dir']),
+                'config', 'simulator_source.cfg',
+            ),
+            'effective_simulator_config_path': (
+                Registry.mapping['world_mapping']['setting'].config_path
+            ),
+            'traffic_identity': traffic_identity,
+            'runtime': None,
+            'isolation_check': None,
+        }
+        self.package.write_attempt_metadata(attempt_dir, attempt_metadata)
         run_state = RunStateManager(config, config_archive_path)
         logger = self._attempt_logger(attempt_dir, controller['controller_id'])
         trainer = None
         try:
             trainer = Registry.mapping['trainer_mapping'][command['task']](logger)
+            attempt_metadata['final_sumo_command'] = validate_sumo_command(
+                trainer.world.sumo_cmd, traffic_identity['effective'],
+                evaluation_seed,
+            )
+            self.package.write_attempt_metadata(attempt_dir, attempt_metadata)
             if controller['agent'] == 'dqn':
-                trainer.load_evaluation_checkpoint(controller['checkpoint_path'])
+                expected_type = (
+                    'resumable'
+                    if controller.get('checkpoint_role') == 'resumable'
+                    else 'evaluation'
+                )
+                trainer.load_online_checkpoint(
+                    controller['checkpoint_path'], expected_type=expected_type,
+                )
             archive_runtime_model(config_archive_path, trainer, controller['agent'])
             run_state.transition('运行中')
             context = {
                 'controller_id': controller['controller_id'],
                 'agent': controller['agent'],
                 'network': controller['network'],
+                'source_network': controller.get(
+                    'source_network', controller['network']
+                ),
+                'target_network': controller.get(
+                    'target_network', controller['network']
+                ),
                 'training_seed': controller['training_seed'],
                 'evaluation_seed': evaluation_seed,
+                'evaluation_traffic_seed': evaluation_seed,
+                'evaluation_schema_version': self.collection['schema_version'],
                 'checkpoint_episode': controller['checkpoint_episode'],
                 'checkpoint_path': controller['checkpoint'],
                 'checkpoint_sha256': controller['checkpoint_sha256'],
+                'checkpoint_role': controller.get('checkpoint_role', 'best'),
+                'source_policy': controller.get(
+                    'source_policy', controller['agent']
+                ),
+                'reward_definition': (
+                    'controller_reward_mean=agent_reward; '
+                    'reward_network_mean=negative_queue_intersection_mean'
+                ),
+                'record_state_diagnostics': bool(
+                    self.collection.get('record_state_diagnostics', False)
+                ),
+                'evaluation_record_type': (
+                    'FINAL_CROSS_SCENE_EVALUATION'
+                    if controller.get('checkpoint_role') == 'final'
+                    else (
+                        'RESUMABLE_CHECKPOINT_REEVALUATION'
+                        if controller.get('checkpoint_role') == 'resumable'
+                        else 'CHECKPOINT_REEVALUATION'
+                    )
+                ),
                 'attempt_output_dir': attempt_dir,
             }
             summary = trainer.evaluate_once(
                 context, record_callback=self.package.append_record
             )
+            # SUMO writes the final route/vehicle accounting when its owned
+            # connection closes; close before validating the runtime log.
+            trainer.world.close()
+            attempt_metadata['runtime'] = validate_sumo_runtime_evidence(
+                os.path.join(attempt_dir, 'sumo.log'),
+                traffic_identity['target'], summary,
+            )
+            attempt_metadata['isolation_check'] = summary['isolation_check']
+            self.package.write_attempt_metadata(attempt_dir, attempt_metadata)
             self.package.append_summary(summary)
             trainer.structured_metrics.validate(require_records=True)
             verify_config_archive(config_archive_path)

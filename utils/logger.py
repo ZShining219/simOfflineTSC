@@ -10,6 +10,7 @@ import json
 import hashlib
 import tempfile
 import random
+import xml.etree.ElementTree as ET
 from datetime import datetime
 from json import JSONDecodeError
 
@@ -37,6 +38,14 @@ METRIC_FIELDS_V3 = METRIC_FIELDS + (
     'unique_sampled_transitions', 'unique_coverage', 'update_to_data_ratio',
     'sample_count_mean', 'sample_count_median', 'sample_count_p95',
     'sample_count_max', 'sampled_transition_mean_age',
+)
+
+SUMO_ENVIRONMENT_IDENTITY_FIELDS = (
+    'network', 'dir', 'combined_file', 'roadnetFile', 'flowFile',
+    'convertroadnetFile', 'convertflowFile',
+)
+EVALUATION_SOURCE_WORLD_RUNTIME_FIELDS = (
+    'saveReplay', 'report_log_mode', 'report_log_rate', 'rlTrafficLight',
 )
 
 
@@ -105,6 +114,7 @@ class RunStateManager:
             _read_bytes(os.path.join(config_path, 'resolved_config.yaml'))
         ).hexdigest()
         created_at = _utc_now()
+        sumo_seed = command.get('sumo_seed')
         self.manifest = {
             'schema_version': RUN_SCHEMA_VERSION,
             'run_id': run_id,
@@ -114,11 +124,16 @@ class RunStateManager:
             'network': command['network'],
             'prefix': command['prefix'],
             'training_seed': command['seed'],
-            'sumo_seed_mode': 'fixed_default',
+            'sumo_seed_mode': (
+                'explicit_evaluation_seed' if sumo_seed is not None
+                else 'fixed_default'
+            ),
             'baseline_commit': BASELINE_COMMIT,
             'created_at_utc': created_at,
             'config_hash': config_hash,
         }
+        if sumo_seed is not None:
+            self.manifest['sumo_seed'] = int(sumo_seed)
         self.status = {
             'schema_version': RUN_SCHEMA_VERSION,
             'run_id': run_id,
@@ -141,6 +156,7 @@ class RunStateManager:
             command['network'], command['prefix'],
         ))
         created_at = _utc_now()
+        sumo_seed = command.get('sumo_seed')
         manifest = {
             'schema_version': RUN_SCHEMA_VERSION,
             'run_id': run_id,
@@ -150,11 +166,16 @@ class RunStateManager:
             'network': command['network'],
             'prefix': command['prefix'],
             'training_seed': command['seed'],
-            'sumo_seed_mode': 'fixed_default',
+            'sumo_seed_mode': (
+                'explicit_evaluation_seed' if sumo_seed is not None
+                else 'fixed_default'
+            ),
             'baseline_commit': BASELINE_COMMIT,
             'created_at_utc': created_at,
             'config_hash': None,
         }
+        if sumo_seed is not None:
+            manifest['sumo_seed'] = int(sumo_seed)
         status = {
             'schema_version': RUN_SCHEMA_VERSION,
             'run_id': run_id,
@@ -260,7 +281,9 @@ def reserve_run_output(config):
     return output_path
 
 
-def resolve_simulator_config(config, source_content=None):
+def resolve_simulator_config(
+    config, source_content=None, protected_world_fields=(),
+):
     """Create and resolve the simulator config inside the reserved run directory."""
     network = config['command']['network']
     source_path = os.path.join('configs', 'sim', f'{network}.cfg')
@@ -270,8 +293,247 @@ def resolve_simulator_config(config, source_content=None):
         get_output_file_path(config), CONFIG_ARCHIVE_DIR, 'simulator_resolved.cfg'
     )
     _atomic_write(resolved_path, source_content)
-    other_world_settings = modify_config_file(resolved_path, config)
+    other_world_settings = modify_config_file(
+        resolved_path, config, protected_world_fields=protected_world_fields
+    )
     return resolved_path, other_world_settings
+
+
+def compose_evaluation_world_config(source_world, target_simulator_content):
+    """Use the target simulator as the world base and import runtime-only settings."""
+    try:
+        target_world = json.loads(target_simulator_content.decode('utf-8'))
+    except (UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise ValueError('Target SUMO simulator snapshot is not valid JSON') from error
+    if not isinstance(target_world, dict):
+        raise ValueError('Target SUMO simulator snapshot must contain an object')
+    resolved = copy.deepcopy(target_world)
+    for field in EVALUATION_SOURCE_WORLD_RUNTIME_FIELDS:
+        if field in source_world:
+            resolved[field] = copy.deepcopy(source_world[field])
+    return resolved
+
+
+def _sumo_data_path(simulator, field):
+    value = simulator.get(field)
+    if not isinstance(value, str) or not value:
+        raise ValueError(f'SUMO simulator config requires {field}')
+    if os.path.isabs(value):
+        return os.path.realpath(value)
+    return os.path.realpath(os.path.join(simulator.get('dir', ''), value))
+
+
+def _count_explicit_route_vehicles(route_paths):
+    vehicle_count = 0
+    flow_count = 0
+    for route_path in route_paths:
+        try:
+            root = ET.parse(route_path).getroot()
+        except (OSError, ET.ParseError) as error:
+            raise ValueError(f'Cannot parse SUMO route file: {route_path}') from error
+        vehicle_count += sum(1 for _ in root.iter('vehicle'))
+        flow_count += sum(1 for _ in root.iter('flow'))
+    return vehicle_count if flow_count == 0 else None, flow_count
+
+
+def build_sumo_traffic_identity(config_source):
+    """Resolve and hash the effective SUMO combined/net/route identity."""
+    if isinstance(config_source, (bytes, bytearray)):
+        try:
+            simulator = json.loads(bytes(config_source).decode('utf-8'))
+        except (UnicodeDecodeError, json.JSONDecodeError) as error:
+            raise ValueError('SUMO simulator snapshot is not valid JSON') from error
+        simulator_config_path = None
+    else:
+        simulator_config_path = os.path.realpath(os.fspath(config_source))
+        try:
+            with open(simulator_config_path, encoding='utf-8') as handle:
+                simulator = json.load(handle)
+        except (OSError, json.JSONDecodeError) as error:
+            raise ValueError(
+                f'Cannot load SUMO simulator config: {simulator_config_path}'
+            ) from error
+    if not isinstance(simulator, dict):
+        raise ValueError('SUMO simulator config must contain an object')
+
+    combined_path = _sumo_data_path(simulator, 'combined_file')
+    network_path = _sumo_data_path(simulator, 'roadnetFile')
+    flow_path = _sumo_data_path(simulator, 'flowFile')
+    for path in (combined_path, network_path, flow_path):
+        if not os.path.isfile(path):
+            raise FileNotFoundError(path)
+
+    try:
+        combined_root = ET.parse(combined_path).getroot()
+    except (OSError, ET.ParseError) as error:
+        raise ValueError(f'Cannot parse SUMO combined config: {combined_path}') from error
+    input_node = combined_root.find('input')
+    if input_node is None:
+        raise ValueError(f'SUMO combined config has no input section: {combined_path}')
+    net_node = input_node.find('net-file')
+    route_node = input_node.find('route-files')
+    if net_node is None or route_node is None:
+        raise ValueError(f'SUMO combined config has incomplete input files: {combined_path}')
+    combined_network_path = os.path.realpath(os.path.join(
+        os.path.dirname(combined_path), net_node.attrib.get('value', '')
+    ))
+    route_values = [
+        value.strip() for value in route_node.attrib.get('value', '').split(',')
+        if value.strip()
+    ]
+    if not route_values:
+        raise ValueError(f'SUMO combined config has no route files: {combined_path}')
+    combined_route_paths = [
+        os.path.realpath(os.path.join(os.path.dirname(combined_path), value))
+        for value in route_values
+    ]
+    if combined_network_path != network_path:
+        raise ValueError(
+            'SUMO roadnetFile does not match the combined config net-file: '
+            f'{network_path} != {combined_network_path}'
+        )
+    if len(combined_route_paths) != 1 or combined_route_paths[0] != flow_path:
+        raise ValueError(
+            'SUMO flowFile does not match the combined config route-files: '
+            f'{flow_path} != {combined_route_paths}'
+        )
+    for path in combined_route_paths:
+        if not os.path.isfile(path):
+            raise FileNotFoundError(path)
+
+    expected_vehicles, flow_count = _count_explicit_route_vehicles(
+        combined_route_paths
+    )
+    time_node = combined_root.find('time')
+    begin_node = None if time_node is None else time_node.find('begin')
+    end_node = None if time_node is None else time_node.find('end')
+    route_hashes = [_sha256_file(path) for path in combined_route_paths]
+    return {
+        'simulator_config_path': simulator_config_path,
+        'identity_fields': {
+            field: simulator.get(field) for field in SUMO_ENVIRONMENT_IDENTITY_FIELDS
+        },
+        'combined_config_path': combined_path,
+        'combined_config_sha256': _sha256_file(combined_path),
+        'network_path': network_path,
+        'network_sha256': _sha256_file(network_path),
+        'route_paths': combined_route_paths,
+        'route_sha256': route_hashes,
+        'expected_vehicle_count': expected_vehicles,
+        'flow_element_count': flow_count,
+        'simulation_begin': (
+            None if begin_node is None else float(begin_node.attrib['value'])
+        ),
+        'simulation_end': (
+            None if end_node is None else float(end_node.attrib['value'])
+        ),
+    }
+
+
+def validate_cross_scene_traffic_identity(
+    source_simulator_content, target_simulator_content, effective_config_path,
+    source_network, target_network,
+):
+    """Fail before SUMO construction unless the effective traffic is the target."""
+    source = build_sumo_traffic_identity(source_simulator_content)
+    target = build_sumo_traffic_identity(target_simulator_content)
+    effective = build_sumo_traffic_identity(effective_config_path)
+    comparable = (
+        'identity_fields', 'combined_config_sha256', 'network_sha256',
+        'route_sha256', 'expected_vehicle_count', 'simulation_begin',
+        'simulation_end',
+    )
+    mismatches = [field for field in comparable if effective[field] != target[field]]
+    if mismatches:
+        raise ValueError(
+            'Effective SUMO traffic identity does not match target snapshot: '
+            + ', '.join(mismatches)
+        )
+    if (
+        source_network != target_network
+        and effective['route_sha256'] == source['route_sha256']
+        and target['route_sha256'] != source['route_sha256']
+    ):
+        raise ValueError('Cross-scene effective route unexpectedly matches source route')
+    return {'source': source, 'target': target, 'effective': effective}
+
+
+def validate_sumo_command(command, expected_identity, evaluation_seed):
+    """Validate the base command that the evaluation reset will launch."""
+    command = [os.fspath(value) for value in command]
+    if '-c' not in command:
+        raise ValueError('SUMO evaluation command does not use a combined config')
+    combined_index = command.index('-c') + 1
+    if combined_index >= len(command):
+        raise ValueError('SUMO evaluation command has no combined config value')
+    actual_combined = os.path.realpath(command[combined_index])
+    if actual_combined != expected_identity['combined_config_path']:
+        raise ValueError(
+            'SUMO command combined config does not match target identity: '
+            f'{actual_combined} != {expected_identity["combined_config_path"]}'
+        )
+    if '--seed' not in command:
+        raise ValueError('SUMO evaluation command has no explicit traffic seed')
+    seed_index = command.index('--seed') + 1
+    if seed_index >= len(command) or int(command[seed_index]) != int(evaluation_seed):
+        raise ValueError('SUMO evaluation command traffic seed mismatch')
+    return command
+
+
+def validate_sumo_runtime_evidence(log_path, expected_identity, summary):
+    """Validate SUMO's logged route and vehicle accounting before summary commit."""
+    try:
+        with open(log_path, encoding='utf-8') as handle:
+            content = handle.read()
+    except OSError as error:
+        raise ValueError(f'Cannot read SUMO evaluation log: {log_path}') from error
+    route_match = re.search(
+        r"Loading route-files(?: incrementally)? from '([^']+)'", content
+    )
+    if route_match is None:
+        raise ValueError('SUMO log does not record the loaded route file')
+    runtime_route = os.path.realpath(route_match.group(1))
+    if runtime_route not in expected_identity['route_paths']:
+        raise ValueError(
+            'SUMO runtime route does not match target identity: '
+            f'{runtime_route} not in {expected_identity["route_paths"]}'
+        )
+    vehicles_match = re.search(
+        r'Inserted:\s+(\d+)(?:\s+\(Loaded:\s+(\d+)\))?', content
+    )
+    running_match = re.search(r'Running:\s+(\d+)', content)
+    waiting_match = re.search(r'Waiting:\s+(\d+)', content)
+    if vehicles_match is None or running_match is None or waiting_match is None:
+        raise ValueError('SUMO log has incomplete vehicle accounting')
+    inserted = int(vehicles_match.group(1))
+    waiting = int(waiting_match.group(1))
+    loaded = (
+        int(vehicles_match.group(2))
+        if vehicles_match.group(2) is not None else inserted + waiting
+    )
+    running = int(running_match.group(1))
+    finished = int(summary['throughput'])
+    unfinished = int(summary['unfinished_vehicles'])
+    expected = expected_identity['expected_vehicle_count']
+    if expected is not None and loaded != expected:
+        raise ValueError(
+            f'SUMO loaded vehicle count {loaded} does not match target {expected}'
+        )
+    if running != unfinished or inserted != finished + unfinished:
+        raise ValueError(
+            'SUMO vehicle accounting does not match evaluation metrics: '
+            f'inserted={inserted}, finished={finished}, '
+            f'running={running}, unfinished={unfinished}'
+        )
+    return {
+        'runtime_route_path': runtime_route,
+        'runtime_route_sha256': _sha256_file(runtime_route),
+        'actual_loaded_vehicles': loaded,
+        'actual_inserted_vehicles': inserted,
+        'actual_finished_vehicles': finished,
+        'actual_unfinished_vehicles': unfinished,
+        'actual_waiting_to_insert_vehicles': waiting,
+    }
 
 
 def archive_run_config(config, source_snapshots, resolved_world):
@@ -554,7 +816,7 @@ class StructuredMetricLogger:
         return len(lines)
 
 
-def modify_config_file(path, config):
+def modify_config_file(path, config, protected_world_fields=()):
     """
     load .cfg file at path and modify it according to the config parameters
     """
@@ -565,9 +827,10 @@ def modify_config_file(path, config):
     if config['command']['world'] == 'cityflow':
         with open(path, 'r') as f:
             path_config = json.load(f)
+        protected_world_fields = set(protected_world_fields)
         for k in path_config.keys():
             # modify config step1
-            if param.get(k) is not None:
+            if k not in protected_world_fields and param.get(k) is not None:
                 path_config[k] = param.get(k)
         # modify config step2
         file_name = os.path.join(get_output_file_path(config),  logger_param['replay_dir'])
@@ -582,13 +845,15 @@ def modify_config_file(path, config):
         with open(path, 'r') as f:
             path_config = json.load(f)
         # config step 1
+        protected_world_fields = set(protected_world_fields)
         for k in path_config.keys():
-            if param.get(k) is not None:
+            if k not in protected_world_fields and param.get(k) is not None:
                 path_config[k] = param.get(k)
         # config step 2
         #path_config['roadnetLogFile'] = file_name + f"/{datetime.now().strftime('%Y_%m_%d-%H_%M_%S')}.json"
         #path_config['replayLogFile'] = file_name + f"/{datetime.now().strftime('%Y_%m_%d-%H_%M_%S')}.txt"
-        path_config['interval'] = param['interval']
+        if 'interval' not in protected_world_fields:
+            path_config['interval'] = param['interval']
         with open(path, 'w') as f:
             json.dump(path_config, f, indent=2)
 
@@ -817,6 +1082,30 @@ EVALUATION_RECORD_FIELDS = (
     'delay_network_weighted_mean', 'throughput_interval',
     'throughput_cumulative',
 )
+EVALUATION_SUMMARY_FIELDS_V2 = EVALUATION_SUMMARY_FIELDS + (
+    'source_network', 'target_network', 'evaluation_traffic_seed',
+    'checkpoint_role', 'source_policy', 'reward_definition',
+    'phase_switches', 'phase_switch_frequency', 'action_distribution',
+    'isolation_check',
+)
+EVALUATION_RECORD_FIELDS_V2 = EVALUATION_RECORD_FIELDS + (
+    'source_network', 'target_network', 'evaluation_traffic_seed',
+    'checkpoint_role', 'source_policy', 'reward_definition',
+    'state_simulation_time_seconds', 'raw_state', 'current_phase',
+    'model_input', 'state_feature_schema',
+)
+
+
+def evaluation_fields(schema_version, kind):
+    if kind == 'summary':
+        return (
+            EVALUATION_SUMMARY_FIELDS if schema_version == 1
+            else EVALUATION_SUMMARY_FIELDS_V2
+        )
+    return (
+        EVALUATION_RECORD_FIELDS if schema_version == 1
+        else EVALUATION_RECORD_FIELDS_V2
+    )
 
 
 def _sha256_file(path):
@@ -828,7 +1117,7 @@ def _sha256_file(path):
 
 
 def load_evaluation_collection_manifest(path):
-    """Validate and normalize an explicit best-checkpoint evaluation manifest."""
+    """Validate a same-scene v1 or source/target-decoupled v2 manifest."""
     manifest_path = os.path.abspath(path)
     with open(manifest_path, encoding='utf-8') as handle:
         payload = json.load(handle)
@@ -840,8 +1129,9 @@ def load_evaluation_collection_manifest(path):
     missing = sorted(required - set(payload)) if isinstance(payload, dict) else sorted(required)
     if missing:
         raise ValueError(f'Evaluation collection manifest missing fields: {missing}')
-    if payload['schema_version'] != 1 or payload['world'] != 'sumo':
-        raise ValueError('Evaluation collection manifest requires schema_version=1 and world=sumo')
+    schema_version = payload['schema_version']
+    if schema_version not in {1, 2} or payload['world'] != 'sumo':
+        raise ValueError('Evaluation manifest requires schema_version 1/2 and world=sumo')
     seeds = payload['evaluation_seeds']
     if not isinstance(seeds, list) or not seeds or any(
         not isinstance(seed, int) or seed < 0 for seed in seeds
@@ -863,6 +1153,11 @@ def load_evaluation_collection_manifest(path):
             'controller_id', 'agent', 'network', 'training_seed',
             'run_dir', 'checkpoint',
         }
+        if schema_version == 2:
+            controller_required |= {
+                'source_network', 'target_network', 'target_run_dir',
+                'checkpoint_role', 'source_policy',
+            }
         missing_controller = sorted(controller_required - set(controller))
         if missing_controller:
             raise ValueError(
@@ -886,7 +1181,15 @@ def load_evaluation_collection_manifest(path):
             run_status = json.load(handle)
         if run_status.get('status') != '已完成' or run_status.get('exit_code') != 0:
             raise ValueError(f'Evaluation source run did not complete: {run_dir}')
-        for field in ('agent', 'network', 'training_seed'):
+        identity_fields = ('agent', 'training_seed')
+        if schema_version == 1:
+            identity_fields += ('network',)
+        else:
+            if controller['network'] != controller['target_network']:
+                raise ValueError(f'Controller {controller_id} network must equal target_network')
+            if run_manifest.get('network') != controller['source_network']:
+                raise ValueError(f'Controller {controller_id} source_network mismatch')
+        for field in identity_fields:
             if run_manifest.get(field) != controller[field]:
                 raise ValueError(
                     f'Controller {controller_id} {field} does not match source run'
@@ -896,6 +1199,7 @@ def load_evaluation_collection_manifest(path):
         checkpoint_path = None
         checkpoint_episode = None
         checkpoint_sha256 = None
+        checkpoint_audit = None
         if controller['agent'] == 'dqn':
             if not isinstance(checkpoint, str) or not checkpoint:
                 raise ValueError(f'DQN controller {controller_id} requires checkpoint')
@@ -906,23 +1210,115 @@ def load_evaluation_collection_manifest(path):
             checkpoint_path = os.path.abspath(checkpoint_path)
             with open(os.path.join(run_dir, 'evaluation', 'summary.json'), encoding='utf-8') as handle:
                 evaluation_summary = json.load(handle)
-            expected = os.path.abspath(os.path.join(run_dir, evaluation_summary['best_checkpoint']))
+            role = controller.get('checkpoint_role', 'best')
+            if role not in {'best', 'final', 'resumable'}:
+                raise ValueError(f'Unsupported checkpoint_role: {role}')
+            if role == 'resumable':
+                requested_episode = controller.get('checkpoint_episode')
+                if not isinstance(requested_episode, int) or requested_episode < 0:
+                    raise ValueError(
+                        f'Controller {controller_id} resumable checkpoint requires '
+                        'a non-negative integer checkpoint_episode'
+                    )
+                expected = os.path.abspath(os.path.join(
+                    run_dir, 'checkpoints', 'resumable',
+                    f'episode_{requested_episode:04d}.pt',
+                ))
+            else:
+                expected = os.path.abspath(os.path.join(
+                    run_dir, evaluation_summary[f'{role}_checkpoint']
+                ))
             if checkpoint_path != expected:
                 raise ValueError(
-                    f'DQN controller {controller_id} checkpoint is not the recorded best checkpoint'
+                    f'DQN controller {controller_id} checkpoint is not recorded {role}'
                 )
             if not os.path.isfile(checkpoint_path):
                 raise FileNotFoundError(checkpoint_path)
-            checkpoint_episode = int(evaluation_summary['best_episode'])
+            if role == 'resumable':
+                import torch
+
+                resumable = torch.load(checkpoint_path, map_location='cpu')
+                checkpoint_episode = int(resumable.get('episode', -1))
+                if (
+                    resumable.get('checkpoint_type') != 'resumable'
+                    or checkpoint_episode != requested_episode
+                ):
+                    raise ValueError(
+                        f'Controller {controller_id} resumable checkpoint semantics mismatch'
+                    )
+                reference_path = os.path.abspath(os.path.join(
+                    run_dir, 'checkpoints', 'evaluation',
+                    f'episode_{requested_episode:04d}.pt',
+                ))
+                if not os.path.isfile(reference_path):
+                    raise FileNotFoundError(reference_path)
+                reference = torch.load(reference_path, map_location='cpu')
+                if (
+                    reference.get('checkpoint_type') != 'evaluation'
+                    or int(reference.get('episode', -1)) != requested_episode
+                ):
+                    raise ValueError(
+                        f'Controller {controller_id} evaluation checkpoint semantics mismatch'
+                    )
+                resumable_hashes = [
+                    hash_torch_state_dict(agent['online_model_state_dict'])
+                    for agent in resumable['agents']
+                ]
+                evaluation_hashes = [
+                    hash_torch_state_dict(agent['online_model_state_dict'])
+                    for agent in reference['agents']
+                ]
+                if resumable_hashes != evaluation_hashes:
+                    raise ValueError(
+                        f'Controller {controller_id} episode-{requested_episode} '
+                        'resumable/evaluation online-network hash mismatch'
+                    )
+                checkpoint_audit = {
+                    'resumable_checkpoint_path': checkpoint_path,
+                    'resumable_checkpoint_sha256': _sha256_file(checkpoint_path),
+                    'evaluation_checkpoint_path': reference_path,
+                    'evaluation_checkpoint_sha256': _sha256_file(reference_path),
+                    'online_model_state_hashes': resumable_hashes,
+                    'online_hash_match': True,
+                }
+            else:
+                checkpoint_episode = int(evaluation_summary[f'{role}_episode'])
             checkpoint_sha256 = _sha256_file(checkpoint_path)
         elif checkpoint is not None:
             raise ValueError(f'Baseline controller {controller_id} checkpoint must be null')
+        target_run_dir = run_dir
+        if schema_version == 2:
+            target_run_dir = os.path.abspath(
+                os.path.expanduser(controller['target_run_dir'])
+            )
+            with open(os.path.join(target_run_dir, 'run_manifest.json'), encoding='utf-8') as handle:
+                target_manifest = json.load(handle)
+            with open(os.path.join(target_run_dir, 'run_status.json'), encoding='utf-8') as handle:
+                target_status = json.load(handle)
+            if (target_status.get('status'), target_status.get('exit_code')) != ('已完成', 0):
+                raise ValueError(f'Target run did not complete: {target_run_dir}')
+            if target_manifest.get('network') != controller['target_network']:
+                raise ValueError(f'Controller {controller_id} target_network mismatch')
+            expected_vehicle_count = controller.get('expected_vehicle_count')
+            if (
+                expected_vehicle_count is not None
+                and (
+                    not isinstance(expected_vehicle_count, int)
+                    or expected_vehicle_count <= 0
+                )
+            ):
+                raise ValueError(
+                    f'Controller {controller_id} expected_vehicle_count must be positive'
+                )
+            verify_config_archive(os.path.join(target_run_dir, 'config'))
         item = copy.deepcopy(controller)
         item.update({
             'run_dir': run_dir,
+            'target_run_dir': target_run_dir,
             'checkpoint_path': checkpoint_path,
             'checkpoint_episode': checkpoint_episode,
             'checkpoint_sha256': checkpoint_sha256,
+            'checkpoint_audit': checkpoint_audit,
         })
         normalized_controllers.append(item)
     normalized['controllers'] = normalized_controllers
@@ -955,6 +1351,9 @@ class EvaluationPackageWriter:
         self.attempts_dir = os.path.join(self.output_dir, 'attempts')
         os.makedirs(self.attempts_dir)
         self.collection_manifest = copy.deepcopy(collection_manifest)
+        self.schema_version = int(collection_manifest.get('schema_version', 1))
+        self.record_fields = evaluation_fields(self.schema_version, 'record')
+        self.summary_fields = evaluation_fields(self.schema_version, 'summary')
         _write_json_atomic(self.collection_path, self.collection_manifest)
         self.summaries = []
         self.record_count = 0
@@ -966,15 +1365,25 @@ class EvaluationPackageWriter:
         os.makedirs(path)
         return path
 
+    def write_attempt_metadata(self, attempt_dir, payload):
+        attempt_dir = os.path.realpath(attempt_dir)
+        if os.path.commonpath((attempt_dir, self.attempts_dir)) != self.attempts_dir:
+            raise ValueError('Evaluation attempt metadata path escapes package attempts')
+        if not os.path.isdir(attempt_dir):
+            raise FileNotFoundError(attempt_dir)
+        path = os.path.join(attempt_dir, 'evaluation_identity.json')
+        _write_json_atomic(path, payload)
+        return path
+
     def append_record(self, record):
-        missing = [field for field in EVALUATION_RECORD_FIELDS if field not in record]
-        extra = sorted(set(record) - set(EVALUATION_RECORD_FIELDS))
-        if missing or extra or record.get('schema_version') != 1:
+        missing = [field for field in self.record_fields if field not in record]
+        extra = sorted(set(record) - set(self.record_fields))
+        if missing or extra or record.get('schema_version') != self.schema_version:
             raise ValueError(
                 f'Invalid evaluation decision record; missing={missing}, extra={extra}'
             )
         content = json.dumps(
-            {field: _json_value(record[field]) for field in EVALUATION_RECORD_FIELDS},
+            {field: _json_value(record[field]) for field in self.record_fields},
             ensure_ascii=False, separators=(',', ':'), allow_nan=False,
         ) + '\n'
         with open(self.records_path, 'a', encoding='utf-8') as handle:
@@ -984,14 +1393,14 @@ class EvaluationPackageWriter:
         self.record_count += 1
 
     def append_summary(self, summary):
-        missing = [field for field in EVALUATION_SUMMARY_FIELDS if field not in summary]
+        missing = [field for field in self.summary_fields if field not in summary]
         if missing:
             raise ValueError(f'Evaluation summary missing fields: {missing}')
-        self.summaries.append({field: _json_value(summary[field]) for field in EVALUATION_SUMMARY_FIELDS})
+        self.summaries.append({field: _json_value(summary[field]) for field in self.summary_fields})
         descriptor, temporary_path = tempfile.mkstemp(prefix='.tmp-', dir=self.output_dir)
         try:
             with os.fdopen(descriptor, 'w', newline='', encoding='utf-8') as handle:
-                writer = csv.DictWriter(handle, fieldnames=EVALUATION_SUMMARY_FIELDS)
+                writer = csv.DictWriter(handle, fieldnames=self.summary_fields)
                 writer.writeheader()
                 writer.writerows(self.summaries)
                 handle.flush()
@@ -1009,7 +1418,7 @@ class EvaluationPackageWriter:
                 f'Evaluation package has {len(self.summaries)} episodes; expected {expected}'
             )
         manifest = {
-            'schema_version': 1,
+            'schema_version': self.schema_version,
             'package_id': self.collection_manifest['package_id'],
             'status': 'completed',
             'created_at_utc': _utc_now(),
@@ -1029,8 +1438,9 @@ def validate_evaluation_package(output_dir):
     output_dir = os.path.abspath(output_dir)
     with open(os.path.join(output_dir, 'manifest.json'), encoding='utf-8') as handle:
         manifest = json.load(handle)
-    if manifest.get('schema_version') != 1 or manifest.get('status') != 'completed':
-        raise ValueError('Evaluation package is not a completed schema v1 package')
+    schema_version = manifest.get('schema_version')
+    if schema_version not in {1, 2} or manifest.get('status') != 'completed':
+        raise ValueError('Evaluation package is not a completed schema v1/v2 package')
     for name, identity in manifest.get('files', {}).items():
         path = os.path.join(output_dir, name)
         if _sha256_file(path) != identity.get('sha256'):
@@ -1065,9 +1475,10 @@ def validate_evaluation_package(output_dir):
                 raise IOError(
                     f'Invalid evaluation record at line {line_number}'
                 ) from error
-            missing = [field for field in EVALUATION_RECORD_FIELDS if field not in record]
-            extra = sorted(set(record) - set(EVALUATION_RECORD_FIELDS))
-            if missing or extra or record.get('schema_version') != 1:
+            record_fields = evaluation_fields(schema_version, 'record')
+            missing = [field for field in record_fields if field not in record]
+            extra = sorted(set(record) - set(record_fields))
+            if missing or extra or record.get('schema_version') != schema_version:
                 raise ValueError(
                     f'Evaluation record {line_number} has invalid fields; '
                     f'missing={missing}, extra={extra}'

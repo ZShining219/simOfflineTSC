@@ -13,6 +13,7 @@ from common.registry import Registry
 from trainer.base_trainer import BaseTrainer
 from utils.logger import StructuredMetricLogger, hash_torch_state_dict
 from utils.trajectory import EpisodeTrajectoryWriter
+from agent import utils as agent_utils
 
 
 def _state_values_equal(left, right):
@@ -62,6 +63,10 @@ class EvaluationIsolationGuard:
                 'optimizer': None if optimizer is None else copy.deepcopy(optimizer.state_dict()),
                 'epsilon': getattr(agent, 'epsilon', None),
                 'replay_length': None if not hasattr(agent, 'replay_buffer') else len(agent.replay_buffer),
+                'replay': (
+                    None if not hasattr(agent, 'replay_buffer')
+                    else copy.deepcopy(list(agent.replay_buffer))
+                ),
             })
         return {
             'agents': agents,
@@ -120,6 +125,13 @@ class EvaluationIsolationGuard:
             'gradient_updates': after['gradient_updates'],
             'global_decision_step': after['global_decision_step'],
             'rng_unchanged': True,
+            'online_model_unchanged': True,
+            'target_model_unchanged': True,
+            'optimizer_unchanged': True,
+            'epsilon_unchanged': True,
+            'replay_unchanged': True,
+            'counters_unchanged': True,
+            'trajectory_writes_unchanged': True,
         })
         return False
 
@@ -720,7 +732,18 @@ class TSCTrainer(BaseTrainer):
         return cls.validate_checkpoint_payload(payload, expected_type=expected_type)
 
     def load_evaluation_checkpoint(self, path):
-        payload = self.load_checkpoint_payload(path, expected_type='evaluation')
+        return self.load_online_checkpoint(path, expected_type='evaluation')
+
+    def load_online_checkpoint(self, path, expected_type=None):
+        """Load only the online network from an audited DQN checkpoint.
+
+        Frozen reevaluation normally consumes an ``evaluation`` checkpoint.
+        Sequential sensitivity gates may explicitly require the online network
+        stored in a ``resumable`` checkpoint.  Keeping this operation separate
+        from ``load_resumable_checkpoint`` prevents optimizer, replay, epsilon,
+        counters, and RNG state from being imported into the evaluator.
+        """
+        payload = self.load_checkpoint_payload(path, expected_type=expected_type)
         if len(payload['agents']) != len(self.agents):
             raise ValueError('Checkpoint agent count does not match trainer')
         for rank, (agent, agent_payload) in enumerate(zip(self.agents, payload['agents'])):
@@ -767,6 +790,7 @@ class TSCTrainer(BaseTrainer):
 
     def _evaluation_timeseries_record(
         self, context, decision_step, rewards, actions, previous_throughput,
+        state_observations=None, state_phases=None, state_time_seconds=None,
     ):
         lane_queue = self.world.get_lane_waiting_vehicle_count()
         lane_delay = self.world.get_lane_delay()
@@ -784,8 +808,9 @@ class TSCTrainer(BaseTrainer):
             for lane, vehicle_count in lane_vehicle_count.items()
         )
         cumulative_throughput = int(self.world.get_cur_throughput())
+        schema_version = int(context.get('evaluation_schema_version', 1))
         record = {
-            'schema_version': 1,
+            'schema_version': schema_version,
             'record_type': 'DECISION_METRICS',
             'controller_id': context['controller_id'],
             'agent': context['agent'],
@@ -825,11 +850,55 @@ class TSCTrainer(BaseTrainer):
             'throughput_interval': cumulative_throughput - previous_throughput,
             'throughput_cumulative': cumulative_throughput,
         }
+        if schema_version == 2:
+            record.update({
+                'source_network': context['source_network'],
+                'target_network': context['target_network'],
+                'evaluation_traffic_seed': context['evaluation_traffic_seed'],
+                'checkpoint_role': context['checkpoint_role'],
+                'source_policy': context['source_policy'],
+                'reward_definition': context['reward_definition'],
+                'state_simulation_time_seconds': None,
+                'raw_state': None,
+                'current_phase': None,
+                'model_input': None,
+                'state_feature_schema': None,
+            })
+        if context.get('record_state_diagnostics'):
+            raw_state = np.asarray(state_observations, dtype=np.float32)
+            phases = np.asarray(state_phases, dtype=np.int64)
+            if raw_state.shape != (len(self.agents), 1, 8):
+                raise ValueError(
+                    f'Unexpected probe raw-state shape: {raw_state.shape}'
+                )
+            if phases.shape != (len(self.agents), 1):
+                raise ValueError(
+                    f'Unexpected probe current-phase shape: {phases.shape}'
+                )
+            model_inputs = []
+            for index, agent in enumerate(self.agents):
+                one_hot = agent_utils.idx2onehot(
+                    phases[index], agent.action_space.n
+                )
+                model_inputs.append(np.concatenate(
+                    [raw_state[index], one_hot], axis=1
+                ))
+            record.update({
+                'state_simulation_time_seconds': float(state_time_seconds),
+                'raw_state': raw_state.reshape(len(self.agents), 8).tolist(),
+                'current_phase': phases.reshape(len(self.agents)).tolist(),
+                'model_input': np.asarray(model_inputs, dtype=np.float32).reshape(
+                    len(self.agents), 16
+                ).tolist(),
+                'state_feature_schema': 'lane_count_8_plus_phase_one_hot_8_v1',
+            })
         return record, cumulative_throughput
 
     def evaluate_once(self, context, record_callback=None):
         """Run one isolated deterministic evaluation episode with decision records."""
-        with EvaluationIsolationGuard(self, 'BEST_CHECKPOINT_REEVALUATION'):
+        with EvaluationIsolationGuard(
+            self, context.get('evaluation_record_type', 'CHECKPOINT_REEVALUATION')
+        ):
             phase_started_at = time.perf_counter()
             output_dir = context.get('attempt_output_dir')
             if output_dir and hasattr(self.world, 'configure_evaluation_output'):
@@ -842,7 +911,10 @@ class TSCTrainer(BaseTrainer):
             previous_throughput = 0
             simulation_steps = 0
             while simulation_steps < self.test_steps:
+                state_observations = copy.deepcopy(obs)
+                state_time_seconds = float(self.world.get_current_time())
                 phases = np.stack([agent.get_phase() for agent in self.agents])
+                state_phases = phases.copy()
                 actions = np.stack([
                     agent.get_action(obs[index], phases[index], test=True)
                     for index, agent in enumerate(self.agents)
@@ -860,7 +932,8 @@ class TSCTrainer(BaseTrainer):
                 self.metric.update(rewards)
                 record, previous_throughput = self._evaluation_timeseries_record(
                     context, self.metric.decision_num, rewards, actions,
-                    previous_throughput,
+                    previous_throughput, state_observations, state_phases,
+                    state_time_seconds,
                 )
                 if record_callback is not None:
                     record_callback(record)
@@ -885,7 +958,14 @@ class TSCTrainer(BaseTrainer):
                 'waiting_time': float(self.metric.waiting_time()),
                 'unfinished_vehicles': int(self.metric.unfinished_vehicles()),
                 'wall_time_seconds': wall_time_seconds,
+                'phase_switches': int(self.phase_switches),
+                'phase_switch_frequency': float(
+                    self.phase_switches / max(1, self.metric.decision_num - 1)
+                ),
+                'action_distribution': self._action_distribution(),
             })
+        isolation = self.evaluation_isolation_checks[-1]
+        summary['isolation_check'] = copy.deepcopy(isolation)
         return _json_safe_value(summary)
 
     def train_test(self, e, record_type='EVALUATION'):

@@ -95,3 +95,56 @@ def load_metric_records(run_dir):
                     f"Invalid JSON metric record at {path}:{line_number}"
                 ) from error
     return records
+
+
+def load_evaluation_records(package_dir):
+    """Load decision records from an already validated evaluation package."""
+    path = Path(package_dir).expanduser().resolve() / 'records.jsonl'
+    records = []
+    with path.open(encoding='utf-8') as handle:
+        for line_number, line in enumerate(handle, start=1):
+            if not line.strip():
+                raise ValueError(f'Blank evaluation record at {path}:{line_number}')
+            try:
+                records.append(json.loads(line))
+            except json.JSONDecodeError as error:
+                raise ValueError(
+                    f'Invalid evaluation record at {path}:{line_number}'
+                ) from error
+    return records
+
+
+SCENE_MAPPING_FIELDS = ('scene', 'demand', 'network', 'vehicles')
+
+
+def load_scene_mapping(path):
+    source = Path(path).expanduser().resolve()
+    with source.open(newline='', encoding='utf-8-sig') as handle:
+        reader = csv.DictReader(handle)
+        missing = [
+            field for field in SCENE_MAPPING_FIELDS
+            if reader.fieldnames is None or field not in reader.fieldnames
+        ]
+        if missing:
+            raise ValueError(f'Scene mapping is missing fields: {missing}')
+        rows = []
+        for line_number, row in enumerate(reader, start=2):
+            if not any((value or '').strip() for value in row.values()):
+                continue
+            scene = row['scene'].strip()
+            network = row['network'].strip()
+            if scene not in {'S1','S2','S3','S4'}:
+                raise ValueError(f'Invalid scene at line {line_number}: {scene}')
+            rows.append({
+                'scene': scene, 'demand': row['demand'].strip(),
+                'network': network, 'vehicles': int(row['vehicles']),
+            })
+    if (
+        len(rows) != 4
+        or len({row['scene'] for row in rows}) != 4
+        or len({row['network'] for row in rows}) != 4
+    ):
+        raise ValueError('Scene mapping must contain four unique scenes/networks')
+    return source, sorted(rows, key=lambda row: int(row['scene'][1:])), {
+        row['network']: row['scene'] for row in rows
+    }

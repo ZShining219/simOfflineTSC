@@ -8,7 +8,13 @@ from pathlib import Path
 
 import yaml
 
-from tools.experiment_plotting.cli import build_parser, run_plan1
+from tools.experiment_plotting.cli import (
+    _write_g0_stop_report, build_parser, run_plan1,
+)
+from tools.experiment_plotting.aggregations import (
+    aggregate_cross_scene, aggregate_episode100_pair_gate, calculate_policy_disagreement,
+    calculate_state_distribution_diagnostics, select_transition_pairs,
+)
 from tools.experiment_plotting.loaders import load_run_list
 from tools.experiment_plotting.profiles import get_profile
 from tools.experiment_plotting.validators import validate_run
@@ -167,6 +173,79 @@ class Plan1PlottingTest(unittest.TestCase):
     def tearDown(self):
         self.temporary_directory.cleanup()
 
+    def test_s1_s4_integrated_diagnostic_aggregations(self):
+        cross_raw = []
+        for source in ('S1', 'S2', 'S3', 'S4'):
+            for target in ('S1', 'S2', 'S3', 'S4'):
+                for seed in range(5):
+                    degradation = abs(int(source[1]) - int(target[1]))
+                    cross_raw.append({
+                        'source_scene': source, 'source_network': f'n{source[1]}',
+                        'target_scene': target, 'target_network': f'n{target[1]}',
+                        'training_seed': seed, 'travel_time': 100 + degradation,
+                        'queue': 10 + degradation, 'real_delay': 20 + degradation,
+                        'approximate_delay': .2 + degradation / 100,
+                        'throughput': 1000 - degradation,
+                        'phase_switch_frequency': .2, 'reward_mean': -10 - degradation,
+                        'reward_definition': 'synthetic',
+                    })
+        summary, relative, directional = aggregate_cross_scene(cross_raw)
+        self.assertEqual(16 * 7, len(summary))
+        self.assertEqual(16 * 6, len(relative))
+        self.assertEqual(12, len(directional))
+        self.assertTrue(all(row['relative_degradation'] == 0
+                            for row in relative if row['source_scene'] == row['target_scene']))
+        self.assertTrue(all(row['absolute_difference'] == 0
+                            for row in relative if row['source_scene'] == row['target_scene']))
+        self.assertTrue(all(row['near_zero_reference'] is False for row in relative))
+
+        predictions = []
+        for scene in ('S1', 'S2', 'S3', 'S4'):
+            for seed in range(5):
+                for probe_index in range(8):
+                    top = (int(scene[1]) + probe_index) % 8
+                    q_values = [0.0] * 8
+                    q_values[top] = 2.0
+                    predictions.append({
+                        'probe_id': f'p{probe_index}', 'probe_source_scene': 'S1',
+                        'model_id': f'{scene}_seed{seed}', 'model_scene': scene,
+                        'model_network': f'n{scene[1]}', 'training_seed': seed,
+                        'top_action': top, 'normalized_q_margin': 1.0,
+                        'q_values': q_values,
+                    })
+        model_pairs, scene_pairs, threshold = calculate_policy_disagreement(predictions)
+        self.assertEqual(190 * 2, len(model_pairs))
+        self.assertEqual(.1, threshold)
+        all_scene = [row for row in scene_pairs
+                     if row['probe_source_scene'] == 'ALL'
+                     and row['metric'] == 'action_disagreement']
+        self.assertEqual(16, len(all_scene))
+
+        probes = []
+        for scene in ('S1', 'S2', 'S3', 'S4'):
+            for sample in range(8):
+                values = [float(int(scene[1]) + sample)] * 8 + [1.0] + [0.0] * 7
+                probes.append({'scene': scene, 'model_input': values})
+        stats, state_distances = calculate_state_distribution_diagnostics(probes)
+        self.assertEqual(64, len(stats))
+        self.assertEqual(16, len(state_distances))
+
+        action_rows = []
+        for left in ('S1', 'S2', 'S3', 'S4'):
+            for right in ('S1', 'S2', 'S3', 'S4'):
+                action_rows.append({
+                    'aggregation': 'scene_mean', 'metric': 'total_variation',
+                    'source_scene': left, 'target_scene': right,
+                    'distance': abs(int(left[1]) - int(right[1])) / 10,
+                })
+        evidence, selected = select_transition_pairs(
+            relative, action_rows, scene_pairs, state_distances
+        )
+        self.assertEqual(6, len(evidence))
+        self.assertTrue(all('action_total_variation_excess_over_within' in row
+                            for row in evidence))
+        self.assertTrue(all(row['source_scene'] != row['target_scene'] for row in selected))
+
     def test_plan1_analysis_validates_normalizes_and_renders_both_formats(self):
         first = write_run(self.root, "run_a", network="n1", seed=0)
         second = write_run(self.root, "run_b", network="n2", seed=1)
@@ -320,6 +399,122 @@ class Plan1PlottingTest(unittest.TestCase):
         write_json(summary_path, summary)
         with self.assertRaisesRegex(ValueError, "TRAIN episodes are incomplete"):
             validate_run(included[0])
+
+    def test_episode100_gate_uses_same_seed_reference_and_metric_direction(self):
+        network = {'S2': 'n2', 'S3': 'n3', 'S4': 'n4'}
+        directions = (('S3', 'S4'), ('S4', 'S3'),
+                      ('S2', 'S3'), ('S3', 'S2'))
+        gaps = {('S3', 'S4'): .15, ('S4', 'S3'): .12,
+                ('S2', 'S3'): .02, ('S3', 'S2'): .03}
+        rows = []
+        for scene in ('S2', 'S3', 'S4'):
+            for seed in range(5):
+                baseline = 100.0 + seed
+                rows.append({
+                    'source_scene': scene, 'source_network': network[scene],
+                    'target_scene': scene, 'target_network': network[scene],
+                    'training_seed': seed, 'travel_time': baseline,
+                    'queue': 10.0, 'real_delay': 20.0,
+                    'approximate_delay': 2.0, 'throughput': 1000.0,
+                    'unfinished_vehicles': 5.0,
+                })
+        for source, target in directions:
+            for seed in range(5):
+                baseline = 100.0 + seed
+                gap = gaps[(source, target)]
+                rows.append({
+                    'source_scene': source, 'source_network': network[source],
+                    'target_scene': target, 'target_network': network[target],
+                    'training_seed': seed, 'travel_time': baseline * (1 + gap),
+                    'queue': 10.0 * (1 + gap),
+                    'real_delay': 20.0 * (1 + gap),
+                    'approximate_delay': 2.0 * (1 + gap),
+                    'throughput': 1000.0 * (1 - gap),
+                    'unfinished_vehicles': 5.0 * (1 + gap),
+                })
+        summary, relative, gate = aggregate_episode100_pair_gate(rows, directions)
+        self.assertTrue(gate['passed'])
+        self.assertAlmostEqual(12.0, gate[
+            'high_minus_low_worst_percentage_points'])
+        s3_s4_seed4 = next(
+            row for row in relative
+            if row['source_scene'] == 'S3' and row['target_scene'] == 'S4'
+            and row['training_seed'] == 4 and row['metric'] == 'travel_time'
+        )
+        self.assertEqual(104.0, s3_s4_seed4['same_seed_target_reference'])
+        throughput = next(
+            row for row in relative
+            if row['source_scene'] == 'S3' and row['target_scene'] == 'S4'
+            and row['training_seed'] == 0 and row['metric'] == 'throughput'
+        )
+        self.assertAlmostEqual(.15, throughput['relative_degradation'])
+        self.assertEqual(24, len(summary))
+
+    def test_failed_g0_writes_terminal_evidence_without_sequential_placeholders(self):
+        summary = []
+        relative = []
+        gaps = {('S3', 'S4'): .0276, ('S4', 'S3'): .0535,
+                ('S2', 'S3'): .0224, ('S3', 'S2'): .0015}
+        for source, target in gaps:
+            summary.append({
+                'source_scene': source, 'target_scene': target,
+                'metric': 'travel_time',
+                'mean_relative_degradation': gaps[(source, target)],
+                'sample_sd_relative_degradation': .01,
+            })
+            for seed in range(5):
+                relative.append({
+                    'source_scene': source, 'target_scene': target,
+                    'metric': 'travel_time', 'training_seed': seed,
+                    'relative_degradation': gaps[(source, target)],
+                })
+        controllers = []
+        summaries = []
+        for source, target in gaps:
+            for seed in range(5):
+                controller_id = f'{source}_{target}_{seed}'
+                controllers.append({
+                    'controller_id': controller_id,
+                    'source_scene': source, 'target_scene': target,
+                })
+                summaries.append({
+                    'controller_id': controller_id, 'training_seed': seed,
+                    'evaluation_traffic_seed': 10000,
+                })
+        package = {
+            'manifest': {'episode_count': 20, 'decision_record_count': 7200},
+            'collection': {'controllers': controllers}, 'summaries': summaries,
+        }
+        gate = {
+            'passed': False,
+            'high_minus_low_worst_percentage_points': 3.11,
+        }
+        args = type('Args', (), {
+            'evaluation_package': str(self.root / 'immutable_package')
+        })()
+        _write_g0_stop_report(
+            self.root, args, package, summary, relative, gate
+        )
+        final_report = (self.root / 'reports' / 'g_final_report.md').read_text(
+            encoding='utf-8'
+        )
+        self.assertIn('结论分类：E', final_report)
+        self.assertIn('G1、smoke test 和 40 个正式 sequential runs 均未执行',
+                      final_report)
+        with (self.root / 'run_status.csv').open(newline='', encoding='utf-8') as handle:
+            status = list(csv.DictReader(handle))
+        self.assertEqual(20, sum(row['status'] == 'completed' for row in status))
+        self.assertEqual(3, sum(row['status'] == 'not_run' for row in status))
+        self.assertTrue((self.root / 'commands' / 'reproduction_commands.sh').exists())
+        self.assertFalse((self.root / 'manifests' / 'sequential_manifest.json').exists())
+        self.assertFalse((self.root / 'processed' / 'sequential_raw.csv').exists())
+
+        gate['passed'] = True
+        passed_output = self.root / 'passed'
+        _write_g0_stop_report(
+            passed_output, args, package, summary, relative, gate
+        )
+        self.assertFalse((passed_output / 'reports' / 'g_final_report.md').exists())
 
 
 if __name__ == "__main__":

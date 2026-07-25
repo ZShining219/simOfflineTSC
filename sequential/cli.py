@@ -4,6 +4,7 @@ import os
 
 from .manifest import (
     build_formal_plan, build_hybrid_plan, build_pilot_plan,
+    build_hybrid_pilot_plan,
     validate_formal_plan, validate_hybrid_plan,
 )
 from .parents import import_parents, validate_parent_catalog
@@ -50,6 +51,14 @@ def _parser():
 
     hybrid_validate_parser = subparsers.add_parser('validate-hybrid-plan')
     hybrid_validate_parser.add_argument('--plan', required=True)
+
+    hybrid_pilot_parser = subparsers.add_parser('build-hybrid-pilot')
+    hybrid_pilot_parser.add_argument(
+        '--parent-catalog', default=os.path.join(DEFAULT_OUTPUT, 'parent_catalog.json')
+    )
+    hybrid_pilot_parser.add_argument('--output', required=True)
+    hybrid_pilot_parser.add_argument('--later-stage-episodes', type=int, default=15)
+    hybrid_pilot_parser.add_argument('--config', default='configs/sequential/plan34_b100.yml')
 
     validate_parser = subparsers.add_parser('validate')
     validate_parser.add_argument(
@@ -160,6 +169,10 @@ def main(argv=None):
         )
     elif args.command == 'validate-hybrid-plan':
         result = validate_hybrid_plan(args.plan)
+    elif args.command == 'build-hybrid-pilot':
+        result = build_hybrid_pilot_plan(
+            args.parent_catalog, args.output, args.config, args.later_stage_episodes,
+        )
     elif args.command == 'validate-parents':
         result = validate_parent_catalog(
             args.catalog, revalidate_sources=not args.no_source_revalidation,

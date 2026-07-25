@@ -159,6 +159,48 @@ def validate_hybrid_plan(path):
     return {'valid': True, 'child_count': 20, 'plan_digest': recorded}
 
 
+def build_hybrid_pilot_plan(parent_catalog_path, output_path,
+                            config_path='configs/sequential/plan34_b100.yml',
+                            later_stage_episodes=15):
+    """Build the required O1/seed0 M0-M3 pilot matrix."""
+    if int(later_stage_episodes) <= 0:
+        raise ValueError('later_stage_episodes must be positive')
+    catalog = read_json(parent_catalog_path)
+    parent = next((item for item in catalog['parents']
+                   if item['order_id'] == 'O1' and int(item['training_seed']) == 0), None)
+    if parent is None:
+        raise ValueError('Missing O1 seed0 parent for hybrid pilot')
+    config = load_sequential_config(config_path)
+    children = []
+    for condition in ('M0', 'M1', 'M2', 'M3'):
+        settings = {'M0': ('clear', None, None), 'M1': ('fifo', None, None),
+                    'M2': ('hybrid', 0.5, 'uniform_cumulative'),
+                    'M3': ('hybrid', 0.5, 'stage_balanced_episode_stratified')}[condition]
+        children.append({
+            'logical_run_id': f'cs_hr_pilot_b100_O1_seed0_{condition}',
+            'budget_id': 'b100', 'parent_checkpoint_episode': 100,
+            'order_id': 'O1', 'training_seed': 0, 'policy': settings[0],
+            'condition': condition, 'hybrid_online_ratio': settings[1],
+            'historical_sampling': settings[2], 'networks': list(config['orders']['O1']),
+            'stage_episodes': [100, int(later_stage_episodes), int(later_stage_episodes), int(later_stage_episodes)],
+            'parent_import_manifest': parent['import_manifest_path'],
+            'parent_checkpoint': parent['checkpoint_path'],
+            'parent_checkpoint_file_sha256': parent['checkpoint_file_sha256'],
+            'parent_digests': parent['digests'], 'trace_replay_samples': False,
+            'estimated_output_bytes': 2 * 1024 ** 3, 'interface': 'libsumo', 'status': 'planned',
+        })
+    payload = {'schema_version': PLAN_SCHEMA_VERSION, 'budget_id': 'b100',
+               'parent_checkpoint_episode': 100, 'mode': 'hybrid_pilot',
+               'launch_authorized': True, 'child_count': 4, 'orders': {'O1': config['orders']['O1']},
+               'training_seeds': [0], 'policies': ['clear', 'fifo', 'hybrid'],
+               'conditions': ['M0', 'M1', 'M2', 'M3'], 'trainer': config['trainer'],
+               'model': config['model'], 'analysis': config['analysis'],
+               'parent_catalog_path': os.path.abspath(parent_catalog_path), 'children': children}
+    payload['plan_digest'] = canonical_digest(payload)
+    atomic_json(output_path, payload)
+    return payload
+
+
 def validate_formal_plan(path):
     plan = read_json(path)
     if plan.get('schema_version') != PLAN_SCHEMA_VERSION:

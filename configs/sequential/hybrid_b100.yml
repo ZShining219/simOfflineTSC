@@ -1,0 +1,12 @@
+schema_version: 1
+experiment: cs_hr
+budget_id: b100
+stage_episodes: [100, 100, 100, 100]
+online_ratio: 0.5
+historical_sampling: stage_balanced_episode_stratified
+conditions: [M0, M1, M2, M3]
+orders: [O1, O2, O3, O4]
+training_seeds: [0, 1, 2, 3, 4]
+sumo_seed_mode: fixed_default
+evaluation_lower_triangle: true
+

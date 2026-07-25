@@ -9,6 +9,19 @@ from .core import canonical_digest, canonical_transition_digest
 from .io import read_json, sha256_file
 
 
+def validate_hybrid_stage_visibility(pool, stage_index):
+    """Ensure a hybrid pool exposes only completed historical stages."""
+    visible = set(pool.visible_historical_stages())
+    expected = set(range(1, int(stage_index)))
+    if visible != expected:
+        raise ValueError(
+            f'hybrid stage leakage or missing pool: visible={sorted(visible)}, '
+            f'expected={sorted(expected)}'
+        )
+    return {'valid': True, 'stage_index': int(stage_index),
+            'visible_historical_stages': sorted(visible)}
+
+
 TRAJECTORY_KEY = re.compile(r'^stage_(\d+):episode_(\d+):trajectory$')
 EVALUATION_KEY = re.compile(
     r'^evaluation:stage_(\d+):local_(\d+):(.+)$'

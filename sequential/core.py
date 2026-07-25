@@ -44,6 +44,13 @@ class ReplayMetadata:
     local_episode: int
     decision_index: int
     written_global_step: int
+    # Optional provenance fields used by the semi-offline replay protocol.
+    source_kind: str = 'online'
+    source_scene: str = ''
+    behavior_seed: object = None
+    training_seed: object = None
+    age_at_sampling: object = None
+    written_stage: object = None
 
 
 @dataclasses.dataclass(frozen=True)

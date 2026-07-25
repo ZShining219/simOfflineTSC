@@ -5,8 +5,11 @@ from .core import (
     ReplayMetadata, ReplayRecord, SequentialReplay, TrainingPayload,
     TargetUpdateScheduler, canonical_digest,
 )
+from .hybrid import HybridReplayPool
+from .evaluation_matrix import validate_lower_triangle, expected_cells
 
 __all__ = [
     'ReplayMetadata', 'ReplayRecord', 'SequentialReplay', 'TrainingPayload',
     'TargetUpdateScheduler', 'canonical_digest', 'load_sequential_config',
+    'HybridReplayPool', 'validate_lower_triangle', 'expected_cells',
 ]

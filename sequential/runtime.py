@@ -167,9 +167,17 @@ class SequentialChildRunner:
         network = self.networks[stage_index - 1]
         self.world = self._create_world(network)
         agent_cls = HybridDQNAgent if self.policy == 'hybrid' else SequentialDQNAgent
+        hybrid_kwargs = {}
+        if agent_cls is HybridDQNAgent:
+            hybrid_kwargs = {
+                'online_ratio': float(self.child.get('hybrid_online_ratio', 0.5)),
+                'historical_sampling': self.child.get(
+                    'historical_sampling', 'stage_balanced_episode_stratified'
+                ),
+            }
         self.agent = agent_cls.from_parent(
             self.world, 0, self.model_config, self.trainer_config,
-            self.parent_manifest,
+            self.parent_manifest, **hybrid_kwargs,
         )
         if self.resume_path:
             self.resume_payload = load_full_checkpoint(self.resume_path)

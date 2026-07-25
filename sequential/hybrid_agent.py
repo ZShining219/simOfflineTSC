@@ -115,7 +115,8 @@ class HybridDQNAgent(SequentialDQNAgent):
         # replay object, then restore the causal pool and its private RNG.
         super().load_full_state_dict({**state, 'schema_version': 1,
                                       'replay_state': {'capacity': self.hybrid_pool.capacity,
-                                                       'records': []}})
+                                                       'records': [],
+                                                       'stage_insertions': 0}})
         self.hybrid_pool = HybridReplayPool.from_state_dict(state['replay_state'])
         self.replay = self.hybrid_pool
         self.historical_sampling = state.get(
@@ -131,6 +132,8 @@ class HybridDQNAgent(SequentialDQNAgent):
             current_global_step=self.counters.global_decision_step,
         )
         state, next_state, rewards, actions = self._batchwise(records)
+        rewards = rewards.reshape(-1)
+        actions = actions.reshape(-1)
         with torch.no_grad():
             target = rewards + self.gamma * torch.max(
                 self.target_model(next_state), dim=1

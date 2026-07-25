@@ -10,6 +10,8 @@ from sequential.core import ReplayMetadata, ReplayRecord, TrainingPayload
 from sequential.hybrid import HybridReplayPool
 from sequential.evaluation_matrix import validate_lower_triangle
 from sequential.manifest import build_hybrid_plan, validate_hybrid_plan
+from sequential.hybrid_agent import HybridDQNAgent
+from sequential.config import load_sequential_config
 
 
 def record(stage, episode, step):
@@ -24,6 +26,59 @@ def record(stage, episode, step):
 
 
 class HybridReplayTests(unittest.TestCase):
+    def test_hybrid_agent_uses_online_only_warmup_and_restores_pool(self):
+        class Intersection:
+            id = 'intersection_1_1'
+        class Generator:
+            def __init__(self, value): self.value = value
+            def generate(self): return np.array(self.value, copy=True)
+        class World:
+            def __init__(self): self.intersection = Intersection()
+        def binding(world, rank):
+            return {
+                'world': world, 'inter': world.intersection,
+                'ob_generator': Generator(np.zeros(2, dtype=np.float32)),
+                'phase_generator': Generator([0]),
+                'reward_generator': Generator([-1.]),
+                'queue_generator': Generator([1., 1.]),
+                'delay_generator': Generator([.1]),
+                'signature': {
+                    'intersection_id': 'intersection_1_1',
+                    'incoming_lane_mapping': ('a', 'b'),
+                    'phase_action_mapping': ('p0', 'p1'),
+                    'state_dim': 2, 'action_dim': 2,
+                },
+            }
+        config = load_sequential_config()
+        trainer = dict(config['trainer']); trainer.update({
+            'learning_start': 2, 'batch_size': 2, 'buffer_size': 20,
+        })
+        agent = HybridDQNAgent(
+            World(), 0, config['model'], trainer, binding_factory=binding,
+        )
+        agent.begin_stage(1, 'S1', 'hybrid')
+        for i in range(2):
+            agent.remember(
+                np.zeros((1, 2)), np.array([0]), np.array([0]), np.array([-1.]),
+                np.ones((1, 2)), np.array([0]), i + 1, i + 1,
+            )
+        self.assertFalse(agent.is_update_ready())
+        agent.remember(
+            np.zeros((1, 2)), np.array([0]), np.array([0]), np.array([-1.]),
+            np.ones((1, 2)), np.array([0]), 3, 3,
+        )
+        self.assertTrue(agent.is_update_ready())
+        update = agent.successful_gradient_update()
+        self.assertIsNotNone(update)
+        self.assertAlmostEqual(update['replay_diagnostics']['actual_historical_ratio'], 0.0)
+        state = agent.full_state_dict()
+        restored = HybridDQNAgent(
+            World(), 0, config['model'], trainer, binding_factory=binding,
+        )
+        restored.load_full_state_dict(state)
+        self.assertEqual(len(restored.hybrid_pool.online), 3)
+        self.assertEqual(restored.hybrid_pool.stage_index, 1)
+
     def test_hybrid_plan_is_exact_b100_matrix(self):
         catalog = {'budget_id': 'b100', 'parent_checkpoint_episode': 100, 'parents': []}
         for order in range(1, 5):

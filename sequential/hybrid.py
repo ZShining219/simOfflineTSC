@@ -30,6 +30,15 @@ class HybridReplayPool:
         self.sample_count = 0
         self.last_diagnostics = {}
 
+    @property
+    def records(self):
+        """Read-only flattened view for existing diagnostics/checkpoint tooling."""
+        return tuple(record for stage in sorted(self.historical)
+                     for record in self.historical[stage]) + tuple(self.online)
+
+    def __len__(self):
+        return len(self.records)
+
     def begin_stage(self, stage_index):
         stage_index = int(stage_index)
         if stage_index < 1 or stage_index > 4:

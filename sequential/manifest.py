@@ -81,6 +81,19 @@ def build_hybrid_plan(parent_catalog_path, output_path,
     config = load_sequential_config(config_path)
     if config['budget_id'] != 'b100':
         raise ValueError('CS-HR formal plan requires b100')
+    condition_settings = {
+        'M0': {'policy': 'clear', 'online_ratio': None,
+               'historical_sampling': None},
+        'M1': {'policy': 'fifo', 'online_ratio': None,
+               'historical_sampling': None},
+        'M2': {'policy': 'hybrid', 'online_ratio': 0.5,
+               'historical_sampling': 'uniform_cumulative'},
+        'M3': {'policy': 'hybrid', 'online_ratio': 0.5,
+               'historical_sampling': 'stage_balanced_episode_stratified'},
+    }
+    settings = condition_settings.get(condition)
+    if settings is None:
+        raise ValueError(f'Unsupported hybrid condition: {condition}')
     catalog = read_json(parent_catalog_path)
     if (catalog.get('budget_id') != 'b100' or
             catalog.get('parent_checkpoint_episode') != 100):
@@ -97,7 +110,9 @@ def build_hybrid_plan(parent_catalog_path, output_path,
                 'logical_run_id': f'cs_hr_b100_{condition}_{order_id}_seed{seed}',
                 'budget_id': 'b100', 'parent_checkpoint_episode': 100,
                 'order_id': order_id, 'training_seed': seed,
-                'policy': 'hybrid', 'condition': condition,
+                'policy': settings['policy'], 'condition': condition,
+                'hybrid_online_ratio': settings['online_ratio'],
+                'historical_sampling': settings['historical_sampling'],
                 'networks': list(networks), 'stage_episodes': [100] * 4,
                 'parent_import_manifest': parent['import_manifest_path'],
                 'parent_checkpoint': parent['checkpoint_path'],
@@ -111,7 +126,7 @@ def build_hybrid_plan(parent_catalog_path, output_path,
         'parent_checkpoint_episode': 100, 'mode': 'hybrid_formal',
         'launch_authorized': False, 'child_count': len(children),
         'orders': config['orders'], 'training_seeds': config['training_seeds'],
-        'policies': ['hybrid'], 'condition': condition,
+        'policies': [settings['policy']], 'condition': condition,
         'trainer': config['trainer'], 'model': config['model'],
         'analysis': config['analysis'],
         'parent_catalog_path': os.path.abspath(parent_catalog_path),
@@ -128,11 +143,15 @@ def validate_hybrid_plan(path):
         raise ValueError('Unsupported CS-HR formal plan')
     if plan.get('budget_id') != 'b100' or plan.get('child_count') != 20:
         raise ValueError('CS-HR plan must contain exactly 20 b100 children')
-    if plan.get('policies') != ['hybrid']:
+    if plan.get('condition') not in {'M0', 'M1', 'M2', 'M3'}:
+        raise ValueError('CS-HR plan condition identity mismatch')
+    condition = plan['condition']
+    expected_policy = {'M0': 'clear', 'M1': 'fifo', 'M2': 'hybrid', 'M3': 'hybrid'}[condition]
+    if plan.get('policies') != [expected_policy]:
         raise ValueError('CS-HR plan policy identity mismatch')
     identities = {(c['order_id'], int(c['training_seed'])) for c in plan['children']}
     expected = {(f'O{o}', s) for o in range(1, 5) for s in range(5)}
-    if identities != expected or any(c.get('policy') != 'hybrid' for c in plan['children']):
+    if identities != expected or any(c.get('policy') != expected_policy for c in plan['children']):
         raise ValueError('CS-HR child matrix is incomplete or duplicated')
     digest_payload = dict(plan); recorded = digest_payload.pop('plan_digest', None)
     if canonical_digest(digest_payload) != recorded:

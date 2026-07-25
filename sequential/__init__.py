@@ -7,9 +7,11 @@ from .core import (
 )
 from .hybrid import HybridReplayPool
 from .evaluation_matrix import validate_lower_triangle, expected_cells
+from .validation import validate_hybrid_stage_visibility
 
 __all__ = [
     'ReplayMetadata', 'ReplayRecord', 'SequentialReplay', 'TrainingPayload',
     'TargetUpdateScheduler', 'canonical_digest', 'load_sequential_config',
     'HybridReplayPool', 'validate_lower_triangle', 'expected_cells',
+    'validate_hybrid_stage_visibility',
 ]

@@ -6,6 +6,7 @@ read-only historical pools and deterministic sampling state for new runs.
 """
 
 import copy
+import dataclasses
 import math
 import random
 from collections import Counter, defaultdict
@@ -54,7 +55,14 @@ class HybridReplayPool:
             raise ValueError('only the active stage can be frozen')
         if stage in self._frozen:
             return
-        self.historical[stage] = tuple(copy.deepcopy(self.online))
+        frozen = []
+        for record in self.online:
+            metadata = dataclasses.replace(
+                record.metadata, source_kind='historical',
+                written_stage=stage,
+            )
+            frozen.append(ReplayRecord(copy.deepcopy(record.payload), metadata))
+        self.historical[stage] = tuple(frozen)
         self._frozen.add(stage)
 
     def visible_historical_stages(self):

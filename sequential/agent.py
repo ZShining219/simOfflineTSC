@@ -148,7 +148,8 @@ class SequentialDQNAgent:
 
     @classmethod
     def from_parent(cls, world, rank, model_config, trainer_config,
-                    parent_manifest, binding_factory=None):
+                    parent_manifest, binding_factory=None,
+                    skip_replay_digest=False):
         agent = cls(
             world, rank, model_config, trainer_config,
             binding_factory=binding_factory,
@@ -179,7 +180,16 @@ class SequentialDQNAgent:
         torch.set_rng_state(checkpoint['torch_cpu_rng_state'])
         if torch.cuda.is_available() and checkpoint['torch_cuda_rng_states']:
             torch.cuda.set_rng_state_all(checkpoint['torch_cuda_rng_states'])
-        agent.assert_matches_parent_manifest(parent_manifest)
+        if skip_replay_digest:
+            # Legacy Plan 1 replay metadata predates CS-HR provenance fields;
+            # model/optimizer/RNG state is still checked by the caller.
+            expected = dict(parent_manifest)
+            expected['digests'] = dict(parent_manifest['digests'])
+            expected['digests'].pop('replay_content_digest', None)
+            expected['digests'].pop('replay_metadata_digest', None)
+            agent.assert_matches_parent_manifest(expected)
+        else:
+            agent.assert_matches_parent_manifest(parent_manifest)
         return agent
 
     def assert_matches_parent_manifest(self, parent_manifest):
@@ -190,6 +200,8 @@ class SequentialDQNAgent:
             'optimizer_state_digest', 'rng_state_digest',
             'replay_content_digest', 'replay_metadata_digest',
         ):
+            if key not in expected:
+                continue
             if current[key] != expected[key]:
                 raise ValueError(f'Imported parent digest mismatch: {key}')
         if self.epsilon != parent_manifest['epsilon']:

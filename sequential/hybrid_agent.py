@@ -8,7 +8,11 @@ import torch
 from torch.nn.utils import clip_grad_norm_
 
 from .agent import SequentialCounters, SequentialDQNAgent
-from .core import ReplayMetadata, ReplayRecord, TrainingPayload
+from .core import (
+    ReplayMetadata, ReplayRecord, TrainingPayload, SequentialReplay,
+    TargetUpdateScheduler, capture_rng_state, online_parameter_digest,
+    optimizer_state_digest, rng_state_digest, target_parameter_digest,
+)
 from .hybrid import HybridReplayPool
 
 
@@ -32,13 +36,41 @@ class HybridDQNAgent(SequentialDQNAgent):
     def from_parent(cls, world, rank, model_config, trainer_config,
                     parent_manifest, binding_factory=None, online_ratio=0.5,
                     historical_sampling='stage_balanced_episode_stratified'):
-        agent = super().from_parent(
-            world, rank, model_config, trainer_config, parent_manifest,
-            binding_factory=binding_factory,
+        # Load only the frozen training state.  Parent replay is deliberately
+        # excluded from CS-HR Stage 1 and therefore is never digest-checked.
+        agent = cls(
+            world, rank, model_config, trainer_config,
+            binding_factory=binding_factory, online_ratio=online_ratio,
+            historical_sampling=historical_sampling,
         )
-        # The inherited constructor has loaded all model/optimizer/RNG state,
-        # but its parent replay is not a CS-HR historical pool. Replace it with
-        # an empty causal pool while preserving every training counter.
+        checkpoint = torch.load(parent_manifest['checkpoint_path'], map_location='cpu')
+        payload = checkpoint['agents'][rank]
+        agent.model.load_state_dict(payload['online_model_state_dict'])
+        agent.target_model.load_state_dict(payload['target_model_state_dict'])
+        agent.optimizer.load_state_dict(payload['optimizer_state_dict'])
+        agent.epsilon = float(payload['epsilon'])
+        counters = checkpoint['training_counters']
+        agent.counters = SequentialCounters(
+            int(counters['global_decision_step']),
+            int(counters['gradient_updates']), int(counters['target_updates']),
+        )
+        agent.target_scheduler = TargetUpdateScheduler.from_plan1_parent(
+            agent.counters.gradient_updates, agent.counters.target_updates,
+            int(trainer_config['target_update_interval']),
+        )
+        random.setstate(checkpoint['python_random_state'])
+        np.random.set_state(checkpoint['numpy_random_state'])
+        torch.set_rng_state(checkpoint['torch_cpu_rng_state'])
+        if torch.cuda.is_available() and checkpoint['torch_cuda_rng_states']:
+            torch.cuda.set_rng_state_all(checkpoint['torch_cuda_rng_states'])
+        current = agent.training_state_digests()
+        expected = parent_manifest.get('digests', {})
+        for key in ('online_parameter_digest', 'target_parameter_digest',
+                    'optimizer_state_digest', 'rng_state_digest'):
+            if expected.get(key) and current[key] != expected[key]:
+                raise ValueError(f'Imported parent digest mismatch: {key}')
+        # Replace the constructor's empty pool with a fresh causal pool while
+        # preserving every loaded training counter.
         agent.hybrid_pool = HybridReplayPool(
             int(trainer_config['buffer_size']), float(online_ratio), random.Random(),
         )

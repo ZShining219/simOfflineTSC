@@ -178,6 +178,8 @@ class SequentialChildRunner:
                     'historical_sampling', 'stage_balanced_episode_stratified'
                 ),
             }
+        if agent_cls is SequentialDQNAgent and self.child.get('condition') in {'M0', 'M1'}:
+            hybrid_kwargs['skip_replay_digest'] = True
         self.agent = agent_cls.from_parent(
             self.world, 0, self.model_config, self.trainer_config,
             self.parent_manifest, **hybrid_kwargs,

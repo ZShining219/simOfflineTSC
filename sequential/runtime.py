@@ -15,7 +15,7 @@ from .checkpoint import (
 from .config import simulator_config_path
 from .diagnostics import ReplayDiagnostics
 from .evaluator import IndependentEvaluator, save_online_snapshot
-from .io import atomic_json, read_json
+from .io import atomic_json, read_json, sha256_file
 from .state import SequentialJournal, SequentialRunPhase
 from .trainer import SequentialStageTrainer
 from .transaction import EpisodeTransaction
@@ -59,6 +59,7 @@ class SequentialChildRunner:
         self.policy = self.child['policy']
         self.training_seed = int(self.child['training_seed'])
         self.parent_manifest = read_json(self.child['parent_import_manifest'])
+        self._validate_parent_binding()
         self.model_config = self.plan['model']
         self.trainer_config = dict(self.plan['trainer'])
         self.interface = self.child.get('interface', 'libsumo')
@@ -78,13 +79,34 @@ class SequentialChildRunner:
         )
         self.journal = SequentialJournal(
             self.attempt_dir, self.logical_run_id, self.attempt_id,
-            initial_stage=1, resume_state_path=self.resume_state_path,
+            initial_stage=1, initial_global_episode=self.stage_episodes[0],
+            resume_state_path=self.resume_state_path,
         )
         self.diagnostics = ReplayDiagnostics(
             os.path.join(self.attempt_dir, 'replay_diagnostics'),
             trace_samples=bool(self.child.get('trace_replay_samples', False)),
         )
         self._write_run_manifest()
+
+    def _validate_parent_binding(self):
+        expected_episode = int(self.child['parent_checkpoint_episode'])
+        if self.child.get('budget_id') != f'b{expected_episode}':
+            raise ValueError('Child budget does not match parent checkpoint episode')
+        if int(self.stage_episodes[0]) != expected_episode:
+            raise ValueError('Stage 1 budget does not match parent checkpoint episode')
+        if int(self.parent_manifest.get('checkpoint_episode', -1)) != expected_episode:
+            raise ValueError('Parent import checkpoint episode does not match child')
+        child_checkpoint = os.path.abspath(self.child['parent_checkpoint'])
+        imported_checkpoint = os.path.abspath(self.parent_manifest['checkpoint_path'])
+        if child_checkpoint != imported_checkpoint:
+            raise ValueError('Parent checkpoint path differs from import manifest')
+        recorded_hash = self.child['parent_checkpoint_file_sha256']
+        if self.parent_manifest.get('checkpoint_file_sha256') != recorded_hash:
+            raise ValueError('Parent checkpoint hash differs from import manifest')
+        if sha256_file(child_checkpoint) != recorded_hash:
+            raise ValueError('Parent checkpoint file SHA-256 mismatch')
+        if self.parent_manifest.get('digests') != self.child.get('parent_digests'):
+            raise ValueError('Parent state digests differ from import manifest')
 
     def _write_run_manifest(self):
         atomic_json(os.path.join(self.attempt_dir, 'child_run_manifest.json'), {
@@ -95,6 +117,8 @@ class SequentialChildRunner:
             'networks': self.networks,
             'training_seed': self.training_seed,
             'policy': self.policy,
+            'budget_id': self.child['budget_id'],
+            'parent_checkpoint_episode': self.child['parent_checkpoint_episode'],
             'stage_episodes': self.stage_episodes,
             'parent_import_manifest': self.child['parent_import_manifest'],
             'parent_checkpoint': self.child['parent_checkpoint'],
@@ -467,7 +491,10 @@ class SequentialChildRunner:
             and self.journal.phase == SequentialRunPhase.TRAINING
             and int(self.journal.state['stage_index']) == 1
         ):
-            self.journal.set_context(1, 400, 400, {'source': 'Plan1 parent'})
+            parent_episode = int(self.child['parent_checkpoint_episode'])
+            self.journal.set_context(
+                1, parent_episode, parent_episode, {'source': 'Plan1 parent'}
+            )
             self.journal.transition(SequentialRunPhase.STAGE_TRAINING_COMPLETE)
         while self.journal.phase != SequentialRunPhase.COMPLETED:
             stage_index = int(self.journal.state['stage_index'])

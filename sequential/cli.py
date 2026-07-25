@@ -50,6 +50,18 @@ def _parser():
         '--parent-catalog', default=os.path.join(DEFAULT_OUTPUT, 'parent_catalog.json')
     )
     analyze_parser.add_argument('--output', required=True)
+    analyze_parser.add_argument(
+        '--orders', nargs='+', default=None,
+        help='Optional complete order subset (for example: O1 O2).',
+    )
+    analyze_parser.add_argument(
+        '--validation-workers', type=int, default=1,
+        help='Parallel workers for independent run validation.',
+    )
+    cross_parser = subparsers.add_parser('analyze-budgets')
+    cross_parser.add_argument('--b100-report', required=True)
+    cross_parser.add_argument('--b400-report', required=True)
+    cross_parser.add_argument('--output', required=True)
 
     snapshot_parser = subparsers.add_parser('snapshot-parent')
     snapshot_parser.add_argument('--parent-import', required=True)
@@ -65,6 +77,10 @@ def _parser():
     evaluate_parser.add_argument('--global-episode', type=int, required=True)
     evaluate_parser.add_argument('--interface', choices=('libsumo', 'traci'), default='libsumo')
     evaluate_parser.add_argument('--timeout-seconds', type=int, default=300)
+    evaluate_parser.add_argument('--evaluation-seed', type=int, default=None)
+    evaluate_parser.add_argument('--controller-id', default=None)
+    evaluate_parser.add_argument('--agent-label', default='dqn')
+    evaluate_parser.add_argument('--training-seed', type=int, default=None)
 
     launch_parser = subparsers.add_parser('launch')
     launch_parser.add_argument('--manifest', required=True)
@@ -144,7 +160,11 @@ def main(argv=None):
         from .analysis import analyze_experiment
         result = analyze_experiment(
             args.manifest, args.output_root, args.parent_catalog, args.output,
+            selected_orders=args.orders, validation_workers=args.validation_workers,
         )
+    elif args.command == 'analyze-budgets':
+        from .analysis import analyze_cross_budget
+        result = analyze_cross_budget(args.b100_report, args.b400_report, args.output)
     elif args.command == 'snapshot-parent':
         import torch
         from .evaluator import save_online_state_snapshot
@@ -159,7 +179,8 @@ def main(argv=None):
                 'phase': True, 'one_hot': True,
             }, args.output, {
                 'source_parent_import': os.path.abspath(args.parent_import),
-                'stage_index': 1, 'global_episode': 400,
+                'stage_index': 1,
+                'global_episode': int(parent['checkpoint_episode']),
             },
         )
         result = {
@@ -179,13 +200,19 @@ def main(argv=None):
                 'simulator_config': simulator_config_path(args.network),
                 'interface': args.interface,
                 'steps': 3600, 'action_interval': 10,
-                'sumo_seed_mode': 'fixed_default',
+                'sumo_seed_mode': (
+                    'fixed_default' if args.evaluation_seed is None else 'explicit'
+                ),
+                'evaluation_seed': args.evaluation_seed,
             }, {
                 'stage_index': args.stage_index,
                 'training_network': args.training_network,
                 'evaluation_network': args.network,
                 'local_episode': args.local_episode,
                 'global_episode': args.global_episode,
+                'controller_id': args.controller_id,
+                'agent': args.agent_label,
+                'training_seed': args.training_seed,
             },
         )
     elif args.command == 'launch':

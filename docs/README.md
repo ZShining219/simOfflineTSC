@@ -13,8 +13,10 @@
 | Plan 0 环境、算法和场景冻结 | 未执行 | `plan0721.md` 中的后续执行计划，不得因 M1 优化关闭而视为完成 |
 | Plan 1 启动能力与 Pilot | 已完成 | append-only trajectory、固定评估/checkpoint 和作图能力已通过，见 `plan1_support_and_pilot.md` |
 | Plan 1 四场景正式 Online DQN | 已通过 | 20 次正式运行和 Plan 2 trajectory 白名单均已验收，见 `plan1_formal_online_dqn.md` |
+| Plan 1 后验适应性诊断（A–F） | 已通过 | 结果包位于 `data/output_data/analysis/plan1/s1_s4_adaptation_diagnostics_20260723/`；冻结重评估包位于 `data/output_data/evaluations/plan1/s1_s4_adaptation_diagnostics_20260723/` |
 | Plan 2 纯 Offline DQN 工程支持 | 已实现，正式实验未启动 | 算法梯度、schema v2、resume、SUMO 清理、严格汇总及 8/16 并发 I/O 门禁已通过，见 `plan2_offline_support.md` |
-| Plan 3～Plan 4 | 未执行 | 继续受 `plan0721.md` 的依赖关系和启动门约束 |
+| Plan 3～Plan 4 双预算 Sequential DQN | 正式实验执行中 | b400/b100 工程支持与三策略真实 SUMO Pilot 已通过；两个 60-run 正式批次正在共享总并发 8 下执行，120/120 强验收前不得标记通过，见 `plan0721.md` |
+| Task G episode-100 场景对门禁 | 已完成并按协议停止 | high/low 分离未达到预注册门槛，原定定向 G1 未执行；证据位于 `data/output_data/analysis/plan34/episode100_pair_gate_20260723/` |
 
 状态解释：
 

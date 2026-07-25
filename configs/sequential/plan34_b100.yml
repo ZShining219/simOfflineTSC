@@ -1,7 +1,7 @@
 schema_version: 1
-budget_id: b400
-parent_checkpoint_episode: 400
-parent_source: plan1_formal_episode_400_resumable
+budget_id: b100
+parent_checkpoint_episode: 100
+parent_source: plan1_formal_episode_100_resumable
 orders:
   O1: [sumohz1x1_config3, sumohz1x1_config2, sumohz1x1_config4, sumohz1x1]
   O2: [sumohz1x1, sumohz1x1_config4, sumohz1x1_config2, sumohz1x1_config3]
@@ -10,8 +10,8 @@ orders:
 training_seeds: [0, 1, 2, 3, 4]
 policies: [clear, fifo, fifo_matched_wait]
 trainer:
-  stage_episodes: [400, 100, 100, 100]
-  pilot_stage_episodes: [400, 15, 15, 15]
+  stage_episodes: [100, 100, 100, 100]
+  pilot_stage_episodes: [100, 15, 15, 15]
   steps: 3600
   test_steps: 3600
   action_interval: 10

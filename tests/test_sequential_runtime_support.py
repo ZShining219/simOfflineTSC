@@ -16,6 +16,26 @@ from sequential.runtime import SequentialChildRunner
 
 
 class SequentialRuntimeSupportTests(unittest.TestCase):
+    def test_parent_binding_rejects_checkpoint_hash_tampering(self):
+        with tempfile.TemporaryDirectory() as directory:
+            checkpoint = os.path.join(directory, 'episode_0100.pt')
+            with open(checkpoint, 'wb') as handle:
+                handle.write(b'checkpoint')
+            runner = SequentialChildRunner.__new__(SequentialChildRunner)
+            runner.stage_episodes = [100, 100, 100, 100]
+            runner.child = {
+                'budget_id': 'b100', 'parent_checkpoint_episode': 100,
+                'parent_checkpoint': checkpoint,
+                'parent_checkpoint_file_sha256': '0' * 64,
+                'parent_digests': {'online_parameter_digest': 'a'},
+            }
+            runner.parent_manifest = {
+                'checkpoint_episode': 100, 'checkpoint_path': checkpoint,
+                'checkpoint_file_sha256': '0' * 64,
+                'digests': {'online_parameter_digest': 'a'},
+            }
+            with self.assertRaisesRegex(ValueError, 'SHA-256'):
+                runner._validate_parent_binding()
     @staticmethod
     def _record(index, network, stage):
         payload = TrainingPayload.from_legacy((
@@ -90,7 +110,10 @@ class SequentialRuntimeSupportTests(unittest.TestCase):
             }]
             catalog = os.path.join(directory, 'catalog.json')
             output = os.path.join(directory, 'pilot.json')
-            atomic_json(catalog, {'parents': parents})
+            atomic_json(catalog, {
+                'budget_id': 'b400', 'parent_checkpoint_episode': 400,
+                'parents': parents,
+            })
             plan = build_pilot_plan(catalog, output, later_stage_episodes=15)
             self.assertEqual(plan['child_count'], 6)
             self.assertEqual(
@@ -106,6 +129,30 @@ class SequentialRuntimeSupportTests(unittest.TestCase):
                 for child in plan['children']
             ))
             self.assertTrue(plan['launch_authorized'])
+
+    def test_b100_pilot_manifest_preserves_parent_budget_identity(self):
+        with tempfile.TemporaryDirectory() as directory:
+            parents = [{
+                'order_id': 'O1', 'training_seed': 0,
+                'import_manifest_path': '/parent.json',
+                'checkpoint_path': '/episode_0100.pt',
+                'checkpoint_file_sha256': 'b' * 64, 'digests': {},
+            }]
+            catalog = os.path.join(directory, 'catalog.json')
+            output = os.path.join(directory, 'pilot.json')
+            atomic_json(catalog, {
+                'budget_id': 'b100', 'parent_checkpoint_episode': 100,
+                'parents': parents,
+            })
+            plan = build_pilot_plan(
+                catalog, output, later_stage_episodes=1,
+                config_path='configs/sequential/plan34_b100.yml',
+            )
+            self.assertTrue(all(
+                child['stage_episodes'] == [100, 1, 1, 1]
+                and child['logical_run_id'].startswith('pilot_b100_')
+                for child in plan['children']
+            ))
 
     def test_matched_fault_persists_exact_step_180_trigger(self):
         with tempfile.TemporaryDirectory() as directory:

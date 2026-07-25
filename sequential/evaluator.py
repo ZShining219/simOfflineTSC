@@ -177,7 +177,7 @@ def _evaluation_worker(request_path):
         import world.world_sumo as world_sumo
 
         registry_interface.Command_Setting_Interface({
-            'command': {'sumo_seed': None}
+            'command': {'sumo_seed': request.get('evaluation_seed')}
         })
         Registry.mapping['logger_mapping']['path'].path = attempt_dir
         os.makedirs(attempt_dir, exist_ok=True)
@@ -219,15 +219,68 @@ def _evaluation_worker(request_path):
                 rewards.append(np.asarray(agent.get_reward()))
             mean_reward = np.mean(np.stack(rewards), axis=0)
             metric.update(np.asarray([mean_reward]))
+            lane_queue = world.get_lane_waiting_vehicle_count()
+            lane_delay = world.get_lane_delay()
+            lane_vehicle_count = world.get_lane_vehicle_count()
+            queue_intersections = [float(agent.get_queue())]
+            controller_rewards = np.asarray(mean_reward, dtype=float).reshape(-1)
+            stable_rewards = -np.asarray(queue_intersections, dtype=float)
+            total_vehicles = sum(float(value) for value in lane_vehicle_count.values())
+            weighted_delay = sum(
+                float(lane_delay.get(lane, 0.0)) * float(count)
+                for lane, count in lane_vehicle_count.items()
+            )
+            cumulative_throughput = int(world.get_cur_throughput())
+            previous_throughput = (
+                0 if not decisions else int(decisions[-1]['throughput_cumulative'])
+            )
             decisions.append({
                 'schema_version': EVALUATION_SCHEMA_VERSION,
+                'record_type': 'DECISION_METRICS',
+                'controller_id': request.get('controller_id'),
+                'agent': request.get('agent', 'dqn'),
+                'network': request['evaluation_network'],
+                'training_seed': request.get('training_seed'),
+                'evaluation_seed': request.get('evaluation_seed'),
+                'checkpoint_episode': request.get('checkpoint_episode'),
+                'checkpoint_path': request['snapshot_path'],
+                'checkpoint_sha256': None,
+                'simulation_time_seconds': float(world.get_current_time()),
+                'decision_step': decision_index,
+                'action_interval_seconds': int(request['action_interval']),
                 'decision_index': decision_index,
                 'simulation_step': simulation_step,
                 'actions': flattened.astype(int).tolist(),
                 'reward': np.asarray(mean_reward).reshape(-1).astype(float).tolist(),
                 'queue': float(agent.get_queue()),
                 'approximate_delay': float(agent.get_delay()),
-                'throughput': int(world.get_cur_throughput()),
+                'throughput': cumulative_throughput,
+                'controller_reward_agents': controller_rewards.tolist(),
+                'reward_agents': stable_rewards.tolist(),
+                'reward_network_mean': float(np.mean(stable_rewards)),
+                'reward_network_sum': float(np.sum(stable_rewards)),
+                'queue_lanes': {
+                    str(key): float(value) for key, value in sorted(lane_queue.items())
+                },
+                'queue_intersections': queue_intersections,
+                'queue_network_mean': (
+                    0.0 if not lane_queue else float(np.mean(list(lane_queue.values())))
+                ),
+                'queue_network_sum': float(sum(lane_queue.values())),
+                'delay_lanes': {
+                    str(key): float(value) for key, value in sorted(lane_delay.items())
+                },
+                'lane_vehicle_counts': {
+                    str(key): int(value)
+                    for key, value in sorted(lane_vehicle_count.items())
+                },
+                'delay_intersections': [float(agent.get_delay())],
+                'delay_network_weighted_mean': (
+                    0.0 if total_vehicles <= 0 else
+                    float(weighted_delay / total_vehicles)
+                ),
+                'throughput_interval': cumulative_throughput - previous_throughput,
+                'throughput_cumulative': cumulative_throughput,
             })
         summary = {
             'schema_version': EVALUATION_SCHEMA_VERSION,
@@ -323,6 +376,11 @@ class IndependentEvaluator:
                         protocol['action_interval']
                     ),
                     'attempt_dir': attempt_dir,
+                    'evaluation_seed': protocol.get('evaluation_seed'),
+                    'controller_id': identity.get('controller_id'),
+                    'agent': identity.get('agent', 'dqn'),
+                    'training_seed': identity.get('training_seed'),
+                    'checkpoint_episode': identity.get('global_episode'),
                 }
                 request_path = os.path.join(attempt_dir, 'request.json')
                 atomic_json(request_path, request)

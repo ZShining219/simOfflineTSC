@@ -501,13 +501,14 @@ class Plan1PlottingTest(unittest.TestCase):
         self.assertIn('结论分类：E', final_report)
         self.assertIn('G1、smoke test 和 40 个正式 sequential runs 均未执行',
                       final_report)
-        with (self.root / 'run_status.csv').open(newline='', encoding='utf-8') as handle:
+        with (self.root / 'tables' / 'run_status.csv').open(
+                newline='', encoding='utf-8') as handle:
             status = list(csv.DictReader(handle))
         self.assertEqual(20, sum(row['status'] == 'completed' for row in status))
         self.assertEqual(3, sum(row['status'] == 'not_run' for row in status))
         self.assertTrue((self.root / 'commands' / 'reproduction_commands.sh').exists())
         self.assertFalse((self.root / 'manifests' / 'sequential_manifest.json').exists())
-        self.assertFalse((self.root / 'processed' / 'sequential_raw.csv').exists())
+        self.assertFalse((self.root / 'tables' / 'sequential_raw.csv').exists())
 
         gate['passed'] = True
         passed_output = self.root / 'passed'

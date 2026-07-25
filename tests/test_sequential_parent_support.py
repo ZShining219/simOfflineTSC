@@ -126,7 +126,10 @@ class SequentialParentSupportTests(unittest.TestCase):
                         'digests': {'online_parameter_digest': f'{order}{seed}'},
                     })
             catalog = os.path.join(directory, 'catalog.json')
-            atomic_json(catalog, {'parents': parents})
+            atomic_json(catalog, {
+                'budget_id': 'b400', 'parent_checkpoint_episode': 400,
+                'parents': parents,
+            })
             output = os.path.join(directory, 'plan.json')
             plan = build_formal_plan(catalog, output)
             self.assertEqual(plan['child_count'], 60)
@@ -135,6 +138,10 @@ class SequentialParentSupportTests(unittest.TestCase):
                 {child['policy'] for child in plan['children']}, set(FORMAL_POLICIES)
             )
             self.assertTrue(all(not child['trace_replay_samples'] for child in plan['children']))
+            self.assertTrue(all(
+                child['logical_run_id'].startswith('plan34_b400_')
+                for child in plan['children']
+            ))
             self.assertEqual(validate_formal_plan(output)['child_count'], 60)
             self.assertEqual(plan['orders'], config['orders'])
 
@@ -147,7 +154,10 @@ class SequentialParentSupportTests(unittest.TestCase):
             } for order in range(1, 5) for seed in range(5)]
             catalog = os.path.join(directory, 'catalog.json')
             output = os.path.join(directory, 'plan.json')
-            atomic_json(catalog, {'parents': parents})
+            atomic_json(catalog, {
+                'budget_id': 'b400', 'parent_checkpoint_episode': 400,
+                'parents': parents,
+            })
             build_formal_plan(catalog, output)
             with open(output, encoding='utf-8') as handle:
                 plan = json.load(handle)
@@ -155,6 +165,33 @@ class SequentialParentSupportTests(unittest.TestCase):
             atomic_json(output, plan)
             with self.assertRaisesRegex(ValueError, 'disable'):
                 validate_formal_plan(output)
+
+    def test_b100_formal_plan_uses_episode100_parents_and_budget_ids(self):
+        with tempfile.TemporaryDirectory() as directory:
+            parents = [{
+                'order_id': f'O{order}', 'training_seed': seed,
+                'import_manifest_path': f'/parent/O{order}/{seed}.json',
+                'checkpoint_path': f'/checkpoint/O{order}/{seed}/episode_0100.pt',
+                'checkpoint_file_sha256': 'b' * 64, 'digests': {},
+            } for order in range(1, 5) for seed in range(5)]
+            catalog = os.path.join(directory, 'catalog.json')
+            output = os.path.join(directory, 'plan.json')
+            atomic_json(catalog, {
+                'budget_id': 'b100', 'parent_checkpoint_episode': 100,
+                'parents': parents,
+            })
+            plan = build_formal_plan(
+                catalog, output, 'configs/sequential/plan34_b100.yml'
+            )
+            self.assertEqual(plan['budget_id'], 'b100')
+            self.assertEqual(plan['parent_checkpoint_episode'], 100)
+            self.assertTrue(all(
+                child['stage_episodes'] == [100, 100, 100, 100]
+                and child['logical_run_id'].startswith('plan34_b100_')
+                and child['parent_checkpoint_episode'] == 100
+                for child in plan['children']
+            ))
+            self.assertTrue(validate_formal_plan(output)['valid'])
 
 
 if __name__ == '__main__':

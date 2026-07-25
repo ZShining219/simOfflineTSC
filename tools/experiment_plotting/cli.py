@@ -44,6 +44,7 @@ from .plotting import (
     render_dqn_training_state_coverage,
 )
 from .plan2 import run_plan2_analysis
+from .sequential import run_sequential_plotting, run_sequential_frozen_plotting
 from .profiles import PROFILES, get_profile, S1_S4_ACTION_SEMANTICS
 from .validators import compare_dqn_run_configs, validate_run
 from utils.logger import validate_evaluation_package
@@ -92,6 +93,36 @@ def build_parser():
         "--allow-incomplete", action="store_true",
         help="Development-only: permit non-144k schedules and incomplete five-seed cells",
     )
+    sequential = subparsers.add_parser(
+        'sequential', help='Plot a validated Plan 3/4 sequential report',
+    )
+    sequential.add_argument('--analysis-report', required=True)
+    sequential.add_argument('--analysis-id', required=True, type=_analysis_id)
+    sequential.add_argument('--output-root', default='data/output_data/analysis/plan34')
+    sequential.add_argument('--dpi', type=int, default=160)
+    sequential_frozen = subparsers.add_parser(
+        'sequential-frozen',
+        help='Plot one-scene frozen sequential and Plan 1/baseline time series',
+    )
+    sequential_frozen.add_argument(
+        '--sequential-evaluation-root', required=True, nargs='+',
+        help='One or more non-overlapping frozen-evaluation roots.',
+    )
+    sequential_frozen.add_argument('--baseline-package', required=True)
+    sequential_frozen.add_argument('--analysis-id', required=True, type=_analysis_id)
+    sequential_frozen.add_argument(
+        '--output-root', default='data/output_data/analysis/plan34',
+    )
+    sequential_frozen.add_argument('--network', required=True)
+    sequential_frozen.add_argument('--scene', required=True)
+    sequential_frozen.add_argument('--evaluation-seed', type=int, required=True)
+    sequential_frozen.add_argument(
+        '--orders', nargs='+', default=('O1', 'O2', 'O3', 'O4'),
+        choices=('O1', 'O2', 'O3', 'O4'),
+        help='Complete sequential orders expected in the frozen package.',
+    )
+    sequential_frozen.add_argument('--smoothing-window-seconds', type=int, default=60)
+    sequential_frozen.add_argument('--dpi', type=int, default=160)
     analyze = subparsers.add_parser(
         "analyze", help="Run a validated analysis through a named experiment profile",
     )
@@ -130,14 +161,15 @@ def build_parser():
 
 
 def _diagnostic_output(args):
-    return Path(args.output_root or 'analysis').expanduser().resolve() / args.analysis_id
+    default_root = Path('data/output_data/analysis/plan1')
+    return Path(args.output_root or default_root).expanduser().resolve() / args.analysis_id
 
 
 def run_s1_s4_phase1(args):
     if not args.scene_mapping:
         raise ValueError('--scene-mapping is required for S1-S4 diagnostics')
     output = _diagnostic_output(args)
-    report_path = output / 'phase1_report.md'
+    report_path = output / 'reports' / 'phase1_report.md'
     if report_path.exists() and not args.refresh_existing:
         raise FileExistsError(f'Phase 1 already exists: {report_path}')
     _, mapping_rows, scene_by_network = load_scene_mapping(args.scene_mapping)
@@ -156,10 +188,11 @@ def run_s1_s4_phase1(args):
             metric_rows, scene_by_network, S1_S4_ACTION_SEMANTICS
         )
     )
-    tables = output / 'processed'
+    tables = output / 'tables'
     figures = output / 'figures'
     tables.mkdir(parents=True, exist_ok=True)
     figures.mkdir(parents=True, exist_ok=True)
+    report_path.parent.mkdir(parents=True, exist_ok=True)
     write_csv(tables / 'convergence_per_seed.csv', convergence)
     write_csv(tables / 'convergence_summary.csv', convergence_summary)
     write_csv(tables / 'budget_sufficiency.csv', budget_rows)
@@ -231,9 +264,9 @@ def run_s1_s4_phase1(args):
             + (', '.join(f"{row['source_scene']}–{row['target_scene']}" for row in exceeds)
                if exceeds else '无') + '。',
         ]
-    lines += ['', 'Individual-seed 数据和 TV/JS 距离见 `processed/`；正式图见 `figures/`。']
+    lines += ['', 'Individual-seed 数据和 TV/JS 距离见 `tables/`；正式图见 `figures/`。']
     report_path.write_text('\n'.join(lines) + '\n', encoding='utf-8')
-    _json_dump(output / 'phase1_manifest.json', {
+    _json_dump(output / 'manifests' / 'phase1_manifest.json', {
         'schema_version': 1, 'tool': 'tools.experiment_plotting',
         'profile': 's1_s4_diagnostics', 'phase': 'phase1',
         'scene_mapping': mapping_rows, 'budget_recommendation': budget,
@@ -246,7 +279,7 @@ def prepare_s1_s4_evaluation_manifests(args):
     if not args.scene_mapping:
         raise ValueError('--scene-mapping is required')
     output = _diagnostic_output(args)
-    config_dir = output / 'config'
+    config_dir = output / 'inputs'
     cross_path = config_dir / 'cross_scene_final_evaluation_fixed_v2.json'
     probe_path = config_dir / 'fixedtime_probe_evaluation.json'
     if cross_path.exists() or probe_path.exists():
@@ -359,7 +392,7 @@ def prepare_s1_s4_g0(args):
         raise ValueError('--scene-mapping is required')
     output = _diagnostic_output(args)
     manifest_dir = output / 'manifests'
-    config_dir = output / 'config'
+    config_dir = output / 'inputs'
     manifest_path = manifest_dir / 'episode100_gate_manifest.json'
     if manifest_path.exists():
         raise FileExistsError(f'G0 manifest already exists: {manifest_path}')
@@ -449,9 +482,10 @@ def prepare_s1_s4_g0(args):
             'training_seed': item['training_seed'],
             **item['checkpoint_audit'],
         })
-    write_csv(output / 'processed' / 'episode100_checkpoint_hash_audit.csv',
+    (output / 'tables').mkdir(parents=True, exist_ok=True)
+    write_csv(output / 'tables' / 'episode100_checkpoint_hash_audit.csv',
               checkpoint_audit)
-    _json_dump(output / 'g0_prepare_manifest.json', {
+    _json_dump(output / 'manifests' / 'g0_prepare_manifest.json', {
         'schema_version': 1, 'valid': True,
         'controller_count': len(controllers),
         'checkpoint_hash_match_count': len(checkpoint_audit),
@@ -543,7 +577,7 @@ def _write_g0_stop_report(output, args, package, summary, relative, gate):
     (reports / 'g_final_report.md').write_text(
         '\n'.join(lines) + '\n', encoding='utf-8'
     )
-    (output / 'code_changes.md').write_text(
+    (reports / 'code_changes.md').write_text(
         '# Task G 代码变更\n\n'
         '- trainer/tsc_trainer.py：支持从 resumable checkpoint 仅加载 online network，保持训练状态不变。\n'
         '- utils/logger.py：解析 episode-100 resumable evaluation，并审计同 episode evaluation checkpoint 的 online-network hash。\n'
@@ -555,7 +589,7 @@ def _write_g0_stop_report(output, args, package, summary, relative, gate):
         '没有创建独立功能脚本或 scripts/ 目录；没有实现 G1，因为 G0 未通过。\n',
         encoding='utf-8',
     )
-    (output / 'unresolved_issues.md').write_text(
+    (reports / 'unresolved_issues.md').write_text(
         '# 未决问题\n\n'
         f"1. 注册的 episode-100 high/low pair 只相差 {gate['high_minus_low_worst_percentage_points']:.2f} 个百分点，未满足 5 个百分点门槛。\n"
         '2. adaptation、forgetting、Clear/Retain、replay provenance、warm-up 与 update count 均因硬停止条件而未评价。\n'
@@ -582,7 +616,7 @@ def _write_g0_stop_report(output, args, package, summary, relative, gate):
             'evaluation_traffic_seed': '', 'status': 'not_run',
             'reason': 'G0 high/low gate failed',
         })
-    write_csv(output / 'run_status.csv', run_rows)
+    write_csv(output / 'tables' / 'run_status.csv', run_rows)
     commands = output / 'commands'
     commands.mkdir(parents=True, exist_ok=True)
     reproduction = '''#!/usr/bin/env bash
@@ -592,15 +626,15 @@ PROJECT_ROOT=/projects/simOfflineTSC
 PYTHON=/home/dev/miniforge3/envs/colight/bin/python
 export SUMO_HOME=/home/dev/miniforge3/envs/colight/lib/python3.10/site-packages/sumo
 ANALYSIS_ID=task_g_pairwise_pilot_reproduction
-OUTPUT_ROOT=analysis/s1_s4_adaptation_diagnostics
-PACKAGE=$OUTPUT_ROOT/$ANALYSIS_ID/raw_results/episode100_pair_gate_seed10000_v1
+OUTPUT_ROOT=data/output_data/analysis/plan34
+PACKAGE=data/output_data/evaluations/plan34/episode100_pair_gate_seed10000_v1_reproduction
 
 cd "$PROJECT_ROOT"
 
 "$PYTHON" -m tools.experiment_plotting analyze \\
   --profile s1_s4_diagnostics --phase prepare-g0 \\
   --run-list data/output_data/analysis/plan1/p1_formal_20_runlist_20260722.csv \\
-  --scene-mapping analysis/s1_s4_adaptation_diagnostics/config/scene_mapping.csv \\
+  --scene-mapping data/output_data/analysis/plan1/s1_s4_adaptation_diagnostics_20260723/inputs/scene_mapping.csv \\
   --analysis-id "$ANALYSIS_ID" --output-root "$OUTPUT_ROOT" \\
   --evaluation-traffic-seed 10000
 
@@ -611,7 +645,7 @@ cd "$PROJECT_ROOT"
 "$PYTHON" -m tools.experiment_plotting analyze \\
   --profile s1_s4_diagnostics --phase g0 \\
   --run-list data/output_data/analysis/plan1/p1_formal_20_runlist_20260722.csv \\
-  --scene-mapping analysis/s1_s4_adaptation_diagnostics/config/scene_mapping.csv \\
+  --scene-mapping data/output_data/analysis/plan1/s1_s4_adaptation_diagnostics_20260723/inputs/scene_mapping.csv \\
   --analysis-id "$ANALYSIS_ID" --output-root "$OUTPUT_ROOT" \\
   --evaluation-traffic-seed 10000 --evaluation-package "$PACKAGE" --dpi 160
 '''
@@ -637,7 +671,7 @@ def run_s1_s4_g0(args):
     _, _, scene_by_network = load_scene_mapping(args.scene_mapping)
     raw = normalize_cross_scene_summaries(package['summaries'], scene_by_network)
     summary, relative, gate = aggregate_episode100_pair_gate(raw, G0_DIRECTIONS)
-    processed = output / 'processed'
+    processed = output / 'tables'
     figures = output / 'figures'
     reports = output / 'reports'
     processed.mkdir(parents=True, exist_ok=True)
@@ -685,13 +719,13 @@ def run_s1_s4_g0(args):
     lines += [
         '',
         f"- High worst − low worst = {gate['high_minus_low_worst_percentage_points']:.2f} percentage points.",
-        '- Individual seeds、queue、real delay、approximate delay、throughput 与 unfinished vehicles 均保存在 processed CSV。',
+        '- Individual seeds、queue、real delay、approximate delay、throughput 与 unfinished vehicles 均保存在 tables CSV。',
         '- target identity、SUMO route/vehicle evidence 与 evaluation isolation 保存在 raw package 和 isolation audit。', '',
         '若门禁未通过，按协议停止，不运行 G1 或 40 个 sequential runs。',
     ]
     report = '\n'.join(lines) + '\n'
     (reports / 'g0_episode100_gate_report.md').write_text(report, encoding='utf-8')
-    _json_dump(output / 'g0_gate_manifest.json', {
+    _json_dump(output / 'manifests' / 'g0_gate_manifest.json', {
         'schema_version': 1, 'gate': gate,
         'evaluation_package': str(Path(args.evaluation_package).resolve()),
         'figures': [str(path.relative_to(output)) for path in figure_paths],
@@ -704,7 +738,7 @@ def run_s1_s4_phase2(args):
     if not args.scene_mapping or not args.evaluation_package:
         raise ValueError('Phase 2 requires --scene-mapping and --evaluation-package')
     output = _diagnostic_output(args)
-    report_path = output / 'phase2_report.md'
+    report_path = output / 'reports' / 'phase2_report.md'
     if report_path.exists() and not args.refresh_existing:
         raise FileExistsError(f'Phase 2 already exists: {report_path}')
     _, _, scene_by_network = load_scene_mapping(args.scene_mapping)
@@ -719,8 +753,11 @@ def run_s1_s4_phase2(args):
     if len(raw) != 80:
         raise ValueError(f'Phase 2 requires 80 evaluations, got {len(raw)}')
     summary, relative, directional = aggregate_cross_scene(raw)
-    tables = output / 'processed'
+    tables = output / 'tables'
     figures = output / 'figures'
+    tables.mkdir(parents=True, exist_ok=True)
+    figures.mkdir(parents=True, exist_ok=True)
+    report_path.parent.mkdir(parents=True, exist_ok=True)
     write_csv(tables / 'cross_scene_raw.csv', raw)
     write_csv(tables / 'cross_scene_evaluation.csv', raw)
     write_csv(tables / 'cross_scene_summary.csv', summary)
@@ -781,10 +818,10 @@ def run_s1_s4_phase2(args):
         '## Reward 与隔离', '',
         '- `reward_mean` 是各 DQN agent 的正式 reward；`reward_network_mean=-queue` 只保留在原始 decision package，未混入正式 reward 表。',
         f"- 80/80 evaluation isolation checks recorded；汇总检查：{'通过' if isolation_ok else '需复核'}。", '',
-        '完整 individual-seed、mean ± sample SD 和 metric-wise degradation 见 `processed/`。',
+        '完整 individual-seed、mean ± sample SD 和 metric-wise degradation 见 `tables/`。',
     ]
     report_path.write_text('\n'.join(lines) + '\n', encoding='utf-8')
-    _json_dump(output / 'phase2_manifest.json', {
+    _json_dump(output / 'manifests' / 'phase2_manifest.json', {
         'schema_version': 1, 'tool': 'tools.experiment_plotting',
         'phase': 'phase2', 'evaluation_package': str(package_path),
         'checkpoint_role': 'final', 'evaluation_count': len(raw),
@@ -979,7 +1016,7 @@ def _fixedtime_pca_reference(output):
     from sklearn.decomposition import PCA
     from sklearn.preprocessing import StandardScaler
 
-    processed = output / 'processed'
+    processed = output / 'tables'
     probe_path = processed / 'probe_states_fixedtime.csv'
     pca_path = processed / 'state_pca.csv'
     if not probe_path.is_file() or not pca_path.is_file():
@@ -1146,7 +1183,7 @@ def run_s1_s4_training_state_coverage(args):
     if not args.scene_mapping:
         raise ValueError('--scene-mapping is required for training-state coverage')
     output = _diagnostic_output(args)
-    manifest_path = output / 'training_state_coverage_manifest.json'
+    manifest_path = output / 'manifests' / 'training_state_coverage_manifest.json'
     figures = output / 'figures'
     expected_outputs = [
         figures / f'state_pca_dqn_training_ep{start:03d}_{end:03d}.{suffix}'
@@ -1211,7 +1248,7 @@ def run_s1_s4_training_state_coverage(args):
         'profile': 's1_s4_diagnostics',
         'phase': 'training-state-coverage',
         'reference': {
-            'source': 'processed/state_pca.csv',
+            'source': 'tables/state_pca.csv',
             'state_count': len(fixedtime_rows),
             'policy': 'fixedtime_common',
             'pca_fit': 'FixedTime 16D standardized model inputs only',
@@ -1275,7 +1312,7 @@ def run_s1_s4_phase3(args):
     if not args.scene_mapping or not args.probe_evaluation_package:
         raise ValueError('Phase 3 requires --scene-mapping and --probe-evaluation-package')
     output = _diagnostic_output(args)
-    report_path = output / 'phase3_report.md'
+    report_path = output / 'reports' / 'phase3_report.md'
     if report_path.exists() and not args.refresh_existing:
         raise FileExistsError(f'Phase 3 already exists: {report_path}')
     _, _, scene_by_network = load_scene_mapping(args.scene_mapping)
@@ -1333,7 +1370,10 @@ def run_s1_s4_phase3(args):
     strongest, examples = _representative_conflicts(
         probes, predictions, model_pairs, threshold
     )
-    tables, figures = output / 'processed', output / 'figures'
+    tables, figures = output / 'tables', output / 'figures'
+    tables.mkdir(parents=True, exist_ok=True)
+    figures.mkdir(parents=True, exist_ok=True)
+    report_path.parent.mkdir(parents=True, exist_ok=True)
     probe_export = []
     for row in probes:
         exported = {key: row[key] for key in row if key not in {'raw_state','model_input'}}
@@ -1419,7 +1459,7 @@ def run_s1_s4_phase3(args):
                     f'- traffic-seed-grouped logistic regression accuracy：{accuracy:.1%}（随机基线 25%）。',
                     '- 状态可区分性、动作边际分布、同状态策略差异和控制退化分别解释。']
     report_path.write_text('\n'.join(report_lines) + '\n', encoding='utf-8')
-    _json_dump(output / 'phase3_manifest.json', {
+    _json_dump(output / 'manifests' / 'phase3_manifest.json', {
         'schema_version': 1, 'tool': 'tools.experiment_plotting', 'phase': 'phase3',
         'probe_evaluation_package': str(package_path), 'probe_state_count': len(probes),
         'model_count': len(models), 'confidence_threshold': threshold,
@@ -1446,10 +1486,10 @@ def _numeric_csv_rows(rows):
 
 def run_s1_s4_phase4(args):
     output = _diagnostic_output(args)
-    report_path = output / 'phase4_report.md'
+    report_path = output / 'reports' / 'phase4_report.md'
     if report_path.exists() and not args.refresh_existing:
         raise FileExistsError(f'Phase 4 already exists: {report_path}')
-    tables = output / 'processed'
+    tables = output / 'tables'
     required = {
         'relative': tables / 'cross_scene_relative_degradation.csv',
         'action': tables / 'action_distribution_distances.csv',
@@ -1648,13 +1688,11 @@ def run_s1_s4_phase4(args):
         '- Phase 2 主矩阵只有一个共同 evaluation traffic seed；其不确定性来自 training seeds，不代表 traffic-seed 泛化方差。',
     ]
     final_report_content = '\n'.join(final_lines) + '\n'
-    (output / 'final_diagnostic_report.md').write_text(
-        final_report_content, encoding='utf-8')
     reports_dir = output / 'reports'
     reports_dir.mkdir(parents=True, exist_ok=True)
     (reports_dir / 'final_diagnostic_report.md').write_text(
         final_report_content, encoding='utf-8')
-    (output / 'code_changes.md').write_text(
+    (reports_dir / 'code_changes.md').write_text(
         '# 代码改动说明\n\n'
         '- `run.py`：扩展既有 evaluation manifest runner，支持 source checkpoint / target scene 解耦。\n'
         '- `trainer/tsc_trainer.py`：扩展既有 `evaluate_once` 与 `EvaluationIsolationGuard`，记录 FixedTime probe 状态并校验 replay 内容。\n'
@@ -1662,14 +1700,14 @@ def run_s1_s4_phase4(args):
         '- `tools/experiment_plotting/` 既有 CLI、loader、aggregation、plotting、profile：集成 A–F。\n'
         '- 默认 v1/Plan 1/Plan 2 行为不变；新行为由显式 profile、phase 或 schema-v2 manifest 启用。\n'
         '- 未创建独立功能脚本或第二套日志/绘图体系。\n', encoding='utf-8')
-    (output / 'unresolved_issues.md').write_text(
+    (reports_dir / 'unresolved_issues.md').write_text(
         '# 当前无法完成内容及原因\n\n'
         '- 顺序适应、遗忘与 replay Clear/Retain：本轮明确禁止任务 G。\n'
         '- traffic-seed 泛化不确定性：Phase 2 仅授权一个共同 traffic seed。\n'
         '- replay warm-up/update-count 混杂：必须由下一轮顺序训练日志产生。\n'
         '- 环境会输出 legacy Gym 与未使用的 torch-geometric CUDA extension 警告；本轮 DQN/FixedTime 路径未调用这些扩展，测试和评估均完成。\n',
         encoding='utf-8')
-    _json_dump(output / 'phase4_manifest.json', {
+    _json_dump(output / 'manifests' / 'phase4_manifest.json', {
         'schema_version': 1, 'tool': 'tools.experiment_plotting',
         'phase': 'phase4', 'verdict': verdict,
         'selection_count': len(selected),
@@ -1819,6 +1857,12 @@ def main(argv=None):
     elif args.command == "plan2":
         output_dir = run_plan2_analysis(args)
         print(f"Plan 2 analysis completed: {output_dir}")
+    elif args.command == 'sequential':
+        output_dir = run_sequential_plotting(args)
+        print(f'Sequential plotting completed: {output_dir}')
+    elif args.command == 'sequential-frozen':
+        output_dir = run_sequential_frozen_plotting(args)
+        print(f'Sequential frozen plotting completed: {output_dir}')
     elif args.command == "analyze":
         if args.profile == "plan1":
             args.output_root = args.output_root or str(DEFAULT_OUTPUT_ROOT)

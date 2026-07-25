@@ -1259,7 +1259,7 @@ def _render_timeseries_main(
         network_rows = frame[frame["network"] == network]
         for agent in _ordered(network_rows["agent"], profile.algorithm_order):
             agent_rows = network_rows[network_rows["agent"] == agent]
-            if agent == "dqn":
+            if agent not in {"fixedtime", "maxpressure"}:
                 series = agent_rows.groupby(
                     ["training_seed", "simulation_time_seconds"],
                     as_index=False, dropna=False,
@@ -1295,17 +1295,23 @@ def _render_timeseries_training_seed_diagnostic(
     frame, output_base, value_field, title, ylabel, profile, dpi,
 ):
     networks = _ordered(frame["network"], profile.network_order)
-    dqn_seeds = _ordered(frame.loc[frame["agent"] == "dqn", "training_seed"])
+    seeded = frame[~frame["agent"].isin(("fixedtime", "maxpressure"))]
+    dqn_seeds = _ordered(seeded["training_seed"])
     seed_palette = dict(zip(
         dqn_seeds, sns.color_palette("colorblind", max(1, len(dqn_seeds)))
     ))
     fig, axes = _grid(len(networks), width=6.3, height=4.1)
     for axis, network in zip(axes, networks):
         network_rows = frame[frame["network"] == network]
-        dqn = network_rows[network_rows["agent"] == "dqn"].groupby(
-            ["training_seed", "simulation_time_seconds"], as_index=False
+        dqn = network_rows[~network_rows["agent"].isin(
+            ("fixedtime", "maxpressure")
+        )].groupby(
+            ["agent", "training_seed", "simulation_time_seconds"],
+            as_index=False,
         )[value_field].mean()
-        for seed, series in dqn.groupby("training_seed", sort=False):
+        for (_, seed), series in dqn.groupby(
+            ["agent", "training_seed"], sort=False
+        ):
             axis.plot(
                 series["simulation_time_seconds"], series[value_field],
                 color=seed_palette[seed], linewidth=1.25, alpha=0.9,
@@ -1400,6 +1406,8 @@ def render_evaluation_timeseries(
         outputs.extend(_render_timeseries_main(
             frame, results_dir / stem, field, title, ylabel, profile, dpi,
         ))
+        if profile.name == 'sequential_frozen':
+            continue
         outputs.extend(_render_timeseries_training_seed_diagnostic(
             frame, diagnostics_dir / f"{stem}_training_seed_means", field,
             f"{title}: DQN training-seed means", ylabel, profile, dpi,

@@ -10,7 +10,7 @@ data/output_data/analysis/plan1/p1_formal_20_plotting_v21_20260723/
 
 该图包包含 45 个唯一图项，每项同时输出 PNG 和 PDF。PNG 与 PDF 是同一图的两种格式，不应计作两个分析功能。
 
-版本 `2.2.0` 在不改变上述 45 项正式图语义的前提下，将 S1–S4 适应性诊断 profile、schema-v2 冻结评估和 DQN 训练状态覆盖图集成进正式工具代码。相关 phase 写入独立的 `analysis/s1_s4_adaptation_diagnostics/`，不属于 Plan 1 正式 v2.1 图包计数。
+版本 `2.2.0` 在不改变上述 45 项正式图语义的前提下，将 S1–S4 适应性诊断 profile、schema-v2 冻结评估和 DQN 训练状态覆盖图集成进正式工具代码。相关 phase 统一写入 `data/output_data/analysis/plan1/` 下的具名结果包，不属于 Plan 1 正式 v2.1 图包计数。
 
 ## 1. 功能边界
 
@@ -85,9 +85,9 @@ PYTHONPATH=. conda run -n colight python -m tools.experiment_plotting analyze \
   --profile s1_s4_diagnostics \
   --phase training-state-coverage \
   --run-list data/output_data/analysis/plan1/p1_formal_20_runlist_20260722.csv \
-  --analysis-id s1_s4_adaptation_diagnostics \
-  --output-root analysis \
-  --scene-mapping analysis/s1_s4_adaptation_diagnostics/config/scene_mapping.csv \
+  --analysis-id s1_s4_adaptation_diagnostics_20260723 \
+  --output-root data/output_data/analysis/plan1 \
+  --scene-mapping data/output_data/analysis/plan1/s1_s4_adaptation_diagnostics_20260723/inputs/scene_mapping.csv \
   --dpi 160
 ```
 
@@ -95,7 +95,7 @@ PYTHONPATH=. conda run -n colight python -m tools.experiment_plotting analyze \
 
 - run-list 必须完整包含四个 network × training seed `0–4` 的 20 个正式 DQN 运行。
 - 每个运行必须有通过校验的 400-episode trajectory；每 episode 为 360 个 decision states。
-- 目标 analysis 目录必须已有 Phase 3 的 `processed/probe_states_fixedtime.csv` 和 `processed/state_pca.csv`，且 FixedTime 参考严格为 7200 个平衡状态。
+- 目标 analysis 目录必须已有 Phase 3 的 `tables/probe_states_fixedtime.csv` 和 `tables/state_pca.csv`，且 FixedTime 参考严格为 7200 个平衡状态。
 - PCA 的 `StandardScaler` 和二维投影只用 FixedTime 16 维 model input 重建；DQN 状态只执行 `transform`，不得与 DQN 数据联合重新拟合 PCA。
 - 已存在该 phase 的输出时默认拒绝覆盖；`--refresh-existing` 只允许重建这组派生图和 manifest，不改变上游 trajectory 或 FixedTime 表格。
 
@@ -142,8 +142,12 @@ run-list 至少包含以下字段：
 S1–S4 training-state phase 另写出：
 
 ```text
-analysis/s1_s4_adaptation_diagnostics/
-├── training_state_coverage_manifest.json
+data/output_data/analysis/plan1/s1_s4_adaptation_diagnostics_20260723/
+├── inputs/
+├── tables/
+├── reports/
+├── manifests/
+│   └── training_state_coverage_manifest.json
 └── figures/
     ├── state_pca_dqn_training_ep001_010.png/.pdf
     ├── state_pca_dqn_training_ep041_050.png/.pdf

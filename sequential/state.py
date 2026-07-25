@@ -45,7 +45,7 @@ ALLOWED_TRANSITIONS = {
 
 class SequentialJournal:
     def __init__(self, run_dir, logical_run_id, attempt_id, initial_stage=1,
-                 resume_state_path=None):
+                 initial_global_episode=400, resume_state_path=None):
         self.run_dir = os.path.abspath(run_dir)
         self.state_path = os.path.join(self.run_dir, 'current_state.json')
         self.events_path = os.path.join(self.run_dir, 'events.jsonl')
@@ -80,7 +80,9 @@ class SequentialJournal:
                 'phase': SequentialRunPhase.TRAINING.value,
                 'stage_index': int(initial_stage),
                 'local_episode': 0,
-                'global_episode': 400 if initial_stage == 1 else 0,
+                'global_episode': (
+                    int(initial_global_episode) if initial_stage == 1 else 0
+                ),
                 'completed_operations': {},
                 'event_sequence': 0,
             }

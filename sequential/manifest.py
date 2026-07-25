@@ -12,6 +12,13 @@ def build_formal_plan(parent_catalog_path, output_path,
                       config_path='configs/sequential/plan34.yml'):
     config = load_sequential_config(config_path)
     catalog = read_json(parent_catalog_path)
+    budget_id = config['budget_id']
+    parent_episode = int(config['parent_checkpoint_episode'])
+    if (
+        catalog.get('budget_id') != budget_id
+        or catalog.get('parent_checkpoint_episode') != parent_episode
+    ):
+        raise ValueError('Parent catalog does not match sequential budget config')
     parent_index = {
         (item['order_id'], int(item['training_seed'])): item
         for item in catalog.get('parents', [])
@@ -23,9 +30,11 @@ def build_formal_plan(parent_catalog_path, output_path,
             if parent is None:
                 raise ValueError(f'Missing parent for {order_id} seed {seed}')
             for policy in FORMAL_POLICIES:
-                logical_run_id = f'plan34_{order_id}_seed{seed}_{policy}'
+                logical_run_id = f'plan34_{budget_id}_{order_id}_seed{seed}_{policy}'
                 children.append({
                     'logical_run_id': logical_run_id,
+                    'budget_id': budget_id,
+                    'parent_checkpoint_episode': parent_episode,
                     'order_id': order_id,
                     'training_seed': seed,
                     'policy': policy,
@@ -41,6 +50,8 @@ def build_formal_plan(parent_catalog_path, output_path,
                 })
     payload = {
         'schema_version': PLAN_SCHEMA_VERSION,
+        'budget_id': budget_id,
+        'parent_checkpoint_episode': parent_episode,
         'mode': 'formal',
         'launch_authorized': False,
         'child_count': len(children),
@@ -67,6 +78,26 @@ def validate_formal_plan(path):
     children = plan.get('children', [])
     if len(children) != 60 or plan.get('child_count') != 60:
         raise ValueError('Formal plan must contain exactly 60 children')
+    budget_id = plan.get('budget_id')
+    parent_episode = plan.get('parent_checkpoint_episode')
+    expected_stages = {
+        'b400': [400, 100, 100, 100],
+        'b100': [100, 100, 100, 100],
+    }.get(budget_id)
+    if expected_stages is None or parent_episode != expected_stages[0]:
+        raise ValueError('Formal plan budget/checkpoint identity mismatch')
+    for child in children:
+        expected_id = (
+            f'plan34_{budget_id}_{child["order_id"]}_seed'
+            f'{child["training_seed"]}_{child["policy"]}'
+        )
+        if (
+            child.get('logical_run_id') != expected_id
+            or child.get('budget_id') != budget_id
+            or child.get('parent_checkpoint_episode') != parent_episode
+            or child.get('stage_episodes') != expected_stages
+        ):
+            raise ValueError('Formal child budget identity is inconsistent')
     identities = {
         (child['order_id'], int(child['training_seed']), child['policy'])
         for child in children
@@ -90,9 +121,16 @@ def validate_formal_plan(path):
 def build_pilot_plan(parent_catalog_path, output_path, later_stage_episodes=15,
                      config_path='configs/sequential/plan34.yml'):
     config = load_sequential_config(config_path)
+    budget_id = config['budget_id']
+    parent_episode = int(config['parent_checkpoint_episode'])
     if int(later_stage_episodes) <= 0:
         raise ValueError('Pilot stage episodes must be positive')
     catalog = read_json(parent_catalog_path)
+    if (
+        catalog.get('budget_id') != budget_id
+        or catalog.get('parent_checkpoint_episode') != parent_episode
+    ):
+        raise ValueError('Parent catalog does not match pilot budget config')
     parent = next(
         item for item in catalog['parents']
         if item['order_id'] == 'O1' and int(item['training_seed']) == 0
@@ -106,12 +144,14 @@ def build_pilot_plan(parent_catalog_path, output_path, later_stage_episodes=15,
     for policy in FORMAL_POLICIES:
         for variant in ('control', 'fault'):
             children.append({
-                'logical_run_id': f'pilot_O1_seed0_{policy}_{variant}',
+                'logical_run_id': f'pilot_{budget_id}_O1_seed0_{policy}_{variant}',
+                'budget_id': budget_id,
+                'parent_checkpoint_episode': parent_episode,
                 'order_id': 'O1', 'training_seed': 0,
                 'policy': policy, 'variant': variant,
                 'fault_point': fault_points[policy] if variant == 'fault' else None,
                 'networks': list(config['orders']['O1']),
-                'stage_episodes': [400] + [int(later_stage_episodes)] * 3,
+                'stage_episodes': [parent_episode] + [int(later_stage_episodes)] * 3,
                 'parent_import_manifest': parent['import_manifest_path'],
                 'parent_checkpoint': parent['checkpoint_path'],
                 'parent_checkpoint_file_sha256': parent['checkpoint_file_sha256'],
@@ -122,6 +162,8 @@ def build_pilot_plan(parent_catalog_path, output_path, later_stage_episodes=15,
             })
     payload = {
         'schema_version': PLAN_SCHEMA_VERSION,
+        'budget_id': budget_id,
+        'parent_checkpoint_episode': parent_episode,
         'mode': 'pilot', 'launch_authorized': True,
         'child_count': 6,
         'orders': {'O1': config['orders']['O1']},

@@ -20,10 +20,7 @@ from .io import atomic_json, read_json, sha256_file
 
 
 PARENT_SCHEMA_VERSION = 1
-EXPECTED_PARENT_EPISODE = 400
-EXPECTED_GLOBAL_DECISIONS = 144000
-EXPECTED_GRADIENT_UPDATES = 143000
-EXPECTED_TARGET_UPDATES = 14300
+PLAN1_FORMAL_EPISODES = 400
 EXPECTED_REPLAY_CAPACITY = 5000
 EXPECTED_REPLAY_SIZE = 5000
 LEGACY_KEY = re.compile(r'^(?P<episode>\d+)_(?P<decision>\d+)_(?P<agent>.+)$')
@@ -72,10 +69,10 @@ def read_parent_whitelist(path):
     return sources
 
 
-def _checkpoint_path(run_path):
+def _checkpoint_path(run_path, checkpoint_episode):
     return os.path.join(
         run_path, 'checkpoints', 'resumable',
-        f'episode_{EXPECTED_PARENT_EPISODE:04d}.pt',
+        f'episode_{checkpoint_episode:04d}.pt',
     )
 
 
@@ -168,13 +165,16 @@ def _validate_frozen_config(run_path, source, checkpoint, source_validation):
         'lane_feature_count': 8,
     }
 
-def validate_parent_source(source, require_plan1_formal=True):
+def validate_parent_source(source, checkpoint_episode=400, require_plan1_formal=True):
+    checkpoint_episode = int(checkpoint_episode)
+    if checkpoint_episode not in (100, 400):
+        raise ValueError(f'Unsupported parent checkpoint episode: {checkpoint_episode}')
     source_validation = _validate_source_run(
         source.run_path, source.network, source.training_seed,
-        EXPECTED_PARENT_EPISODE,
+        PLAN1_FORMAL_EPISODES,
         require_plan1_formal=require_plan1_formal,
     )
-    checkpoint_path = _checkpoint_path(source.run_path)
+    checkpoint_path = _checkpoint_path(source.run_path, checkpoint_episode)
     if not os.path.isfile(checkpoint_path):
         raise FileNotFoundError(f'Missing parent checkpoint: {checkpoint_path}')
     try:
@@ -192,13 +192,18 @@ def validate_parent_source(source, require_plan1_formal=True):
         raise ValueError(f'{checkpoint_path}: missing fields {missing}')
     if checkpoint['schema_version'] != 1 or checkpoint['checkpoint_type'] != 'resumable':
         raise ValueError(f'{checkpoint_path}: not a Plan 1 resumable checkpoint')
-    if checkpoint['episode'] != EXPECTED_PARENT_EPISODE:
-        raise ValueError(f'{checkpoint_path}: parent episode is not 400')
+    if checkpoint['episode'] != checkpoint_episode:
+        raise ValueError(
+            f'{checkpoint_path}: parent episode is not {checkpoint_episode}'
+        )
     counters = checkpoint['training_counters']
+    expected_global_decisions = checkpoint_episode * 360
+    expected_gradient_updates = expected_global_decisions - 1000
+    expected_target_updates = expected_gradient_updates // 10
     expected_counters = {
-        'global_decision_step': EXPECTED_GLOBAL_DECISIONS,
-        'gradient_updates': EXPECTED_GRADIENT_UPDATES,
-        'target_updates': EXPECTED_TARGET_UPDATES,
+        'global_decision_step': expected_global_decisions,
+        'gradient_updates': expected_gradient_updates,
+        'target_updates': expected_target_updates,
     }
     for key, expected in expected_counters.items():
         if checkpoint.get(key, counters.get(key)) != expected or counters.get(key) != expected:
@@ -224,10 +229,10 @@ def validate_parent_source(source, require_plan1_formal=True):
         raise ValueError(f'{checkpoint_path}: optimizer state is incomplete')
     replay = convert_parent_replay(
         replay_state['items'], source.network,
-        EXPECTED_GLOBAL_DECISIONS, EXPECTED_REPLAY_CAPACITY,
+        expected_global_decisions, EXPECTED_REPLAY_CAPACITY,
     )
     scheduler = TargetUpdateScheduler.from_plan1_parent(
-        EXPECTED_GRADIENT_UPDATES, EXPECTED_TARGET_UPDATES, 10,
+        expected_gradient_updates, expected_target_updates, 10,
     )
     dimensions = _validate_frozen_config(
         source.run_path, source, checkpoint, source_validation,
@@ -262,11 +267,11 @@ def validate_parent_source(source, require_plan1_formal=True):
         'training_seed': source.training_seed,
         'checkpoint_path': checkpoint_path,
         'checkpoint_file_sha256': sha256_file(checkpoint_path),
-        'checkpoint_episode': EXPECTED_PARENT_EPISODE,
+        'checkpoint_episode': checkpoint_episode,
         'epsilon': float(agent['epsilon']),
-        'global_decision_step': EXPECTED_GLOBAL_DECISIONS,
-        'gradient_updates': EXPECTED_GRADIENT_UPDATES,
-        'target_updates': EXPECTED_TARGET_UPDATES,
+        'global_decision_step': expected_global_decisions,
+        'gradient_updates': expected_gradient_updates,
+        'target_updates': expected_target_updates,
         'next_target_sync_update': scheduler.next_update,
         'replay_size': len(replay.records),
         'replay_capacity': replay.capacity,
@@ -304,8 +309,12 @@ def validate_environment_compatibility(records):
 
 def import_parents(whitelist_path, output_dir, config_path='configs/sequential/plan34.yml'):
     config = load_sequential_config(config_path)
+    checkpoint_episode = int(config['parent_checkpoint_episode'])
     sources = read_parent_whitelist(whitelist_path)
-    records = [validate_parent_source(source) for source in sources]
+    records = [
+        validate_parent_source(source, checkpoint_episode=checkpoint_episode)
+        for source in sources
+    ]
     shared_environment_digest = validate_environment_compatibility(records)
     first_network_to_order = {
         networks[0]: order_id for order_id, networks in config['orders'].items()
@@ -329,6 +338,8 @@ def import_parents(whitelist_path, output_dir, config_path='configs/sequential/p
     catalog_path = os.path.join(output_dir, 'parent_catalog.json')
     atomic_json(catalog_path, {
         'schema_version': PARENT_SCHEMA_VERSION,
+        'budget_id': config['budget_id'],
+        'parent_checkpoint_episode': checkpoint_episode,
         'whitelist_path': os.path.abspath(whitelist_path),
         'parent_count': len(imported),
         'shared_environment_signature_digest': shared_environment_digest,
@@ -336,7 +347,7 @@ def import_parents(whitelist_path, output_dir, config_path='configs/sequential/p
             key: record[key] for key in (
                 'order_id', 'network', 'training_seed', 'source_run_path',
                 'checkpoint_path', 'checkpoint_file_sha256',
-                'import_manifest_path', 'digests',
+                'checkpoint_episode', 'import_manifest_path', 'digests',
             )
         } for record in imported],
     })
@@ -348,6 +359,13 @@ def validate_parent_catalog(path, revalidate_sources=True):
     parents = catalog.get('parents', [])
     if catalog.get('schema_version') != PARENT_SCHEMA_VERSION or len(parents) != 20:
         raise ValueError('Parent catalog must contain exactly 20 schema-v1 parents')
+    budget_id = catalog.get('budget_id')
+    checkpoint_episode = catalog.get('parent_checkpoint_episode')
+    expected_budget = f'b{checkpoint_episode}'
+    if budget_id != expected_budget or checkpoint_episode not in (100, 400):
+        raise ValueError('Parent catalog budget/checkpoint identity mismatch')
+    if any(int(parent.get('checkpoint_episode', -1)) != checkpoint_episode for parent in parents):
+        raise ValueError('Parent catalog contains a mismatched checkpoint episode')
     identities = {(p['order_id'], int(p['training_seed'])) for p in parents}
     expected = {(f'O{order}', seed) for order in range(1, 5) for seed in range(5)}
     if identities != expected:
@@ -361,7 +379,7 @@ def validate_parent_catalog(path, revalidate_sources=True):
             fresh = validate_parent_source(ParentSource(
                 parent['source_run_path'], parent['network'],
                 int(parent['training_seed']),
-            ))
+            ), checkpoint_episode=checkpoint_episode)
             for key in ('checkpoint_file_sha256', 'digests'):
                 if fresh[key] != manifest[key] or fresh[key] != parent[key]:
                     raise ValueError(
@@ -369,5 +387,6 @@ def validate_parent_catalog(path, revalidate_sources=True):
                     )
     return {
         'valid': True, 'parent_count': len(parents),
+        'budget_id': budget_id, 'parent_checkpoint_episode': checkpoint_episode,
         'shared_environment_signature_digest': shared,
     }

@@ -18,6 +18,20 @@ class PlotProfile:
 
 
 PROFILES = {
+    "sequential_frozen": PlotProfile(
+        name="sequential_frozen", network_field="network",
+        algorithm_field="agent", seed_field="training_seed",
+        progress_field="simulation_time_seconds",
+        progress_label="Simulation time (s)",
+        algorithm_order=(
+            "o1_clear", "o1_fifo", "o1_fifo_matched_wait",
+            "o2_clear", "o2_fifo", "o2_fifo_matched_wait",
+            "o3_clear", "o3_fifo", "o3_fifo_matched_wait",
+            "o4_clear", "o4_fifo", "o4_fifo_matched_wait",
+            "dqn", "maxpressure", "fixedtime",
+        ),
+        network_order=("sumohz1x1_config3",),
+    ),
     "plan1": PlotProfile(
         name="plan1",
         network_field="network",

@@ -37,8 +37,11 @@ def _trajectory_records(path):
             'global_decision_step', 'state', 'phase', 'action', 'reward',
             'next_state', 'next_phase', 'terminated', 'truncated',
         )
+        # Each compressed NPZ member is an independent stream. Materialize
+        # every field once instead of repeatedly decompressing it per record.
+        arrays = {field: shard[field] for field in fields}
         for index in range(count):
-            record = {field: shard[field][index] for field in fields}
+            record = {field: arrays[field][index] for field in fields}
             # The trainer stores reward as a zero-dimensional ndarray.  NPZ
             # indexing returns its scalar, so restore the canonical type.
             record['reward'] = np.array(record['reward'], copy=True)

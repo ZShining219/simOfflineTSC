@@ -1,5 +1,6 @@
 import json
 import os
+from concurrent.futures import ProcessPoolExecutor
 
 import numpy as np
 
@@ -15,6 +16,16 @@ def normalized_auc(travel_times, baseline, horizon=None):
     if len(values) != horizon + 1 or horizon <= 0 or baseline <= 0:
         raise ValueError('AUC series, horizon, or baseline is invalid')
     return float(np.trapz(values / float(baseline), dx=1.0) / horizon)
+
+
+def raw_auc(values, horizon=None):
+    values = np.asarray(values, dtype=float)
+    if values.ndim != 1 or len(values) < 2:
+        raise ValueError('AUC requires a one-dimensional local 0..N series')
+    horizon = len(values) - 1 if horizon is None else int(horizon)
+    if len(values) != horizon + 1 or horizon <= 0:
+        raise ValueError('AUC series or horizon is invalid')
+    return float(np.trapz(values, dx=1.0) / horizon)
 
 
 def exact_sign_flip_test(paired_differences):
@@ -164,6 +175,7 @@ def summarize_run(validated, baselines):
     child = validated['child_manifest']
     cells = validated['evaluation_cells']
     stage_summaries = []
+    adaptation_curves = []
     own_stage_end = {}
     for stage in range(1, len(child['networks']) + 1):
         budget = int(child['stage_episodes'][stage - 1])
@@ -173,9 +185,31 @@ def summarize_run(validated, baselines):
                 cells[(1, budget, network)]['summary']['travel_time']
             )
             continue
-        series = [float(cells[(stage, local, network)]['summary']['travel_time'])
-                  for local in range(0, budget + 1)]
+        metric_names = (
+            'travel_time', 'delay', 'real_delay', 'queue', 'throughput',
+            'reward_mean',
+        )
+        metric_series = {
+            metric: [
+                float(cells[(stage, local, network)]['summary'][metric])
+                for local in range(0, budget + 1)
+            ]
+            for metric in metric_names
+        }
+        series = metric_series['travel_time']
         baseline = baselines[network]
+        for local_episode in range(0, budget + 1):
+            adaptation_curves.append({
+                'stage_index': stage, 'network': network,
+                'local_episode': local_episode,
+                'normalized_travel_time': (
+                    metric_series['travel_time'][local_episode] / baseline
+                ),
+                **{
+                    metric: values[local_episode]
+                    for metric, values in metric_series.items()
+                },
+            })
         own_stage_end[network] = series[-1]
         stage_summaries.append({
             'stage_index': stage, 'network': network, 'horizon': budget,
@@ -185,6 +219,13 @@ def summarize_run(validated, baselines):
                 series, 1.1 * baseline, length=5
             ),
             'final_normalized': series[-1] / baseline,
+            'metrics': {
+                metric: {
+                    'auc_0_horizon': raw_auc(values, budget),
+                    'zero_shot': values[0], 'final': values[-1],
+                }
+                for metric, values in metric_series.items()
+            },
         })
     final_stage = len(child['networks'])
     final_budget = int(child['stage_episodes'][-1])
@@ -195,6 +236,32 @@ def summarize_run(validated, baselines):
             'summary']['travel_time'])
         retention[network] = final_value / baselines[network]
         forgetting[network] = final_value - own_stage_end[network]
+    stage_scene_evaluations = []
+    for stage in range(1, final_stage + 1):
+        stage_budget = int(child['stage_episodes'][stage - 1])
+        eval_local = stage_budget
+        for evaluation_network in child['networks']:
+            cell = cells[(stage, eval_local, evaluation_network)]
+            value = float(cell['summary']['travel_time'])
+            introduced_stage = next(
+                index for index, network in enumerate(child['networks'], start=1)
+                if network == evaluation_network
+            )
+            own_end = own_stage_end.get(evaluation_network)
+            stage_scene_evaluations.append({
+                'stage_index': stage,
+                'stage_local_episode': eval_local,
+                'training_network': child['networks'][stage - 1],
+                'evaluation_network': evaluation_network,
+                'evaluation_scene_introduced_stage': introduced_stage,
+                'travel_time': value,
+                'plan1_reference_travel_time': baselines[evaluation_network],
+                'final_retention_normalized': value / baselines[evaluation_network],
+                'forgetting_travel_time': (
+                    value - own_end if own_end is not None and stage > introduced_stage
+                    else 0.0
+                ),
+            })
     diagnostic_windows = []
     replay_diagnostics = []
     for key, operation in validated['state']['completed_operations'].items():
@@ -204,6 +271,7 @@ def summarize_run(validated, baselines):
             replay_diagnostics.append({
                 key: diagnostic.get(key) for key in (
                     'stage_index', 'local_episode', 'global_episode',
+                    'current_network',
                     'replay_count_by_scene', 'replay_ratio_by_scene',
                     'transitions_written_by_scene', 'samples_drawn_by_scene',
                     'current_sample_fraction', 'historical_sample_fraction',
@@ -230,12 +298,16 @@ def summarize_run(validated, baselines):
         'logical_run_id': validated['logical_run_id'],
         'order_id': child['order_id'], 'training_seed': child['training_seed'],
         'policy': child['policy'],
+        'budget_id': child.get('budget_id'),
+        'parent_checkpoint_episode': child.get('parent_checkpoint_episode'),
         'primary_normalized_auc': float(np.mean([
             stage['normalized_auc'] for stage in stage_summaries
         ])),
         'stages': stage_summaries,
+        'adaptation_curves': adaptation_curves,
         'stage_end_forgetting_travel_time': forgetting,
         'final_retention_normalized': retention,
+        'stage_scene_evaluations': stage_scene_evaluations,
         'secondary_metrics': secondary,
         'replay_diagnostics': sorted(
             replay_diagnostics,
@@ -286,18 +358,58 @@ def _comparison(runs_by_key, comparator, seed, resamples, inferential):
     return result
 
 
-def analyze_experiment(manifest_path, output_root, parent_catalog_path, output_path):
+def _select_analysis_children(plan, selected_orders=None):
+    children = list(plan['children'])
+    if selected_orders is None:
+        return children, sorted({child['order_id'] for child in children})
+    requested = list(dict.fromkeys(selected_orders))
+    known = {child['order_id'] for child in children}
+    unknown = sorted(set(requested) - known)
+    if unknown:
+        raise ValueError(f'Unknown selected order(s): {unknown}')
+    selected = [child for child in children if child['order_id'] in requested]
+    expected = {
+        (order, int(seed), policy)
+        for order in requested
+        for seed in plan['training_seeds']
+        for policy in plan['policies']
+    }
+    actual = {
+        (child['order_id'], int(child['training_seed']), child['policy'])
+        for child in selected
+    }
+    if actual != expected:
+        raise ValueError(
+            'Selected-order matrix is incomplete; '
+            f'missing={sorted(expected - actual)}, extra={sorted(actual - expected)}'
+        )
+    return selected, requested
+
+
+def _validate_and_summarize(arguments):
+    logical_root, baselines = arguments
+    return summarize_run(validate_attempt(logical_root), baselines)
+
+
+def analyze_experiment(
+    manifest_path, output_root, parent_catalog_path, output_path,
+    selected_orders=None, validation_workers=1,
+):
     plan = read_json(manifest_path)
+    children, included_orders = _select_analysis_children(plan, selected_orders)
     baselines = plan1_final_means(parent_catalog_path)
-    validated_runs = []
+    logical_roots = [
+        os.path.join(output_root, child['logical_run_id']) for child in children
+        if not (plan['mode'] == 'pilot' and child.get('variant') == 'fault')
+    ]
     pair_checks = []
-    for child in plan['children']:
-        if plan['mode'] == 'pilot' and child.get('variant') == 'fault':
-            continue
-        logical_root = os.path.join(output_root, child['logical_run_id'])
-        validated = validate_attempt(logical_root)
-        validated_runs.append(validated)
-        if plan['mode'] == 'pilot':
+    if plan['mode'] == 'pilot':
+        validated_runs = [validate_attempt(path) for path in logical_roots]
+        summaries = [summarize_run(run, baselines) for run in validated_runs]
+        for child in children:
+            if child.get('variant') == 'fault':
+                continue
+            logical_root = os.path.join(output_root, child['logical_run_id'])
             fault_id = child['logical_run_id'].replace('_control', '_fault')
             pair_checks.append({
                 'policy': child['policy'],
@@ -305,14 +417,29 @@ def analyze_experiment(manifest_path, output_root, parent_catalog_path, output_p
                     logical_root, os.path.join(output_root, fault_id)
                 ),
             })
-    summaries = [summarize_run(run, baselines) for run in validated_runs]
+    else:
+        arguments = [(path, baselines) for path in logical_roots]
+        if int(validation_workers) > 1:
+            with ProcessPoolExecutor(max_workers=int(validation_workers)) as executor:
+                summaries = list(executor.map(_validate_and_summarize, arguments))
+        else:
+            summaries = [_validate_and_summarize(item) for item in arguments]
     keyed = {(run['order_id'], int(run['training_seed']), run['policy']): run
              for run in summaries}
     analysis_config = plan['analysis']
-    inferential = plan['mode'] == 'formal'
-    if inferential and len({(run['order_id'], run['training_seed'])
-                            for run in summaries}) != 20:
-        raise ValueError('Formal analysis requires exactly 20 paired units')
+    paired_unit_count = len({
+        (run['order_id'], int(run['training_seed'])) for run in summaries
+    })
+    expected_formal = {
+        (order, int(seed), policy)
+        for order in plan['orders']
+        for seed in plan['training_seeds']
+        for policy in plan['policies']
+    }
+    full_formal_matrix = (
+        plan['mode'] == 'formal' and set(keyed) == expected_formal
+    )
+    inferential = full_formal_matrix
     comparisons = [
         _comparison(keyed, 'fifo', analysis_config['seed'],
                     analysis_config['resamples'], inferential),
@@ -325,16 +452,50 @@ def analyze_experiment(manifest_path, output_root, parent_catalog_path, output_p
             comparison['sign_flip']['holm_adjusted_p_value'] = value
     uniformity = {}
     for run in summaries:
-        uniformity[run['logical_run_id']] = replay_uniformity_envelope(
-            run.pop('replay_sampling_windows'), analysis_config['seed'],
-            analysis_config['resamples'], level=0.99,
+        windows = run.pop('replay_sampling_windows')
+        uniformity[run['logical_run_id']] = (
+            replay_uniformity_envelope(
+                windows, analysis_config['seed'],
+                analysis_config['resamples'], level=0.99,
+            ) if inferential else {
+                'available': False,
+                'reason': 'deferred_until_complete_four_order_formal_matrix',
+                'window_count': len(windows),
+            }
         )
     report = {
-        'schema_version': 1, 'mode': plan['mode'],
+        'schema_version': 2,
+        'mode': (
+            plan['mode'] if full_formal_matrix or plan['mode'] != 'formal'
+            else 'formal_partial'
+        ),
+        'source_mode': plan['mode'],
+        'analysis_scope': {
+            'included_orders': included_orders,
+            'planned_orders': sorted(plan['orders']),
+            'included_logical_runs': len(summaries),
+            'planned_logical_runs': len(plan['children']),
+            'paired_unit_count': paired_unit_count,
+            'complete_selected_order_matrix': True,
+            'complete_formal_matrix': full_formal_matrix,
+        },
+        'budget_id': plan.get('budget_id'),
+        'parent_checkpoint_episode': plan.get('parent_checkpoint_episode'),
+        'primary_metric': 'normalized_travel_time_auc_0_100',
+        'normalization_protocol': {
+            'reference': 'plan1_formal_episode_400_final_evaluation_five_seed_mean',
+            'shared_across_budgets': True,
+            'scene_denominators': baselines,
+        },
+        'analysis_seed': analysis_config['seed'],
         'formal_inference_performed': inferential,
         'pilot_notice': (
-            None if inferential else
-            'Pilot results are engineering diagnostics only; no formal significance conclusion.'
+            None if inferential else (
+                'Partial formal-batch result: descriptive estimates only; '
+                'no full four-order formal significance conclusion.'
+                if plan['mode'] == 'formal' else
+                'Pilot results are engineering diagnostics only; no formal significance conclusion.'
+            )
         ),
         'plan1_episode400_five_seed_means': baselines,
         'runs': summaries, 'comparisons': comparisons,
@@ -342,3 +503,58 @@ def analyze_experiment(manifest_path, output_root, parent_catalog_path, output_p
     }
     atomic_json(output_path, report)
     return report
+
+
+def analyze_cross_budget(b100_report_path, b400_report_path, output_path):
+    reports = {'b100': read_json(b100_report_path), 'b400': read_json(b400_report_path)}
+    protocols = [report.get('normalization_protocol') for report in reports.values()]
+    if protocols[0] != protocols[1] or not protocols[0].get('shared_across_budgets'):
+        raise ValueError('Cross-budget normalization protocols are not identical')
+    indexes = {budget: {
+        (run['order_id'], int(run['training_seed']), run['policy']): run
+        for run in report['runs']
+    } for budget, report in reports.items()}
+    expected = {(f'O{o}', s, p) for o in range(1, 5) for s in range(5)
+                for p in ('clear', 'fifo', 'fifo_matched_wait')}
+    if any(report.get('budget_id') != budget or set(indexes[budget]) != expected
+           for budget, report in reports.items()):
+        raise ValueError('Cross-budget formal report matrix is invalid')
+    seed, resamples = int(reports['b100']['analysis_seed']), 10000
+    policy_effects = {}
+    for offset, policy in enumerate(('clear', 'fifo', 'fifo_matched_wait')):
+        differences = [indexes['b100'][key]['primary_normalized_auc']
+                       - indexes['b400'][key]['primary_normalized_auc']
+                       for key in sorted(expected) if key[2] == policy]
+        policy_effects[policy] = {
+            'contrast': 'b100_minus_b400', 'paired_differences': differences,
+            'bootstrap': paired_bootstrap(differences, seed + offset, resamples),
+            'sign_flip': exact_sign_flip_test(differences),
+        }
+    interactions = {}
+    for offset, comparator in enumerate(('fifo', 'fifo_matched_wait'), start=10):
+        differences, units = [], []
+        for order in range(1, 5):
+            for training_seed in range(5):
+                unit = (f'O{order}', training_seed)
+                within = {budget: indexes[budget][(*unit, 'clear')][
+                    'primary_normalized_auc'] - indexes[budget][(*unit, comparator)][
+                    'primary_normalized_auc'] for budget in reports}
+                differences.append(within['b100'] - within['b400'])
+                units.append({'order_id': unit[0], 'training_seed': unit[1]})
+        interactions[f'budget_x_{comparator}'] = {
+            'contrast': f'(clear_minus_{comparator})_b100_minus_b400',
+            'paired_units': units, 'paired_differences': differences,
+            'bootstrap': paired_bootstrap(differences, seed + offset, resamples),
+            'sign_flip': exact_sign_flip_test(differences),
+        }
+    payload = {
+        'schema_version': 1, 'budgets': ['b100', 'b400'],
+        'primary_metric': 'normalized_travel_time_auc_0_100',
+        'normalization_protocol': protocols[0],
+        'training_seed_interpretation': 'agent-side randomness; SUMO fixed_default',
+        'within_budget_effects': {b: r['comparisons'] for b, r in reports.items()},
+        'cross_budget_policy_effects': policy_effects,
+        'budget_replay_policy_interactions': interactions,
+    }
+    atomic_json(output_path, payload)
+    return payload

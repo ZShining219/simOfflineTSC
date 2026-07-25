@@ -198,6 +198,11 @@ class SequentialChildRunner:
         if self.child.get('condition') in {'M0', 'M1', 'M2', 'M3'} and not self.resume_path:
             # Hybrid conditions deliberately start Stage 1 with an empty pool;
             # the parent checkpoint supplies model/optimizer/RNG only.
+            if self.child.get('condition') == 'M1':
+                # Seq-FIFO is a current-run baseline, not Parent Replay
+                # Continuity.  Clear the imported parent replay once, then
+                # preserve it across subsequent stage boundaries.
+                self.agent.replay.begin_stage('clear')
             self.agent.begin_stage(1, self.networks[0], self.policy)
 
     def _decision_progress_hook(self, progress):

@@ -8,6 +8,7 @@ import numpy as np
 import torch
 
 from .agent import SequentialDQNAgent
+from .hybrid_agent import HybridDQNAgent
 from .checkpoint import (
     atomic_torch_save, build_full_checkpoint, load_full_checkpoint,
     save_stage_checkpoint,
@@ -117,6 +118,7 @@ class SequentialChildRunner:
             'networks': self.networks,
             'training_seed': self.training_seed,
             'policy': self.policy,
+            'condition': self.child.get('condition'),
             'budget_id': self.child['budget_id'],
             'parent_checkpoint_episode': self.child['parent_checkpoint_episode'],
             'stage_episodes': self.stage_episodes,
@@ -164,7 +166,8 @@ class SequentialChildRunner:
             stage_index = min(stage_index + 1, len(self.networks))
         network = self.networks[stage_index - 1]
         self.world = self._create_world(network)
-        self.agent = SequentialDQNAgent.from_parent(
+        agent_cls = HybridDQNAgent if self.policy == 'hybrid' else SequentialDQNAgent
+        self.agent = agent_cls.from_parent(
             self.world, 0, self.model_config, self.trainer_config,
             self.parent_manifest,
         )

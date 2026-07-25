@@ -107,7 +107,8 @@ class HybridReplayPool:
             result.append(self.rng.choice(records))
         return result
 
-    def sample(self, batch_size, strategy='stage_balanced_episode_stratified', online_ratio=None):
+    def sample(self, batch_size, strategy='stage_balanced_episode_stratified',
+               online_ratio=None, current_global_step=None):
         batch_size = int(batch_size)
         if batch_size <= 0:
             raise ValueError('batch_size must be positive')
@@ -126,7 +127,9 @@ class HybridReplayPool:
         records += self._sample_historical(historical_count, strategy)
         self.rng.shuffle(records)
         self.sample_count += len(records)
-        ages = [self._age(record) for record in records]
+        reference_step = (self.sample_count if current_global_step is None
+                          else int(current_global_step))
+        ages = [self._age(record, reference_step) for record in records]
         online_ids = {id(r) for r in self.online}
         by_stage = Counter(
             ('online' if id(r) in online_ids else f'historical_stage_{r.metadata.stage_index}')
@@ -143,9 +146,11 @@ class HybridReplayPool:
         }
         return records
 
-    def _age(self, record):
+    def _age(self, record, reference_step=None):
         written = int(record.metadata.written_global_step)
-        return max(0, int(self.sample_count) - written)
+        if reference_step is None:
+            reference_step = self.sample_count
+        return max(0, int(reference_step) - written)
 
     def state_dict(self):
         return {

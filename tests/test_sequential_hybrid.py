@@ -1,11 +1,15 @@
 import random
 import unittest
+import tempfile
+import json
+import os
 
 import numpy as np
 
 from sequential.core import ReplayMetadata, ReplayRecord, TrainingPayload
 from sequential.hybrid import HybridReplayPool
 from sequential.evaluation_matrix import validate_lower_triangle
+from sequential.manifest import build_hybrid_plan, validate_hybrid_plan
 
 
 def record(stage, episode, step):
@@ -20,6 +24,25 @@ def record(stage, episode, step):
 
 
 class HybridReplayTests(unittest.TestCase):
+    def test_hybrid_plan_is_exact_b100_matrix(self):
+        catalog = {'budget_id': 'b100', 'parent_checkpoint_episode': 100, 'parents': []}
+        for order in range(1, 5):
+            for seed in range(5):
+                catalog['parents'].append({
+                    'order_id': f'O{order}', 'training_seed': seed,
+                    'import_manifest_path': f'/tmp/p-{order}-{seed}.json',
+                    'checkpoint_path': f'/tmp/p-{order}-{seed}.pt',
+                    'checkpoint_file_sha256': 'x' * 64, 'digests': {},
+                })
+        with tempfile.TemporaryDirectory() as directory:
+            catalog_path = os.path.join(directory, 'catalog.json')
+            plan_path = os.path.join(directory, 'plan.json')
+            with open(catalog_path, 'w', encoding='utf-8') as handle:
+                json.dump(catalog, handle)
+            plan = build_hybrid_plan(catalog_path, plan_path)
+            self.assertEqual(plan['child_count'], 20)
+            self.assertTrue(validate_hybrid_plan(plan_path)['valid'])
+
     def test_causal_freeze_and_stage_balanced_quota(self):
         pool = HybridReplayPool(100, online_ratio=0.5, rng=random.Random(3))
         pool.begin_stage(1)

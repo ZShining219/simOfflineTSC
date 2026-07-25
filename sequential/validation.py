@@ -137,10 +137,11 @@ def validate_attempt(path):
     if state['logical_run_id'] != child['logical_run_id']:
         raise ValueError('Logical run identity differs between state and child manifest')
     trajectories, evaluations, diagnostics = _operation_maps(state)
+    first_stage = 1 if child.get('condition') in {'M0', 'M1', 'M2', 'M3'} else 2
     expected_episodes = {
         (stage, local)
         for stage, budget in enumerate(child['stage_episodes'], start=1)
-        if stage > 1
+        if stage >= first_stage
         for local in range(1, int(budget) + 1)
     }
     if set(trajectories) != expected_episodes:
@@ -155,12 +156,16 @@ def validate_attempt(path):
             'stage_index': identity[0], 'local_episode': identity[1],
             'marker_path': marker_path, 'transition_count': len(digests),
         })
-    expected_evaluations = {
-        (1, int(child['stage_episodes'][0]), network)
-        for network in (child['networks'][:1]
-                        if child.get('condition') in {'M0', 'M1', 'M2', 'M3'}
-                        else child['networks'])
-    }
+    if child.get('condition') in {'M0', 'M1', 'M2', 'M3'}:
+        expected_evaluations = {
+            (1, local, child['networks'][0])
+            for local in range(1, int(child['stage_episodes'][0]) + 1)
+        }
+    else:
+        expected_evaluations = {
+            (1, int(child['stage_episodes'][0]), network)
+            for network in child['networks']
+        }
     for stage, budget in enumerate(child['stage_episodes'], start=1):
         if stage == 1:
             continue

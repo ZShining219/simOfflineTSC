@@ -157,7 +157,9 @@ def validate_attempt(path):
         })
     expected_evaluations = {
         (1, int(child['stage_episodes'][0]), network)
-        for network in child['networks']
+        for network in (child['networks'][:1]
+                        if child.get('condition') in {'M0', 'M1', 'M2', 'M3'}
+                        else child['networks'])
     }
     for stage, budget in enumerate(child['stage_episodes'], start=1):
         if stage == 1:
@@ -167,8 +169,13 @@ def validate_attempt(path):
             (stage, local, training_network)
             for local in range(0, int(budget) + 1)
         )
+        visible_networks = (
+            child['networks'][:stage]
+            if child.get('condition') in {'M0', 'M1', 'M2', 'M3'}
+            else child['networks']
+        )
         expected_evaluations.update(
-            (stage, int(budget), network) for network in child['networks']
+            (stage, int(budget), network) for network in visible_networks
         )
     if set(evaluations) != expected_evaluations:
         missing = sorted(expected_evaluations - set(evaluations))

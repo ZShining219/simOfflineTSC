@@ -80,7 +80,10 @@ class SequentialChildRunner:
         )
         self.journal = SequentialJournal(
             self.attempt_dir, self.logical_run_id, self.attempt_id,
-            initial_stage=1, initial_global_episode=self.stage_episodes[0],
+            initial_stage=1, initial_global_episode=(
+                0 if self.child.get('condition') in {'M0', 'M1', 'M2', 'M3'}
+                else self.stage_episodes[0]
+            ),
             resume_state_path=self.resume_state_path,
         )
         self.diagnostics = ReplayDiagnostics(
@@ -190,6 +193,10 @@ class SequentialChildRunner:
             decision_hook=self._decision_progress_hook,
             replay_diagnostics=self.diagnostics,
         )
+        if self.child.get('condition') in {'M0', 'M1', 'M2', 'M3'} and not self.resume_path:
+            # Hybrid conditions deliberately start Stage 1 with an empty pool;
+            # the parent checkpoint supplies model/optimizer/RNG only.
+            self.agent.begin_stage(1, self.networks[0], self.policy)
 
     def _decision_progress_hook(self, progress):
         if not (
@@ -334,7 +341,14 @@ class SequentialChildRunner:
             self.journal.transition(SequentialRunPhase.MATRIX_EVALUATION_IN_PROGRESS)
         training_network = self.networks[stage_index - 1]
         global_episode = self._stage_global_base(stage_index) + local_episode
-        for matrix_position, evaluation_network in enumerate(self.networks, start=1):
+        # CS-HR conditions use the causal lower triangle: future scenes are
+        # neither trained on nor evaluated before their stage is reached.
+        evaluation_networks = (
+            self.networks[:stage_index]
+            if self.child.get('condition') in {'M0', 'M1', 'M2', 'M3'}
+            else self.networks
+        )
+        for matrix_position, evaluation_network in enumerate(evaluation_networks, start=1):
             self._evaluate_cell(
                 stage_index, training_network, evaluation_network,
                 local_episode, global_episode,
@@ -344,7 +358,7 @@ class SequentialChildRunner:
                     'stage_index': stage_index,
                     'local_episode': local_episode,
                     'matrix_cells_complete': matrix_position,
-                    'matrix_cell_count': len(self.networks),
+                    'matrix_cell_count': len(evaluation_networks),
                 })
         if self.journal.phase == SequentialRunPhase.MATRIX_EVALUATION_IN_PROGRESS:
             self.journal.transition(SequentialRunPhase.MATRIX_EVALUATION_COMPLETE)
@@ -499,6 +513,7 @@ class SequentialChildRunner:
             self._reconcile_committed_episode()
         if (
             not self.resume_path
+            and self.child.get('condition') not in {'M0', 'M1', 'M2', 'M3'}
             and self.journal.phase == SequentialRunPhase.TRAINING
             and int(self.journal.state['stage_index']) == 1
         ):

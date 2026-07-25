@@ -13,6 +13,7 @@ class ReplayDiagnostics:
         self.sparse_interval = int(sparse_interval)
         self.transitions_written_by_scene = {}
         self.samples_drawn_by_scene = {}
+        self.samples_drawn_by_kind = {}
         self.sample_ages = []
         self.thresholds = {}
         self.previous_historical_ratio = None
@@ -31,6 +32,8 @@ class ReplayDiagnostics:
     def record_update(self, update, gradient_updates, replay_composition=None):
         for source in update['sample_sources']:
             self._increment(self.samples_drawn_by_scene, source)
+        for source_kind in update.get('sample_source_kinds', []):
+            self._increment(self.samples_drawn_by_kind, source_kind)
         self.sample_ages.extend(int(age) for age in update['sample_ages'])
         if replay_composition is not None:
             sample_counts = {}
@@ -73,6 +76,8 @@ class ReplayDiagnostics:
         ages = np.asarray(self.sample_ages, dtype=float)
         current_samples = self.samples_drawn_by_scene.get(agent.current_network, 0)
         total_samples = sum(self.samples_drawn_by_scene.values())
+        online_samples = self.samples_drawn_by_kind.get('online', 0)
+        kind_total = sum(self.samples_drawn_by_kind.values())
         self._record_replacement_thresholds(
             composition, agent.current_network,
             agent.counters.global_decision_step, global_episode,
@@ -89,11 +94,18 @@ class ReplayDiagnostics:
             'replay_ratio_by_scene': composition['ratio_by_scene'],
             'transitions_written_by_scene': dict(self.transitions_written_by_scene),
             'samples_drawn_by_scene': dict(self.samples_drawn_by_scene),
+            'samples_drawn_by_kind': dict(self.samples_drawn_by_kind),
             'current_sample_fraction': (
                 0.0 if not total_samples else current_samples / total_samples
             ),
             'historical_sample_fraction': (
                 0.0 if not total_samples else 1 - current_samples / total_samples
+            ),
+            'online_sample_fraction': (
+                0.0 if not kind_total else online_samples / kind_total
+            ),
+            'historical_sample_fraction_by_kind': (
+                0.0 if not kind_total else 1 - online_samples / kind_total
             ),
             'sample_age_mean': None if not len(ages) else float(np.mean(ages)),
             'sample_age_p50': None if not len(ages) else float(np.percentile(ages, 50)),
@@ -132,6 +144,7 @@ class ReplayDiagnostics:
             state['transitions_written_by_scene']
         )
         self.samples_drawn_by_scene = dict(state['samples_drawn_by_scene'])
+        self.samples_drawn_by_kind = dict(state.get('samples_drawn_by_kind', {}))
         self.sample_ages = list(state['sample_ages'])
         self.thresholds = dict(state['thresholds'])
         self.previous_historical_ratio = state['previous_historical_ratio']

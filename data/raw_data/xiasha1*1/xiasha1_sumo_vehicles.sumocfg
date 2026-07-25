@@ -1,0 +1,2 @@
+<?xml version='1.0' encoding='utf-8'?>
+<configuration><input><net-file value="xiasha1_sumo_signal.net.xml" /><route-files value="xiasha1_sumo_vehicles.rou.xml" /><additional-files value="xiasha1_sumo_signal.add.xml" /></input><time /></configuration>

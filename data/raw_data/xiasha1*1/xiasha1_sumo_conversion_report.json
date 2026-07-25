@@ -1,0 +1,16 @@
+{
+  "input": "/projects/simOfflineTSC/data/raw_data/xiasha1*1/原始数据/语义事件表(13min).csv",
+  "total_records": 520,
+  "valid_records": 355,
+  "skipped_records": 165,
+  "skip_reasons": {
+    "missing_entry_edge_and_entry_time": 47,
+    "missing_exit_edge": 43,
+    "missing_entry_edge_and_exit_edge_and_entry_time": 75
+  },
+  "shift_seconds": 6.52,
+  "flow_window_seconds": 60.0,
+  "controlled_connections": 16,
+  "phase_durations_total": 128,
+  "exit_time_usage": "statistics only; not used for departure"
+}

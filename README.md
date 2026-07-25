@@ -55,6 +55,15 @@
 | dataset/ | 数据集接口 |
 | docs/ | Plan、goal 及其他阶段性执行参考文件 |
 | tools/traffic_flow_profile/ | SUMO 单场景车流需求评估、标准度量计算与固定子图报告工具 |
+| tools/xiasha_sumo/ | xiasha1*1 语义事件到 SUMO 逐车、flow 和信号路网的转换工具 |
+
+Xiasha SUMO 转换最小示例（产物位于 `data/raw_data/xiasha1*1/`）：
+
+```bash
+/home/dev/miniforge3/envs/colight/bin/python -m tools.xiasha_sumo --all
+```
+
+逐车需求使用 `xiasha1_sumo_vehicles.rou.xml`，聚合需求使用名称不同的 `xiasha1_sumo_flows.rou.xml`；两者及信号路网、附加文件和 `.sumocfg` 均由工具生成。详细参数与信号规则见 [tools/xiasha_sumo/README.md](tools/xiasha_sumo/README.md)。
 
 ### docs 目录
 

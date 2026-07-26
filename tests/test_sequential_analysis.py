@@ -91,10 +91,14 @@ class SequentialAnalysisTests(unittest.TestCase):
                 'final_retention_mean_normalized': 1.1,
                 'stage_end_forgetting_mean_travel_time': 2.0,
             },
-            'replay_diagnostics': [{
-                'stage_index': 4, 'historical_sample_fraction': .875,
-                'historical_sample_fraction_by_kind': .5,
-            }],
+            'replay_diagnostics': [
+                {'stage_index': 1, 'local_episode': 1,
+                 'samples_drawn_by_kind': {'online': 100}},
+                {'stage_index': 2, 'local_episode': 1,
+                 'samples_drawn_by_kind': {'online': 150, 'historical': 50},
+                 'historical_sample_fraction': .875,
+                 'historical_sample_fraction_by_kind': .25},
+            ],
         }
         result = _replay_performance_association([run])
         self.assertEqual(

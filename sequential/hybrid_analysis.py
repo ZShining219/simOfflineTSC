@@ -213,20 +213,38 @@ def _replay_performance_association(summaries):
     for run in summaries:
         if run['condition'] not in {'M2', 'M3'}:
             continue
-        fractions = [
-            row.get('historical_sample_fraction_by_kind')
-            for row in run['replay_diagnostics']
-            if int(row.get('stage_index') or 0) > 1
-            and row.get('historical_sample_fraction_by_kind') is not None
-        ]
-        if not fractions:
+        previous = {}
+        historical_delta = 0
+        sample_delta = 0
+        episode_fractions = []
+        for diagnostic in sorted(
+                run['replay_diagnostics'],
+                key=lambda row: (int(row['stage_index']), int(row['local_episode']))):
+            cumulative = diagnostic.get('samples_drawn_by_kind') or {}
+            deltas = {
+                kind: int(count) - int(previous.get(kind, 0))
+                for kind, count in cumulative.items()
+            }
+            previous = dict(cumulative)
+            if int(diagnostic.get('stage_index') or 0) <= 1:
+                continue
+            total = sum(deltas.values())
+            if total <= 0:
+                continue
+            episode_historical = int(deltas.get('historical', 0))
+            historical_delta += episode_historical
+            sample_delta += total
+            episode_fractions.append(episode_historical / total)
+        if not sample_delta:
             continue
-        mean_fraction = float(np.mean(fractions))
+        mean_fraction = historical_delta / sample_delta
         rows.append({
             'logical_run_id': run['logical_run_id'],
             'condition': run['condition'], 'order_id': run['order_id'],
             'training_seed': int(run['training_seed']),
             'historical_sample_fraction_mean': mean_fraction,
+            'episode_fraction_mean_unweighted': float(np.mean(episode_fractions)),
+            'sample_count': sample_delta,
             'absolute_target_deviation': abs(mean_fraction - 0.5),
             'adaptation_auc': run['primary_normalized_auc'],
             'final_retention': run['secondary_metrics'][

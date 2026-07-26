@@ -1,10 +1,25 @@
 import unittest
 from unittest import mock
 
-from sequential.validation import validate_ha_attempt
+from sequential.validation import (
+    _validate_ha_visibility_networks, validate_ha_attempt,
+)
 
 
 class HAValidationTest(unittest.TestCase):
+    def test_p1f_visibility_accepts_archive_order_but_p1c_requires_prefix_order(self):
+        expected = ['n1', 'n4', 'n2', 'n3']
+        archive_order = ['n2', 'n1', 'n4', 'n3']
+        self.assertTrue(_validate_ha_visibility_networks(
+            'P1F', archive_order, expected,
+        ))
+        self.assertFalse(_validate_ha_visibility_networks(
+            'P1F', ['n1', 'n4', 'n2', 'n2'], expected,
+        ))
+        self.assertFalse(_validate_ha_visibility_networks(
+            'P1C', archive_order, expected,
+        ))
+
     def test_p1c_current_scene_offline_sample_is_rejected(self):
         child = {
             'protocol_id': 'ha_sodqn_b100_v1',

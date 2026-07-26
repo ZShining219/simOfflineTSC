@@ -22,6 +22,15 @@ def validate_hybrid_stage_visibility(pool, stage_index):
             'visible_historical_stages': sorted(visible)}
 
 
+def _validate_ha_visibility_networks(archive_mode, actual, expected):
+    """Validate causal order for P1C and set equality for full visibility."""
+    actual = list(actual)
+    expected = list(expected)
+    if archive_mode == 'P1C':
+        return actual == expected
+    return len(actual) == len(expected) and set(actual) == set(expected)
+
+
 TRAJECTORY_KEY = re.compile(r'^stage_(\d+):episode_(\d+):trajectory$')
 EVALUATION_KEY = re.compile(
     r'^evaluation:stage_(\d+):local_(\d+):(.+)$'
@@ -374,7 +383,11 @@ def validate_ha_attempt(path):
                 child['networks'][:stage - 1]
                 if archive_mode == 'P1C' else child['networks']
             )
-            if visibility_manifest['visibility']['visible_networks'] != expected_visible:
+            if not _validate_ha_visibility_networks(
+                archive_mode,
+                visibility_manifest['visibility']['visible_networks'],
+                expected_visible,
+            ):
                 raise ValueError('Persisted archive visibility manifest mismatch')
             if stage in owp_digests:
                 owp_path = os.path.join(

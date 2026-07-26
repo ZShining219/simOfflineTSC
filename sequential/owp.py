@@ -227,7 +227,10 @@ def build_historical_sampler(view, method, capacity, rng, alignment_observations
                 std[std == 0] = 1.0
                 target = (np.mean(online, axis=0) - mean) / std
                 alignment_distances = np.linalg.norm((features - mean) / std - target, axis=1)
-                remaining = [row for row in range(len(view)) if row not in set(selected)]
+                selected_set = set(selected)
+                remaining = [
+                    row for row in range(len(view)) if row not in selected_set
+                ]
                 remaining.sort(key=lambda row: (
                     float(alignment_distances[row]), str(table['transition_id'][row]),
                 ))

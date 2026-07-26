@@ -735,6 +735,13 @@ class OfflineBatch:
     terminated: np.ndarray
     truncated: np.ndarray
     source_network: str
+    indices: np.ndarray = None
+    transition_ids: np.ndarray = None
+    behavior_training_seeds: np.ndarray = None
+    episode_ids: np.ndarray = None
+    decision_steps: np.ndarray = None
+    run_ids: np.ndarray = None
+    shard_sha256: np.ndarray = None
 
 
 class OfflineTrajectoryDataset:
@@ -785,6 +792,9 @@ class OfflineTrajectoryDataset:
             decision_steps = []
             global_steps = []
             behavior_training_seeds = []
+            run_ids = []
+            shard_sha256 = []
+            transition_ids = []
             for entry in entries:
                 with np.load(entry['resolved_shard_path'], allow_pickle=False) as data:
                     state = np.asarray(data['state'], dtype=np.float32).reshape(
@@ -836,6 +846,22 @@ class OfflineTrajectoryDataset:
                     behavior_training_seeds.append(np.full(
                         len(shard_actions), entry['behavior_training_seed'], dtype=np.int64
                     ))
+                    run_ids.append(np.full(
+                        len(shard_actions), entry['run_id'], dtype=object
+                    ))
+                    shard_sha256.append(np.full(
+                        len(shard_actions), entry['sha256'], dtype=object
+                    ))
+                    transition_ids.append(np.asarray([
+                        (
+                            f'{entry["run_id"]}:{entry["sha256"]}:'
+                            f'episode{int(episode):04d}:decision{int(decision):04d}'
+                        )
+                        for episode, decision in zip(
+                            np.asarray(data['episode_id']).reshape(-1),
+                            np.asarray(data['decision_step']).reshape(-1),
+                        )
+                    ], dtype=object))
             self._arrays[network] = {
                 'observations': np.ascontiguousarray(np.concatenate(observations), dtype=np.float32),
                 'next_observations': np.ascontiguousarray(
@@ -849,6 +875,9 @@ class OfflineTrajectoryDataset:
                 'decision_step': np.concatenate(decision_steps),
                 'global_step': np.concatenate(global_steps),
                 'behavior_training_seed': np.concatenate(behavior_training_seeds),
+                'run_id': np.concatenate(run_ids),
+                'shard_sha256': np.concatenate(shard_sha256),
+                'transition_id': np.concatenate(transition_ids),
             }
 
     @property
@@ -863,6 +892,47 @@ class OfflineTrajectoryDataset:
         first = next(iter(self._arrays.values()))
         return first['observations'].shape[1]
 
+    def select_indices(self, network, indices):
+        if network not in self._arrays:
+            raise KeyError(f'Unknown offline source network: {network}')
+        arrays = self._arrays[network]
+        indices = np.asarray(indices, dtype=np.int64).reshape(-1)
+        if np.any(indices < 0) or np.any(indices >= len(arrays['actions'])):
+            raise IndexError('Offline transition index is outside the dataset')
+        return OfflineBatch(
+            observations=arrays['observations'][indices],
+            actions=arrays['actions'][indices],
+            rewards=arrays['rewards'][indices],
+            next_observations=arrays['next_observations'][indices],
+            terminated=arrays['terminated'][indices],
+            truncated=arrays['truncated'][indices],
+            source_network=network,
+            indices=indices,
+            transition_ids=arrays['transition_id'][indices],
+            behavior_training_seeds=arrays['behavior_training_seed'][indices],
+            episode_ids=arrays['episode_id'][indices],
+            decision_steps=arrays['decision_step'][indices],
+            run_ids=arrays['run_id'][indices],
+            shard_sha256=arrays['shard_sha256'][indices],
+        )
+
+    def eligible_indices(self, network, behavior_seeds=None, episode_range=None):
+        if network not in self._arrays:
+            raise KeyError(f'Unknown offline source network: {network}')
+        arrays = self._arrays[network]
+        mask = np.ones(len(arrays['actions']), dtype=np.bool_)
+        if behavior_seeds is not None:
+            seeds = np.asarray(sorted(set(int(seed) for seed in behavior_seeds)))
+            mask &= np.isin(arrays['behavior_training_seed'], seeds)
+        if episode_range is not None:
+            start, end = (int(value) for value in episode_range)
+            if start < 1 or end < start:
+                raise ValueError('Invalid offline episode range')
+            mask &= (arrays['episode_id'] >= start) & (arrays['episode_id'] <= end)
+        indices = np.flatnonzero(mask)
+        indices.setflags(write=False)
+        return indices
+
     def sample_batch(self, batch_size):
         networks = sorted(self._arrays)
         if self.manifest['sampling_strategy'] == 'scene_balanced_batch':
@@ -876,15 +946,7 @@ class OfflineTrajectoryDataset:
                 f'{len(arrays["actions"])}'
             )
         indices = self.rng.sample(range(len(arrays['actions'])), batch_size)
-        return OfflineBatch(
-            observations=arrays['observations'][indices],
-            actions=arrays['actions'][indices],
-            rewards=arrays['rewards'][indices],
-            next_observations=arrays['next_observations'][indices],
-            terminated=arrays['terminated'][indices],
-            truncated=arrays['truncated'][indices],
-            source_network=network,
-        )
+        return self.select_indices(network, indices)
 
     def rng_state(self):
         return self.rng.getstate()

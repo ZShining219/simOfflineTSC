@@ -212,6 +212,19 @@ class Plan2OfflineDatasetTest(unittest.TestCase):
         np.testing.assert_array_equal(arrays['global_step'], [1, 2, 3, 4])
         np.testing.assert_array_equal(arrays['terminated'], [False] * 4)
         np.testing.assert_array_equal(arrays['truncated'], [False, True] * 2)
+        self.assertEqual(4, len(set(arrays['transition_id'])))
+        selected = dataset.select_indices('n1', [0, 3])
+        np.testing.assert_array_equal(selected.indices, [0, 3])
+        np.testing.assert_array_equal(selected.episode_ids, [1, 2])
+        np.testing.assert_array_equal(selected.decision_steps, [1, 2])
+        np.testing.assert_array_equal(selected.behavior_training_seeds, [0, 0])
+        self.assertTrue(all(selected.run_ids))
+        self.assertTrue(all(len(value) == 64 for value in selected.shard_sha256))
+        self.assertEqual(2, len(set(selected.transition_ids)))
+        np.testing.assert_array_equal(
+            dataset.eligible_indices('n1', behavior_seeds=[0], episode_range=(2, 2)),
+            [2, 3],
+        )
         np.testing.assert_array_equal(arrays['observations'][:, -2:].sum(axis=1), 1)
         np.testing.assert_array_equal(
             arrays['next_observations'][:, -2:].sum(axis=1), 1

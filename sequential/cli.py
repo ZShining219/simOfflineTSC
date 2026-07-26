@@ -415,7 +415,7 @@ def main(argv=None):
         # The HA config uses the same frozen orders and seeds as b100; the
         # initial catalog builder consumes the existing sequential validator.
         payload = build_initial_state_catalog(
-            args.whitelist, args.output, 'configs/sequential/plan34_b100.yml',
+            args.whitelist, args.output, args.config,
         )
         result = {'valid': True, 'output': os.path.abspath(args.output),
                   'entry_count': payload['entry_count']}

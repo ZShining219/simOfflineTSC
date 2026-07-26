@@ -3,6 +3,7 @@
 import os
 
 import torch
+import yaml
 
 from dataset.offline_trajectory_dataset import _validate_source_run
 
@@ -86,7 +87,17 @@ def validate_initial_source(source, require_plan1_formal=True):
 
 
 def build_initial_state_catalog(whitelist_path, output_path, config_path):
-    config = load_sequential_config(config_path)
+    try:
+        config = load_sequential_config(config_path)
+    except ValueError:
+        with open(config_path, encoding='utf-8') as handle:
+            config = yaml.safe_load(handle)
+        if config.get('protocol_id') != 'ha_sodqn_b100_v1':
+            raise
+        if set(config.get('orders', {})) != {'O1', 'O2', 'O3', 'O4'}:
+            raise ValueError('HA initial-state config must define O1..O4')
+        if config.get('training_seeds') != [0, 1, 2, 3, 4]:
+            raise ValueError('HA initial-state config seeds must be 0..4')
     sources = read_parent_whitelist(whitelist_path)
     by_identity = {
         (source.network, source.training_seed): validate_initial_source(source)

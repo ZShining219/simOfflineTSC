@@ -51,6 +51,25 @@ def resolve_effective_attempt(path):
     raise FileNotFoundError(f'Cannot resolve Sequential attempt: {path}')
 
 
+def _resolve_attempt_chain_artifact(attempt_dir, *relative_parts):
+    """Resolve immutable evidence from the newest attempt that contains it."""
+    attempt_dir = os.path.abspath(attempt_dir)
+    direct = os.path.join(attempt_dir, *relative_parts)
+    if os.path.isfile(direct):
+        return direct
+    logical_root = os.path.dirname(os.path.dirname(attempt_dir))
+    lineage_path = os.path.join(logical_root, 'logical_run_manifest.json')
+    if os.path.isfile(lineage_path):
+        lineage = read_json(lineage_path)
+        for attempt in reversed(lineage.get('attempts', [])):
+            candidate = os.path.join(
+                attempt['attempt_dir'], *relative_parts,
+            )
+            if os.path.isfile(candidate):
+                return candidate
+    raise FileNotFoundError(direct)
+
+
 def _trajectory_records(path):
     with np.load(path, allow_pickle=False) as shard:
         count = len(shard['stage_index'])
@@ -372,12 +391,10 @@ def validate_ha_attempt(path):
     attempt_dir = validated['attempt_dir']
     if archive_mode != 'NONE':
         for stage in range(1, len(child['networks']) + 1):
-            visibility_path = os.path.join(
+            visibility_path = _resolve_attempt_chain_artifact(
                 attempt_dir, 'archive',
                 f'stage_{stage:02d}_visibility_manifest.json',
             )
-            if not os.path.isfile(visibility_path):
-                raise FileNotFoundError(visibility_path)
             visibility_manifest = read_json(visibility_path)
             expected_visible = (
                 child['networks'][:stage - 1]
@@ -390,11 +407,10 @@ def validate_ha_attempt(path):
             ):
                 raise ValueError('Persisted archive visibility manifest mismatch')
             if stage in owp_digests:
-                owp_path = os.path.join(
-                    attempt_dir, 'archive', f'stage_{stage:02d}_owp_manifest.json',
+                owp_path = _resolve_attempt_chain_artifact(
+                    attempt_dir, 'archive',
+                    f'stage_{stage:02d}_owp_manifest.json',
                 )
-                if not os.path.isfile(owp_path):
-                    raise FileNotFoundError(owp_path)
                 if read_json(owp_path)['owp_digest'] != owp_digests[stage]:
                     raise ValueError('Persisted OWP manifest digest mismatch')
     return {

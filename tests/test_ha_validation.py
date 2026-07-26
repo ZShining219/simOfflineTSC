@@ -1,12 +1,39 @@
+import os
+import tempfile
 import unittest
 from unittest import mock
 
+from sequential.io import atomic_json
 from sequential.validation import (
-    _validate_ha_visibility_networks, validate_ha_attempt,
+    _resolve_attempt_chain_artifact, _validate_ha_visibility_networks,
+    validate_ha_attempt,
 )
 
 
 class HAValidationTest(unittest.TestCase):
+    def test_recovery_artifact_resolves_from_immutable_predecessor_attempt(self):
+        with tempfile.TemporaryDirectory() as directory:
+            logical_root = os.path.join(directory, 'logical')
+            first = os.path.join(logical_root, 'attempts', 'attempt_1')
+            second = os.path.join(logical_root, 'attempts', 'attempt_2')
+            os.makedirs(os.path.join(first, 'archive'))
+            os.makedirs(second)
+            artifact = os.path.join(first, 'archive', 'stage_01.json')
+            atomic_json(artifact, {'stage': 1})
+            atomic_json(os.path.join(logical_root, 'logical_run_manifest.json'), {
+                'attempts': [
+                    {'attempt_id': 'attempt_1', 'attempt_dir': first},
+                    {'attempt_id': 'attempt_2', 'attempt_dir': second},
+                ],
+                'effective_attempt': 'attempt_2',
+            })
+            self.assertEqual(
+                artifact,
+                _resolve_attempt_chain_artifact(
+                    second, 'archive', 'stage_01.json',
+                ),
+            )
+
     def test_p1f_visibility_accepts_archive_order_but_p1c_requires_prefix_order(self):
         expected = ['n1', 'n4', 'n2', 'n3']
         archive_order = ['n2', 'n1', 'n4', 'n3']

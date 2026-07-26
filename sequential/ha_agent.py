@@ -174,6 +174,13 @@ class HASODQNAgent(SequentialDQNAgent):
             and len(self.replay.records) > self.learning_start
         )
 
+    def should_use_random_warmup_action(self):
+        # Plan 1 chooses fully random actions until the pre-decision counter is
+        # strictly greater than learning_start.  HA-SODQN starts at episode 0,
+        # unlike the existing Sequential parent-based runs, so it must restore
+        # this branch explicitly.
+        return self.counters.global_decision_step <= self.learning_start
+
     def _branch_loss(self, state, next_state, rewards, actions):
         rewards = rewards.reshape(-1)
         actions = actions.reshape(-1)

@@ -138,6 +138,13 @@ class HASODQNAgentTest(unittest.TestCase):
         self.assertEqual(0, update['offline_count'])
         self.assertEqual(64, update['online_count'])
 
+    def test_episode_zero_path_restores_plan1_random_action_warmup(self):
+        subject = agent(0.0)
+        subject.counters.global_decision_step = 1000
+        self.assertTrue(subject.should_use_random_warmup_action())
+        subject.counters.global_decision_step = 1001
+        self.assertFalse(subject.should_use_random_warmup_action())
+
     def test_cont_checkpoint_round_trip_restores_private_rng_and_orb(self):
         subject = agent(0.0)
         state = subject.full_state_dict()

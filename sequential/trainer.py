@@ -57,7 +57,11 @@ class SequentialStageTrainer:
         while simulation_step < self.steps:
             decision_index += 1
             phase = self.agent.get_phase()
-            action = self.agent.get_action(observation, phase, test=False)
+            action = (
+                self.agent.sample()
+                if self.agent.should_use_random_warmup_action()
+                else self.agent.get_action(observation, phase, test=False)
+            )
             rewards = []
             terminated = False
             next_observation = observation

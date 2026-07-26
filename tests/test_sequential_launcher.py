@@ -43,6 +43,20 @@ class SequentialLauncherTests(unittest.TestCase):
                 status['runs'][0]['effective_attempt'], 'attempt_2'
             )
 
+    def test_manifest_status_includes_planned_and_stale_runs(self):
+        with tempfile.TemporaryDirectory() as directory:
+            manifest = os.path.join(directory, 'manifest.json')
+            atomic_json(manifest, {'children': [
+                {'logical_run_id': 'running'}, {'logical_run_id': 'planned'},
+            ]})
+            lineage = AttemptLineage(directory, 'running')
+            attempt = lineage.create_attempt()
+            lineage.update_attempt('attempt_1', 'running', started_at_unix=1)
+            status = collect_status(
+                directory, manifest_path=manifest, stale_seconds=1,
+            )
+            self.assertEqual(status['counts'], {'planned': 1, 'stale': 1})
+
     def test_resource_gate_enforces_disk_double_estimate_and_memory_per_slot(self):
         disk = shutil._ntuple_diskusage(100 * GIB, 50 * GIB, 50 * GIB)
         gate = ResourceGate(

@@ -130,6 +130,8 @@ def _parser():
 
     status_parser = subparsers.add_parser('status')
     status_parser.add_argument('--output-root', required=True)
+    status_parser.add_argument('--manifest', default=None)
+    status_parser.add_argument('--stale-seconds', type=int, default=1800)
 
     resume_parser = subparsers.add_parser('resume-failed')
     resume_parser.add_argument('--manifest', required=True)
@@ -332,7 +334,10 @@ def main(argv=None):
         }
     elif args.command == 'status':
         from .launcher import collect_status
-        result = collect_status(args.output_root)
+        result = collect_status(
+            args.output_root, manifest_path=args.manifest,
+            stale_seconds=args.stale_seconds,
+        )
     elif args.command == 'resume-failed':
         from .launcher import (
             AttemptLineage, SequentialLauncher, collect_status,

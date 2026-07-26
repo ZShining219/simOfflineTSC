@@ -366,7 +366,7 @@ class SequentialLauncher:
                 lock.release()
 
 
-def collect_status(output_root):
+def collect_status(output_root, manifest_path=None, stale_seconds=1800):
     output_root = os.path.abspath(output_root)
     runs = []
     if not os.path.isdir(output_root):
@@ -375,8 +375,32 @@ def collect_status(output_root):
         manifest = os.path.join(output_root, name, 'logical_run_manifest.json')
         if os.path.isfile(manifest):
             runs.append(read_json(manifest))
+    known = {run['logical_run_id'] for run in runs}
+    if manifest_path is not None:
+        plan = read_json(manifest_path)
+        for child in plan.get('children', []):
+            if child['logical_run_id'] not in known:
+                runs.append({
+                    'schema_version': 1,
+                    'logical_run_id': child['logical_run_id'],
+                    'status': 'planned', 'attempts': [],
+                    'effective_attempt': None,
+                })
+    now = time.time()
+    for run in runs:
+        observed = run['status']
+        latest = run['attempts'][-1] if run.get('attempts') else None
+        if observed == 'running' and latest is not None:
+            progress = os.path.join(latest['attempt_dir'], 'current_state.json')
+            reference = os.path.getmtime(progress) if os.path.isfile(progress) else float(
+                latest.get('started_at_unix', 0)
+            )
+            if reference and now - reference > int(stale_seconds):
+                observed = 'stale'
+        run['observed_status'] = observed
+    runs.sort(key=lambda item: item['logical_run_id'])
     counts = {}
     for run in runs:
-        status = run['status']
+        status = run['observed_status']
         counts[status] = counts.get(status, 0) + 1
     return {'runs': runs, 'counts': counts}

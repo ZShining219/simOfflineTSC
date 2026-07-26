@@ -233,6 +233,7 @@ class SequentialLauncher:
         self.concurrency = ConcurrencyController(initial_concurrency)
         self.processes = {}
         self.stop_requested = False
+        self.stop_signal = None
 
     def selected_children(self, logical_run_ids=None):
         children = self.plan.get('children', [])
@@ -258,6 +259,8 @@ class SequentialLauncher:
 
     def _signal_handler(self, signum, frame):
         self.stop_requested = True
+        if self.stop_signal is None:
+            self.stop_signal = signum
         for process in self.processes.values():
             if process.poll() is None:
                 process.send_signal(signum)
@@ -356,14 +359,42 @@ class SequentialLauncher:
         finally:
             for signum, handler in old_handlers.items():
                 signal.signal(signum, handler)
-            for process in self.processes.values():
+            for logical_id, process in list(self.processes.items()):
                 lineage, attempt, lock, stdout, stderr = process._sequential_context
                 if process.poll() is None:
-                    process.terminate()
-                    process.wait(timeout=10)
+                    if self.stop_signal is not None:
+                        process.send_signal(self.stop_signal)
+                    else:
+                        process.terminate()
+                    try:
+                        process.wait(timeout=10)
+                    except subprocess.TimeoutExpired:
+                        process.kill()
+                        process.wait(timeout=10)
                 stdout.close()
                 stderr.close()
+                returncode = process.poll()
+                with open(os.path.join(attempt['attempt_dir'], 'stderr.log'),
+                          encoding='utf-8', errors='replace') as handle:
+                    stderr_text = handle.read()
+                failure = (
+                    'interrupted' if self.stop_signal is not None else
+                    classify_failure(returncode, stderr_text)
+                )
+                status = 'completed' if returncode == 0 else (
+                    'interrupted' if failure == 'interrupted' else 'failed'
+                )
+                lineage.update_attempt(
+                    attempt['attempt_id'], status, returncode=returncode,
+                    failure_class=None if returncode == 0 else failure,
+                    finished_at_unix=time.time(), finalized_by_launcher=True,
+                )
                 lock.release()
+                completed.append({
+                    'logical_run_id': logical_id, 'status': status,
+                    'returncode': returncode,
+                })
+                del self.processes[logical_id]
 
 
 def collect_status(output_root, manifest_path=None, stale_seconds=1800):

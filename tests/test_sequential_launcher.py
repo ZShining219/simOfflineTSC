@@ -3,6 +3,7 @@ import shutil
 import signal
 import tempfile
 import unittest
+from unittest import mock
 
 from sequential.io import atomic_json
 from sequential.launcher import (
@@ -140,6 +141,84 @@ class SequentialLauncherTests(unittest.TestCase):
             self.assertTrue(os.path.isfile(attempt['stderr_path']))
             with open(attempt['stderr_path'], encoding='utf-8') as handle:
                 self.assertIn('FileNotFoundError', handle.read())
+
+    def test_external_interrupt_finalizes_running_attempt_and_releases_lock(self):
+        class PassingGate:
+            @staticmethod
+            def check(output_root, pending_output_bytes, concurrency_slots):
+                return {
+                    'valid': True, 'disk_free_bytes': 1, 'disk_required_bytes': 1,
+                    'memory_available_bytes': 1, 'memory_required_bytes': 1,
+                    'concurrency_slots': concurrency_slots,
+                }
+
+        class DelayedInterruptProcess:
+            next_pid = 1000
+
+            def __init__(self, command, stdout=None, stderr=None):
+                self.command = command
+                self.returncode = None
+                self.pid = type(self).next_pid
+                type(self).next_pid += 1
+
+            def poll(self):
+                return self.returncode
+
+            def send_signal(self, signum):
+                # Keep the process alive through the launcher's next poll so
+                # the finally branch owns lineage finalization.
+                self.pending_signal = signum
+
+            def terminate(self):
+                self.returncode = -signal.SIGTERM
+
+            def kill(self):
+                self.returncode = -signal.SIGKILL
+
+            def wait(self, timeout=None):
+                self.returncode = -getattr(
+                    self, 'pending_signal', signal.SIGTERM,
+                )
+                return self.returncode
+
+        with tempfile.TemporaryDirectory() as directory:
+            manifest = os.path.join(directory, 'pilot.json')
+            atomic_json(manifest, {
+                'mode': 'pilot', 'children': [{
+                    'logical_run_id': 'interrupted_child',
+                    'estimated_output_bytes': 0,
+                }],
+            })
+            output_root = os.path.join(directory, 'runs')
+            launcher = SequentialLauncher(
+                manifest, output_root, resource_gate=PassingGate(),
+            )
+            interrupted = False
+
+            def interrupt_after_spawn(_):
+                nonlocal interrupted
+                if launcher.processes and not interrupted:
+                    interrupted = True
+                    launcher._signal_handler(signal.SIGINT, None)
+
+            with mock.patch(
+                'sequential.launcher.subprocess.Popen', DelayedInterruptProcess,
+            ), mock.patch(
+                'sequential.launcher.time.sleep', interrupt_after_spawn,
+            ):
+                result = launcher.launch()
+
+            self.assertEqual(result, [{
+                'logical_run_id': 'interrupted_child',
+                'status': 'interrupted', 'returncode': -signal.SIGINT,
+            }])
+            lineage = AttemptLineage(output_root, 'interrupted_child')
+            attempt = lineage.latest_attempt()
+            self.assertEqual(lineage.manifest['status'], 'interrupted')
+            self.assertEqual(attempt['failure_class'], 'interrupted')
+            self.assertTrue(attempt['finalized_by_launcher'])
+            lock = LogicalRunLock(os.path.join(lineage.root, 'run.lock')).acquire()
+            lock.release()
 
 
 if __name__ == '__main__':

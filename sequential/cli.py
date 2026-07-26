@@ -201,6 +201,10 @@ def _parser():
 
     ha_validate = subparsers.add_parser('validate-ha-plan')
     ha_validate.add_argument('--plan', required=True)
+    ha_audit = subparsers.add_parser('audit-ha')
+    ha_audit.add_argument('--plan', required=True)
+    ha_audit.add_argument('--output-root', required=True)
+    ha_audit.add_argument('--output', default=None)
     return parser
 
 
@@ -455,6 +459,12 @@ def main(argv=None):
     elif args.command == 'validate-ha-plan':
         from .ha_manifest import validate_ha_plan
         result = validate_ha_plan(args.plan)
+    elif args.command == 'audit-ha':
+        from .io import atomic_json
+        from .validation import validate_ha_experiment
+        result = validate_ha_experiment(args.plan, args.output_root)
+        if args.output:
+            atomic_json(args.output, result)
     else:
         raise AssertionError(args.command)
     print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))

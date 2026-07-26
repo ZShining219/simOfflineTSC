@@ -137,7 +137,11 @@ def validate_attempt(path):
     if state['logical_run_id'] != child['logical_run_id']:
         raise ValueError('Logical run identity differs between state and child manifest')
     trajectories, evaluations, diagnostics = _operation_maps(state)
-    first_stage = 1 if child.get('condition') in {'M0', 'M1', 'M2', 'M3'} else 2
+    lower_triangle = (
+        child.get('protocol_id') == 'ha_sodqn_b100_v1'
+        or child.get('condition') in {'M0', 'M1', 'M2', 'M3'}
+    )
+    first_stage = 1 if lower_triangle else 2
     expected_episodes = {
         (stage, local)
         for stage, budget in enumerate(child['stage_episodes'], start=1)
@@ -156,7 +160,7 @@ def validate_attempt(path):
             'stage_index': identity[0], 'local_episode': identity[1],
             'marker_path': marker_path, 'transition_count': len(digests),
         })
-    if child.get('condition') in {'M0', 'M1', 'M2', 'M3'}:
+    if lower_triangle:
         expected_evaluations = {
             (1, local, child['networks'][0])
             for local in range(1, int(child['stage_episodes'][0]) + 1)
@@ -176,7 +180,7 @@ def validate_attempt(path):
         )
         visible_networks = (
             child['networks'][:stage]
-            if child.get('condition') in {'M0', 'M1', 'M2', 'M3'}
+            if lower_triangle
             else child['networks']
         )
         expected_evaluations.update(
@@ -216,12 +220,18 @@ def validate_attempt(path):
         raise ValueError('Final training state canonical digest mismatch')
     logical_view = {
         'total_episode_count': sum(int(value) for value in child['stage_episodes']),
-        'parent': {
-            'episode_count': int(child['stage_episodes'][0]),
-            'trajectory_reference': child['parent_trajectory_reference'],
-        },
         'child_episode_references': trajectory_refs,
     }
+    if child.get('protocol_id') == 'ha_sodqn_b100_v1':
+        logical_view['initial_state'] = {
+            'checkpoint_episode': 0,
+            'checkpoint_path': child['initial_checkpoint'],
+        }
+    else:
+        logical_view['parent'] = {
+            'episode_count': int(child['stage_episodes'][0]),
+            'trajectory_reference': child['parent_trajectory_reference'],
+        }
     return {
         'valid': True, 'attempt_dir': attempt_dir,
         'logical_run_id': child['logical_run_id'], 'policy': child['policy'],
@@ -233,6 +243,153 @@ def validate_attempt(path):
         'final_training_state_digest': final_digest,
         'logical_episode_view': logical_view,
     }
+
+
+def validate_ha_attempt(path):
+    validated = validate_attempt(path)
+    child = validated['child_manifest']
+    if child.get('protocol_id') != 'ha_sodqn_b100_v1':
+        raise ValueError('Attempt is not an HA-SODQN run')
+    diagnostics = []
+    for key, operation in validated['state']['completed_operations'].items():
+        if key.endswith(':diagnostic'):
+            diagnostics.append(read_json(operation['artifact']))
+    diagnostics.sort(key=lambda item: (item['stage_index'], item['local_episode']))
+    expected_diagnostics = sum(int(value) for value in child['stage_episodes'])
+    if len(diagnostics) != expected_diagnostics:
+        raise ValueError('HA-SODQN diagnostic episode count mismatch')
+    total_decisions = sum(
+        item['transition_count']
+        for item in validated['logical_episode_view']['child_episode_references']
+    )
+    expected_decisions = 360 * expected_diagnostics
+    if total_decisions != expected_decisions:
+        raise ValueError('HA-SODQN decision budget mismatch')
+    final_state = validated['final_checkpoint']['agent_state']
+    counters = final_state['counters']
+    expected_updates = max(0, total_decisions - 1000)
+    if int(counters['global_decision_step']) != total_decisions:
+        raise ValueError('HA-SODQN global decision counter mismatch')
+    if int(counters['gradient_updates']) != expected_updates:
+        raise ValueError('HA-SODQN gradient update budget is unfair')
+    if int(counters['target_updates']) != expected_updates // 10:
+        raise ValueError('HA-SODQN target update budget mismatch')
+    archive_mode = child['archive_mode']
+    requested_ratio = float(child['offline_ratio'])
+    expected_behavior_seeds = None
+    if archive_mode != 'NONE':
+        archive = read_json(child['archive_root_manifest'])
+        expected_behavior_seeds = set(archive['behavior_training_seeds'])
+        if archive['behavior_seed_rule'].get('exclude_matching_training_seed'):
+            expected_behavior_seeds.discard(int(child['training_seed']))
+    window_count = 0
+    owp_digests = {}
+    for diagnostic in diagnostics:
+        stage = int(diagnostic['stage_index'])
+        local_episode = int(diagnostic['local_episode'])
+        current = child['networks'][stage - 1]
+        allowed_offline = (
+            set(child['networks'][:stage - 1])
+            if archive_mode == 'P1C' else set(child['networks'])
+        )
+        if archive_mode == 'NONE':
+            allowed_offline = set()
+        visibility = diagnostic.get('visible_archive')
+        if archive_mode == 'P1C':
+            expected_visible = child['networks'][:stage - 1]
+            if visibility is None and expected_visible:
+                raise ValueError('P1C visible archive is missing')
+            if visibility is not None and visibility['visibility']['visible_networks'] != expected_visible:
+                raise ValueError('P1C stage visibility mismatch')
+        digest = (diagnostic.get('owp_manifest') or {}).get('owp_digest')
+        if digest is not None:
+            previous = owp_digests.setdefault(stage, digest)
+            if previous != digest:
+                raise ValueError('OWP changed inside a stage')
+        for window in diagnostic.get('sampling_windows', []):
+            window_count += 1
+            if int(window['online_count']) + int(window['offline_count']) != 64:
+                raise ValueError('HA-SODQN mixed batch size is not 64')
+            offline_count = int(window['offline_count'])
+            actual_ratio = float(window['actual_offline_ratio'])
+            if actual_ratio != offline_count / 64:
+                raise ValueError('HA-SODQN actual offline ratio is inconsistent')
+            offline_sources = {
+                network for network, count in
+                window.get('offline_sample_count_by_scene', {}).items()
+                if int(count) > 0
+            }
+            if not offline_sources <= allowed_offline:
+                raise ValueError(
+                    f'P1C current/future leakage: stage={stage}, '
+                    f'current={current}, sources={sorted(offline_sources)}'
+                )
+            fallback = (
+                archive_mode == 'NONE'
+                or (archive_mode == 'P1C' and stage == 1)
+                or local_episode <= 10
+            )
+            if fallback and offline_count != 0:
+                raise ValueError('HA-SODQN fallback/warm-up used offline samples')
+            if not fallback:
+                expected_offline = int(round(64 * requested_ratio))
+                if offline_count != expected_offline:
+                    raise ValueError('HA-SODQN offline quota mismatch')
+            for key in ('loss_online', 'loss_total'):
+                if window.get(key) is None or not np.isfinite(float(window[key])):
+                    raise ValueError(f'HA-SODQN {key} is not finite')
+            if offline_count and (
+                window.get('loss_offline') is None
+                or not np.isfinite(float(window['loss_offline']))
+            ):
+                raise ValueError('HA-SODQN offline loss is not finite')
+        if expected_behavior_seeds is not None:
+            used_seeds = {
+                int(seed) for seed, count in
+                diagnostic.get('offline_samples_by_behavior_seed', {}).items()
+                if int(count) > 0
+            }
+            if not used_seeds <= expected_behavior_seeds:
+                raise ValueError('HA-SODQN behavior-seed rule was violated')
+            used_episodes = {
+                int(episode) for episode, count in
+                diagnostic.get('offline_samples_by_episode', {}).items()
+                if int(count) > 0
+            }
+            if any(episode < 1 or episode > 100 for episode in used_episodes):
+                raise ValueError('HA-SODQN sampled outside Plan 1 episodes 1-100')
+    if window_count != expected_updates:
+        raise ValueError('HA-SODQN diagnostic update count mismatch')
+    return {
+        **validated,
+        'ha_audit': {
+            'valid': True,
+            'total_decisions': total_decisions,
+            'gradient_updates': expected_updates,
+            'target_updates': expected_updates // 10,
+            'sampling_window_count': window_count,
+            'owp_digest_by_stage': owp_digests,
+            'p1c_leakage': False,
+            'update_budget_fair': True,
+        },
+    }
+
+
+def validate_ha_experiment(manifest_path, output_root):
+    plan = read_json(manifest_path)
+    runs = []
+    for child in plan.get('children', []):
+        validated = validate_ha_attempt(
+            os.path.join(output_root, child['logical_run_id'])
+        )
+        runs.append({
+            'logical_run_id': child['logical_run_id'],
+            'attempt_dir': validated['attempt_dir'],
+            'trajectory_digest': validated['trajectory_digest'],
+            'final_training_state_digest': validated['final_training_state_digest'],
+            'ha_audit': validated['ha_audit'],
+        })
+    return {'valid': True, 'run_count': len(runs), 'runs': runs}
 
 
 def _evaluation_signature(validated):

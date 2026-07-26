@@ -19,6 +19,8 @@ class ReplayDiagnostics:
         self.previous_historical_ratio = None
         self.full_batches = []
         self.sampling_windows = []
+        self.offline_samples_by_behavior_seed = {}
+        self.offline_samples_by_episode = {}
 
     @staticmethod
     def _increment(mapping, key, amount=1):
@@ -34,11 +36,21 @@ class ReplayDiagnostics:
             self._increment(self.samples_drawn_by_scene, source)
         for source_kind in update.get('sample_source_kinds', []):
             self._increment(self.samples_drawn_by_kind, source_kind)
+        for seed in update.get('offline_behavior_training_seeds', []):
+            self._increment(self.offline_samples_by_behavior_seed, str(int(seed)))
+        for episode in update.get('offline_episode_ids', []):
+            self._increment(self.offline_samples_by_episode, str(int(episode)))
         self.sample_ages.extend(int(age) for age in update['sample_ages'])
         if replay_composition is not None:
             sample_counts = {}
             for source in update['sample_sources']:
                 self._increment(sample_counts, source)
+            offline_counts = {}
+            for source, kind in zip(
+                update['sample_sources'], update.get('sample_source_kinds', ()),
+            ):
+                if kind == 'offline':
+                    self._increment(offline_counts, source)
             self.sampling_windows.append({
                 'gradient_updates': int(gradient_updates),
                 'replay_size': int(replay_composition['size']),
@@ -47,6 +59,16 @@ class ReplayDiagnostics:
                 ),
                 'sample_count_by_scene': sample_counts,
                 'sample_size': len(update['sample_sources']),
+                'online_count': int(update.get('online_count', len(update['sample_sources']))),
+                'offline_count': int(update.get('offline_count', 0)),
+                'requested_offline_ratio': update.get('requested_offline_ratio'),
+                'actual_offline_ratio': update.get('actual_offline_ratio', 0.0),
+                'offline_sample_count_by_scene': offline_counts,
+                'loss_online': update.get('loss_online'),
+                'loss_offline': update.get('loss_offline'),
+                'loss_total': update.get('loss'),
+                'online_stability': update.get('online_stability'),
+                'offline_stability': update.get('offline_stability'),
             })
         if self.trace_samples or gradient_updates % self.sparse_interval == 0:
             self.full_batches.append({
@@ -95,6 +117,10 @@ class ReplayDiagnostics:
             'transitions_written_by_scene': dict(self.transitions_written_by_scene),
             'samples_drawn_by_scene': dict(self.samples_drawn_by_scene),
             'samples_drawn_by_kind': dict(self.samples_drawn_by_kind),
+            'offline_samples_by_behavior_seed': dict(
+                self.offline_samples_by_behavior_seed
+            ),
+            'offline_samples_by_episode': dict(self.offline_samples_by_episode),
             'current_sample_fraction': (
                 0.0 if not total_samples else current_samples / total_samples
             ),
@@ -118,6 +144,31 @@ class ReplayDiagnostics:
             'sparse_full_batches': list(self.full_batches),
             'sampling_windows': list(self.sampling_windows),
         }
+        if hasattr(agent, 'archive_mode'):
+            record.update({
+                'archive_mode': agent.archive_mode,
+                'historical_method': agent.method,
+                'requested_offline_ratio': agent.offline_ratio,
+                'visible_archive': (
+                    None if agent.visible_archive is None
+                    else {
+                        **agent.visible_archive.source_statistics(),
+                        'visibility': agent.visible_archive.visibility,
+                    }
+                ),
+                'owp_manifest': (
+                    None if agent.historical_sampler is None
+                    else agent.historical_sampler.manifest
+                ),
+                'historical_sampler_sample_count': (
+                    0 if agent.historical_sampler is None
+                    else agent.historical_sampler.sample_count
+                ),
+                'historical_unique_samples_used': (
+                    0 if agent.historical_sampler is None
+                    else len(agent.historical_sampler.reuse_counts)
+                ),
+            })
         path = os.path.join(
             self.output_dir,
             f'stage_{int(stage_index):02d}_episode_{int(local_episode):04d}.json',
@@ -132,6 +183,11 @@ class ReplayDiagnostics:
         return {
             'transitions_written_by_scene': dict(self.transitions_written_by_scene),
             'samples_drawn_by_scene': dict(self.samples_drawn_by_scene),
+            'samples_drawn_by_kind': dict(self.samples_drawn_by_kind),
+            'offline_samples_by_behavior_seed': dict(
+                self.offline_samples_by_behavior_seed
+            ),
+            'offline_samples_by_episode': dict(self.offline_samples_by_episode),
             'sample_ages': list(self.sample_ages),
             'thresholds': dict(self.thresholds),
             'previous_historical_ratio': self.previous_historical_ratio,
@@ -145,6 +201,12 @@ class ReplayDiagnostics:
         )
         self.samples_drawn_by_scene = dict(state['samples_drawn_by_scene'])
         self.samples_drawn_by_kind = dict(state.get('samples_drawn_by_kind', {}))
+        self.offline_samples_by_behavior_seed = dict(
+            state.get('offline_samples_by_behavior_seed', {})
+        )
+        self.offline_samples_by_episode = dict(
+            state.get('offline_samples_by_episode', {})
+        )
         self.sample_ages = list(state['sample_ages'])
         self.thresholds = dict(state['thresholds'])
         self.previous_historical_ratio = state['previous_historical_ratio']

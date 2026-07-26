@@ -16,9 +16,33 @@ from sequential.hybrid_analysis import (
     _standardized_paired_effect, _stratified_effect,
 )
 from tools.experiment_plotting.sequential import _flatten
+from tools.experiment_plotting.hybrid_sequential import _flatten_hybrid
 
 
 class SequentialAnalysisTests(unittest.TestCase):
+    def test_hybrid_plot_flatten_uses_incremental_kind_counts(self):
+        run = {
+            'logical_run_id': 'm3', 'order_id': 'O1', 'training_seed': 0,
+            'condition': 'M3', 'primary_normalized_auc': 1.0,
+            'secondary_metrics': {}, 'adaptation_curves': [],
+            'stage_scene_evaluations': [
+                {'stage_index': 1, 'evaluation_network': 'n1',
+                 'evaluation_scene_introduced_stage': 1,
+                 'final_retention_normalized': 1.0,
+                 'forgetting_travel_time': 0.0},
+            ],
+            'replay_diagnostics': [
+                {'stage_index': 1, 'local_episode': 1,
+                 'samples_drawn_by_kind': {'online': 100},
+                 'samples_drawn_by_scene': {'n1': 100}},
+                {'stage_index': 2, 'local_episode': 1,
+                 'samples_drawn_by_kind': {'online': 150, 'historical': 50},
+                 'samples_drawn_by_scene': {'n1': 150, 'n2': 50}},
+            ],
+        }
+        replay = _flatten_hybrid({'runs': [run]})['replay_diagnostics']
+        self.assertEqual(replay[1]['actual_historical_fraction'], .5)
+
     def test_hybrid_summary_reads_only_lower_triangle(self):
         networks = ['S1', 'S2', 'S3', 'S4']
         cells = {}

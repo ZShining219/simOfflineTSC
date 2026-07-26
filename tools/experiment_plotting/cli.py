@@ -45,6 +45,7 @@ from .plotting import (
 )
 from .plan2 import run_plan2_analysis
 from .sequential import run_sequential_plotting, run_sequential_frozen_plotting
+from .hybrid_sequential import run_hybrid_sequential_plotting
 from .profiles import PROFILES, get_profile, S1_S4_ACTION_SEMANTICS
 from .validators import compare_dqn_run_configs, validate_run
 from utils.logger import validate_evaluation_package
@@ -100,6 +101,15 @@ def build_parser():
     sequential.add_argument('--analysis-id', required=True, type=_analysis_id)
     sequential.add_argument('--output-root', default='data/output_data/analysis/plan34')
     sequential.add_argument('--dpi', type=int, default=160)
+    hybrid_sequential = subparsers.add_parser(
+        'sequential-hybrid', help='Plot a validated CS-HR M0--M3 report',
+    )
+    hybrid_sequential.add_argument('--analysis-report', required=True)
+    hybrid_sequential.add_argument('--analysis-id', required=True, type=_analysis_id)
+    hybrid_sequential.add_argument(
+        '--output-root', default='data/output_data/analysis/cs_hr',
+    )
+    hybrid_sequential.add_argument('--dpi', type=int, default=160)
     sequential_frozen = subparsers.add_parser(
         'sequential-frozen',
         help='Plot one-scene frozen sequential and Plan 1/baseline time series',
@@ -1860,6 +1870,9 @@ def main(argv=None):
     elif args.command == 'sequential':
         output_dir = run_sequential_plotting(args)
         print(f'Sequential plotting completed: {output_dir}')
+    elif args.command == 'sequential-hybrid':
+        output_dir = run_hybrid_sequential_plotting(args)
+        print(f'CS-HR plotting completed: {output_dir}')
     elif args.command == 'sequential-frozen':
         output_dir = run_sequential_frozen_plotting(args)
         print(f'Sequential frozen plotting completed: {output_dir}')

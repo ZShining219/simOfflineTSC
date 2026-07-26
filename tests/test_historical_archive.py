@@ -7,6 +7,7 @@ from dataset.offline_trajectory_dataset import OfflineBatch
 from sequential.historical_archive import (
     HistoricalArchive, derive_rng_seed, stable_digest,
 )
+from sequential.owp import build_historical_sampler
 
 
 class DummyDataset:
@@ -14,6 +15,21 @@ class DummyDataset:
         self.network = network
         self.count = count
         self.seeds = np.asarray([0, 1, 2, 0, 1, 2], dtype=np.int64)
+        prefix = 10 if network == 'n1' else 20 if network == 'n2' else 30
+        observations = np.arange(count * 16, dtype=np.float32).reshape(count, 16)
+        observations[:, :8] += prefix
+        observations[:, 8:] = 0
+        observations[np.arange(count), 8 + np.arange(count) % 8] = 1
+        self._arrays = {network: {
+            'observations': observations,
+            'actions': np.arange(count, dtype=np.int64) % 8,
+            'rewards': -np.arange(count, dtype=np.float32),
+            'behavior_training_seed': self.seeds,
+            'episode_id': np.asarray([1, 1, 1, 2, 2, 2], dtype=np.int64),
+            'transition_id': np.asarray(
+                [f'{network}:{index}' for index in range(count)], dtype=object,
+            ),
+        }}
 
     def eligible_indices(self, network, behavior_seeds=None, episode_range=None):
         assert network == self.network
@@ -99,6 +115,38 @@ class HistoricalArchiveTest(unittest.TestCase):
         self.assertEqual(
             stable_digest(first.visibility), stable_digest(second.visibility)
         )
+
+    def test_all_working_pool_methods_are_deterministic_and_frozen(self):
+        view = archive(False).visibility('P1F', ['n1', 'n2', 'n3', 'n4'], 2)
+        alignment = np.arange(160, dtype=np.float32).reshape(10, 16)
+        for method in ('DHOA', 'RAND', 'COV', 'CQ', 'CQA'):
+            kwargs = {'alignment_observations': alignment} if method == 'CQA' else {}
+            first = build_historical_sampler(
+                view, method, 12, random.Random(17), **kwargs,
+            )
+            second = build_historical_sampler(
+                view, method, 12, random.Random(17), **kwargs,
+            )
+            self.assertEqual(first.manifest['owp_digest'], second.manifest['owp_digest'])
+            self.assertEqual(first.references, second.references)
+            self.assertEqual(24 if method == 'DHOA' else 12, len(first))
+            first_ids = list(first.sample(5).transition_ids)
+            second_ids = list(second.sample(5).transition_ids)
+            self.assertEqual(first_ids, second_ids)
+            state = first.state_dict()
+            resumed = build_historical_sampler(
+                view, method, 12, random.Random(17), **kwargs,
+            )
+            resumed.load_state_dict(state)
+            self.assertEqual(
+                list(first.sample(4).transition_ids),
+                list(resumed.sample(4).transition_ids),
+            )
+
+    def test_cqa_requires_shared_warmup_descriptor(self):
+        view = archive(False).visibility('P1F', ['n1', 'n2', 'n3', 'n4'], 1)
+        with self.assertRaisesRegex(ValueError, 'warm-up'):
+            build_historical_sampler(view, 'CQA', 12, random.Random(1))
 
 
 if __name__ == '__main__':

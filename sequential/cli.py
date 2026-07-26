@@ -205,6 +205,11 @@ def _parser():
     ha_audit.add_argument('--plan', required=True)
     ha_audit.add_argument('--output-root', required=True)
     ha_audit.add_argument('--output', default=None)
+    ha_analysis = subparsers.add_parser('analyze-ha')
+    ha_analysis.add_argument('--plan', required=True)
+    ha_analysis.add_argument('--output-root', required=True)
+    ha_analysis.add_argument('--whitelist', default=DEFAULT_WHITELIST)
+    ha_analysis.add_argument('--output-dir', required=True)
     return parser
 
 
@@ -465,6 +470,13 @@ def main(argv=None):
         result = validate_ha_experiment(args.plan, args.output_root)
         if args.output:
             atomic_json(args.output, result)
+    elif args.command == 'analyze-ha':
+        from .ha_analysis import analyze_ha_experiment
+        report = analyze_ha_experiment(
+            args.plan, args.output_root, args.whitelist, args.output_dir,
+        )
+        result = {'valid': report['valid'], 'run_count': report['run_count'],
+                  'output': os.path.abspath(args.output_dir)}
     else:
         raise AssertionError(args.command)
     print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))

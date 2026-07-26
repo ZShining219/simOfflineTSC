@@ -170,6 +170,37 @@ def _parser():
     calibration_parser.add_argument('--legacy', required=True)
     calibration_parser.add_argument('--new-alias', required=True)
     calibration_parser.add_argument('--output', required=True)
+
+    ha_initial = subparsers.add_parser('build-ha-initial-catalog')
+    ha_initial.add_argument('--whitelist', default=DEFAULT_WHITELIST)
+    ha_initial.add_argument('--output', required=True)
+    ha_initial.add_argument('--config', default='configs/sequential/ha_sodqn_b100.yml')
+
+    ha_archive = subparsers.add_parser('build-ha-archive')
+    ha_archive.add_argument('--dataset-root', required=True)
+    ha_archive.add_argument('--audit-report', required=True)
+    ha_archive.add_argument('--output', required=True)
+
+    ha_reproduction = subparsers.add_parser('build-ha-reproduction-audit')
+    ha_reproduction.add_argument('--output', required=True)
+    ha_reproduction.add_argument('--config', default='configs/sequential/ha_sodqn_b100.yml')
+    ha_reproduction.add_argument('--order', default='O2')
+    ha_reproduction.add_argument('--training-seed', type=int, default=0)
+
+    ha_compare = subparsers.add_parser('compare-ha-reproduction-audit')
+    ha_compare.add_argument('--source-run', required=True)
+    ha_compare.add_argument('--attempt-dir', required=True)
+    ha_compare.add_argument('--episode-count', type=int, default=100)
+    ha_compare.add_argument('--output', required=True)
+
+    ha_build = subparsers.add_parser('build-ha-plan')
+    ha_build.add_argument('--stage', required=True, choices=('smoke', 'E0', 'E1', 'E2', 'E3', 'E4'))
+    ha_build.add_argument('--output', required=True)
+    ha_build.add_argument('--config', default='configs/sequential/ha_sodqn_b100.yml')
+    ha_build.add_argument('--selection', default=None)
+
+    ha_validate = subparsers.add_parser('validate-ha-plan')
+    ha_validate.add_argument('--plan', required=True)
     return parser
 
 
@@ -365,6 +396,65 @@ def main(argv=None):
             'action_sequence_equal': report['action_sequence_equal'],
             'metric_checks': report['metric_checks'],
         }
+    elif args.command == 'build-ha-initial-catalog':
+        from .initial_state import build_initial_state_catalog
+        # The HA config uses the same frozen orders and seeds as b100; the
+        # initial catalog builder consumes the existing sequential validator.
+        payload = build_initial_state_catalog(
+            args.whitelist, args.output, 'configs/sequential/plan34_b100.yml',
+        )
+        result = {'valid': True, 'output': os.path.abspath(args.output),
+                  'entry_count': payload['entry_count']}
+    elif args.command == 'build-ha-archive':
+        from .historical_archive import build_archive_root_manifest
+        from .io import read_json, sha256_file
+        audit = read_json(args.audit_report)
+        if audit.get('audit_kind') != 'plan1_same_seed_prefix_transition_equality':
+            raise ValueError('Unexpected HA behavior-seed audit report')
+        if not isinstance(audit.get('all_transitions_equal'), bool):
+            raise ValueError('HA behavior-seed audit has no definitive result')
+        seed_rule = {
+            'version': 1,
+            'audit_report': os.path.abspath(args.audit_report),
+            'audit_report_sha256': sha256_file(args.audit_report),
+            'same_seed_trajectory_reproduced': audit['all_transitions_equal'],
+            'exclude_matching_training_seed': audit['all_transitions_equal'],
+        }
+        payload = build_archive_root_manifest(
+            args.dataset_root, args.output, seed_rule,
+        )
+        result = {'valid': True, 'output': os.path.abspath(args.output),
+                  'archive_digest': payload['archive_digest']}
+    elif args.command == 'build-ha-reproduction-audit':
+        from .ha_manifest import build_reproduction_audit_plan
+        payload = build_reproduction_audit_plan(
+            args.output, args.config, args.order, args.training_seed,
+        )
+        result = {'valid': True, 'output': os.path.abspath(args.output),
+                  'plan_digest': payload['plan_digest']}
+    elif args.command == 'compare-ha-reproduction-audit':
+        from .reproduction import compare_plan1_prefix_to_sequential_attempt
+        report = compare_plan1_prefix_to_sequential_attempt(
+            args.source_run, args.attempt_dir, args.episode_count, args.output,
+        )
+        result = {'valid': report['all_transitions_equal'],
+                  'output': os.path.abspath(args.output),
+                  'transition_count': report['transition_count']}
+    elif args.command == 'build-ha-plan':
+        from .ha_manifest import build_ha_plan
+        from .io import read_json
+        selection = None if args.selection is None else read_json(args.selection)
+        if isinstance(selection, dict):
+            selection = selection.get('selection')
+        payload = build_ha_plan(
+            args.output, args.stage, args.config, selection=selection,
+        )
+        result = {'valid': True, 'output': os.path.abspath(args.output),
+                  'child_count': payload['child_count'],
+                  'plan_digest': payload['plan_digest']}
+    elif args.command == 'validate-ha-plan':
+        from .ha_manifest import validate_ha_plan
+        result = validate_ha_plan(args.plan)
     else:
         raise AssertionError(args.command)
     print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))

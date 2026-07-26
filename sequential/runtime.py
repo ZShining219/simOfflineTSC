@@ -9,6 +9,7 @@ import torch
 
 from .agent import SequentialDQNAgent
 from .hybrid_agent import HybridDQNAgent
+from .ha_agent import HASODQNAgent
 from .checkpoint import (
     atomic_torch_save, build_full_checkpoint, load_full_checkpoint,
     save_stage_checkpoint,
@@ -59,8 +60,15 @@ class SequentialChildRunner:
         self.stage_episodes = list(self.child['stage_episodes'])
         self.policy = self.child['policy']
         self.training_seed = int(self.child['training_seed'])
-        self.parent_manifest = read_json(self.child['parent_import_manifest'])
-        self._validate_parent_binding()
+        self.is_ha_sodqn = self.plan.get('protocol_id') == 'ha_sodqn_b100_v1'
+        self.parent_manifest = (
+            None if self.is_ha_sodqn
+            else read_json(self.child['parent_import_manifest'])
+        )
+        if self.is_ha_sodqn:
+            self._validate_initial_binding()
+        else:
+            self._validate_parent_binding()
         self.model_config = self.plan['model']
         self.trainer_config = dict(self.plan['trainer'])
         self.interface = self.child.get('interface', 'libsumo')
@@ -81,7 +89,10 @@ class SequentialChildRunner:
         self.journal = SequentialJournal(
             self.attempt_dir, self.logical_run_id, self.attempt_id,
             initial_stage=1, initial_global_episode=(
-                0 if self.child.get('condition') in {'M0', 'M1', 'M2', 'M3'}
+                0 if (
+                    self.is_ha_sodqn
+                    or self.child.get('condition') in {'M0', 'M1', 'M2', 'M3'}
+                )
                 else self.stage_episodes[0]
             ),
             resume_state_path=self.resume_state_path,
@@ -91,6 +102,20 @@ class SequentialChildRunner:
             trace_samples=bool(self.child.get('trace_replay_samples', False)),
         )
         self._write_run_manifest()
+
+    def _validate_initial_binding(self):
+        initial = self.child.get('initial_state', {})
+        if int(initial.get('checkpoint_episode', -1)) != 0:
+            raise ValueError('HA-SODQN requires an episode-0 initial state')
+        if initial.get('network') != self.networks[0]:
+            raise ValueError('HA-SODQN initial state is not from the first network')
+        if int(initial.get('training_seed', -1)) != self.training_seed:
+            raise ValueError('HA-SODQN initial-state seed mismatch')
+        path = os.path.abspath(self.child['initial_checkpoint'])
+        if path != os.path.abspath(initial['checkpoint_path']):
+            raise ValueError('HA-SODQN initial checkpoint binding mismatch')
+        if sha256_file(path) != self.child['initial_checkpoint_file_sha256']:
+            raise ValueError('HA-SODQN initial checkpoint SHA-256 mismatch')
 
     def _validate_parent_binding(self):
         expected_episode = int(self.child['parent_checkpoint_episode'])
@@ -113,7 +138,7 @@ class SequentialChildRunner:
             raise ValueError('Parent state digests differ from import manifest')
 
     def _write_run_manifest(self):
-        atomic_json(os.path.join(self.attempt_dir, 'child_run_manifest.json'), {
+        payload = {
             'schema_version': 1,
             'logical_run_id': self.logical_run_id,
             'attempt_id': self.attempt_id,
@@ -122,20 +147,43 @@ class SequentialChildRunner:
             'training_seed': self.training_seed,
             'policy': self.policy,
             'condition': self.child.get('condition'),
-            'budget_id': self.child['budget_id'],
-            'parent_checkpoint_episode': self.child['parent_checkpoint_episode'],
             'stage_episodes': self.stage_episodes,
-            'parent_import_manifest': self.child['parent_import_manifest'],
-            'parent_checkpoint': self.child['parent_checkpoint'],
-            'parent_trajectory_reference': os.path.join(
-                self.parent_manifest['source_run_path'], 'trajectory'
-            ),
-            'parent_trajectory_config_digest': self.parent_manifest['digests'][
-                'environment_signature_digest'
-            ],
             'resume_checkpoint': self.resume_path,
             'resume_state': self.resume_state_path,
-        })
+        }
+        if self.is_ha_sodqn:
+            payload.update({
+                'protocol_id': self.plan['protocol_id'],
+                'experiment_stage': self.plan['experiment_stage'],
+                'archive_mode': self.child['archive_mode'],
+                'method': self.child['method'],
+                'offline_ratio': self.child['offline_ratio'],
+                'archive_root_manifest': self.plan.get('archive_root_manifest'),
+                'archive_digest': self.plan.get('archive_digest'),
+                'initial_state_catalog': self.plan['initial_state_catalog'],
+                'initial_checkpoint': self.child['initial_checkpoint'],
+                'initial_checkpoint_file_sha256': self.child[
+                    'initial_checkpoint_file_sha256'
+                ],
+                'git_commit': self.plan['git_commit'],
+                'git_branch': self.plan['git_branch'],
+                'git_remote': self.plan['git_remote'],
+                'rng_config': self.plan['rng_config'],
+            })
+        else:
+            payload.update({
+                'budget_id': self.child['budget_id'],
+                'parent_checkpoint_episode': self.child['parent_checkpoint_episode'],
+                'parent_import_manifest': self.child['parent_import_manifest'],
+                'parent_checkpoint': self.child['parent_checkpoint'],
+                'parent_trajectory_reference': os.path.join(
+                    self.parent_manifest['source_run_path'], 'trajectory'
+                ),
+                'parent_trajectory_config_digest': self.parent_manifest['digests'][
+                    'environment_signature_digest'
+                ],
+            })
+        atomic_json(os.path.join(self.attempt_dir, 'child_run_manifest.json'), payload)
 
     def _create_world(self, network):
         from common import interface as registry_interface
@@ -169,7 +217,10 @@ class SequentialChildRunner:
             stage_index = min(stage_index + 1, len(self.networks))
         network = self.networks[stage_index - 1]
         self.world = self._create_world(network)
-        agent_cls = HybridDQNAgent if self.policy == 'hybrid' else SequentialDQNAgent
+        agent_cls = (
+            HASODQNAgent if self.is_ha_sodqn else
+            HybridDQNAgent if self.policy == 'hybrid' else SequentialDQNAgent
+        )
         hybrid_kwargs = {}
         if agent_cls is HybridDQNAgent:
             hybrid_kwargs = {
@@ -180,10 +231,29 @@ class SequentialChildRunner:
             }
         if agent_cls is SequentialDQNAgent and self.child.get('condition') in {'M0', 'M1'}:
             hybrid_kwargs['skip_replay_digest'] = True
-        self.agent = agent_cls.from_parent(
-            self.world, 0, self.model_config, self.trainer_config,
-            self.parent_manifest, **hybrid_kwargs,
-        )
+        if agent_cls is HASODQNAgent:
+            self.agent = agent_cls.from_initial_state(
+                self.world, 0, self.model_config, self.trainer_config,
+                self.child['initial_state'],
+                archive_manifest=(
+                    None if self.child['archive_mode'] == 'NONE'
+                    else self.plan['archive_root_manifest']
+                ),
+                ordered_networks=self.networks,
+                training_seed=self.training_seed,
+                archive_mode=self.child['archive_mode'],
+                method=self.child['method'],
+                offline_ratio=float(self.child['offline_ratio']),
+                owp_capacity=int(self.child['owp_capacity']),
+                alignment_warmup_episodes=int(
+                    self.child['alignment_warmup_episodes']
+                ),
+            )
+        else:
+            self.agent = agent_cls.from_parent(
+                self.world, 0, self.model_config, self.trainer_config,
+                self.parent_manifest, **hybrid_kwargs,
+            )
         if self.resume_path:
             self.resume_payload = load_full_checkpoint(self.resume_path)
             self.agent.load_full_state_dict(self.resume_payload['agent_state'])
@@ -195,7 +265,9 @@ class SequentialChildRunner:
             decision_hook=self._decision_progress_hook,
             replay_diagnostics=self.diagnostics,
         )
-        if self.child.get('condition') in {'M0', 'M1', 'M2', 'M3'} and not self.resume_path:
+        if self.is_ha_sodqn and not self.resume_path:
+            self.agent.begin_stage(1, self.networks[0], self.policy)
+        elif self.child.get('condition') in {'M0', 'M1', 'M2', 'M3'} and not self.resume_path:
             # Hybrid conditions deliberately start Stage 1 with an empty pool;
             # the parent checkpoint supplies model/optimizer/RNG only.
             if self.child.get('condition') == 'M1':
@@ -352,7 +424,10 @@ class SequentialChildRunner:
         # neither trained on nor evaluated before their stage is reached.
         evaluation_networks = (
             self.networks[:stage_index]
-            if self.child.get('condition') in {'M0', 'M1', 'M2', 'M3'}
+            if (
+                self.is_ha_sodqn
+                or self.child.get('condition') in {'M0', 'M1', 'M2', 'M3'}
+            )
             else self.networks
         )
         for matrix_position, evaluation_network in enumerate(evaluation_networks, start=1):
@@ -521,6 +596,7 @@ class SequentialChildRunner:
         if (
             not self.resume_path
             and self.child.get('condition') not in {'M0', 'M1', 'M2', 'M3'}
+            and not self.is_ha_sodqn
             and self.journal.phase == SequentialRunPhase.TRAINING
             and int(self.journal.state['stage_index']) == 1
         ):

@@ -1,0 +1,51 @@
+schema_version: 1
+protocol_id: ha_sodqn_b100_v1
+orders:
+  O1: [sumohz1x1_config3, sumohz1x1_config2, sumohz1x1_config4, sumohz1x1]
+  O2: [sumohz1x1, sumohz1x1_config4, sumohz1x1_config2, sumohz1x1_config3]
+  O3: [sumohz1x1_config2, sumohz1x1_config3, sumohz1x1, sumohz1x1_config4]
+  O4: [sumohz1x1_config4, sumohz1x1, sumohz1x1_config3, sumohz1x1_config2]
+training_seeds: [0, 1, 2, 3, 4]
+archive_modes: [P1C, P1F]
+methods: [DHOA, RAND, COV, CQ, CQA]
+offline_ratios: [0.25, 0.50, 0.75]
+trainer:
+  stage_episodes: [100, 100, 100, 100]
+  smoke_stage_episodes: [12, 2, 2, 2]
+  steps: 3600
+  test_steps: 3600
+  action_interval: 10
+  learning_start: 1000
+  buffer_size: 5000
+  batch_size: 64
+  update_model_rate: 1
+  target_update_interval: 10
+  evaluation_retries: 3
+  max_child_concurrency: 8
+  max_evaluator_concurrency: 8
+model:
+  learning_rate: 0.001
+  gamma: 0.95
+  epsilon_decay: 0.995
+  epsilon_min: 0.01
+  grad_clip: 5.0
+  phase: true
+  one_hot: true
+archive:
+  dataset_root: data/output_data/offline_datasets/plan2/plan2_formal_v2_a3a66e8_20260723
+  root_manifest: data/output_data/ha_sodqn/engineering_20260726/archive_root_manifest.json
+  initial_state_catalog: data/output_data/ha_sodqn/engineering_20260726/initial_state_catalog.json
+  source_episode_range: [1, 100]
+  owp_capacity: 5000
+  alignment_warmup_episodes: 10
+  cqa_global_fraction: 0.75
+  cqa_alignment_fraction: 0.25
+  behavior_seed_rule: trajectory_reproduction_audit
+rng:
+  derivation_version: 1
+  algorithm: sha256_first_64_bits
+  streams: [model_action, online_replay_sampler, hoa_owp_sampler, evaluation]
+analysis:
+  seed: 20260726
+  resamples: 10000
+  primary_adaptation_metric: normalized_travel_time_aulc_0_100

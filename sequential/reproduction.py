@@ -108,3 +108,79 @@ def compare_plan1_reproduction(source_run, reproduction_run, network,
     if output_path is not None:
         atomic_json(output_path, report)
     return report
+
+
+def compare_plan1_prefix_to_sequential_attempt(source_run, attempt_dir,
+                                               episode_count, output_path=None):
+    episode_count = int(episode_count)
+    if episode_count <= 0:
+        raise ValueError('Prefix episode count must be positive')
+    source_root = os.path.join(os.path.abspath(source_run), 'trajectory')
+    with open(os.path.join(source_root, 'index.jsonl'), encoding='utf-8') as handle:
+        source_index = [json.loads(line) for line in handle if line.strip()]
+    source_index = source_index[:episode_count]
+    if [int(row['episode_id']) for row in source_index] != list(range(1, episode_count + 1)):
+        raise ValueError('Plan 1 prefix is incomplete')
+    episode_checks = []
+    for episode, source_entry in enumerate(source_index, start=1):
+        source_path = os.path.join(source_root, source_entry['file'])
+        sequential_path = os.path.join(
+            os.path.abspath(attempt_dir), 'trajectory', 'episodes',
+            f'stage_01_episode_{episode:04d}.npz',
+        )
+        if not os.path.isfile(sequential_path):
+            raise FileNotFoundError(f'Missing sequential audit episode: {sequential_path}')
+        with np.load(source_path, allow_pickle=False) as source, np.load(
+            sequential_path, allow_pickle=False,
+        ) as reproduction:
+            fields = {
+                'local_episode': ('episode_id', 'local_episode'),
+                'global_episode': ('episode_id', 'global_episode'),
+                'decision_index': ('decision_step', 'decision_index'),
+                'global_decision_step': ('global_step', 'global_decision_step'),
+                'state': ('state', 'state'),
+                'phase': ('current_phase', 'phase'),
+                'action': ('action', 'action'),
+                'reward': ('reward', 'reward'),
+                'next_state': ('next_state', 'next_state'),
+                'next_phase': ('next_phase', 'next_phase'),
+                'terminated': ('terminated', 'terminated'),
+                'truncated': ('truncated', 'truncated'),
+            }
+            checks = {}
+            for name, (source_field, reproduction_field) in fields.items():
+                source_value = np.asarray(source[source_field])
+                reproduction_value = np.asarray(reproduction[reproduction_field])
+                if name in {'state', 'next_state'}:
+                    source_value = source_value.reshape(len(source_value), -1)
+                    reproduction_value = reproduction_value.reshape(
+                        len(reproduction_value), -1
+                    )
+                else:
+                    source_value = source_value.reshape(-1)
+                    reproduction_value = reproduction_value.reshape(-1)
+                checks[name] = np.array_equal(source_value, reproduction_value)
+            checks['stage_index'] = np.array_equal(
+                reproduction['stage_index'],
+                np.ones(len(reproduction['stage_index']), dtype=reproduction['stage_index'].dtype),
+            )
+            episode_checks.append({
+                'episode': episode,
+                'transition_count': len(reproduction['decision_index']),
+                'checks': checks,
+                'valid': all(checks.values()),
+            })
+    report = {
+        'schema_version': 1,
+        'audit_kind': 'plan1_same_seed_prefix_transition_equality',
+        'source_run': os.path.abspath(source_run),
+        'sequential_attempt': os.path.abspath(attempt_dir),
+        'episode_count': episode_count,
+        'transition_count': sum(item['transition_count'] for item in episode_checks),
+        'episodes': episode_checks,
+        'all_transitions_equal': all(item['valid'] for item in episode_checks),
+    }
+    report['exclude_matching_training_seed'] = report['all_transitions_equal']
+    if output_path is not None:
+        atomic_json(output_path, report)
+    return report

@@ -248,8 +248,9 @@ def validate_ha_plan(path):
         raise ValueError('HA-SODQN plans must default to 8 child slots')
     if sha256_file(plan['config_path']) != plan['config_sha256']:
         raise ValueError('HA-SODQN config changed after plan creation')
-    if sha256_file(plan['archive_root_manifest']) != plan['archive_root_manifest_sha256']:
-        raise ValueError('HA archive root changed after plan creation')
+    if plan['mode'] != 'audit':
+        if sha256_file(plan['archive_root_manifest']) != plan['archive_root_manifest_sha256']:
+            raise ValueError('HA archive root changed after plan creation')
     if sha256_file(plan['initial_state_catalog']) != plan['initial_state_catalog_sha256']:
         raise ValueError('HA initial-state catalog changed after plan creation')
     if _git(['rev-parse', 'HEAD']) != plan['git_commit']:

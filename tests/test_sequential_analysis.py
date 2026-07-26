@@ -7,14 +7,101 @@ import numpy as np
 
 from sequential.analysis import (
     exact_sign_flip_test, holm_adjust, normalized_auc, paired_bootstrap, raw_auc,
-    replay_uniformity_envelope, _select_analysis_children,
+    replay_uniformity_envelope, _select_analysis_children, summarize_run,
 )
 from sequential.core import canonical_transition_digest
 from sequential.validation import validate_trajectory_marker
+from sequential.hybrid_analysis import (
+    _paired_effect, _replay_performance_association,
+    _standardized_paired_effect, _stratified_effect,
+)
 from tools.experiment_plotting.sequential import _flatten
 
 
 class SequentialAnalysisTests(unittest.TestCase):
+    def test_hybrid_summary_reads_only_lower_triangle(self):
+        networks = ['S1', 'S2', 'S3', 'S4']
+        cells = {}
+        for stage in range(1, 5):
+            locals_ = range(1, 2) if stage == 1 else range(0, 2)
+            for local in locals_:
+                cells[(stage, local, networks[stage - 1])] = {
+                    'summary': {
+                        'travel_time': 10.0 + stage + local, 'delay': 1.0,
+                        'real_delay': 1.0, 'queue': 1.0, 'throughput': 10.0,
+                        'reward_mean': -1.0,
+                    }
+                }
+            for network in networks[:stage]:
+                cells[(stage, 1, network)] = {
+                    'summary': {
+                        'travel_time': 10.0 + stage, 'delay': 1.0,
+                        'real_delay': 1.0, 'queue': 1.0, 'throughput': 10.0,
+                        'reward_mean': -1.0,
+                    }
+                }
+        validated = {
+            'logical_run_id': 'hybrid',
+            'child_manifest': {
+                'logical_run_id': 'hybrid', 'order_id': 'O1',
+                'training_seed': 0, 'policy': 'hybrid', 'condition': 'M3',
+                'networks': networks, 'stage_episodes': [1, 1, 1, 1],
+            },
+            'evaluation_cells': cells,
+            'state': {'completed_operations': {}},
+        }
+        summary = summarize_run(validated, {network: 10.0 for network in networks})
+        self.assertEqual(len(summary['stage_scene_evaluations']), 10)
+        self.assertEqual(summary['condition'], 'M3')
+
+    def test_hybrid_paired_effect_keeps_conditions_distinct(self):
+        index = {
+            'M0': {('O1', 0): {'value': 3.0}, ('O1', 1): {'value': 5.0}},
+            'M3': {('O1', 0): {'value': 2.0}, ('O1', 1): {'value': 2.0}},
+        }
+        result = _paired_effect(
+            index, 'M0', 'M3', lambda run: run['value'], 7, 100, False,
+        )
+        self.assertEqual(result['paired_differences'], [1.0, 3.0])
+        self.assertEqual(result['effect_mean'], 2.0)
+        self.assertIsNone(result['bootstrap'])
+        self.assertIsNone(result['sign_flip'])
+
+    def test_hybrid_standardized_effect_requires_variation(self):
+        self.assertIsNone(_standardized_paired_effect([1.0]))
+        self.assertIsNone(_standardized_paired_effect([1.0, 1.0]))
+        self.assertAlmostEqual(_standardized_paired_effect([1.0, 3.0]), 2 ** .5)
+
+    def test_hybrid_stratified_effect_pairs_within_unit(self):
+        index = {
+            'M0': {('O1', 0): {'strata': {2: 4.0, 3: 8.0}}},
+            'M3': {('O1', 0): {'strata': {2: 3.0, 3: 6.0}}},
+        }
+        result = _stratified_effect(
+            index, 'M0', 'M3', lambda run: run['strata'],
+        )
+        self.assertEqual(result['2']['paired_differences'], [1.0])
+        self.assertEqual(result['3']['effect_mean'], 2.0)
+
+    def test_hybrid_replay_association_uses_kind_quota(self):
+        run = {
+            'logical_run_id': 'm3', 'condition': 'M3', 'order_id': 'O1',
+            'training_seed': 0, 'primary_normalized_auc': 1.2,
+            'secondary_metrics': {
+                'final_retention_mean_normalized': 1.1,
+                'stage_end_forgetting_mean_travel_time': 2.0,
+            },
+            'replay_diagnostics': [{
+                'stage_index': 4, 'historical_sample_fraction': .875,
+                'historical_sample_fraction_by_kind': .5,
+            }],
+        }
+        result = _replay_performance_association([run])
+        self.assertEqual(
+            result['runs'][0]['historical_sample_fraction_mean'], .5
+        )
+        self.assertEqual(result['runs'][0]['absolute_target_deviation'], 0.0)
+
     def test_replay_plotting_uses_per_episode_sample_deltas(self):
         run = {
             'logical_run_id': 'run', 'order_id': 'O1', 'training_seed': 0,

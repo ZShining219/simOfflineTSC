@@ -240,7 +240,12 @@ def summarize_run(validated, baselines):
     for stage in range(1, final_stage + 1):
         stage_budget = int(child['stage_episodes'][stage - 1])
         eval_local = stage_budget
-        for evaluation_network in child['networks']:
+        evaluation_networks = (
+            child['networks'][:stage]
+            if child.get('condition') in {'M0', 'M1', 'M2', 'M3'}
+            else child['networks']
+        )
+        for evaluation_network in evaluation_networks:
             cell = cells[(stage, eval_local, evaluation_network)]
             value = float(cell['summary']['travel_time'])
             introduced_stage = next(
@@ -275,6 +280,10 @@ def summarize_run(validated, baselines):
                     'replay_count_by_scene', 'replay_ratio_by_scene',
                     'transitions_written_by_scene', 'samples_drawn_by_scene',
                     'current_sample_fraction', 'historical_sample_fraction',
+                    'online_sample_fraction',
+                    'historical_sample_fraction_by_kind',
+                    'samples_drawn_by_kind', 'sample_age_mean',
+                    'sample_age_p50', 'sample_age_p95',
                     'replacement_thresholds',
                 )
             })
@@ -297,7 +306,7 @@ def summarize_run(validated, baselines):
     return {
         'logical_run_id': validated['logical_run_id'],
         'order_id': child['order_id'], 'training_seed': child['training_seed'],
-        'policy': child['policy'],
+        'policy': child['policy'], 'condition': child.get('condition'),
         'budget_id': child.get('budget_id'),
         'parent_checkpoint_episode': child.get('parent_checkpoint_episode'),
         'primary_normalized_auc': float(np.mean([

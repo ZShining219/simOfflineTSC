@@ -81,6 +81,22 @@ def _parser():
         '--validation-workers', type=int, default=1,
         help='Parallel workers for independent run validation.',
     )
+    hybrid_audit = subparsers.add_parser(
+        'audit-hybrid-runs', help='Build a validator-backed CS-HR run-list',
+    )
+    for condition in ('M0', 'M1', 'M2', 'M3'):
+        hybrid_audit.add_argument(f'--{condition.lower()}-manifest', required=True)
+        hybrid_audit.add_argument(f'--{condition.lower()}-output-root', required=True)
+    hybrid_audit.add_argument('--output', required=True)
+    hybrid_audit.add_argument('--orders', nargs='+', default=None)
+    hybrid_analyze = subparsers.add_parser(
+        'analyze-hybrid', help='Analyze a validated CS-HR M0--M3 run-list',
+    )
+    hybrid_analyze.add_argument('--run-list', required=True)
+    hybrid_analyze.add_argument(
+        '--parent-catalog', default=os.path.join(DEFAULT_OUTPUT, 'parent_catalog.json')
+    )
+    hybrid_analyze.add_argument('--output', required=True)
     cross_parser = subparsers.add_parser('analyze-budgets')
     cross_parser.add_argument('--b100-report', required=True)
     cross_parser.add_argument('--b400-report', required=True)
@@ -194,6 +210,20 @@ def main(argv=None):
         result = analyze_experiment(
             args.manifest, args.output_root, args.parent_catalog, args.output,
             selected_orders=args.orders, validation_workers=args.validation_workers,
+        )
+    elif args.command == 'audit-hybrid-runs':
+        from .hybrid_analysis import build_hybrid_run_list
+        result = build_hybrid_run_list(
+            {condition: getattr(args, f'{condition.lower()}_manifest')
+             for condition in ('M0', 'M1', 'M2', 'M3')},
+            {condition: getattr(args, f'{condition.lower()}_output_root')
+             for condition in ('M0', 'M1', 'M2', 'M3')},
+            args.output, selected_orders=args.orders,
+        )
+    elif args.command == 'analyze-hybrid':
+        from .hybrid_analysis import analyze_hybrid_experiment
+        result = analyze_hybrid_experiment(
+            args.run_list, args.parent_catalog, args.output,
         )
     elif args.command == 'analyze-budgets':
         from .analysis import analyze_cross_budget

@@ -360,6 +360,30 @@ def validate_ha_attempt(path):
                 raise ValueError('HA-SODQN sampled outside Plan 1 episodes 1-100')
     if window_count != expected_updates:
         raise ValueError('HA-SODQN diagnostic update count mismatch')
+    attempt_dir = validated['attempt_dir']
+    if archive_mode != 'NONE':
+        for stage in range(1, len(child['networks']) + 1):
+            visibility_path = os.path.join(
+                attempt_dir, 'archive',
+                f'stage_{stage:02d}_visibility_manifest.json',
+            )
+            if not os.path.isfile(visibility_path):
+                raise FileNotFoundError(visibility_path)
+            visibility_manifest = read_json(visibility_path)
+            expected_visible = (
+                child['networks'][:stage - 1]
+                if archive_mode == 'P1C' else child['networks']
+            )
+            if visibility_manifest['visibility']['visible_networks'] != expected_visible:
+                raise ValueError('Persisted archive visibility manifest mismatch')
+            if stage in owp_digests:
+                owp_path = os.path.join(
+                    attempt_dir, 'archive', f'stage_{stage:02d}_owp_manifest.json',
+                )
+                if not os.path.isfile(owp_path):
+                    raise FileNotFoundError(owp_path)
+                if read_json(owp_path)['owp_digest'] != owp_digests[stage]:
+                    raise ValueError('Persisted OWP manifest digest mismatch')
     return {
         **validated,
         'ha_audit': {

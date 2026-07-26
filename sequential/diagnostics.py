@@ -169,6 +169,22 @@ class ReplayDiagnostics:
                     else len(agent.historical_sampler.reuse_counts)
                 ),
             })
+            archive_dir = os.path.join(os.path.dirname(self.output_dir), 'archive')
+            if agent.visible_archive is not None:
+                atomic_json(os.path.join(
+                    archive_dir,
+                    f'stage_{int(stage_index):02d}_visibility_manifest.json',
+                ), {
+                    'schema_version': 1,
+                    'visibility': agent.visible_archive.visibility,
+                    'visibility_digest': agent.visible_archive.digest,
+                    'source_statistics': agent.visible_archive.source_statistics(),
+                })
+            if agent.historical_sampler is not None:
+                atomic_json(os.path.join(
+                    archive_dir,
+                    f'stage_{int(stage_index):02d}_owp_manifest.json',
+                ), agent.historical_sampler.manifest)
         path = os.path.join(
             self.output_dir,
             f'stage_{int(stage_index):02d}_episode_{int(local_episode):04d}.json',

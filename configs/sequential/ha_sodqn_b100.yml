@@ -11,7 +11,7 @@ methods: [DHOA, RAND, COV, CQ, CQA]
 offline_ratios: [0.25, 0.50, 0.75]
 trainer:
   stage_episodes: [100, 100, 100, 100]
-  smoke_stage_episodes: [12, 2, 2, 2]
+  smoke_stage_episodes: [12, 12, 12, 12]
   steps: 3600
   test_steps: 3600
   action_interval: 10

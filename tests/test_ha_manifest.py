@@ -8,7 +8,7 @@ class HAManifestTest(unittest.TestCase):
         config = load_ha_config('configs/sequential/ha_sodqn_b100.yml')
         smoke, smoke_budget = stage_specifications(config, 'smoke')
         self.assertEqual(4, len(smoke))
-        self.assertEqual([12, 2, 2, 2], smoke_budget)
+        self.assertEqual([12, 12, 12, 12], smoke_budget)
         self.assertIn(('O2', 0, 'NONE', 'CONT', 0.0), smoke)
         self.assertIn(('O2', 0, 'P1C', 'CQA', 0.5), smoke)
         e0, full_budget = stage_specifications(config, 'E0')

@@ -31,6 +31,20 @@ def _validate_ha_visibility_networks(archive_mode, actual, expected):
     return len(actual) == len(expected) and set(actual) == set(expected)
 
 
+def _register_ha_sampling_window(windows, window):
+    """Register one global update, accepting only identical replay evidence."""
+    update_id = int(window['gradient_updates'])
+    previous = windows.get(update_id)
+    if previous is None:
+        windows[update_id] = window
+        return True
+    if previous != window:
+        raise ValueError(
+            'HA-SODQN duplicate diagnostic update conflicts on resume'
+        )
+    return False
+
+
 TRAJECTORY_KEY = re.compile(r'^stage_(\d+):episode_(\d+):trajectory$')
 EVALUATION_KEY = re.compile(
     r'^evaluation:stage_(\d+):local_(\d+):(.+)$'
@@ -310,7 +324,7 @@ def validate_ha_attempt(path):
         expected_behavior_seeds = set(archive['behavior_training_seeds'])
         if archive['behavior_seed_rule'].get('exclude_matching_training_seed'):
             expected_behavior_seeds.discard(int(child['training_seed']))
-    window_count = 0
+    sampling_windows_by_update = {}
     owp_digests = {}
     for diagnostic in diagnostics:
         stage = int(diagnostic['stage_index'])
@@ -335,7 +349,10 @@ def validate_ha_attempt(path):
             if previous != digest:
                 raise ValueError('OWP changed inside a stage')
         for window in diagnostic.get('sampling_windows', []):
-            window_count += 1
+            if not _register_ha_sampling_window(
+                sampling_windows_by_update, window,
+            ):
+                continue
             if int(window['online_count']) + int(window['offline_count']) != 64:
                 raise ValueError('HA-SODQN mixed batch size is not 64')
             offline_count = int(window['offline_count'])
@@ -386,8 +403,10 @@ def validate_ha_attempt(path):
             }
             if any(episode < 1 or episode > 100 for episode in used_episodes):
                 raise ValueError('HA-SODQN sampled outside Plan 1 episodes 1-100')
-    if window_count != expected_updates:
+    expected_update_ids = set(range(1, expected_updates + 1))
+    if set(sampling_windows_by_update) != expected_update_ids:
         raise ValueError('HA-SODQN diagnostic update count mismatch')
+    window_count = len(sampling_windows_by_update)
     attempt_dir = validated['attempt_dir']
     if archive_mode != 'NONE':
         for stage in range(1, len(child['networks']) + 1):

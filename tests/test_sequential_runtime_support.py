@@ -99,6 +99,21 @@ class SequentialRuntimeSupportTests(unittest.TestCase):
             traced.record_update(update, 1001)
             self.assertEqual(len(traced.full_batches), 1)
 
+    def test_replay_diagnostics_can_clear_only_episode_buffers(self):
+        with tempfile.TemporaryDirectory() as directory:
+            diagnostics = ReplayDiagnostics(directory)
+            diagnostics.transitions_written_by_scene = {'scene': 3}
+            diagnostics.sample_ages = [1, 2]
+            diagnostics.full_batches = [{'gradient_updates': 1}]
+            diagnostics.sampling_windows = [{'gradient_updates': 1}]
+
+            diagnostics.clear_episode_buffers()
+
+            self.assertEqual({'scene': 3}, diagnostics.transitions_written_by_scene)
+            self.assertEqual([], diagnostics.sample_ages)
+            self.assertEqual([], diagnostics.full_batches)
+            self.assertEqual([], diagnostics.sampling_windows)
+
     def test_pilot_manifest_is_exact_six_child_o1_seed0_matrix(self):
         with tempfile.TemporaryDirectory() as directory:
             parents = [{

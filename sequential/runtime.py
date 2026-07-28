@@ -593,6 +593,11 @@ class SequentialChildRunner:
     def _advance_state_machine(self):
         if self.resume_payload:
             self._reconcile_committed_episode()
+            # A committed checkpoint is written before its episode diagnostic
+            # is flushed.  Once the checkpoint and journal are reconciled, its
+            # per-episode buffers are predecessor evidence and must not be
+            # appended to the next rerun episode.
+            self.diagnostics.clear_episode_buffers()
         if (
             not self.resume_path
             and self.child.get('condition') not in {'M0', 'M1', 'M2', 'M3'}

@@ -5,12 +5,25 @@ from unittest import mock
 
 from sequential.io import atomic_json
 from sequential.validation import (
-    _resolve_attempt_chain_artifact, _validate_ha_visibility_networks,
-    validate_ha_attempt,
+    _register_ha_sampling_window, _resolve_attempt_chain_artifact,
+    _validate_ha_visibility_networks, validate_ha_attempt,
 )
 
 
 class HAValidationTest(unittest.TestCase):
+    def test_identical_recovery_update_is_deduplicated_but_conflict_is_rejected(self):
+        digests = {}
+        window = {
+            'gradient_updates': 12, 'online_count': 32,
+            'offline_count': 32,
+        }
+        self.assertTrue(_register_ha_sampling_window(digests, window))
+        self.assertFalse(_register_ha_sampling_window(digests, dict(window)))
+        with self.assertRaisesRegex(ValueError, 'conflicts on resume'):
+            _register_ha_sampling_window(
+                digests, {**window, 'offline_count': 31},
+            )
+
     def test_recovery_artifact_resolves_from_immutable_predecessor_attempt(self):
         with tempfile.TemporaryDirectory() as directory:
             logical_root = os.path.join(directory, 'logical')
@@ -68,6 +81,7 @@ class HAValidationTest(unittest.TestCase):
                     'visibility': {'visible_networks': ['past']},
                 },
                 'sampling_windows': [{
+                    'gradient_updates': 1,
                     'online_count': 32, 'offline_count': 32,
                     'actual_offline_ratio': 0.5,
                     'offline_sample_count_by_scene': {'current': 32},

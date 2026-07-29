@@ -11,8 +11,8 @@ from .agent import SequentialDQNAgent
 from .hybrid_agent import HybridDQNAgent
 from .ha_agent import HASODQNAgent
 from .checkpoint import (
-    atomic_torch_save, build_full_checkpoint, load_full_checkpoint,
-    save_stage_checkpoint,
+    atomic_torch_save, build_full_checkpoint, build_resume_validation,
+    load_full_checkpoint, save_stage_checkpoint,
 )
 from .config import simulator_config_path
 from .diagnostics import ReplayDiagnostics
@@ -257,6 +257,13 @@ class SequentialChildRunner:
         if self.resume_path:
             self.resume_payload = load_full_checkpoint(self.resume_path)
             self.agent.load_full_state_dict(self.resume_payload['agent_state'])
+            atomic_json(
+                os.path.join(self.attempt_dir, 'resume_validation.json'),
+                build_resume_validation(
+                    self.resume_path, self.resume_state_path,
+                    self.resume_payload, self.agent.full_state_dict(),
+                ),
+            )
             extra = self.resume_payload.get('extra_state', {})
             if 'replay_diagnostics' in extra:
                 self.diagnostics.load_state_dict(extra['replay_diagnostics'])

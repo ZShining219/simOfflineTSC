@@ -7,7 +7,7 @@ import numpy as np
 import torch
 
 from sequential.checkpoint import (
-    RollingRecoveryManager, load_full_checkpoint,
+    RollingRecoveryManager, build_resume_validation, load_full_checkpoint,
 )
 from sequential.core import canonical_digest, capture_rng_state
 from sequential.io import atomic_json
@@ -156,6 +156,40 @@ class SequentialRecoveryTests(unittest.TestCase):
             path, payload = manager.latest_valid()
             self.assertEqual(path, manager.previous_path)
             self.assertEqual(payload['identity']['episode'], 1)
+
+    def test_resume_validation_proves_full_and_component_state_identity(self):
+        with tempfile.TemporaryDirectory() as directory:
+            checkpoint = os.path.join(directory, 'resume.pt')
+            with open(checkpoint, 'wb') as handle:
+                handle.write(b'checkpoint-evidence')
+            agent_state = {
+                'online_model_state_dict': {'weight': torch.tensor([1.0])},
+                'target_model_state_dict': {'weight': torch.tensor([2.0])},
+                'optimizer_state_dict': {'step': 3},
+                'replay_state': {'size': 5000},
+                'rng_state': {'stream': 'isolated'},
+                'counters': {'gradient_updates': 12},
+                'ha_sodqn': {'visible_archive_digest': 'archive'},
+            }
+            payload = {
+                'agent_state': agent_state,
+                'canonical_state_digest': canonical_digest(agent_state),
+                'identity': {'stage_index': 2, 'local_episode': 36},
+            }
+            report = build_resume_validation(
+                checkpoint, '/source/current_state.json', payload,
+                agent_state,
+            )
+            self.assertTrue(report['valid'])
+            self.assertEqual(
+                report['expected_canonical_state_digest'],
+                report['loaded_canonical_state_digest'],
+            )
+            self.assertEqual(set(report['component_digests']), set(agent_state))
+            with self.assertRaisesRegex(ValueError, 'canonical digest mismatch'):
+                build_resume_validation(
+                    checkpoint, None, payload, {**agent_state, 'counters': {}},
+                )
 
     def test_half_episode_rollback_rerun_matches_no_fault_canonical_state(self):
         identity = {'stage_index': 2, 'local_episode': 1, 'global_episode': 401}

@@ -4,9 +4,40 @@ import tempfile
 import torch
 
 from .core import canonical_digest
+from .io import sha256_file
 
 
 CHECKPOINT_SCHEMA_VERSION = 1
+
+
+def build_resume_validation(resume_path, resume_state_path, payload,
+                            loaded_agent_state):
+    expected = payload['canonical_state_digest']
+    loaded = canonical_digest(loaded_agent_state)
+    if loaded != expected:
+        raise ValueError('Loaded resume state canonical digest mismatch')
+    component_keys = (
+        'online_model_state_dict', 'target_model_state_dict',
+        'optimizer_state_dict', 'replay_state', 'rng_state', 'counters',
+        'ha_sodqn',
+    )
+    return {
+        'schema_version': 1,
+        'valid': True,
+        'resume_checkpoint': os.path.abspath(resume_path),
+        'resume_checkpoint_sha256': sha256_file(resume_path),
+        'resume_state': (
+            None if resume_state_path is None
+            else os.path.abspath(resume_state_path)
+        ),
+        'checkpoint_identity': payload.get('identity'),
+        'expected_canonical_state_digest': expected,
+        'loaded_canonical_state_digest': loaded,
+        'component_digests': {
+            key: canonical_digest(payload['agent_state'][key])
+            for key in component_keys if key in payload['agent_state']
+        },
+    }
 
 
 def atomic_torch_save(payload, path):

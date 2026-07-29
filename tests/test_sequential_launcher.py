@@ -1,15 +1,17 @@
 import os
 import shutil
 import signal
+import subprocess
 import tempfile
 import unittest
 from unittest import mock
 
 from sequential.io import atomic_json
+from sequential.cli import main as sequential_main
 from sequential.launcher import (
     AttemptLineage, ConcurrencyController, GIB, LogicalRunLock,
     ResourceGate, SequentialLauncher, classify_failure, collect_status,
-    is_auto_recoverable,
+    is_auto_recoverable, process_exists, reconcile_stale_runs,
 )
 
 
@@ -57,6 +59,203 @@ class SequentialLauncherTests(unittest.TestCase):
                 directory, manifest_path=manifest, stale_seconds=1,
             )
             self.assertEqual(status['counts'], {'planned': 1, 'stale': 1})
+
+    def test_reconcile_stale_requires_dead_pid_lock_and_valid_checkpoint(self):
+        with tempfile.TemporaryDirectory() as directory:
+            manifest = os.path.join(directory, 'manifest.json')
+            atomic_json(manifest, {'children': [
+                {'logical_run_id': 'stale'},
+                {'logical_run_id': 'alive'},
+                {'logical_run_id': 'no_checkpoint'},
+            ]})
+            for logical_id, pid in (
+                ('stale', 101), ('alive', 202), ('no_checkpoint', 303),
+            ):
+                lineage = AttemptLineage(directory, logical_id)
+                attempt = lineage.create_attempt()
+                atomic_json(
+                    os.path.join(attempt['attempt_dir'], 'current_state.json'),
+                    {'logical_run_id': logical_id},
+                )
+                lineage.update_attempt(
+                    attempt['attempt_id'], 'running', pid=pid,
+                    started_at_unix=1,
+                )
+
+            def recovery(lineage):
+                if lineage.manifest['logical_run_id'] == 'no_checkpoint':
+                    return None
+                return '/valid/recovery.pt'
+
+            with mock.patch.object(
+                AttemptLineage, 'latest_recovery_checkpoint', recovery,
+            ), mock.patch(
+                'sequential.launcher.os.path.getmtime', return_value=1,
+            ):
+                report = reconcile_stale_runs(
+                    directory, manifest, stale_seconds=10,
+                    pid_checker=lambda pid: pid == 202,
+                    now_provider=lambda: 100,
+                )
+
+            self.assertEqual(report['reconciled'], ['stale'])
+            stale = AttemptLineage(directory, 'stale')
+            self.assertEqual(stale.manifest['status'], 'interrupted')
+            self.assertEqual(stale.latest_attempt()['failure_class'], 'interrupted')
+            self.assertTrue(
+                stale.latest_attempt()['finalized_by_reconciliation'],
+            )
+            self.assertEqual(
+                AttemptLineage(directory, 'alive').manifest['status'], 'running',
+            )
+            self.assertEqual(
+                AttemptLineage(directory, 'no_checkpoint').manifest['status'],
+                'running',
+            )
+            reasons = {
+                item['logical_run_id']: item.get('reason')
+                for item in report['results']
+            }
+            self.assertEqual(reasons['alive'], 'pid_alive')
+            self.assertEqual(
+                reasons['no_checkpoint'], 'no_valid_recovery_checkpoint',
+            )
+
+    def _running_lineage(self, directory, logical_id='stale', pid=101):
+        manifest = os.path.join(directory, 'manifest.json')
+        atomic_json(manifest, {'children': [{'logical_run_id': logical_id}]})
+        lineage = AttemptLineage(directory, logical_id)
+        attempt = lineage.create_attempt()
+        atomic_json(
+            os.path.join(attempt['attempt_dir'], 'current_state.json'),
+            {'logical_run_id': logical_id},
+        )
+        lineage.update_attempt(
+            attempt['attempt_id'], 'running', pid=pid, started_at_unix=1,
+        )
+        return manifest, lineage, attempt
+
+    def test_reconcile_stale_skips_held_lock_and_not_stale_attempt(self):
+        with tempfile.TemporaryDirectory() as directory:
+            manifest, lineage, _ = self._running_lineage(directory)
+            lock = LogicalRunLock(os.path.join(lineage.root, 'run.lock')).acquire()
+            try:
+                with mock.patch(
+                    'sequential.launcher.os.path.getmtime', return_value=1,
+                ):
+                    report = reconcile_stale_runs(
+                        directory, manifest, stale_seconds=10,
+                        pid_checker=lambda pid: False, now_provider=lambda: 100,
+                    )
+            finally:
+                lock.release()
+            self.assertEqual(report['results'][0]['reason'], 'locked')
+            self.assertEqual(lineage.manifest['status'], 'running')
+
+            with mock.patch(
+                'sequential.launcher.os.path.getmtime', return_value=95,
+            ):
+                report = reconcile_stale_runs(
+                    directory, manifest, stale_seconds=10,
+                    pid_checker=lambda pid: False, now_provider=lambda: 100,
+                )
+            self.assertEqual(report['results'][0]['reason'], 'not_stale')
+            self.assertEqual(
+                AttemptLineage(directory, 'stale').manifest['status'], 'running',
+            )
+
+    def test_reconcile_stale_skips_pid_change_detected_under_lock(self):
+        with tempfile.TemporaryDirectory() as directory:
+            manifest, lineage, _ = self._running_lineage(directory, pid=101)
+            original_acquire = LogicalRunLock.acquire
+
+            def change_pid_then_acquire(lock):
+                changed = AttemptLineage(directory, 'stale')
+                changed.update_attempt('attempt_1', 'running', pid=303)
+                return original_acquire(lock)
+
+            with mock.patch.object(
+                LogicalRunLock, 'acquire', change_pid_then_acquire,
+            ), mock.patch(
+                'sequential.launcher.os.path.getmtime', return_value=1,
+            ):
+                report = reconcile_stale_runs(
+                    directory, manifest, stale_seconds=10,
+                    pid_checker=lambda pid: False, now_provider=lambda: 100,
+                )
+            self.assertEqual(report['results'][0]['reason'], 'lineage_changed')
+            self.assertEqual(
+                AttemptLineage(directory, 'stale').manifest['status'], 'running',
+            )
+            self.assertEqual(
+                AttemptLineage(directory, 'stale').latest_attempt()['pid'], 303,
+            )
+
+    def test_reconcile_stale_rejects_corrupt_checkpoint_and_is_idempotent(self):
+        with tempfile.TemporaryDirectory() as directory:
+            manifest, lineage, attempt = self._running_lineage(directory)
+            corrupt = os.path.join(attempt['attempt_dir'], 'corrupt.pt')
+            with open(corrupt, 'wb') as handle:
+                handle.write(b'not a checkpoint')
+            atomic_json(
+                os.path.join(attempt['attempt_dir'], 'resume_pointer.json'),
+                {'checkpoint_path': corrupt},
+            )
+            with mock.patch(
+                'sequential.launcher.os.path.getmtime', return_value=1,
+            ):
+                rejected = reconcile_stale_runs(
+                    directory, manifest, stale_seconds=10,
+                    pid_checker=lambda pid: False, now_provider=lambda: 100,
+                )
+            self.assertEqual(
+                rejected['results'][0]['reason'],
+                'no_valid_recovery_checkpoint',
+            )
+            self.assertEqual(
+                AttemptLineage(directory, 'stale').manifest['status'], 'running',
+            )
+
+            with mock.patch.object(
+                AttemptLineage, 'latest_recovery_checkpoint',
+                return_value='/valid/recovery.pt',
+            ), mock.patch(
+                'sequential.launcher.os.path.getmtime', return_value=1,
+            ):
+                first = reconcile_stale_runs(
+                    directory, manifest, stale_seconds=10,
+                    pid_checker=lambda pid: False, now_provider=lambda: 100,
+                )
+                second = reconcile_stale_runs(
+                    directory, manifest, stale_seconds=10,
+                    pid_checker=lambda pid: False, now_provider=lambda: 100,
+                )
+            self.assertEqual(first['reconciled'], ['stale'])
+            self.assertTrue(
+                first['results'][0]['recovery_checkpoint_validated'],
+            )
+            self.assertEqual(second['reconciled'], [])
+            finalized = AttemptLineage(directory, 'stale')
+            self.assertEqual(len(finalized.manifest['attempts']), 1)
+            self.assertEqual(finalized.manifest['status'], 'interrupted')
+
+    def test_process_exists_handles_invalid_alive_and_exited_pids(self):
+        for invalid in (None, '', 'not-a-pid', 0, -1):
+            self.assertFalse(process_exists(invalid))
+        self.assertTrue(process_exists(os.getpid()))
+        process = subprocess.Popen(['/bin/true'])
+        process.wait(timeout=5)
+        self.assertFalse(process_exists(process.pid))
+
+    def test_formal_manifest_reconciliation_requires_authorization(self):
+        with tempfile.TemporaryDirectory() as directory:
+            manifest = os.path.join(directory, 'formal.json')
+            atomic_json(manifest, {'mode': 'formal', 'children': []})
+            with self.assertRaisesRegex(PermissionError, 'authorize-formal'):
+                sequential_main([
+                    'reconcile-stale', '--manifest', manifest,
+                    '--output-root', directory,
+                ])
 
     def test_resource_gate_enforces_disk_double_estimate_and_memory_per_slot(self):
         disk = shutil._ntuple_diskusage(100 * GIB, 50 * GIB, 50 * GIB)

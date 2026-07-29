@@ -221,6 +221,142 @@ def is_auto_recoverable(failure_class, recovery_checkpoint):
     return failure_class in RECOVERABLE_FAILURES and recovery_checkpoint is not None
 
 
+def process_exists(pid):
+    """Return True when *pid* still names a process visible to this user."""
+    try:
+        pid = int(pid)
+    except (TypeError, ValueError):
+        return False
+    if pid <= 0:
+        return False
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
+def reconcile_stale_runs(output_root, manifest_path, stale_seconds=1800,
+                         pid_checker=None, now_provider=None):
+    """Finalize externally orphaned running attempts as interrupted.
+
+    This is deliberately stricter than status collection: a stale timestamp is
+    not sufficient.  Reconciliation also requires the persisted child PID to
+    be absent, the logical-run lock to be acquirable, and a checkpoint that the
+    normal recovery loader accepts.  The interrupted attempt is preserved; a
+    later ``resume-failed`` call owns creation of the successor attempt.
+    """
+    output_root = os.path.abspath(output_root)
+    manifest_path = os.path.abspath(manifest_path)
+    plan = read_json(manifest_path)
+    allowed = {child['logical_run_id'] for child in plan.get('children', [])}
+    pid_checker = pid_checker or process_exists
+    now_provider = now_provider or time.time
+    results = []
+
+    for logical_run_id in sorted(allowed):
+        manifest = os.path.join(
+            output_root, logical_run_id, 'logical_run_manifest.json',
+        )
+        if not os.path.isfile(manifest):
+            continue
+        snapshot = read_json(manifest)
+        latest = snapshot.get('attempts', [])[-1:]
+        if snapshot.get('status') != 'running' or not latest:
+            continue
+        latest = latest[0]
+        if latest.get('status') != 'running':
+            continue
+        progress = os.path.join(latest['attempt_dir'], 'current_state.json')
+        reference = (
+            os.path.getmtime(progress) if os.path.isfile(progress)
+            else float(latest.get('started_at_unix', 0))
+        )
+        now = float(now_provider())
+        age = now - reference if reference else 0
+        record = {
+            'logical_run_id': logical_run_id,
+            'attempt_id': latest['attempt_id'],
+            'pid': latest.get('pid'),
+            'progress_path': progress if os.path.isfile(progress) else None,
+            'progress_reference_unix': reference or None,
+            'observed_at_unix': now,
+            'stale_age_seconds': age,
+            'stale_threshold_seconds': int(stale_seconds),
+        }
+        if not reference or age <= int(stale_seconds):
+            results.append({**record, 'status': 'skipped', 'reason': 'not_stale'})
+            continue
+        if pid_checker(latest.get('pid')):
+            results.append({**record, 'status': 'skipped', 'reason': 'pid_alive'})
+            continue
+
+        lock = LogicalRunLock(os.path.join(
+            output_root, logical_run_id, 'run.lock',
+        ))
+        try:
+            lock.acquire()
+        except RuntimeError:
+            results.append({**record, 'status': 'skipped', 'reason': 'locked'})
+            continue
+        try:
+            # Re-read under the lock to close the status/PID race.
+            lineage = AttemptLineage(output_root, logical_run_id)
+            current = lineage.latest_attempt()
+            if (lineage.manifest.get('status') != 'running' or current is None
+                    or current.get('attempt_id') != latest.get('attempt_id')
+                    or current.get('status') != 'running'
+                    or current.get('pid') != latest.get('pid')):
+                results.append({
+                    **record, 'status': 'skipped', 'reason': 'lineage_changed',
+                })
+                continue
+            if pid_checker(current.get('pid')):
+                results.append({
+                    **record, 'status': 'skipped', 'reason': 'pid_alive',
+                })
+                continue
+            recovery = lineage.latest_recovery_checkpoint()
+            if recovery is None:
+                results.append({
+                    **record, 'status': 'skipped',
+                    'reason': 'no_valid_recovery_checkpoint',
+                })
+                continue
+            evidence = {
+                **record,
+                'recorded_pid_absent': True,
+                'lock_acquired': True,
+                'recovery_checkpoint': recovery,
+                'recovery_checkpoint_validated': True,
+            }
+            lineage.update_attempt(
+                current['attempt_id'], 'interrupted', returncode=None,
+                failure_class='interrupted', finished_at_unix=now,
+                finalized_by_reconciliation=True,
+                reconciliation=evidence,
+            )
+            results.append({
+                **evidence, 'status': 'reconciled',
+            })
+        finally:
+            lock.release()
+
+    return {
+        'schema_version': 1,
+        'manifest_path': manifest_path,
+        'output_root': output_root,
+        'stale_threshold_seconds': int(stale_seconds),
+        'results': results,
+        'reconciled': [
+            item['logical_run_id'] for item in results
+            if item['status'] == 'reconciled'
+        ],
+    }
+
+
 class SequentialLauncher:
     def __init__(self, manifest_path, output_root, python_executable=None,
                  resource_gate=None, initial_concurrency=8):

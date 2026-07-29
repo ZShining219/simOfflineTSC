@@ -133,6 +133,12 @@ def _parser():
     status_parser.add_argument('--manifest', default=None)
     status_parser.add_argument('--stale-seconds', type=int, default=1800)
 
+    reconcile_parser = subparsers.add_parser('reconcile-stale')
+    reconcile_parser.add_argument('--manifest', required=True)
+    reconcile_parser.add_argument('--output-root', required=True)
+    reconcile_parser.add_argument('--stale-seconds', type=int, default=1800)
+    reconcile_parser.add_argument('--authorize-formal', action='store_true')
+
     resume_parser = subparsers.add_parser('resume-failed')
     resume_parser.add_argument('--manifest', required=True)
     resume_parser.add_argument('--output-root', required=True)
@@ -336,6 +342,19 @@ def main(argv=None):
         from .launcher import collect_status
         result = collect_status(
             args.output_root, manifest_path=args.manifest,
+            stale_seconds=args.stale_seconds,
+        )
+    elif args.command == 'reconcile-stale':
+        from .io import read_json
+        from .launcher import reconcile_stale_runs
+        plan = read_json(args.manifest)
+        if plan.get('mode') == 'formal' and not args.authorize_formal:
+            raise PermissionError(
+                'Formal manifest reconciliation requires explicit '
+                '--authorize-formal'
+            )
+        result = reconcile_stale_runs(
+            args.output_root, args.manifest,
             stale_seconds=args.stale_seconds,
         )
     elif args.command == 'resume-failed':

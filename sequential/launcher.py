@@ -385,7 +385,7 @@ def reconcile_stale_runs(output_root, manifest_path, stale_seconds=1800,
 
 def reconcile_invalid_ha_runs(output_root, manifest_path, logical_run_ids,
                               now_provider=None, pid_checker=None):
-    """Invalidate completed HA attempts whose frozen training budget is wrong.
+    """Invalidate completed HA attempts that fail frozen recovery invariants.
 
     The completed attempt and all of its artifacts remain immutable evidence.
     Reconciliation only makes the invalid attempt ineligible as a recovery
@@ -501,14 +501,6 @@ def reconcile_invalid_ha_runs(output_root, manifest_path, logical_run_ids,
                 'target_updates': max(0, expected_decisions - 1000) // 10,
             }
             observed = {key: int(counters[key]) for key in expected}
-            if observed == expected:
-                results.append({
-                    'logical_run_id': logical_run_id,
-                    'attempt_id': current['attempt_id'], 'status': 'skipped',
-                    'reason': 'budget_valid', 'expected': expected,
-                    'observed': observed,
-                })
-                continue
             recovery = None
             for attempt in reversed(lineage.manifest['attempts'][:-1]):
                 reconciliation = attempt.get('reconciliation') or {}
@@ -532,6 +524,36 @@ def reconcile_invalid_ha_runs(output_root, manifest_path, logical_run_ids,
                     'source_attempt_id': attempt['attempt_id'],
                 }
                 break
+            failures = []
+            if observed != expected:
+                failures.append('frozen_training_budget_mismatch')
+            if current.get('resume_from'):
+                command = current.get('command') or []
+                command_resume = (
+                    command[command.index('--resume') + 1]
+                    if '--resume' in command else None
+                )
+                command_state = (
+                    command[command.index('--resume-state') + 1]
+                    if '--resume-state' in command else None
+                )
+                if recovery is None or not command_state:
+                    failures.append('resume_context_binding_missing')
+                elif (
+                    os.path.abspath(command_resume or '')
+                    != os.path.abspath(recovery['checkpoint_path'])
+                    or os.path.abspath(command_state)
+                    != os.path.abspath(recovery['resume_state_path'])
+                ):
+                    failures.append('resume_context_binding_mismatch')
+            if not failures:
+                results.append({
+                    'logical_run_id': logical_run_id,
+                    'attempt_id': current['attempt_id'], 'status': 'skipped',
+                    'reason': 'validation_valid', 'expected': expected,
+                    'observed': observed,
+                })
+                continue
             if recovery is None:
                 results.append({
                     'logical_run_id': logical_run_id,
@@ -542,7 +564,7 @@ def reconcile_invalid_ha_runs(output_root, manifest_path, logical_run_ids,
                 continue
             evidence = {
                 'observed_at_unix': float(now_provider()),
-                'reason': 'frozen_training_budget_mismatch',
+                'reasons': failures,
                 'expected_counters': expected,
                 'observed_counters': observed,
                 'final_checkpoint': checkpoint_path,

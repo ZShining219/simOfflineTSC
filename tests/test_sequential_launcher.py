@@ -11,7 +11,8 @@ from sequential.cli import main as sequential_main
 from sequential.launcher import (
     AttemptLineage, ConcurrencyController, GIB, LogicalRunLock,
     ResourceGate, SequentialLauncher, classify_failure, collect_status,
-    is_auto_recoverable, process_exists, reconcile_stale_runs,
+    is_auto_recoverable, process_exists, reconcile_invalid_ha_runs,
+    reconcile_stale_runs,
 )
 
 
@@ -44,6 +45,209 @@ class SequentialLauncherTests(unittest.TestCase):
             self.assertEqual(status['counts'], {'completed': 1})
             self.assertEqual(
                 status['runs'][0]['effective_attempt'], 'attempt_2'
+            )
+
+    def test_recovery_context_binds_checkpoint_and_state_to_same_attempt(self):
+        with tempfile.TemporaryDirectory() as directory:
+            lineage = AttemptLineage(directory, 'logical')
+            source = lineage.create_attempt()
+            source_checkpoint = os.path.join(
+                source['attempt_dir'], 'source.pt',
+            )
+            open(source_checkpoint, 'wb').close()
+            source_state = os.path.join(
+                source['attempt_dir'], 'current_state.json',
+            )
+            atomic_json(source_state, {'logical_run_id': 'logical'})
+            atomic_json(
+                os.path.join(source['attempt_dir'], 'resume_pointer.json'),
+                {'checkpoint_path': source_checkpoint},
+            )
+            lineage.update_attempt(
+                source['attempt_id'], 'interrupted',
+                failure_class='interrupted',
+            )
+            environment_failure = lineage.create_attempt(
+                resume_from=source_checkpoint,
+            )
+            lineage.update_attempt(
+                environment_failure['attempt_id'], 'failed',
+                failure_class='failed',
+            )
+            invalid = lineage.create_attempt(resume_from=source_checkpoint)
+            invalid_checkpoint = os.path.join(
+                invalid['attempt_dir'], 'invalid.pt',
+            )
+            open(invalid_checkpoint, 'wb').close()
+            atomic_json(
+                os.path.join(invalid['attempt_dir'], 'resume_pointer.json'),
+                {'checkpoint_path': invalid_checkpoint},
+            )
+            lineage.update_attempt(
+                invalid['attempt_id'], 'failed', recovery_eligible=False,
+            )
+
+            with mock.patch(
+                'sequential.launcher.load_full_checkpoint', return_value={},
+            ):
+                context = AttemptLineage(
+                    directory, 'logical',
+                ).latest_recovery_context()
+            self.assertEqual(context, {
+                'checkpoint_path': source_checkpoint,
+                'resume_state_path': source_state,
+                'source_attempt_id': source['attempt_id'],
+            })
+
+    def test_launcher_uses_resume_state_from_checkpoint_source_attempt(self):
+        class PassingGate:
+            @staticmethod
+            def check(output_root, pending_output_bytes, concurrency_slots):
+                return {
+                    'valid': True, 'disk_free_bytes': 1,
+                    'disk_required_bytes': 1, 'memory_available_bytes': 1,
+                    'memory_required_bytes': 1,
+                    'concurrency_slots': concurrency_slots,
+                }
+
+        class ImmediateProcess:
+            command = None
+
+            def __init__(self, command, stdout=None, stderr=None):
+                type(self).command = command
+                self.pid = 1234
+
+            @staticmethod
+            def poll():
+                return 0
+
+        with tempfile.TemporaryDirectory() as directory:
+            manifest = os.path.join(directory, 'manifest.json')
+            atomic_json(manifest, {
+                'mode': 'pilot', 'children': [{
+                    'logical_run_id': 'logical',
+                    'estimated_output_bytes': 0,
+                }],
+            })
+            output_root = os.path.join(directory, 'runs')
+            lineage = AttemptLineage(output_root, 'logical')
+            source = lineage.create_attempt()
+            checkpoint = os.path.join(source['attempt_dir'], 'source.pt')
+            open(checkpoint, 'wb').close()
+            state = os.path.join(source['attempt_dir'], 'current_state.json')
+            atomic_json(state, {'logical_run_id': 'logical'})
+            atomic_json(
+                os.path.join(source['attempt_dir'], 'resume_pointer.json'),
+                {'checkpoint_path': checkpoint},
+            )
+            lineage.update_attempt(
+                source['attempt_id'], 'interrupted',
+                failure_class='interrupted',
+            )
+            failed = lineage.create_attempt(resume_from=checkpoint)
+            lineage.update_attempt(
+                failed['attempt_id'], 'failed', failure_class='failed',
+            )
+
+            with mock.patch(
+                'sequential.launcher.load_full_checkpoint', return_value={},
+            ), mock.patch(
+                'sequential.launcher.subprocess.Popen', ImmediateProcess,
+            ):
+                SequentialLauncher(
+                    manifest, output_root, resource_gate=PassingGate(),
+                    initial_concurrency=4,
+                ).launch()
+
+            command = ImmediateProcess.command
+            self.assertEqual(command[command.index('--resume') + 1], checkpoint)
+            self.assertEqual(
+                command[command.index('--resume-state') + 1], state,
+            )
+
+    def test_invalid_ha_budget_reconciliation_preserves_attempt_and_source(self):
+        with tempfile.TemporaryDirectory() as directory:
+            manifest = os.path.join(directory, 'manifest.json')
+            atomic_json(manifest, {
+                'mode': 'formal',
+                'protocol_id': 'ha_sodqn_b100_v1',
+                'children': [{
+                    'logical_run_id': 'invalid',
+                    'stage_episodes': [100, 100, 100, 100],
+                }],
+            })
+            lineage = AttemptLineage(directory, 'invalid')
+            source = lineage.create_attempt()
+            source_checkpoint = os.path.join(
+                source['attempt_dir'], 'source.pt',
+            )
+            open(source_checkpoint, 'wb').close()
+            source_state = os.path.join(
+                source['attempt_dir'], 'current_state.json',
+            )
+            atomic_json(source_state, {'logical_run_id': 'invalid'})
+            lineage.update_attempt(
+                source['attempt_id'], 'interrupted',
+                failure_class='interrupted',
+                reconciliation={'recovery_checkpoint': source_checkpoint},
+            )
+            completed = lineage.create_attempt(resume_from=source_checkpoint)
+            final_checkpoint = os.path.join(
+                completed['attempt_dir'], 'final.pt',
+            )
+            open(final_checkpoint, 'wb').close()
+            atomic_json(
+                os.path.join(completed['attempt_dir'], 'current_state.json'),
+                {'completed_operations': {
+                    'stage_4:checkpoint': {'artifact': final_checkpoint},
+                }},
+            )
+            lineage.update_attempt(
+                completed['attempt_id'], 'completed', pid=999,
+            )
+
+            def checkpoint(path, expected_type=None):
+                if path == final_checkpoint:
+                    return {'agent_state': {'counters': {
+                        'global_decision_step': 160000,
+                        'gradient_updates': 159000,
+                        'target_updates': 15900,
+                    }}}
+                return {}
+
+            with mock.patch(
+                'sequential.launcher.load_full_checkpoint', side_effect=checkpoint,
+            ):
+                report = reconcile_invalid_ha_runs(
+                    directory, manifest, ['invalid'],
+                    pid_checker=lambda pid: False, now_provider=lambda: 123,
+                )
+
+            self.assertEqual(report['reconciled'], ['invalid'])
+            updated = AttemptLineage(directory, 'invalid')
+            self.assertEqual(len(updated.manifest['attempts']), 2)
+            self.assertEqual(updated.manifest['status'], 'failed')
+            self.assertIsNone(updated.manifest['effective_attempt'])
+            latest = updated.latest_attempt()
+            self.assertEqual(latest['failure_class'], 'validation_failed')
+            self.assertFalse(latest['recovery_eligible'])
+            self.assertTrue(latest['invalidated_by_validation'])
+            self.assertEqual(
+                latest['validation_failure']['recovery_context'], {
+                    'checkpoint_path': source_checkpoint,
+                    'resume_state_path': source_state,
+                    'source_attempt_id': source['attempt_id'],
+                },
+            )
+            self.assertTrue(os.path.isfile(final_checkpoint))
+
+            second = reconcile_invalid_ha_runs(
+                directory, manifest, ['invalid'],
+                pid_checker=lambda pid: False,
+            )
+            self.assertEqual(second['reconciled'], [])
+            self.assertEqual(
+                second['results'][0]['reason'], 'not_effective_completed',
             )
 
     def test_manifest_status_includes_planned_and_stale_runs(self):
@@ -255,6 +459,20 @@ class SequentialLauncherTests(unittest.TestCase):
                 sequential_main([
                     'reconcile-stale', '--manifest', manifest,
                     '--output-root', directory,
+                ])
+
+    def test_formal_invalid_reconciliation_requires_authorization(self):
+        with tempfile.TemporaryDirectory() as directory:
+            manifest = os.path.join(directory, 'formal.json')
+            atomic_json(manifest, {
+                'mode': 'formal', 'protocol_id': 'ha_sodqn_b100_v1',
+                'children': [],
+            })
+            with self.assertRaisesRegex(PermissionError, 'authorize-formal'):
+                sequential_main([
+                    'reconcile-invalid-ha', '--manifest', manifest,
+                    '--output-root', directory,
+                    '--logical-run-id', 'invalid',
                 ])
 
     def test_resource_gate_enforces_disk_double_estimate_and_memory_per_slot(self):

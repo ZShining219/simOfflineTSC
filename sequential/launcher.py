@@ -160,21 +160,34 @@ class AttemptLineage:
         self.manifest['status'] = status
         if status == 'completed':
             self.manifest['effective_attempt'] = attempt_id
+        elif self.manifest.get('effective_attempt') == attempt_id:
+            self.manifest['effective_attempt'] = None
         atomic_json(self.manifest_path, self.manifest)
         return record
 
     def latest_attempt(self):
         return self.manifest['attempts'][-1] if self.manifest['attempts'] else None
 
-    def latest_recovery_checkpoint(self):
+    def latest_recovery_context(self):
         for attempt in reversed(self.manifest['attempts']):
+            if attempt.get('recovery_eligible') is False:
+                continue
+            state_path = os.path.join(
+                attempt['attempt_dir'], 'current_state.json',
+            )
+            if not os.path.isfile(state_path):
+                state_path = None
             pointer = os.path.join(attempt['attempt_dir'], 'resume_pointer.json')
             if os.path.isfile(pointer):
                 path = read_json(pointer).get('checkpoint_path')
                 if path and os.path.isfile(path):
                     try:
                         load_full_checkpoint(path)
-                        return path
+                        return {
+                            'checkpoint_path': path,
+                            'resume_state_path': state_path,
+                            'source_attempt_id': attempt['attempt_id'],
+                        }
                     except (IOError, ValueError):
                         pass
             committed_dir = os.path.join(
@@ -190,15 +203,28 @@ class AttemptLineage:
                 for path in candidates:
                     try:
                         load_full_checkpoint(path)
-                        return path
+                        return {
+                            'checkpoint_path': path,
+                            'resume_state_path': state_path,
+                            'source_attempt_id': attempt['attempt_id'],
+                        }
                     except (IOError, ValueError):
                         continue
             directory = os.path.join(attempt['attempt_dir'], 'checkpoints', 'recovery')
             try:
-                return RollingRecoveryManager(directory).latest_valid()[0]
+                path = RollingRecoveryManager(directory).latest_valid()[0]
+                return {
+                    'checkpoint_path': path,
+                    'resume_state_path': state_path,
+                    'source_attempt_id': attempt['attempt_id'],
+                }
             except (FileNotFoundError, IOError):
                 continue
         return None
+
+    def latest_recovery_checkpoint(self):
+        context = self.latest_recovery_context()
+        return None if context is None else context['checkpoint_path']
 
 
 def classify_failure(returncode, stderr_text='', error_type=None):
@@ -357,6 +383,199 @@ def reconcile_stale_runs(output_root, manifest_path, stale_seconds=1800,
     }
 
 
+def reconcile_invalid_ha_runs(output_root, manifest_path, logical_run_ids,
+                              now_provider=None, pid_checker=None):
+    """Invalidate completed HA attempts whose frozen training budget is wrong.
+
+    The completed attempt and all of its artifacts remain immutable evidence.
+    Reconciliation only makes the invalid attempt ineligible as a recovery
+    source and returns the logical identity to ``failed`` so a later explicit
+    formal launch can create a successor attempt.
+    """
+    output_root = os.path.abspath(output_root)
+    manifest_path = os.path.abspath(manifest_path)
+    plan = read_json(manifest_path)
+    if plan.get('protocol_id') != 'ha_sodqn_b100_v1':
+        raise ValueError('Invalid-budget reconciliation requires HA-SODQN')
+    children = {
+        child['logical_run_id']: child for child in plan.get('children', [])
+    }
+    requested = list(dict.fromkeys(logical_run_ids or []))
+    if not requested:
+        raise ValueError('Explicit logical run IDs are required')
+    missing = sorted(set(requested) - set(children))
+    if missing:
+        raise ValueError(f'Unknown logical run IDs: {missing}')
+    now_provider = now_provider or time.time
+    pid_checker = pid_checker or process_exists
+    results = []
+
+    for logical_run_id in requested:
+        child = children[logical_run_id]
+        lineage_path = os.path.join(
+            output_root, logical_run_id, 'logical_run_manifest.json',
+        )
+        if not os.path.isfile(lineage_path):
+            results.append({
+                'logical_run_id': logical_run_id, 'status': 'skipped',
+                'reason': 'missing_lineage',
+            })
+            continue
+        snapshot = read_json(lineage_path)
+        latest = snapshot.get('attempts', [])[-1:]
+        if (snapshot.get('status') != 'completed' or not latest
+                or latest[0].get('status') != 'completed'
+                or snapshot.get('effective_attempt') != latest[0].get('attempt_id')):
+            results.append({
+                'logical_run_id': logical_run_id, 'status': 'skipped',
+                'reason': 'not_effective_completed',
+            })
+            continue
+        latest = latest[0]
+        if pid_checker(latest.get('pid')):
+            results.append({
+                'logical_run_id': logical_run_id,
+                'attempt_id': latest['attempt_id'], 'status': 'skipped',
+                'reason': 'pid_alive',
+            })
+            continue
+        lock = LogicalRunLock(os.path.join(
+            output_root, logical_run_id, 'run.lock',
+        ))
+        try:
+            lock.acquire()
+        except RuntimeError:
+            results.append({
+                'logical_run_id': logical_run_id,
+                'attempt_id': latest['attempt_id'], 'status': 'skipped',
+                'reason': 'locked',
+            })
+            continue
+        try:
+            lineage = AttemptLineage(output_root, logical_run_id)
+            current = lineage.latest_attempt()
+            if (lineage.manifest.get('status') != 'completed'
+                    or current is None
+                    or current.get('attempt_id') != latest.get('attempt_id')
+                    or current.get('status') != 'completed'
+                    or lineage.manifest.get('effective_attempt')
+                    != current.get('attempt_id')):
+                results.append({
+                    'logical_run_id': logical_run_id,
+                    'attempt_id': latest['attempt_id'], 'status': 'skipped',
+                    'reason': 'lineage_changed',
+                })
+                continue
+            state_path = os.path.join(
+                current['attempt_dir'], 'current_state.json',
+            )
+            if not os.path.isfile(state_path):
+                results.append({
+                    'logical_run_id': logical_run_id,
+                    'attempt_id': current['attempt_id'], 'status': 'skipped',
+                    'reason': 'missing_current_state',
+                })
+                continue
+            state = read_json(state_path)
+            final_key = f'stage_{len(child["stage_episodes"])}:checkpoint'
+            operation = state.get('completed_operations', {}).get(final_key)
+            checkpoint_path = None if operation is None else operation.get('artifact')
+            try:
+                checkpoint = load_full_checkpoint(
+                    checkpoint_path, expected_type='stage_boundary',
+                )
+            except (FileNotFoundError, IOError, TypeError, ValueError):
+                results.append({
+                    'logical_run_id': logical_run_id,
+                    'attempt_id': current['attempt_id'], 'status': 'skipped',
+                    'reason': 'invalid_final_checkpoint',
+                })
+                continue
+            counters = checkpoint['agent_state']['counters']
+            expected_decisions = 360 * sum(
+                int(value) for value in child['stage_episodes']
+            )
+            expected = {
+                'global_decision_step': expected_decisions,
+                'gradient_updates': max(0, expected_decisions - 1000),
+                'target_updates': max(0, expected_decisions - 1000) // 10,
+            }
+            observed = {key: int(counters[key]) for key in expected}
+            if observed == expected:
+                results.append({
+                    'logical_run_id': logical_run_id,
+                    'attempt_id': current['attempt_id'], 'status': 'skipped',
+                    'reason': 'budget_valid', 'expected': expected,
+                    'observed': observed,
+                })
+                continue
+            recovery = None
+            for attempt in reversed(lineage.manifest['attempts'][:-1]):
+                reconciliation = attempt.get('reconciliation') or {}
+                candidate = reconciliation.get('recovery_checkpoint')
+                source_state = os.path.join(
+                    attempt['attempt_dir'], 'current_state.json',
+                )
+                if not (candidate and os.path.isfile(candidate)
+                        and os.path.isfile(source_state)):
+                    continue
+                try:
+                    load_full_checkpoint(candidate)
+                    source = read_json(source_state)
+                except (FileNotFoundError, IOError, ValueError):
+                    continue
+                if source.get('logical_run_id') != logical_run_id:
+                    continue
+                recovery = {
+                    'checkpoint_path': candidate,
+                    'resume_state_path': source_state,
+                    'source_attempt_id': attempt['attempt_id'],
+                }
+                break
+            if recovery is None:
+                results.append({
+                    'logical_run_id': logical_run_id,
+                    'attempt_id': current['attempt_id'], 'status': 'skipped',
+                    'reason': 'no_reconciled_recovery_context',
+                    'expected': expected, 'observed': observed,
+                })
+                continue
+            evidence = {
+                'observed_at_unix': float(now_provider()),
+                'reason': 'frozen_training_budget_mismatch',
+                'expected_counters': expected,
+                'observed_counters': observed,
+                'final_checkpoint': checkpoint_path,
+                'recovery_context': recovery,
+                'lock_acquired': True,
+            }
+            lineage.update_attempt(
+                current['attempt_id'], 'failed',
+                failure_class='validation_failed',
+                recovery_eligible=False,
+                invalidated_by_validation=True,
+                validation_failure=evidence,
+            )
+            results.append({
+                'logical_run_id': logical_run_id,
+                'attempt_id': current['attempt_id'],
+                'status': 'reconciled', **evidence,
+            })
+        finally:
+            lock.release()
+
+    return {
+        'schema_version': 1,
+        'manifest_path': manifest_path,
+        'output_root': output_root,
+        'results': results,
+        'reconciled': [
+            item['logical_run_id'] for item in results
+            if item['status'] == 'reconciled'
+        ],
+    }
+
+
 class SequentialLauncher:
     def __init__(self, manifest_path, output_root, python_executable=None,
                  resource_gate=None, initial_concurrency=8):
@@ -431,8 +650,11 @@ class SequentialLauncher:
                         )
                     lock_path = os.path.join(lineage.root, 'run.lock')
                     lock = LogicalRunLock(lock_path).acquire()
-                    previous_attempt = lineage.latest_attempt()
-                    recovery = lineage.latest_recovery_checkpoint()
+                    recovery_context = lineage.latest_recovery_context()
+                    recovery = (
+                        None if recovery_context is None
+                        else recovery_context['checkpoint_path']
+                    )
                     attempt = lineage.create_attempt(resume_from=recovery)
                     stdout_path = os.path.join(attempt['attempt_dir'], 'stdout.log')
                     stderr_path = os.path.join(attempt['attempt_dir'], 'stderr.log')
@@ -446,12 +668,9 @@ class SequentialLauncher:
                     ]
                     if recovery:
                         command += ['--resume', recovery]
-                        if previous_attempt is not None:
-                            previous_state = os.path.join(
-                                previous_attempt['attempt_dir'], 'current_state.json'
-                            )
-                            if os.path.isfile(previous_state):
-                                command += ['--resume-state', previous_state]
+                        resume_state = recovery_context.get('resume_state_path')
+                        if resume_state:
+                            command += ['--resume-state', resume_state]
                     lineage.update_attempt(
                         attempt['attempt_id'], 'running', command=command,
                         stdout_path=stdout_path, stderr_path=stderr_path,

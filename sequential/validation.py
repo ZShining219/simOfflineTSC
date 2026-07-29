@@ -388,6 +388,21 @@ def validate_ha_attempt(path):
                 or not np.isfinite(float(window['loss_offline']))
             ):
                 raise ValueError('HA-SODQN offline loss is not finite')
+            stability_branches = [('online_stability', int(window['online_count']))]
+            if offline_count:
+                stability_branches.append(('offline_stability', offline_count))
+            for branch, sample_count in stability_branches:
+                stability = window.get(branch)
+                if sample_count and not isinstance(stability, dict):
+                    raise ValueError(
+                        f'HA-SODQN {branch} evidence is missing'
+                    )
+                for key in ('q_abs_max', 'target_abs_max'):
+                    value = stability.get(key) if stability is not None else None
+                    if value is None or not np.isfinite(float(value)):
+                        raise ValueError(
+                            f'HA-SODQN {branch}.{key} is not finite'
+                        )
         if expected_behavior_seeds is not None:
             used_seeds = {
                 int(seed) for seed, count in

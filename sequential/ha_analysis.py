@@ -1,6 +1,7 @@
 """Strict-validator-backed HA-SODQN tables, selection, and plots."""
 
 import csv
+import hashlib
 import os
 
 import numpy as np
@@ -40,6 +41,69 @@ def _plan1_reference_means(whitelist_path):
     if any(len(values) != 5 for values in references.values()):
         raise ValueError('HA analysis requires five Plan 1 references per network')
     return {network: float(np.mean(values)) for network, values in references.items()}
+
+
+def _file_sha256(path):
+    digest = hashlib.sha256()
+    with open(path, 'rb') as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b''):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _resolve_analysis_whitelist(plan, whitelist_path):
+    """Resolve strict HA-audit admission and the Plan 1 normalization source.
+
+    Historical callers passed the Plan 1 trajectory CSV directly.  Formal HA
+    analysis instead passes the successful HA audit as its admission whitelist;
+    the Plan 1 reference CSV is then recovered from the frozen initial-state
+    catalog referenced by the experiment manifest.
+    """
+    absolute = os.path.abspath(whitelist_path)
+    try:
+        audit = read_json(absolute)
+    except (UnicodeDecodeError, ValueError):
+        audit = None
+    if not isinstance(audit, dict) or not {'valid', 'runs'} <= set(audit):
+        return {
+            'kind': 'plan1_trajectory_csv',
+            'path': absolute,
+            'sha256': _file_sha256(absolute),
+            'run_count': None,
+            'attempts': None,
+            'reference_whitelist_path': absolute,
+        }
+    if audit.get('valid') is not True:
+        raise ValueError('HA analysis whitelist audit is not valid')
+    rows = audit.get('runs')
+    if not isinstance(rows, list) or audit.get('run_count') != len(rows):
+        raise ValueError('HA analysis whitelist audit run count mismatch')
+    attempts = {}
+    for row in rows:
+        logical_id = row.get('logical_run_id')
+        attempt_dir = row.get('attempt_dir')
+        if not logical_id or not attempt_dir or logical_id in attempts:
+            raise ValueError('HA analysis whitelist audit identity is invalid')
+        if (row.get('ha_audit') or {}).get('valid') is not True:
+            raise ValueError('HA analysis whitelist contains an invalid run')
+        attempts[logical_id] = os.path.abspath(attempt_dir)
+    expected = {child['logical_run_id'] for child in plan.get('children', [])}
+    if set(attempts) != expected:
+        raise ValueError('HA analysis whitelist identity set mismatch')
+    catalog_path = os.path.abspath(plan['initial_state_catalog'])
+    catalog = read_json(catalog_path)
+    reference_path = os.path.abspath(catalog['whitelist_path'])
+    return {
+        'kind': 'ha_audit_json',
+        'path': absolute,
+        'sha256': _file_sha256(absolute),
+        'run_count': len(rows),
+        'attempts': attempts,
+        'reference_whitelist_path': reference_path,
+        'reference_whitelist_sha256': _file_sha256(reference_path),
+        'initial_state_catalog_path': catalog_path,
+        'initial_state_catalog_sha256': _file_sha256(catalog_path),
+    }
 
 
 def read_json_line(line):
@@ -283,13 +347,18 @@ def _plots(output_dir, runs):
 
 def analyze_ha_experiment(manifest_path, output_root, whitelist_path, output_dir):
     plan = read_json(manifest_path)
-    references = _plan1_reference_means(whitelist_path)
-    runs = [
-        summarize_ha_run(validate_ha_attempt(
+    whitelist = _resolve_analysis_whitelist(plan, whitelist_path)
+    references = _plan1_reference_means(whitelist['reference_whitelist_path'])
+    runs = []
+    for child in plan['children']:
+        validated = validate_ha_attempt(
             os.path.join(output_root, child['logical_run_id'])
-        ), references)
-        for child in plan['children']
-    ]
+        )
+        if (whitelist['attempts'] is not None and
+                os.path.abspath(validated['attempt_dir']) !=
+                whitelist['attempts'][child['logical_run_id']]):
+            raise ValueError('HA analysis effective attempt differs from whitelist')
+        runs.append(summarize_ha_run(validated, references))
     os.makedirs(output_dir, exist_ok=True)
     run_rows = [{key: run[key] for key in (
         'logical_run_id', 'archive_mode', 'method', 'offline_ratio',
@@ -315,6 +384,9 @@ def analyze_ha_experiment(manifest_path, output_root, whitelist_path, output_dir
         'schema_version': 1, 'valid': True,
         'manifest_path': os.path.abspath(manifest_path),
         'output_root': os.path.abspath(output_root),
+        'analysis_whitelist': {
+            key: value for key, value in whitelist.items() if key != 'attempts'
+        },
         'run_count': len(runs), 'runs': runs,
         'selection_table': selection_rows,
         'preregistered_selection': selected,

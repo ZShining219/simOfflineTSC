@@ -1,6 +1,9 @@
+import json
+import os
+import tempfile
 import unittest
 
-from sequential.ha_analysis import _selection_table
+from sequential.ha_analysis import _resolve_analysis_whitelist, _selection_table
 
 
 def run(logical_id, archive_mode, method, ratio, adaptation,
@@ -30,6 +33,42 @@ class HAAnalysisTest(unittest.TestCase):
         d75 = next(row for row in table if row['logical_run_id'] == 'D75')
         self.assertFalse(d75['passes_five_percent_adaptation_gate'])
         self.assertFalse(d75['eligible'])
+
+    def test_audit_whitelist_resolves_frozen_plan1_reference(self):
+        with tempfile.TemporaryDirectory() as root:
+            reference = os.path.join(root, 'plan1.csv')
+            with open(reference, 'w', encoding='utf-8') as handle:
+                handle.write('run_path,network\n')
+            catalog = os.path.join(root, 'catalog.json')
+            with open(catalog, 'w', encoding='utf-8') as handle:
+                json.dump({'whitelist_path': reference}, handle)
+            audit_path = os.path.join(root, 'audit.json')
+            with open(audit_path, 'w', encoding='utf-8') as handle:
+                json.dump({
+                    'valid': True, 'run_count': 1,
+                    'runs': [{
+                        'logical_run_id': 'run-1',
+                        'attempt_dir': os.path.join(root, 'attempt_1'),
+                        'ha_audit': {'valid': True},
+                    }],
+                }, handle)
+            resolved = _resolve_analysis_whitelist({
+                'initial_state_catalog': catalog,
+                'children': [{'logical_run_id': 'run-1'}],
+            }, audit_path)
+            self.assertEqual('ha_audit_json', resolved['kind'])
+            self.assertEqual(reference, resolved['reference_whitelist_path'])
+            self.assertEqual(1, resolved['run_count'])
+
+    def test_audit_whitelist_rejects_identity_mismatch(self):
+        with tempfile.TemporaryDirectory() as root:
+            audit_path = os.path.join(root, 'audit.json')
+            with open(audit_path, 'w', encoding='utf-8') as handle:
+                json.dump({'valid': True, 'run_count': 0, 'runs': []}, handle)
+            with self.assertRaisesRegex(ValueError, 'identity set mismatch'):
+                _resolve_analysis_whitelist({
+                    'children': [{'logical_run_id': 'required'}],
+                }, audit_path)
 
 
 if __name__ == '__main__':

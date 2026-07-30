@@ -13,9 +13,82 @@ from sequential.diagnostics import ReplayDiagnostics
 from sequential.io import atomic_json, read_json
 from sequential.manifest import build_pilot_plan
 from sequential.runtime import SequentialChildRunner
+from sequential.state import SequentialJournal
 
 
 class SequentialRuntimeSupportTests(unittest.TestCase):
+    def test_reconcile_committed_episode_reuses_predecessor_diagnostic(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source_attempt = os.path.join(
+                directory, 'logical', 'attempts', 'attempt_1',
+            )
+            current_attempt = os.path.join(
+                directory, 'logical', 'attempts', 'attempt_2',
+            )
+            checkpoint = os.path.join(
+                source_attempt, 'checkpoints', 'committed',
+                'stage_01_episode_0009.pt',
+            )
+            marker = os.path.join(
+                source_attempt, 'trajectory', 'committed',
+                'stage_01_episode_0009.json',
+            )
+            diagnostic = os.path.join(
+                source_attempt, 'replay_diagnostics',
+                'stage_01_episode_0009.json',
+            )
+            for path in (checkpoint, marker, diagnostic):
+                os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(checkpoint, 'wb') as handle:
+                handle.write(b'checkpoint')
+            atomic_json(marker, {'valid': True})
+            atomic_json(diagnostic, {'valid': True})
+            source_state = os.path.join(source_attempt, 'current_state.json')
+            atomic_json(source_state, {
+                'schema_version': 1,
+                'logical_run_id': 'logical',
+                'attempt_id': 'attempt_1',
+                'phase': 'TRAINING',
+                'stage_index': 1,
+                'local_episode': 8,
+                'global_episode': 8,
+                'completed_operations': {
+                    'stage_1:episode_9:diagnostic': {
+                        'artifact': diagnostic,
+                        'payload': {},
+                        'completed_at_unix': 1.0,
+                    },
+                },
+                'event_sequence': 1,
+            })
+
+            runner = SequentialChildRunner.__new__(SequentialChildRunner)
+            runner.resume_payload = {
+                'identity': {
+                    'stage_index': 1,
+                    'completed_local_episode': 9,
+                },
+            }
+            runner.resume_path = checkpoint
+            runner.stage_episodes = [100, 100, 100, 100]
+            runner.journal = SequentialJournal(
+                current_attempt, 'logical', 'attempt_2',
+                resume_state_path=source_state,
+            )
+            runner.diagnostics = mock.Mock()
+            runner.agent = mock.Mock()
+
+            runner._reconcile_committed_episode()
+
+            runner.diagnostics.episode_record.assert_not_called()
+            self.assertEqual(runner.journal.state['local_episode'], 9)
+            self.assertEqual(
+                runner.journal.state['completed_operations'][
+                    'stage_1:episode_9:diagnostic'
+                ]['artifact'],
+                diagnostic,
+            )
+
     def test_parent_binding_rejects_checkpoint_hash_tampering(self):
         with tempfile.TemporaryDirectory() as directory:
             checkpoint = os.path.join(directory, 'episode_0100.pt')

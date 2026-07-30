@@ -514,12 +514,14 @@ class SequentialChildRunner:
             return
         trajectory_key = f'stage_{stage_index}:episode_{completed}:trajectory'
         self.journal.record_operation(trajectory_key, marker)
-        diagnostic_path, _ = self.diagnostics.episode_record(
-            self.agent, stage_index, completed,
-            self._stage_global_base(stage_index) + completed,
-        )
-        self.journal.record_operation(
-            f'stage_{stage_index}:episode_{completed}:diagnostic', diagnostic_path
+        diagnostic_key = f'stage_{stage_index}:episode_{completed}:diagnostic'
+        self.journal.perform_once(
+            diagnostic_key,
+            lambda: self.diagnostics.episode_record(
+                self.agent, stage_index, completed,
+                self._stage_global_base(stage_index) + completed,
+            )[0],
+            os.path.isfile,
         )
         self.journal.update_episode(
             stage_index, completed,

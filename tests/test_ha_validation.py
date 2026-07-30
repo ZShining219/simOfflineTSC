@@ -47,6 +47,52 @@ class HAValidationTest(unittest.TestCase):
                 ),
             )
 
+    def test_recovery_artifact_follows_resume_ancestry_not_failed_sibling(self):
+        with tempfile.TemporaryDirectory() as directory:
+            logical_root = os.path.join(directory, 'logical')
+            attempts_root = os.path.join(logical_root, 'attempts')
+            attempts = [
+                os.path.join(attempts_root, f'attempt_{index}')
+                for index in range(1, 5)
+            ]
+            for attempt in attempts:
+                os.makedirs(os.path.join(attempt, 'archive'))
+            source = os.path.join(
+                attempts[0], 'archive', 'stage_01.json',
+            )
+            sibling = os.path.join(
+                attempts[2], 'archive', 'stage_01.json',
+            )
+            atomic_json(source, {'visible_networks': []})
+            atomic_json(sibling, {'visible_networks': ['contaminated']})
+            checkpoint = os.path.join(
+                attempts[0], 'checkpoints', 'committed', 'episode.pt',
+            )
+            atomic_json(os.path.join(logical_root, 'logical_run_manifest.json'), {
+                'attempts': [
+                    {'attempt_id': 'attempt_1', 'attempt_dir': attempts[0]},
+                    {
+                        'attempt_id': 'attempt_2', 'attempt_dir': attempts[1],
+                        'resume_from': checkpoint,
+                    },
+                    {
+                        'attempt_id': 'attempt_3', 'attempt_dir': attempts[2],
+                        'resume_from': checkpoint,
+                    },
+                    {
+                        'attempt_id': 'attempt_4', 'attempt_dir': attempts[3],
+                        'resume_from': checkpoint,
+                    },
+                ],
+                'effective_attempt': 'attempt_4',
+            })
+            self.assertEqual(
+                source,
+                _resolve_attempt_chain_artifact(
+                    attempts[3], 'archive', 'stage_01.json',
+                ),
+            )
+
     def test_p1f_visibility_accepts_archive_order_but_p1c_requires_prefix_order(self):
         expected = ['n1', 'n4', 'n2', 'n3']
         archive_order = ['n2', 'n1', 'n4', 'n3']

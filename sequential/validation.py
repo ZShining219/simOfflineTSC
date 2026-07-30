@@ -75,12 +75,44 @@ def _resolve_attempt_chain_artifact(attempt_dir, *relative_parts):
     lineage_path = os.path.join(logical_root, 'logical_run_manifest.json')
     if os.path.isfile(lineage_path):
         lineage = read_json(lineage_path)
-        for attempt in reversed(lineage.get('attempts', [])):
-            candidate = os.path.join(
-                attempt['attempt_dir'], *relative_parts,
-            )
+        attempts = {
+            os.path.abspath(attempt['attempt_dir']): attempt
+            for attempt in lineage.get('attempts', [])
+        }
+        current = attempts.get(attempt_dir)
+        visited = {attempt_dir}
+        while current is not None:
+            resume_from = current.get('resume_from')
+            if not resume_from:
+                break
+            resume_from = os.path.abspath(resume_from)
+            predecessor_dir = next((
+                candidate_dir for candidate_dir in attempts
+                if os.path.commonpath((resume_from, candidate_dir)) == candidate_dir
+            ), None)
+            if predecessor_dir is None or predecessor_dir in visited:
+                break
+            visited.add(predecessor_dir)
+            candidate = os.path.join(predecessor_dir, *relative_parts)
             if os.path.isfile(candidate):
                 return candidate
+            current = attempts[predecessor_dir]
+        # Legacy lineages may predate explicit resume provenance. Only the
+        # immediately preceding attempt is a safe fallback; scanning every
+        # sibling can select evidence from a failed alternative branch.
+        if current is not None and not current.get('resume_from'):
+            ordered = lineage.get('attempts', [])
+            index = next((
+                i for i, attempt in enumerate(ordered)
+                if os.path.abspath(attempt['attempt_dir']) == attempt_dir
+            ), None)
+            if index is not None and index > 0:
+                predecessor_dir = os.path.abspath(
+                    ordered[index - 1]['attempt_dir']
+                )
+                candidate = os.path.join(predecessor_dir, *relative_parts)
+                if os.path.isfile(candidate):
+                    return candidate
     raise FileNotFoundError(direct)
 
 

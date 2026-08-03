@@ -1,0 +1,13 @@
+phase_index,phase_name,duration,link_00,link_01,link_02,link_03,link_04,link_05,link_06,link_07,link_08,link_09,link_10,link_11,link_12,link_13,link_14,link_15
+0,NS直行绿,27,G,r,r,r,G,G,G,r,G,G,G,r,G,r,r,r
+1,NS直行黄,3,y,r,r,r,y,y,y,r,y,y,y,r,y,r,r,r
+2,NS过渡红,2,r,r,r,r,r,r,r,r,r,r,r,r,r,r,r,r
+3,NS左转绿,22,G,r,r,r,G,r,r,G,G,r,r,G,G,r,r,r
+4,NS左转黄,3,y,r,r,r,y,r,r,y,y,r,r,y,y,r,r,r
+5,南北东西全红,5,r,r,r,r,r,r,r,r,r,r,r,r,r,r,r,r
+6,EW直行绿,34,G,G,G,r,G,r,r,r,G,r,r,r,G,G,G,r
+7,EW直行黄,3,y,y,y,r,y,r,r,r,y,r,r,r,y,y,y,r
+8,EW过渡红,2,r,r,r,r,r,r,r,r,r,r,r,r,r,r,r,r
+9,EW左转绿,19,G,r,r,G,G,r,r,r,G,r,r,r,G,r,r,G
+10,EW左转黄,3,y,r,r,y,y,r,r,r,y,r,r,r,y,r,r,y
+11,东西南北全红,5,r,r,r,r,r,r,r,r,r,r,r,r,r,r,r,r

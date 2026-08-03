@@ -1,0 +1,17 @@
+linkIndex,from_edge,to_edge,from_lane,to_lane,movement,phase_states,green_or_yellow_phases
+0,E2J,J2N,0,0,right,NS直行绿=G;NS直行黄=y;NS过渡红=r;NS左转绿=G;NS左转黄=y;南北东西全红=r;EW直行绿=G;EW直行黄=y;EW过渡红=r;EW左转绿=G;EW左转黄=y;东西南北全红=r,NS直行绿;NS直行黄;NS左转绿;NS左转黄;EW直行绿;EW直行黄;EW左转绿;EW左转黄
+1,E2J,J2W,0,0,straight,NS直行绿=r;NS直行黄=r;NS过渡红=r;NS左转绿=r;NS左转黄=r;南北东西全红=r;EW直行绿=G;EW直行黄=y;EW过渡红=r;EW左转绿=r;EW左转黄=r;东西南北全红=r,EW直行绿;EW直行黄
+2,E2J,J2W,1,0,straight,NS直行绿=r;NS直行黄=r;NS过渡红=r;NS左转绿=r;NS左转黄=r;南北东西全红=r;EW直行绿=G;EW直行黄=y;EW过渡红=r;EW左转绿=r;EW左转黄=r;东西南北全红=r,EW直行绿;EW直行黄
+3,E2J,J2S,2,1,left,NS直行绿=r;NS直行黄=r;NS过渡红=r;NS左转绿=r;NS左转黄=r;南北东西全红=r;EW直行绿=r;EW直行黄=r;EW过渡红=r;EW左转绿=G;EW左转黄=y;东西南北全红=r,EW左转绿;EW左转黄
+4,N2J,J2W,0,0,right,NS直行绿=G;NS直行黄=y;NS过渡红=r;NS左转绿=G;NS左转黄=y;南北东西全红=r;EW直行绿=G;EW直行黄=y;EW过渡红=r;EW左转绿=G;EW左转黄=y;东西南北全红=r,NS直行绿;NS直行黄;NS左转绿;NS左转黄;EW直行绿;EW直行黄;EW左转绿;EW左转黄
+5,N2J,J2S,0,0,straight,NS直行绿=G;NS直行黄=y;NS过渡红=r;NS左转绿=r;NS左转黄=r;南北东西全红=r;EW直行绿=r;EW直行黄=r;EW过渡红=r;EW左转绿=r;EW左转黄=r;东西南北全红=r,NS直行绿;NS直行黄
+6,N2J,J2S,1,0,straight,NS直行绿=G;NS直行黄=y;NS过渡红=r;NS左转绿=r;NS左转黄=r;南北东西全红=r;EW直行绿=r;EW直行黄=r;EW过渡红=r;EW左转绿=r;EW左转黄=r;东西南北全红=r,NS直行绿;NS直行黄
+7,N2J,J2E,2,0,left,NS直行绿=r;NS直行黄=r;NS过渡红=r;NS左转绿=G;NS左转黄=y;南北东西全红=r;EW直行绿=r;EW直行黄=r;EW过渡红=r;EW左转绿=r;EW左转黄=r;东西南北全红=r,NS左转绿;NS左转黄
+8,S2J,J2E,0,0,right,NS直行绿=G;NS直行黄=y;NS过渡红=r;NS左转绿=G;NS左转黄=y;南北东西全红=r;EW直行绿=G;EW直行黄=y;EW过渡红=r;EW左转绿=G;EW左转黄=y;东西南北全红=r,NS直行绿;NS直行黄;NS左转绿;NS左转黄;EW直行绿;EW直行黄;EW左转绿;EW左转黄
+9,S2J,J2N,0,0,straight,NS直行绿=G;NS直行黄=y;NS过渡红=r;NS左转绿=r;NS左转黄=r;南北东西全红=r;EW直行绿=r;EW直行黄=r;EW过渡红=r;EW左转绿=r;EW左转黄=r;东西南北全红=r,NS直行绿;NS直行黄
+10,S2J,J2N,1,0,straight,NS直行绿=G;NS直行黄=y;NS过渡红=r;NS左转绿=r;NS左转黄=r;南北东西全红=r;EW直行绿=r;EW直行黄=r;EW过渡红=r;EW左转绿=r;EW左转黄=r;东西南北全红=r,NS直行绿;NS直行黄
+11,S2J,J2W,2,0,left,NS直行绿=r;NS直行黄=r;NS过渡红=r;NS左转绿=G;NS左转黄=y;南北东西全红=r;EW直行绿=r;EW直行黄=r;EW过渡红=r;EW左转绿=r;EW左转黄=r;东西南北全红=r,NS左转绿;NS左转黄
+12,W2J,J2S,0,0,right,NS直行绿=G;NS直行黄=y;NS过渡红=r;NS左转绿=G;NS左转黄=y;南北东西全红=r;EW直行绿=G;EW直行黄=y;EW过渡红=r;EW左转绿=G;EW左转黄=y;东西南北全红=r,NS直行绿;NS直行黄;NS左转绿;NS左转黄;EW直行绿;EW直行黄;EW左转绿;EW左转黄
+13,W2J,J2E,0,0,straight,NS直行绿=r;NS直行黄=r;NS过渡红=r;NS左转绿=r;NS左转黄=r;南北东西全红=r;EW直行绿=G;EW直行黄=y;EW过渡红=r;EW左转绿=r;EW左转黄=r;东西南北全红=r,EW直行绿;EW直行黄
+14,W2J,J2E,1,0,straight,NS直行绿=r;NS直行黄=r;NS过渡红=r;NS左转绿=r;NS左转黄=r;南北东西全红=r;EW直行绿=G;EW直行黄=y;EW过渡红=r;EW左转绿=r;EW左转黄=r;东西南北全红=r,EW直行绿;EW直行黄
+15,W2J,J2N,2,1,left,NS直行绿=r;NS直行黄=r;NS过渡红=r;NS左转绿=r;NS左转黄=r;南北东西全红=r;EW直行绿=r;EW直行黄=r;EW过渡红=r;EW左转绿=G;EW左转黄=y;东西南北全红=r,EW左转绿;EW左转黄

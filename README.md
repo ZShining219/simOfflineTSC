@@ -56,6 +56,9 @@
 | docs/ | Plan、goal 及其他阶段性执行参考文件 |
 | tools/traffic_flow_profile/ | SUMO 单场景车流需求评估、标准度量计算与固定子图报告工具 |
 | tools/xiasha_sumo/ | xiasha1*1 语义事件到 SUMO 逐车、flow 和信号路网的转换工具 |
+| tools/sumo_html_comparison.py | 将已记录的 SUMO 决策回放为可交互的单 HTML 多控制器对比页面 |
+| tools/sumo_gui_comparison.py | 基于 SUMO-GUI/TraCI 的截图或 GIF 回放工具 |
+| tests/test_sumo_html_comparison.py | SUMO HTML 回放模块的最小回归测试 |
 
 Xiasha SUMO 转换最小示例（产物位于 `data/raw_data/xiasha1*1/`）：
 
@@ -64,6 +67,61 @@ Xiasha SUMO 转换最小示例（产物位于 `data/raw_data/xiasha1*1/`）：
 ```
 
 逐车需求使用 `xiasha1_sumo_vehicles.rou.xml`，聚合需求使用名称不同的 `xiasha1_sumo_flows.rou.xml`；两者及信号路网、附加文件和 `.sumocfg` 均由工具生成。详细参数与信号规则见 [tools/xiasha_sumo/README.md](tools/xiasha_sumo/README.md)。
+
+### SUMO HTML 回放与对比模块
+
+`tools/sumo_html_comparison.py` 用于审查已有 SUMO 决策记录，不进行训练，也不修改源记录、路网或仿真配置。工具通过无界面 SUMO/libsumo 按原始控制间隔重放动作，将路网、信号灯、车辆位置、速度、停车车辆、占有率和累计 throughput 等状态嵌入一个自包含 HTML 文件中；浏览器端无需再次连接 SUMO-GUI 即可回放。
+
+页面支持：
+
+- 同一 S1--S4 场景下的多控制器同步回放；包含四组方法时，顶部窗口固定按 `online DQN`、`fixedtime`、`DHOA`、`CONT DQN` 顺序显示。
+- 单路口聚焦、路口细节覆盖层、车辆正常行驶与堵塞/停止的颜色区分，以及时间轴、播放、逐步推进、缩放和拖动。
+- 将新的冻结验证记录追加到已有页面；追加模式只回放新增方法，已有方法的状态数组保持不变。省略显式 evaluation seed 时可使用正式记录对应的 `fixed_default` SUMO 随机实现。
+
+仅回放 FixedTime 的最小示例：
+
+```bash
+python tools/sumo_html_comparison.py \
+  --scene S2 \
+  --fixedtime-only \
+  --evaluation-seed 10000 \
+  --start 0 --end 3600 --sample-every 1 \
+  --output /tmp/s2_fixedtime_html
+```
+
+多方法对比时，为每个方法提供对应的 `decisions.jsonl`：
+
+```bash
+python tools/sumo_html_comparison.py \
+  --scene S2 \
+  --online-dqn /path/to/online_dqn/decisions.jsonl \
+  --fixedtime /path/to/fixedtime/decisions.jsonl \
+  --hadhoa /path/to/hadhoa/decisions.jsonl \
+  --evaluation-seed 10000 \
+  --start 0 --end 3600 --sample-every 1 \
+  --output /tmp/s2_comparison_html
+```
+
+在已有页面上追加冻结 CONT 记录：
+
+```bash
+python tools/sumo_html_comparison.py \
+  --append-to /tmp/s2_comparison_html \
+  --append-method cont_o2_final \
+  --append-input /path/to/cont_o2/decisions.jsonl \
+  --output /tmp/s2_cont_o2_html_fixed_default
+```
+
+如需通过本机地址查看大页面，可在输出目录启动临时静态服务：
+
+```bash
+python -m http.server 8765 --bind 127.0.0.1 \
+  --directory /tmp/s2_cont_o2_html_fixed_default
+```
+
+然后访问 `http://127.0.0.1:8765/sumo_html_comparison.html`，结束服务时在终端按 `Ctrl+C`。HTML、`comparison_states.json` 和 `manifest.json` 是可再生成的实验产物，建议输出到 `/tmp` 或其他实验产物目录，不提交到 Git。
+
+该模块的源码 `tools/sumo_html_comparison.py`、辅助回放实现 `tools/sumo_gui_comparison.py` 和测试 `tests/test_sumo_html_comparison.py` 已纳入 Git 跟踪。当前工作区的修改仍需通过正常的 `git diff` 检查后再提交；页面生成物不作为模块源码版本管理对象。
 
 ### docs 目录
 

@@ -126,7 +126,9 @@ def _configure_registry(world_config, evaluation_seed, output_dir):
     Registry.mapping["command_mapping"]["setting"].param = {
         "interface": "traci",
         "world": "sumo",
-        "sumo_seed": int(evaluation_seed),
+        "sumo_seed": (
+            None if evaluation_seed is None else int(evaluation_seed)
+        ),
     }
     Registry.mapping["world_mapping"]["setting"].param = json.loads(
         world_config.read_text(encoding="utf-8")

@@ -44,6 +44,11 @@ from .plotting import (
     render_dqn_training_state_coverage,
 )
 from .plan2 import run_plan2_analysis
+from .plan1_final_timeseries import run_plan1_final_timeseries
+from .plan2_cross_scene import (
+    prepare_plan2_cross_scene_manifests,
+    plot_plan2_cross_scene,
+)
 from .sequential import run_sequential_plotting, run_sequential_frozen_plotting
 from .hybrid_sequential import run_hybrid_sequential_plotting
 from .profiles import PROFILES, get_profile, S1_S4_ACTION_SEMANTICS
@@ -94,6 +99,31 @@ def build_parser():
         "--allow-incomplete", action="store_true",
         help="Development-only: permit non-144k schedules and incomplete five-seed cells",
     )
+    plan1_final_timeseries = subparsers.add_parser(
+        "plan1-final-timeseries",
+        help="Add final-checkpoint within/cross-scene decision-step figures",
+    )
+    plan1_final_timeseries.add_argument("--evaluation-package", required=True)
+    plan1_final_timeseries.add_argument("--analysis-dir", required=True)
+    plan1_final_timeseries.add_argument("--smoothing-window-seconds", type=int, default=60)
+    plan1_final_timeseries.add_argument("--dpi", type=int, default=160)
+    plan1_final_timeseries.add_argument("--refresh-existing", action="store_true")
+    plan2_cross_prepare = subparsers.add_parser(
+        "plan2-cross-scene-prepare",
+        help="Prepare paired-seed Plan 2 full-checkpoint 4x4 manifests",
+    )
+    plan2_cross_prepare.add_argument("--run-list", required=True)
+    plan2_cross_prepare.add_argument("--evaluation-root", required=True)
+    plan2_cross_plot = subparsers.add_parser(
+        "plan2-cross-scene-plot",
+        help="Plot Plan 2 full-checkpoint 4x4 frozen evaluations",
+    )
+    plan2_cross_plot.add_argument("--cross-evaluation-root", required=True)
+    plan2_cross_plot.add_argument("--in-domain-root", required=True)
+    plan2_cross_plot.add_argument("--analysis-dir", required=True)
+    plan2_cross_plot.add_argument("--smoothing-window-seconds", type=int, default=60)
+    plan2_cross_plot.add_argument("--dpi", type=int, default=160)
+    plan2_cross_plot.add_argument("--refresh-existing", action="store_true")
     sequential = subparsers.add_parser(
         'sequential', help='Plot a validated Plan 3/4 sequential report',
     )
@@ -1867,6 +1897,15 @@ def main(argv=None):
     elif args.command == "plan2":
         output_dir = run_plan2_analysis(args)
         print(f"Plan 2 analysis completed: {output_dir}")
+    elif args.command == "plan1-final-timeseries":
+        output_dir = run_plan1_final_timeseries(args)
+        print(f"Plan 1 final-checkpoint time series completed: {output_dir}")
+    elif args.command == "plan2-cross-scene-prepare":
+        output_dir = prepare_plan2_cross_scene_manifests(args)
+        print(f"Plan 2 cross-scene manifests prepared: {output_dir}")
+    elif args.command == "plan2-cross-scene-plot":
+        output_dir = plot_plan2_cross_scene(args)
+        print(f"Plan 2 cross-scene plotting completed: {output_dir}")
     elif args.command == 'sequential':
         output_dir = run_sequential_plotting(args)
         print(f'Sequential plotting completed: {output_dir}')

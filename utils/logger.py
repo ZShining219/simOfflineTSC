@@ -1172,7 +1172,9 @@ def load_evaluation_collection_manifest(path):
         if controller_id in seen_ids:
             raise ValueError(f'Duplicate controller_id: {controller_id}')
         seen_ids.add(controller_id)
-        if controller['agent'] not in {'dqn', 'fixedtime', 'maxpressure'}:
+        if controller['agent'] not in {
+            'dqn', 'batch_dqn', 'cql_dqn', 'fixedtime', 'maxpressure',
+        }:
             raise ValueError(f"Unsupported evaluation agent: {controller['agent']}")
         run_dir = os.path.abspath(os.path.expanduser(controller['run_dir']))
         with open(os.path.join(run_dir, 'run_manifest.json'), encoding='utf-8') as handle:
@@ -1284,6 +1286,84 @@ def load_evaluation_collection_manifest(path):
             else:
                 checkpoint_episode = int(evaluation_summary[f'{role}_episode'])
             checkpoint_sha256 = _sha256_file(checkpoint_path)
+        elif controller['agent'] in {'batch_dqn', 'cql_dqn'}:
+            if not isinstance(checkpoint, str) or not checkpoint:
+                raise ValueError(
+                    f"Offline controller {controller_id} requires checkpoint"
+                )
+            role = controller.get('checkpoint_role', 'final')
+            if role != 'final':
+                raise ValueError(
+                    f"Offline controller {controller_id} only supports final checkpoint"
+                )
+            with open(
+                os.path.join(run_dir, 'evaluation', 'summary.json'),
+                encoding='utf-8',
+            ) as handle:
+                evaluation_summary = json.load(handle)
+            checkpoint_path = (
+                checkpoint if os.path.isabs(checkpoint)
+                else os.path.join(run_dir, checkpoint)
+            )
+            checkpoint_path = os.path.abspath(checkpoint_path)
+            expected = os.path.abspath(os.path.join(
+                run_dir, evaluation_summary['final_checkpoint']
+            ))
+            if checkpoint_path != expected:
+                raise ValueError(
+                    f"Offline controller {controller_id} checkpoint is not recorded final"
+                )
+            if not os.path.isfile(checkpoint_path):
+                raise FileNotFoundError(checkpoint_path)
+            import torch
+
+            payload_checkpoint = torch.load(checkpoint_path, map_location='cpu')
+            checkpoint_episode = int(evaluation_summary['final_update'])
+            if (
+                payload_checkpoint.get('schema_version') != 1
+                or payload_checkpoint.get('checkpoint_type') != 'evaluation'
+                or payload_checkpoint.get('training_mode') != 'pure_offline'
+                or payload_checkpoint.get('algorithm') != controller['agent']
+                or int(payload_checkpoint.get('training_update', -1))
+                != checkpoint_episode
+            ):
+                raise ValueError(
+                    f"Offline controller {controller_id} checkpoint semantics mismatch"
+                )
+            final_evaluation = next(
+                (
+                    item for item in evaluation_summary['evaluations']
+                    if int(item.get('training_update', -1)) == checkpoint_episode
+                ),
+                None,
+            )
+            if final_evaluation is None:
+                raise ValueError(
+                    f"Offline controller {controller_id} has no final evaluation record"
+                )
+            checkpoint_sha256 = _sha256_file(checkpoint_path)
+            if checkpoint_sha256 != final_evaluation.get('checkpoint_sha256'):
+                raise ValueError(
+                    f"Offline controller {controller_id} checkpoint hash mismatch"
+                )
+            online_model_state_hash = hash_torch_state_dict(
+                payload_checkpoint['online_model_state_dict']
+            )
+            if online_model_state_hash != final_evaluation.get(
+                'online_model_state_hash'
+            ):
+                raise ValueError(
+                    f"Offline controller {controller_id} online-model hash mismatch"
+                )
+            checkpoint_audit = {
+                'checkpoint_path': checkpoint_path,
+                'checkpoint_sha256': checkpoint_sha256,
+                'training_update': checkpoint_episode,
+                'online_model_state_hash': online_model_state_hash,
+                'original_evaluation_seed': int(
+                    final_evaluation['evaluation_seed']
+                ),
+            }
         elif checkpoint is not None:
             raise ValueError(f'Baseline controller {controller_id} checkpoint must be null')
         target_run_dir = run_dir
@@ -1311,6 +1391,20 @@ def load_evaluation_collection_manifest(path):
                     f'Controller {controller_id} expected_vehicle_count must be positive'
                 )
             verify_config_archive(os.path.join(target_run_dir, 'config'))
+        controller_seeds = controller.get('evaluation_seeds', seeds)
+        if (
+            not isinstance(controller_seeds, list)
+            or not controller_seeds
+            or any(
+                not isinstance(seed, int) or seed not in seeds
+                for seed in controller_seeds
+            )
+            or len(set(controller_seeds)) != len(controller_seeds)
+        ):
+            raise ValueError(
+                f"Controller {controller_id} evaluation_seeds must be a non-empty "
+                "unique subset of the collection evaluation_seeds"
+            )
         item = copy.deepcopy(controller)
         item.update({
             'run_dir': run_dir,
@@ -1319,6 +1413,7 @@ def load_evaluation_collection_manifest(path):
             'checkpoint_episode': checkpoint_episode,
             'checkpoint_sha256': checkpoint_sha256,
             'checkpoint_audit': checkpoint_audit,
+            'evaluation_seeds': controller_seeds,
         })
         normalized_controllers.append(item)
     normalized['controllers'] = normalized_controllers
@@ -1326,7 +1421,10 @@ def load_evaluation_collection_manifest(path):
     if expected_controllers is not None and expected_controllers != len(normalized_controllers):
         raise ValueError('Evaluation controller count does not match expected_controller_count')
     expected_episodes = payload.get('expected_episode_count')
-    actual_episodes = len(normalized_controllers) * len(seeds)
+    actual_episodes = sum(
+        len(controller['evaluation_seeds'])
+        for controller in normalized_controllers
+    )
     if expected_episodes is not None and expected_episodes != actual_episodes:
         raise ValueError('Evaluation episode count does not match expected_episode_count')
     normalized['expected_episode_count'] = actual_episodes
@@ -1458,7 +1556,9 @@ def validate_evaluation_package(output_dir):
     expected_identities = {
         (controller['controller_id'], seed)
         for controller in collection['controllers']
-        for seed in collection['evaluation_seeds']
+        for seed in controller.get(
+            'evaluation_seeds', collection['evaluation_seeds']
+        )
     }
     if identities != expected_identities:
         raise ValueError('Evaluation package summary identities are incomplete or duplicated')

@@ -1,6 +1,7 @@
 import task
 import trainer
 import agent
+import agent.offline_dqn  # register Batch-DQN/CQL-DQN evaluators
 import dataset
 from common.registry import Registry
 from common import interface
@@ -10,6 +11,7 @@ import time
 import argparse
 import logging
 import yaml
+import torch
 
 
 # parseargs
@@ -203,6 +205,8 @@ class EvaluationManifestRunner:
             'output_path': attempt_dir,
             'world': 'sumo',
         })
+        if controller['agent'] in {'batch_dqn', 'cql_dqn'}:
+            command.update({'task': 'tsc', 'dataset': 'onfly'})
         config['model']['train_model'] = False
         config['model']['test_model'] = False
         config['model']['load_model'] = False
@@ -291,6 +295,34 @@ class EvaluationManifestRunner:
                 trainer.load_online_checkpoint(
                     controller['checkpoint_path'], expected_type=expected_type,
                 )
+            elif controller['agent'] in {'batch_dqn', 'cql_dqn'}:
+                payload = torch.load(
+                    controller['checkpoint_path'], map_location='cpu'
+                )
+                if (
+                    payload.get('schema_version') != 1
+                    or payload.get('checkpoint_type') != 'evaluation'
+                    or payload.get('training_mode') != 'pure_offline'
+                    or payload.get('algorithm') != controller['agent']
+                    or int(payload.get('training_update', -1))
+                    != int(controller['checkpoint_episode'])
+                ):
+                    raise ValueError('Invalid Plan 2 offline checkpoint identity')
+                if len(trainer.agents) != 1:
+                    raise ValueError('Plan 2 evaluation expects exactly one agent')
+                trainer.agents[0].model.load_state_dict(
+                    payload['online_model_state_dict']
+                )
+                actual_model_hash = hash_torch_state_dict(
+                    trainer.agents[0].model.state_dict()
+                )
+                expected_model_hash = controller['checkpoint_audit'][
+                    'online_model_state_hash'
+                ]
+                if actual_model_hash != expected_model_hash:
+                    raise ValueError(
+                        'Loaded Plan 2 online model hash differs from manifest audit'
+                    )
             archive_runtime_model(config_archive_path, trainer, controller['agent'])
             run_state.transition('运行中')
             context = {
@@ -362,7 +394,9 @@ class EvaluationManifestRunner:
 
     def run(self):
         for controller in self.collection['controllers']:
-            for evaluation_seed in self.collection['evaluation_seeds']:
+            for evaluation_seed in controller.get(
+                'evaluation_seeds', self.collection['evaluation_seeds']
+            ):
                 self._run_attempt(controller, evaluation_seed)
         self.package.finalize()
         print(f"Evaluation package completed: {self.package.output_dir}")

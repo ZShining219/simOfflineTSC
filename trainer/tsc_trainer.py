@@ -4,7 +4,8 @@ import copy
 import json
 import random
 import tempfile
-from collections import deque
+import dataclasses
+from collections import Counter, deque
 import numpy as np
 import torch
 from common.metrics import Metrics
@@ -14,6 +15,7 @@ from trainer.base_trainer import BaseTrainer
 from utils.logger import StructuredMetricLogger, hash_torch_state_dict
 from utils.trajectory import EpisodeTrajectoryWriter
 from agent import utils as agent_utils
+from arterial.replay import HistoryArchiveWriter
 
 
 def _state_values_equal(left, right):
@@ -29,6 +31,12 @@ def _state_values_equal(left, right):
         return len(left) == len(right) and all(
             _state_values_equal(a, b) for a, b in zip(left, right)
         )
+    if dataclasses.is_dataclass(left) and dataclasses.is_dataclass(right):
+        return all(
+            _state_values_equal(getattr(left, field.name),
+                                getattr(right, field.name))
+            for field in dataclasses.fields(left)
+        )
     return left == right
 
 
@@ -39,6 +47,8 @@ def _json_safe_value(value):
         return {str(key): _json_safe_value(item) for key, item in value.items()}
     if isinstance(value, (list, tuple)):
         return [_json_safe_value(item) for item in value]
+    if isinstance(value, np.ndarray):
+        return value.tolist()
     return value
 
 
@@ -163,6 +173,11 @@ class TSCTrainer(BaseTrainer):
         self.learning_start = Registry.mapping['trainer_mapping']['setting'].param['learning_start']
         self.update_model_rate = Registry.mapping['trainer_mapping']['setting'].param['update_model_rate']
         self.update_target_rate = Registry.mapping['trainer_mapping']['setting'].param['update_target_rate']
+        self.updates_per_decision = int(
+            Registry.mapping['trainer_mapping']['setting'].param.get(
+                'updates_per_decision', 1))
+        if self.updates_per_decision <= 0:
+            raise ValueError('updates_per_decision must be positive')
         self.test_when_train = Registry.mapping['trainer_mapping']['setting'].param['test_when_train']
         self.evaluation_episodes = self._resolve_evaluation_episodes(
             Registry.mapping['trainer_mapping']['setting'].param.get(
@@ -188,12 +203,23 @@ class TSCTrainer(BaseTrainer):
             Registry.mapping['logger_mapping']['path'].path
         )
         self.output_path = Registry.mapping['logger_mapping']['path'].path
-        with open(os.path.join(self.output_path, 'run_manifest.json'), encoding='utf-8') as handle:
-            self.config_hash = json.load(handle)['config_hash']
         command = Registry.mapping['command_mapping']['setting'].param
         model = Registry.mapping['model_mapping']['setting'].param
+        self.resume_episode = int(command.get('resume_episode') or 0)
+        if self.resume_episode:
+            summary_path = os.path.join(self.output_path, 'evaluation', 'summary.json')
+            if os.path.isfile(summary_path):
+                with open(summary_path, encoding='utf-8') as handle:
+                    previous_summary = json.load(handle)
+                self.evaluation_results = {
+                    int(item['episode']): item
+                    for item in previous_summary.get('evaluations', [])
+                    if int(item['episode']) <= self.resume_episode
+                }
+        with open(os.path.join(self.output_path, 'run_manifest.json'), encoding='utf-8') as handle:
+            self.config_hash = json.load(handle)['config_hash']
         self.trajectory_writer = None
-        if command['agent'] == 'dqn' and model['train_model']:
+        if command['agent'] in {'dqn', 'shared_dqn'} and model['train_model']:
             self.trajectory_writer = EpisodeTrajectoryWriter(
                 output_path=self.output_path,
                 network=command['network'],
@@ -202,6 +228,7 @@ class TSCTrainer(BaseTrainer):
                 simulation_steps=self.steps,
                 action_interval=self.action_interval,
                 action_dim=self.agents[0].action_space.n,
+                resume_episode=(self.resume_episode or None),
             )
         # replay file is only valid in cityflow now. 
         # TODO: support SUMO and Openengine later
@@ -218,6 +245,48 @@ class TSCTrainer(BaseTrainer):
                                      Registry.mapping['logger_mapping']['setting'].param['log_dir'],
                                      os.path.basename(self.logger.handlers[-1].baseFilename).rstrip('_BRF.log') + '_DTL.log'
                                      )
+        self.training_mode = model.get('training_mode', 'online')
+        self.history_archive_writer = None
+        if len(self.agents) == 1 and getattr(self.agents[0], 'collect_history', False):
+            configured = model.get('history_export_dir', 'history_archive')
+            directory = configured if os.path.isabs(configured) else os.path.join(
+                self.output_path, configured)
+            self.history_archive_writer = HistoryArchiveWriter(
+                directory, resume_episode=(self.resume_episode or None))
+        self.shared_action_log = os.path.join(self.output_path, 'actions.jsonl')
+        self.intersection_metrics_log = os.path.join(
+            self.output_path, 'intersection_metrics.jsonl')
+        self.time_window_metrics_log = os.path.join(
+            self.output_path, 'time_window_metrics.jsonl')
+        self.time_window_seconds = int(model.get('time_window_seconds', 300))
+        self._time_window_records = []
+        self._time_window_index = None
+        self._shared_previous_actions = {}
+        self._shared_phase_switch_counts = Counter()
+        self._previous_entered_cumulative = 0
+        self._previous_exited_cumulative = 0
+        if (not self.resume_episode and len(self.agents) == 1
+                and hasattr(self.agents[0], 'intersection_ids')):
+            shared = self.agents[0]
+            self._append_jsonl(os.path.join(self.output_path, 'shared_run_metadata.jsonl'), {
+                'roadnet': command['network'], 'scene_id': shared.scene_id,
+                'intersection_ids': list(shared.intersection_ids),
+                'num_intersections': shared.sub_agents,
+                'shared_parameters': True,
+                'local_action_dimensions': list(shared.action_dims),
+                'joint_action_space_used': False,
+                'state_variant': shared.state_variant,
+                'reward_variant': shared.reward_variant,
+                'scene_order': model.get('scene_order', []),
+                'training_stage': shared.training_stage,
+                'history_access_mode': model.get('history_access_mode', 'causal'),
+                'full_history_noncausal_upper_bound': (
+                    model.get('history_access_mode') == 'full'),
+                'visible_history_scenes': list(shared.visible_history_scenes),
+                'offline_ratio': shared.offline_ratio,
+                'updates_per_decision': Registry.mapping['trainer_mapping'][
+                    'setting'].param.get('updates_per_decision', 1),
+            })
 
     def _resolve_evaluation_episodes(self, configured):
         if configured is None:
@@ -379,6 +448,7 @@ class TSCTrainer(BaseTrainer):
         self.action_counts = {}
         self.phase_switches = 0
         self.previous_actions = None
+        self.maximum_queue_observed = 0.0
 
     def _record_actions(self, actions):
         flattened = np.asarray(actions).reshape(-1)
@@ -438,18 +508,34 @@ class TSCTrainer(BaseTrainer):
         :param: None
         :return: None
         '''
+        if self.training_mode == 'pure_offline':
+            return self._train_shared_offline()
         total_decision_num = self.global_decision_step
         flush = 0
-        if self._should_evaluate(0):
+        if not self.resume_episode and self._should_evaluate(0):
             self._run_scheduled_evaluation(0)
-        for e in range(self.episodes):
+        if (self.resume_episode and self._should_evaluate(self.resume_episode)
+                and self.resume_episode not in self.evaluation_results):
+            self._run_scheduled_evaluation(self.resume_episode)
+        for e in range(self.resume_episode, self.episodes):
             phase_started_at = time.perf_counter()
+            shared_agent = (self.agents[0] if len(self.agents) == 1
+                            and hasattr(self.agents[0], 'intersection_ids') else None)
+            self._episode_epsilon_start = (
+                None if shared_agent is None else float(shared_agent.epsilon))
+            self._episode_exploration_start = (
+                0 if shared_agent is None else shared_agent.exploration_actions)
+            self._episode_greedy_start = (
+                0 if shared_agent is None else shared_agent.greedy_actions)
             # TODO: check this reset agent
             self.metric.clear()
             self._reset_action_diagnostics()
             if self.trajectory_writer is not None:
                 self.trajectory_writer.start_episode(e + 1)
             last_obs = self.env.reset()  # agent * [sub_agent, feature]
+            self._previous_entered_cumulative = 0
+            self._previous_exited_cumulative = 0
+            self._time_window_index = None
 
             for a in self.agents:
                 a.reset()
@@ -472,7 +558,14 @@ class TSCTrainer(BaseTrainer):
                         actions = np.stack(actions)  # [agent, intersections]
                     else:
                         actions = np.stack([ag.sample() for ag in self.agents])
+                        for ag in self.agents:
+                            if hasattr(ag, 'exploration_actions'):
+                                ag.exploration_actions += ag.sub_agents
                     self._record_actions(actions)
+                    self._write_shared_action_records(
+                        episode=e + 1, simulation_step=i,
+                        decision_step=self.metric.decision_num + 1,
+                        actions=actions)
 
                     actions_prob = []
                     for idx, ag in enumerate(self.agents):
@@ -485,6 +578,9 @@ class TSCTrainer(BaseTrainer):
                         rewards_list.append(np.stack(rewards))
                     rewards = np.mean(rewards_list, axis=0)  # [agent, intersection]
                     self.metric.update(rewards)
+                    self._write_shared_intersection_metrics(
+                        episode=e + 1, decision_step=self.metric.decision_num,
+                        rewards=rewards, actions=actions)
 
                     cur_phase = np.stack([ag.get_phase() for ag in self.agents])
                     terminated = bool(all(dones))
@@ -523,8 +619,17 @@ class TSCTrainer(BaseTrainer):
                             waiting_time=self.metric.waiting_time(),
                         )
                     for idx, ag in enumerate(self.agents):
+                        remember_kwargs = {}
+                        if hasattr(ag, 'intersection_ids'):
+                            remember_kwargs = {
+                                'episode_id': e + 1,
+                                'decision_step': self.metric.decision_num,
+                                'terminated': terminated,
+                                'truncated': truncated,
+                            }
                         ag.remember(last_obs[idx], last_phase[idx], actions[idx], actions_prob[idx], rewards[idx],
-                            obs[idx], cur_phase[idx], dones[idx], f'{e}_{i//self.action_interval}_{ag.id}')
+                            obs[idx], cur_phase[idx], dones[idx], f'{e}_{i//self.action_interval}_{ag.id}',
+                            **remember_kwargs)
                     flush += 1
                     if flush == self.buffer_size - 1:
                         flush = 0
@@ -532,7 +637,10 @@ class TSCTrainer(BaseTrainer):
                     total_decision_num += 1
                     self.global_decision_step = total_decision_num
                     last_obs = obs
-                if total_decision_num > self.learning_start and\
+                agents_ready = all(
+                    not hasattr(agent, 'is_training_ready')
+                    or agent.is_training_ready() for agent in self.agents)
+                if total_decision_num > self.learning_start and agents_ready and\
                         total_decision_num % self.update_model_rate == self.update_model_rate - 1:
 
                     cur_loss_q = np.stack(self.optimizer_update_from_replay())
@@ -546,6 +654,10 @@ class TSCTrainer(BaseTrainer):
                     break
             if self.trajectory_writer is not None:
                 self.trajectory_writer.finish_episode()
+            if self.history_archive_writer is not None:
+                self.history_archive_writer.append_episode(
+                    e + 1, self.agents[0].drain_archive_records())
+            self._flush_time_window()
             mean_loss = np.mean(np.array(episode_loss)) if episode_loss else None
             
             completed_episodes = e + 1
@@ -574,12 +686,182 @@ class TSCTrainer(BaseTrainer):
             self.save_milestone_checkpoints(self.episodes)
         if self.trajectory_writer is not None:
             self.trajectory_writer.validate(expected_episodes=self.episodes)
+        if self.history_archive_writer is not None:
+            command = Registry.mapping['command_mapping']['setting'].param
+            manifest = self.agents[0].history_manifest(
+                roadnet_id=self.agents[0].roadnet_id, training_seed=command['seed'],
+                num_episodes=self.episodes,
+                num_decision_steps=self.global_decision_step,
+            )
+            self.history_archive_writer.finalize(manifest)
+        self._flush_time_window()
+
+    @staticmethod
+    def _append_jsonl(path, record):
+        with open(path, 'a', encoding='utf-8') as handle:
+            handle.write(json.dumps(_json_safe_value(record), sort_keys=True) + '\n')
+
+    def _write_shared_action_records(self, episode, simulation_step,
+                                     decision_step, actions):
+        if len(self.agents) != 1 or not hasattr(self.agents[0], 'intersection_ids'):
+            return
+        agent = self.agents[0]
+        flattened = np.asarray(actions).reshape(-1)
+        for intersection_id, action in zip(agent.intersection_ids, flattened):
+            self._append_jsonl(self.shared_action_log, {
+                'episode': int(episode), 'simulation_step': int(simulation_step),
+                'decision_step': int(decision_step), 'scene_id': agent.scene_id,
+                'intersection_id': intersection_id,
+                'selected_action': int(action), 'executed_action': int(action),
+                'epsilon': float(agent.epsilon),
+            })
+
+    def _write_shared_intersection_metrics(self, episode, decision_step,
+                                           rewards, actions):
+        if len(self.agents) != 1 or not hasattr(self.agents[0], 'intersection_ids'):
+            return
+        agent = self.agents[0]
+        lane_counts = self.world.get_lane_vehicle_count()
+        queue = agent.get_queue().reshape(-1)
+        delay = agent.get_delay().reshape(-1)
+        pressure = agent.get_pressure().reshape(-1)
+        rewards = np.asarray(rewards).reshape(-1)
+        actions = np.asarray(actions).reshape(-1)
+        records = []
+        entered_cumulative = len(getattr(self.world, 'inside_vehicles', {}))
+        exited_cumulative = len(getattr(self.world, 'vehicles', {}))
+        unfinished_cumulative = entered_cumulative - exited_cumulative
+        entered_interval = entered_cumulative - self._previous_entered_cumulative
+        exited_interval = exited_cumulative - self._previous_exited_cumulative
+        self._previous_entered_cumulative = entered_cumulative
+        self._previous_exited_cumulative = exited_cumulative
+        for index, intersection_id in enumerate(agent.intersection_ids):
+            incoming = float(sum(lane_counts[x] for x in agent.in_lanes[index]))
+            outgoing = float(sum(lane_counts[x] for x in agent.out_lanes[index]))
+            action = int(actions[index])
+            switched = int(
+                intersection_id in self._shared_previous_actions
+                and self._shared_previous_actions[intersection_id] != action)
+            self._shared_previous_actions[intersection_id] = action
+            self._shared_phase_switch_counts[intersection_id] += switched
+            occupancy = float(np.mean([
+                lane_counts[x] / agent.lane_capacity
+                for x in agent.in_lanes[index]
+            ])) if agent.in_lanes[index] else 0.0
+            record = {
+                'episode': int(episode), 'simulation_time_seconds': float(
+                    self.world.get_current_time()),
+                'decision_step': int(decision_step), 'scene_id': agent.scene_id,
+                'intersection_id': intersection_id,
+                'local_reward': float(rewards[index]), 'queue': float(queue[index]),
+                'delay': float(delay[index]), 'incoming_vehicle_count': incoming,
+                'outgoing_vehicle_count': outgoing,
+                'pressure': float(pressure[index]), 'selected_phase': action,
+                'phase_switch': switched, 'occupancy': occupancy,
+                'phase_switch_count_cumulative': int(
+                    self._shared_phase_switch_counts[intersection_id]),
+                'network_entered_interval': entered_interval,
+                'network_exited_interval': exited_interval,
+                'network_entered_cumulative': entered_cumulative,
+                'network_exited_cumulative': exited_cumulative,
+                'network_unfinished_cumulative': unfinished_cumulative,
+                'discharge_count': None,
+                'discharge_missing_reason': (
+                    'SUMO world does not expose reliable per-intersection discharge IDs'),
+            }
+            records.append(record)
+            self._append_jsonl(self.intersection_metrics_log, record)
+        self._accumulate_time_window(records)
+
+    def _accumulate_time_window(self, records):
+        if not records or self.time_window_seconds <= 0:
+            return
+        index = int(records[0]['simulation_time_seconds'] // self.time_window_seconds)
+        if self._time_window_index is None:
+            self._time_window_index = index
+        if index != self._time_window_index:
+            self._flush_time_window()
+            self._time_window_index = index
+        self._time_window_records.extend(records)
+
+    def _flush_time_window(self):
+        if not self._time_window_records:
+            return
+        records = self._time_window_records
+        last_time = max(x['simulation_time_seconds'] for x in records)
+        last_records = [x for x in records
+                        if x['simulation_time_seconds'] == last_time]
+        last_record = last_records[0]
+        ids = sorted({x['intersection_id'] for x in records})
+        per_intersection = {}
+        for intersection_id in ids:
+            values = [x for x in records if x['intersection_id'] == intersection_id]
+            per_intersection[intersection_id] = {
+                'queue_mean': float(np.mean([x['queue'] for x in values])),
+                'pressure_mean': float(np.mean([x['pressure'] for x in values])),
+                'occupancy_mean': float(np.mean([x['occupancy'] for x in values])),
+            }
+        self._append_jsonl(self.time_window_metrics_log, {
+            'scene_id': records[0]['scene_id'],
+            'window_index': self._time_window_index,
+            'window_seconds': self.time_window_seconds,
+            'network_queue_mean': float(np.mean([x['queue'] for x in records])),
+            'network_queue_maximum': float(max(x['queue'] for x in records)),
+            'network_delay_mean': float(np.mean([x['delay'] for x in records])),
+            'throughput_cumulative': int(
+                last_record['network_exited_cumulative']),
+            'completed_vehicles': int(
+                last_record['network_exited_cumulative']),
+            'unfinished_vehicles': int(
+                last_record['network_unfinished_cumulative']),
+            'entered_vehicles': int(sum(next(iter(group))['network_entered_interval']
+                for group in self._records_by_time(records).values())),
+            'exited_vehicles': int(sum(next(iter(group))['network_exited_interval']
+                for group in self._records_by_time(records).values())),
+            'intersection_metrics': per_intersection,
+        })
+        self._time_window_records = []
+
+    @staticmethod
+    def _records_by_time(records):
+        grouped = {}
+        for record in records:
+            grouped.setdefault(record['simulation_time_seconds'], []).append(record)
+        return grouped
+
+    def _train_shared_offline(self):
+        if len(self.agents) != 1 or not hasattr(self.agents[0], 'offline_pool'):
+            raise ValueError('pure_offline mode requires one shared_dqn controller')
+        agent = self.agents[0]
+        if not agent.offline_pool.records:
+            raise ValueError('pure_offline mode requires non-empty history_paths')
+        agent.offline_ratio = 1.0
+        if not agent.visible_history_scenes:
+            agent.visible_history_scenes = agent.offline_pool.scenes
+        settings = Registry.mapping['trainer_mapping']['setting'].param
+        gradient_steps = int(settings.get('offline_gradient_steps', 1))
+        if gradient_steps <= 0:
+            raise ValueError('offline_gradient_steps must be positive')
+        diagnostics_path = os.path.join(self.output_path, 'offline_updates.jsonl')
+        for update in range(1, gradient_steps + 1):
+            agent.train()
+            self.gradient_updates += 1
+            if self.gradient_updates % self.update_target_rate == 0:
+                agent.update_target_network()
+                self.target_updates += 1
+            record = {'gradient_update_step': update, **agent.last_train_diagnostics}
+            with open(diagnostics_path, 'a', encoding='utf-8') as handle:
+                handle.write(json.dumps(_json_safe_value(record), sort_keys=True) + '\n')
+        agent.save_model(e=self.episodes)
+        self.save_milestone_checkpoints(self.episodes)
 
     def optimizer_update_from_replay(self):
         losses = []
-        for agent in self.agents:
-            losses.append(agent.train())
-            self.gradient_updates += 1
+        updates = int(getattr(self, 'updates_per_decision', 1))
+        for _ in range(updates):
+            for agent in self.agents:
+                losses.append(agent.train())
+                self.gradient_updates += 1
         return losses
 
     def _supports_dqn_checkpoint(self):
@@ -660,6 +942,24 @@ class TSCTrainer(BaseTrainer):
                 'torch_cuda_rng_states': torch.cuda.get_rng_state_all()
                 if torch.cuda.is_available() else [],
             })
+            if len(self.agents) == 1 and hasattr(self.agents[0], 'intersection_ids'):
+                shared = self.agents[0]
+                payload['shared_experiment_state'] = {
+                    'current_scene': shared.scene_id,
+                    'scene_stage': shared.training_stage,
+                    'intersection_ids': list(shared.intersection_ids),
+                    'visible_history_scenes': list(shared.visible_history_scenes),
+                    'policy_version': shared.policy_version,
+                    'epsilon_mode': Registry.mapping['model_mapping']['setting'].param.get(
+                        'epsilon_mode', 'reset_schedule'),
+                    'replay_saved': True,
+                    'resolved_config_snapshot': {
+                        'model': copy.deepcopy(
+                            Registry.mapping['model_mapping']['setting'].param),
+                        'trainer': copy.deepcopy(
+                            Registry.mapping['trainer_mapping']['setting'].param),
+                    },
+                }
         self.validate_checkpoint_payload(payload)
         path = self._checkpoint_path(checkpoint_type, episode)
         self._atomic_torch_save(payload, path)
@@ -767,6 +1067,15 @@ class TSCTrainer(BaseTrainer):
             agent.epsilon = agent_payload['epsilon']
             replay = agent_payload['replay_state']
             agent.replay_buffer = deque(replay['items'], maxlen=replay['capacity'])
+            shared_state = payload.get('shared_experiment_state')
+            if shared_state and hasattr(agent, 'intersection_ids'):
+                if tuple(shared_state['intersection_ids']) != tuple(agent.intersection_ids):
+                    raise ValueError('Checkpoint intersection order does not match world')
+                agent.scene_id = shared_state['current_scene']
+                agent.training_stage = int(shared_state['scene_stage'])
+                agent.visible_history_scenes = tuple(
+                    shared_state['visible_history_scenes'])
+                agent.policy_version = int(shared_state['policy_version'])
             if hasattr(agent, 'load_replay_utilization_state'):
                 utilization_state = agent_payload.get('replay_utilization_state')
                 if utilization_state:
@@ -788,6 +1097,40 @@ class TSCTrainer(BaseTrainer):
             torch.cuda.set_rng_state_all(payload['torch_cuda_rng_states'])
         return payload
 
+    def load_shared_stage_checkpoint(self, path, replay_policy='clear',
+                                     epsilon_mode='reset_schedule'):
+        """Import a prior scene while preserving the new scene configuration."""
+        if replay_policy not in {'clear', 'fifo'}:
+            raise ValueError('Shared stage replay_policy must be clear or fifo')
+        payload = self.load_checkpoint_payload(path, expected_type='resumable')
+        if len(self.agents) != 1 or len(payload['agents']) != 1:
+            raise ValueError('Shared stage checkpoint requires one shared controller')
+        agent = self.agents[0]
+        source = payload['agents'][0]
+        agent.model.load_state_dict(source['online_model_state_dict'])
+        agent.target_model.load_state_dict(source['target_model_state_dict'])
+        agent.optimizer.load_state_dict(source['optimizer_state_dict'])
+        if replay_policy == 'fifo':
+            replay = source['replay_state']
+            agent.replay_buffer = deque(replay['items'], maxlen=replay['capacity'])
+            utilization = source.get('replay_utilization_state')
+            if utilization and hasattr(agent, 'load_replay_utilization_state'):
+                agent.load_replay_utilization_state(utilization)
+        else:
+            agent.replay_buffer.clear()
+        agent.epsilon = float(source['epsilon'])
+        agent.reset_epsilon(epsilon_mode)
+        counters = payload['training_counters']
+        self.global_decision_step = int(counters['global_decision_step'])
+        self.gradient_updates = int(counters['gradient_updates'])
+        self.target_updates = int(counters['target_updates'])
+        random.setstate(payload['python_random_state'])
+        np.random.set_state(payload['numpy_random_state'])
+        torch.set_rng_state(payload['torch_cpu_rng_state'])
+        if torch.cuda.is_available() and payload['torch_cuda_rng_states']:
+            torch.cuda.set_rng_state_all(payload['torch_cuda_rng_states'])
+        return payload
+
     def _evaluation_timeseries_record(
         self, context, decision_step, rewards, actions, previous_throughput,
         state_observations=None, state_phases=None, state_time_seconds=None,
@@ -795,8 +1138,14 @@ class TSCTrainer(BaseTrainer):
         lane_queue = self.world.get_lane_waiting_vehicle_count()
         lane_delay = self.world.get_lane_delay()
         lane_vehicle_count = self.world.get_lane_vehicle_count()
-        queue_intersections = [float(agent.get_queue()) for agent in self.agents]
-        delay_intersections = [float(agent.get_delay()) for agent in self.agents]
+        queue_intersections = np.concatenate([
+            np.asarray(agent.get_queue(), dtype=float).reshape(-1)
+            for agent in self.agents
+        ]).tolist()
+        delay_intersections = np.concatenate([
+            np.asarray(agent.get_delay(), dtype=float).reshape(-1)
+            for agent in self.agents
+        ]).tolist()
         controller_reward_agents = np.asarray(rewards, dtype=float).reshape(-1)
         # Agent reward generators are not semantically identical across the
         # legacy controllers.  Use negative queued vehicles as the stable
@@ -808,6 +1157,9 @@ class TSCTrainer(BaseTrainer):
             for lane, vehicle_count in lane_vehicle_count.items()
         )
         cumulative_throughput = int(self.world.get_cur_throughput())
+        self.maximum_queue_observed = max(
+            self.maximum_queue_observed,
+            max(queue_intersections, default=0.0))
         schema_version = int(context.get('evaluation_schema_version', 1))
         record = {
             'schema_version': schema_version,
@@ -850,6 +1202,25 @@ class TSCTrainer(BaseTrainer):
             'throughput_interval': cumulative_throughput - previous_throughput,
             'throughput_cumulative': cumulative_throughput,
         }
+        if len(self.agents) == 1 and hasattr(self.agents[0], 'intersection_ids'):
+            shared = self.agents[0]
+            pressure = shared.get_pressure().reshape(-1)
+            flattened_actions = np.asarray(actions).reshape(-1)
+            record['intersection_ids'] = list(shared.intersection_ids)
+            record['pressure_intersections'] = pressure.astype(float).tolist()
+            record['incoming_vehicle_count_intersections'] = [
+                float(sum(lane_vehicle_count[lane]
+                          for lane in shared.in_lanes[index]))
+                for index in range(shared.sub_agents)
+            ]
+            record['outgoing_vehicle_count_intersections'] = [
+                float(sum(lane_vehicle_count[lane]
+                          for lane in shared.out_lanes[index]))
+                for index in range(shared.sub_agents)
+            ]
+            record['selected_phase_intersections'] = (
+                flattened_actions.astype(int).tolist())
+            record['phase_switch_count_cumulative'] = int(self.phase_switches)
         if schema_version == 2:
             record.update({
                 'source_network': context['source_network'],
@@ -863,34 +1234,45 @@ class TSCTrainer(BaseTrainer):
                 'current_phase': None,
                 'model_input': None,
                 'state_feature_schema': None,
+                'intersection_ids': None,
+                'pressure_intersections': None,
+                'incoming_vehicle_count_intersections': None,
+                'outgoing_vehicle_count_intersections': None,
+                'selected_phase_intersections': None,
+                'phase_switch_count_cumulative': None,
+                'training_stage': context.get('training_stage'),
+                'trained_until_scene': context.get('trained_until_scene'),
+                'evaluation_scene': context.get('evaluation_scene'),
             })
         if context.get('record_state_diagnostics'):
             raw_state = np.asarray(state_observations, dtype=np.float32)
             phases = np.asarray(state_phases, dtype=np.int64)
-            if raw_state.shape != (len(self.agents), 1, 8):
+            expected_intersections = sum(agent.sub_agents for agent in self.agents)
+            flattened_state = raw_state.reshape(expected_intersections, -1)
+            flattened_phases = phases.reshape(expected_intersections)
+            if flattened_state.shape[0] != expected_intersections:
                 raise ValueError(
                     f'Unexpected probe raw-state shape: {raw_state.shape}'
                 )
-            if phases.shape != (len(self.agents), 1):
-                raise ValueError(
-                    f'Unexpected probe current-phase shape: {phases.shape}'
-                )
             model_inputs = []
-            for index, agent in enumerate(self.agents):
+            offset = 0
+            for agent in self.agents:
+                count = agent.sub_agents
                 one_hot = agent_utils.idx2onehot(
-                    phases[index], agent.action_space.n
+                    flattened_phases[offset:offset + count], agent.action_space.n
                 )
                 model_inputs.append(np.concatenate(
-                    [raw_state[index], one_hot], axis=1
+                    [flattened_state[offset:offset + count], one_hot], axis=1
                 ))
+                offset += count
+            model_inputs = np.concatenate(model_inputs, axis=0)
             record.update({
                 'state_simulation_time_seconds': float(state_time_seconds),
-                'raw_state': raw_state.reshape(len(self.agents), 8).tolist(),
-                'current_phase': phases.reshape(len(self.agents)).tolist(),
-                'model_input': np.asarray(model_inputs, dtype=np.float32).reshape(
-                    len(self.agents), 16
-                ).tolist(),
-                'state_feature_schema': 'lane_count_8_plus_phase_one_hot_8_v1',
+                'raw_state': flattened_state.tolist(),
+                'current_phase': flattened_phases.tolist(),
+                'model_input': np.asarray(model_inputs, dtype=np.float32).tolist(),
+                'state_feature_schema': (
+                    f'local_state_{flattened_state.shape[1]}_plus_phase_one_hot_v1'),
             })
         return record, cumulative_throughput
 
@@ -957,6 +1339,8 @@ class TSCTrainer(BaseTrainer):
                 'throughput': int(self.metric.throughput()),
                 'waiting_time': float(self.metric.waiting_time()),
                 'unfinished_vehicles': int(self.metric.unfinished_vehicles()),
+                'completed_vehicles': int(self.metric.throughput()),
+                'maximum_queue': float(self.maximum_queue_observed),
                 'wall_time_seconds': wall_time_seconds,
                 'phase_switches': int(self.phase_switches),
                 'phase_switch_frequency': float(
@@ -1095,8 +1479,10 @@ class TSCTrainer(BaseTrainer):
         unique_sampled_transitions = sum(
             item['unique_sampled_transitions'] for item in replay_diagnostics
         )
+        is_shared = (len(self.agents) == 1
+                     and hasattr(self.agents[0], 'intersection_ids'))
         record = {
-            'schema_version': 3,
+            'schema_version': 4 if is_shared else 3,
             'record_type': record_type,
             'agent': command['agent'],
             'network': command['network'],
@@ -1162,6 +1548,41 @@ class TSCTrainer(BaseTrainer):
                 ) / sampled_transitions
             ),
         }
+        shared_diagnostics = [
+            agent.last_train_diagnostics for agent in self.agents
+            if getattr(agent, 'last_train_diagnostics', None) is not None
+        ]
+        if is_shared:
+            shared = self.agents[0]
+            record.update({
+                'epsilon_start': getattr(self, '_episode_epsilon_start',
+                                         float(shared.epsilon)),
+                'epsilon_end': float(shared.epsilon),
+                'exploration_actions': int(
+                    shared.exploration_actions - getattr(
+                        self, '_episode_exploration_start', 0)),
+                'greedy_actions': int(
+                    shared.greedy_actions - getattr(
+                        self, '_episode_greedy_start', 0)),
+                'shared_dqn_update': (
+                    None if record_type != 'TRAIN' or len(shared_diagnostics) != 1
+                    else _json_safe_value(shared_diagnostics[0])),
+                'replay_composition': None,
+            })
+        shared_compositions = [
+            {
+                'scene_distribution': dict(sorted(Counter(
+                    item.metadata.scene_id for item in agent.replay_buffer
+                ).items())),
+                'intersection_distribution': dict(sorted(Counter(
+                    item.metadata.intersection_id for item in agent.replay_buffer
+                ).items())),
+            }
+            for agent in self.agents
+            if agent.replay_buffer and hasattr(agent.replay_buffer[0], 'metadata')
+        ]
+        if is_shared and len(shared_compositions) == 1:
+            record['replay_composition'] = shared_compositions[0]
         self.structured_metrics.append(record)
         return record
 

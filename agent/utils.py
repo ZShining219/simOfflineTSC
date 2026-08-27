@@ -2,9 +2,13 @@ import numpy as np
 import torch
 import torch.nn as nn
 from collections import OrderedDict
-from pfrl import explorers
+try:
+    from pfrl import explorers
+except ModuleNotFoundError:
+    explorers = None
 
-class SharedEpsGreedy(explorers.LinearDecayEpsilonGreedy):
+class SharedEpsGreedy(
+        explorers.LinearDecayEpsilonGreedy if explorers is not None else object):
     def select_action(self, t, greedy_action_func, action_value=None, num_acts=None):
         self.epsilon = self.compute_epsilon(t)
         if num_acts is None:

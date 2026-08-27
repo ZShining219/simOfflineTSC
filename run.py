@@ -10,6 +10,10 @@ import time
 import argparse
 import logging
 import yaml
+import json
+import shutil
+from pathlib import Path
+import torch
 
 
 # parseargs
@@ -35,6 +39,12 @@ parser.add_argument(
     '--evaluation-output', default=None,
     help='New output directory for the immutable evaluation data package',
 )
+parser.add_argument(
+    '--experiment-config', default=None,
+    help='Optional YAML overlay for trainer/model/world experiment settings',
+)
+parser.add_argument('--resume-output', default=None)
+parser.add_argument('--resume-checkpoint', default=None)
 
 args = parser.parse_args()
 os.environ["CUDA_VISIBLE_DEVICES"] = args.ngpu
@@ -49,8 +59,24 @@ class Runner:
         """
         instantiate runner object with processed config and register config into Registry class
         """
+        self.resume = bool(pArgs.resume_output or pArgs.resume_checkpoint)
+        if self.resume and not (pArgs.resume_output and pArgs.resume_checkpoint):
+            raise ValueError('Resume requires --resume-output and --resume-checkpoint')
+        if self.resume:
+            self._initialize_resume(pArgs)
+            return
         self.config, self.duplicate_config = build_config(pArgs)
+        if pArgs.experiment_config:
+            with open(pArgs.experiment_config, encoding='utf-8') as handle:
+                overlay = yaml.safe_load(handle) or {}
+            self.config, overlay_duplicates = merge_dicts(self.config, overlay)
+            self.duplicate_config.update(overlay_duplicates)
+            # Preserve CLI identity fields after merging a research overlay.
+            self.config['command'].update(vars(pArgs))
         self.config_sources = capture_config_sources(self.config)
+        if pArgs.experiment_config:
+            with open(pArgs.experiment_config, 'rb') as handle:
+                self.config_sources['experiment_overlay.yml'] = handle.read()
         self.output_path = reserve_run_output(self.config)
         self.run_state = None
         try:
@@ -66,6 +92,98 @@ class Runner:
                 self.config, self.output_path, error, exit_code=1
             )
             raise
+
+    @staticmethod
+    def _prune_jsonl(path, checkpoint_episode, orphan_dir):
+        path = Path(path)
+        if not path.is_file():
+            return
+        kept, removed = [], []
+        for line in path.read_text(encoding='utf-8').splitlines(True):
+            if not line.strip():
+                continue
+            record = json.loads(line)
+            episode = record.get('episode', record.get('episode_id'))
+            (removed if episode is not None and int(episode) > checkpoint_episode
+             else kept).append(line)
+        if removed:
+            orphan_dir.mkdir(parents=True, exist_ok=True)
+            (orphan_dir / path.name).write_text(''.join(removed), encoding='utf-8')
+            path.write_text(''.join(kept), encoding='utf-8')
+
+    @classmethod
+    def _prepare_resume_files(cls, output, checkpoint_episode):
+        output = Path(output)
+        orphan = output / 'resume_orphans' / f'after_episode_{checkpoint_episode:04d}'
+        for directory, pattern in (
+                (output / 'history_archive', 'episode_*.pt'),
+                (output / 'trajectory' / 'episodes', 'episode_*.npz'),
+                (output / 'checkpoints' / 'evaluation', 'episode_*.pt'),
+                (output / 'checkpoints' / 'resumable', 'episode_*.pt')):
+            if not directory.is_dir():
+                continue
+            for path in directory.glob(pattern):
+                episode = int(path.stem.split('_')[-1])
+                if episode > checkpoint_episode:
+                    orphan.mkdir(parents=True, exist_ok=True)
+                    target = orphan / path.relative_to(output)
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.move(str(path), str(target))
+        model_directory = output / 'model'
+        if model_directory.is_dir():
+            for path in model_directory.glob('*_*.pt'):
+                episode = int(path.name.split('_', 1)[0])
+                if episode > checkpoint_episode:
+                    target = orphan / path.relative_to(output)
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.move(str(path), str(target))
+        trajectory_index = output / 'trajectory' / 'index.jsonl'
+        cls._prune_jsonl(trajectory_index, checkpoint_episode, orphan / 'trajectory')
+        for relative in (
+                'metrics/records.jsonl', 'actions.jsonl',
+                'intersection_metrics.jsonl', 'time_window_metrics.jsonl'):
+            cls._prune_jsonl(output / relative, checkpoint_episode, orphan / 'logs')
+
+    def _initialize_resume(self, pArgs):
+        self.output_path = os.path.abspath(pArgs.resume_output)
+        checkpoint = os.path.abspath(pArgs.resume_checkpoint)
+        output = Path(self.output_path)
+        checkpoint_path = Path(checkpoint)
+        try:
+            checkpoint_path.relative_to(output / 'checkpoints' / 'resumable')
+        except ValueError as error:
+            raise ValueError('Resume checkpoint must belong to the run output') from error
+        payload = torch.load(checkpoint, map_location='cpu')
+        if payload.get('checkpoint_type') != 'resumable':
+            raise ValueError('Resume requires a resumable checkpoint')
+        episode = int(payload['episode'])
+        resolved_path = output / 'config' / 'resolved_config.yaml'
+        with resolved_path.open(encoding='utf-8') as handle:
+            self.config = yaml.safe_load(handle)
+        self.config.pop('config_record', None)
+        configured_episodes = int(self.config['trainer']['episodes'])
+        if not 0 <= episode < configured_episodes:
+            raise ValueError('Resume checkpoint episode is outside run budget')
+        with (output / 'run_manifest.json').open(encoding='utf-8') as handle:
+            run_manifest = json.load(handle)
+        if payload.get('config_hash') != run_manifest.get('config_hash'):
+            raise ValueError('Resume checkpoint config hash does not match run manifest')
+        self.config['command']['output_path'] = self.output_path
+        self.config['command']['resume_episode'] = episode
+        self.config['command']['resume_checkpoint'] = checkpoint
+        self.duplicate_config = {}
+        config_dir = output / 'config'
+        names = ('base.yml', f"{self.config['command']['agent']}.yml",
+                 'simulator_source.cfg', 'experiment_overlay.yml')
+        self.config_sources = {
+            name: (config_dir / name).read_bytes() for name in names
+            if (config_dir / name).is_file()}
+        self._prepare_resume_files(output, episode)
+        self.run_state = RunStateManager.resume(
+            self.output_path, checkpoint, episode)
+        self.config_registry()
+        self.config_archive_path = str(config_dir)
+        self.resume_checkpoint = checkpoint
 
     def config_registry(self):
         """Register configuration into the project-wide registries."""
@@ -92,11 +210,20 @@ class Runner:
             self.trainer = Registry.mapping['trainer_mapping'][
                 Registry.mapping['command_mapping']['setting'].param['task']
             ](logger)
-            self.model_archive_path = archive_runtime_model(
-                self.config_archive_path,
-                self.trainer,
-                Registry.mapping['command_mapping']['setting'].param['agent'],
-            )
+            if self.resume:
+                self.trainer.load_resumable_checkpoint(self.resume_checkpoint)
+            model_settings = Registry.mapping['model_mapping']['setting'].param
+            stage_checkpoint = model_settings.get('stage_checkpoint')
+            if stage_checkpoint:
+                self.trainer.load_shared_stage_checkpoint(
+                    stage_checkpoint,
+                    replay_policy=model_settings.get('replay_policy', 'clear'),
+                    epsilon_mode=model_settings.get('epsilon_mode', 'reset_schedule'),
+                )
+            if not self.resume:
+                self.model_archive_path = archive_runtime_model(
+                    self.config_archive_path, self.trainer,
+                    Registry.mapping['command_mapping']['setting'].param['agent'])
             self.task = Registry.mapping['task_mapping'][
                 Registry.mapping['command_mapping']['setting'].param['task']
             ](self.trainer)
@@ -206,6 +333,11 @@ class EvaluationManifestRunner:
         config['model']['train_model'] = False
         config['model']['test_model'] = False
         config['model']['load_model'] = False
+        if controller.get('evaluation_steps') is not None:
+            evaluation_steps = int(controller['evaluation_steps'])
+            if evaluation_steps <= 0:
+                raise ValueError('evaluation_steps must be positive')
+            config['trainer']['test_steps'] = evaluation_steps
         config['logger']['save_model'] = False
         snapshots = self._source_snapshots(controller)
         if self.collection['schema_version'] == 2:
@@ -282,7 +414,7 @@ class EvaluationManifestRunner:
                 evaluation_seed,
             )
             self.package.write_attempt_metadata(attempt_dir, attempt_metadata)
-            if controller['agent'] == 'dqn':
+            if controller['agent'] in {'dqn', 'shared_dqn'}:
                 expected_type = (
                     'resumable'
                     if controller.get('checkpoint_role') == 'resumable'
@@ -331,6 +463,9 @@ class EvaluationManifestRunner:
                     )
                 ),
                 'attempt_output_dir': attempt_dir,
+                'training_stage': controller.get('training_stage'),
+                'trained_until_scene': controller.get('trained_until_scene'),
+                'evaluation_scene': controller.get('evaluation_scene'),
             }
             summary = trainer.evaluate_once(
                 context, record_callback=self.package.append_record

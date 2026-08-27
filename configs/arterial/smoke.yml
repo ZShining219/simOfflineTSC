@@ -1,0 +1,35 @@
+roadnet: arterial_1x6
+scene_order: order_1
+num_intersections: 6
+shared_parameters: true
+state_variant: base
+reward_variant: original
+use_position_encoding: false
+use_neighbor_summary: false
+replay_clear_on_scene_switch: true
+offline_enabled: false
+offline_ratio: 0.0
+offline_sampling_strategy: scene_intersection_balanced
+history_access_mode: causal
+epsilon_mode: reset_schedule
+training_seed: 0
+episode_budget: 1
+evaluation_interval: 1
+checkpoint_interval: 1
+model:
+  scene_id: '300_0.6'
+  roadnet_id: arterial_1x6
+  training_mode: online
+  collect_history: true
+  history_export_dir: history_archive
+  time_window_seconds: 30
+  batch_size: 8
+trainer:
+  episodes: 1
+  learning_start: 1
+  buffer_size: 128
+  steps: 40
+  test_steps: 20
+  action_interval: 10
+  evaluation_episodes: [0, 1]
+  resumable_checkpoint_episodes: [0, 1]

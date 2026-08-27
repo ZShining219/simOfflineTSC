@@ -10,8 +10,6 @@ import xml.etree.cElementTree as ET
 if 'SUMO_HOME' in os.environ:
     tools = os.path.join(os.environ['SUMO_HOME'], 'tools')
     sys.path.append(tools)
-else:
-    sys.exit('No SUMO in environment path')
 from common.registry import Registry
 
 import json
@@ -22,6 +20,7 @@ import time
 import sumolib
 import libsumo
 import traci
+from arterial.control import stable_intersection_order
 
 class Intersection(object):
     '''
@@ -413,14 +412,15 @@ class World(object):
         self.step_length = 1  # should be 1 in our setting
         self.max_distance = 200 # TODO: set in registry
         # get all intersections (dict here)
-        self.intersection_ids = self.eng.trafficlight.getIDList()
+        self.intersection_ids = stable_intersection_order(
+            self.eng.trafficlight.getIDList())
         # prepare phase information for each intersections
         self.green_phases = self.generate_valid_phase()
 
         # creating all intersections
         self.id2intersection = dict()
         self.intersections = []
-        for ts in self.eng.trafficlight.getIDList():
+        for ts in self.intersection_ids:
             self.id2intersection[ts] = Intersection(ts, self, self.green_phases[ts])  # this IntSec has different phases
             self.intersections.append(self.id2intersection[ts])
         self.id2idx = {i: idx for idx,i in enumerate(self.id2intersection)}
@@ -538,9 +538,11 @@ class World(object):
             intsec.observe(self.step_length, self.max_distance)
         # TODO: register vehicles here
         entering_v = self.eng.simulation.getDepartedIDList()
+        self.last_entered_vehicle_ids = tuple(entering_v)
         for v in entering_v:
             self.inside_vehicles.update({v: self.get_current_time()})
         exiting_v = self.eng.simulation.getArrivedIDList()
+        self.last_exited_vehicle_ids = tuple(exiting_v)
         for v in exiting_v:
             self.vehicles.update({v: self.get_current_time() - self.inside_vehicles[v]})
         self._update_infos()
@@ -563,7 +565,7 @@ class World(object):
         self._start_engine()
         self.id2intersection = dict()
         self.intersections = []
-        for ts in self.eng.trafficlight.getIDList():
+        for ts in self.intersection_ids:
             self.id2intersection[ts] = Intersection(ts, self, self.green_phases[ts])  # this IntSec has different phases
             self.intersections.append(self.id2intersection[ts])
         self.id2idx = {i: idx for idx,i in enumerate(self.id2intersection)}
@@ -578,6 +580,8 @@ class World(object):
         self.vehicle_trajectory = {}
         self.vehicle_maxspeed = {}
         self.real_delay= {}
+        self.last_entered_vehicle_ids = tuple()
+        self.last_exited_vehicle_ids = tuple()
 
     def configure_evaluation_output(self, output_dir):
         """Route the next SUMO start into an evaluation-attempt directory."""
@@ -953,8 +957,13 @@ class World(object):
         return sum(waiting_times) / len(waiting_times)
 
     def get_unfinished_vehicle_count(self):
-        """Return the number of vehicles currently remaining in the network."""
-        return len(self.eng.vehicle.getIDList())
+        """Return departed vehicles that have not arrived yet.
+
+        SUMO temporarily omits teleporting vehicles from ``vehicle.getIDList``
+        while still reporting them as Running.  The departed/arrived ledgers
+        preserve those vehicles and match SUMO's end-of-run accounting.
+        """
+        return len(self.inside_vehicles) - len(self.vehicles)
 
     def get_vehicle_lane(self):
         '''

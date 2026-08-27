@@ -1,0 +1,32 @@
+includes:
+  - configs/tsc/base.yml
+
+model:
+  name: shared_dqn
+  train_model: true
+  test_model: true
+  epsilon: 0.1
+  epsilon_decay: 0.995
+  epsilon_min: 0.01
+  one_hot: true
+  phase: true
+  state_variant: base
+  reward_variant: original
+  use_position_encoding: false
+  use_neighbor_summary: false
+  normalize_lane_counts: false
+  lane_capacity: 1.0
+  offline_ratio: 0.0
+  offline_sampling_strategy: scene_intersection_balanced
+  history_access_mode: causal
+  history_paths: []
+  scene_order: []
+  training_stage: 0
+
+trainer:
+  episodes: 400
+  learning_start: 1000
+  buffer_size: 30000
+  updates_per_decision: 1
+  evaluation_episodes: [0, 400]
+  resumable_checkpoint_episodes: [0, 400]

@@ -39,6 +39,10 @@ METRIC_FIELDS_V3 = METRIC_FIELDS + (
     'sample_count_mean', 'sample_count_median', 'sample_count_p95',
     'sample_count_max', 'sampled_transition_mean_age',
 )
+METRIC_FIELDS_V4 = METRIC_FIELDS_V3 + (
+    'epsilon_start', 'epsilon_end', 'exploration_actions', 'greedy_actions',
+    'shared_dqn_update', 'replay_composition',
+)
 
 SUMO_ENVIRONMENT_IDENTITY_FIELDS = (
     'network', 'dir', 'combined_file', 'roadnetFile', 'flowFile',
@@ -56,6 +60,8 @@ def metric_fields_for_schema(schema_version):
         return METRIC_FIELDS
     if schema_version == 3:
         return METRIC_FIELDS_V3
+    if schema_version == 4:
+        return METRIC_FIELDS_V4
     raise ValueError(f'Unsupported metric schema_version: {schema_version}')
 
 
@@ -146,6 +152,37 @@ class RunStateManager:
         }
         _write_json_atomic(self.manifest_path, self.manifest)
         _write_json_atomic(self.status_path, self.status)
+
+    @classmethod
+    def resume(cls, output_path, checkpoint_path, checkpoint_episode):
+        manager = object.__new__(cls)
+        manager.output_path = os.path.abspath(output_path)
+        manager.manifest_path = os.path.join(manager.output_path, 'run_manifest.json')
+        manager.status_path = os.path.join(manager.output_path, 'run_status.json')
+        with open(manager.manifest_path, encoding='utf-8') as handle:
+            manager.manifest = json.load(handle)
+        with open(manager.status_path, encoding='utf-8') as handle:
+            previous = json.load(handle)
+        if previous.get('status') == '已完成':
+            raise ValueError('Completed run cannot be resumed')
+        attempts = list(previous.get('resume_attempts', []))
+        attempts.append({
+            'resumed_at_utc': _utc_now(),
+            'checkpoint_path': os.path.abspath(checkpoint_path),
+            'checkpoint_episode': int(checkpoint_episode),
+            'previous_status': previous.get('status'),
+            'previous_error_type': previous.get('error_type'),
+            'previous_error_message': previous.get('error_message'),
+        })
+        manager.status = {
+            'schema_version': RUN_SCHEMA_VERSION,
+            'run_id': manager.manifest['run_id'], 'status': '已创建',
+            'started_at_utc': None, 'finished_at_utc': None, 'exit_code': None,
+            'error_type': None, 'error_message': None,
+            'resume_attempts': attempts,
+        }
+        _write_json_atomic(manager.status_path, manager.status)
+        return manager
 
     @classmethod
     def record_initialization_failure(cls, config, output_path, error, exit_code=1):
@@ -1087,12 +1124,19 @@ EVALUATION_SUMMARY_FIELDS_V2 = EVALUATION_SUMMARY_FIELDS + (
     'checkpoint_role', 'source_policy', 'reward_definition',
     'phase_switches', 'phase_switch_frequency', 'action_distribution',
     'isolation_check',
+    'training_stage', 'trained_until_scene', 'evaluation_scene',
+    'completed_vehicles', 'maximum_queue',
 )
 EVALUATION_RECORD_FIELDS_V2 = EVALUATION_RECORD_FIELDS + (
     'source_network', 'target_network', 'evaluation_traffic_seed',
     'checkpoint_role', 'source_policy', 'reward_definition',
     'state_simulation_time_seconds', 'raw_state', 'current_phase',
     'model_input', 'state_feature_schema',
+    'intersection_ids', 'pressure_intersections',
+    'incoming_vehicle_count_intersections',
+    'outgoing_vehicle_count_intersections',
+    'selected_phase_intersections', 'phase_switch_count_cumulative',
+    'training_stage', 'trained_until_scene', 'evaluation_scene',
 )
 
 
@@ -1172,7 +1216,8 @@ def load_evaluation_collection_manifest(path):
         if controller_id in seen_ids:
             raise ValueError(f'Duplicate controller_id: {controller_id}')
         seen_ids.add(controller_id)
-        if controller['agent'] not in {'dqn', 'fixedtime', 'maxpressure'}:
+        if controller['agent'] not in {
+                'dqn', 'shared_dqn', 'fixedtime', 'maxpressure'}:
             raise ValueError(f"Unsupported evaluation agent: {controller['agent']}")
         run_dir = os.path.abspath(os.path.expanduser(controller['run_dir']))
         with open(os.path.join(run_dir, 'run_manifest.json'), encoding='utf-8') as handle:
@@ -1200,16 +1245,15 @@ def load_evaluation_collection_manifest(path):
         checkpoint_episode = None
         checkpoint_sha256 = None
         checkpoint_audit = None
-        if controller['agent'] == 'dqn':
+        if controller['agent'] in {'dqn', 'shared_dqn'}:
             if not isinstance(checkpoint, str) or not checkpoint:
-                raise ValueError(f'DQN controller {controller_id} requires checkpoint')
+                raise ValueError(
+                    f'DQN-family controller {controller_id} requires checkpoint')
             checkpoint_path = (
                 checkpoint if os.path.isabs(checkpoint)
                 else os.path.join(run_dir, checkpoint)
             )
             checkpoint_path = os.path.abspath(checkpoint_path)
-            with open(os.path.join(run_dir, 'evaluation', 'summary.json'), encoding='utf-8') as handle:
-                evaluation_summary = json.load(handle)
             role = controller.get('checkpoint_role', 'best')
             if role not in {'best', 'final', 'resumable'}:
                 raise ValueError(f'Unsupported checkpoint_role: {role}')
@@ -1225,6 +1269,10 @@ def load_evaluation_collection_manifest(path):
                     f'episode_{requested_episode:04d}.pt',
                 ))
             else:
+                with open(os.path.join(
+                        run_dir, 'evaluation', 'summary.json'),
+                        encoding='utf-8') as handle:
+                    evaluation_summary = json.load(handle)
                 expected = os.path.abspath(os.path.join(
                     run_dir, evaluation_summary[f'{role}_checkpoint']
                 ))

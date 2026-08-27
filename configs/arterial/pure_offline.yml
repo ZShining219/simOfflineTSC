@@ -1,0 +1,25 @@
+roadnet: arterial_1x6
+scene_order: order_1
+num_intersections: 6
+shared_parameters: true
+state_variant: base
+reward_variant: original
+use_position_encoding: false
+use_neighbor_summary: false
+replay_clear_on_scene_switch: true
+offline_enabled: true
+offline_ratio: 1.0
+offline_sampling_strategy: scene_intersection_balanced
+history_access_mode: full
+epsilon_mode: fixed_low
+training_seed: 0
+episode_budget: 1
+evaluation_interval: 1
+checkpoint_interval: 1
+model:
+  training_mode: pure_offline
+  offline_ratio: 1.0
+  history_paths: []
+trainer:
+  offline_gradient_steps: 1000
+

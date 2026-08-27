@@ -11,6 +11,7 @@
 - 包含合成路网、杭州、纽约、科隆等多种实验数据与配置。
 - 提供 SUMO 与 CityFlow 路网、交通流格式转换工具。
 - 提供与 Online 入口隔离的 Plan 2 纯 Offline Batch-DQN/CQL-DQN 训练、数据校验、断点恢复和结果汇总能力。
+- 提供基于 Plan 1 静态历史档案与顺序在线交互的 HA-SODQN 半离线实验链路；当前正式实现为 Independent DQN，跨算法支持边界和服务器迁移步骤见 [半离线实验总结与跨算法复现实用指南](docs/semi_offline_cross_algorithm_reproduction.md)。
 
 ## 原项目能力与 Offline 扩展边界
 

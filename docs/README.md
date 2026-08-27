@@ -33,6 +33,7 @@
 
 ## 主要文档
 
+- `semi_offline_cross_algorithm_reproduction.md`：当前半离线实验设计、正式结果边界、跨算法验证建议，以及其他服务器的代码/数据迁移与快速启动指南；
 - `plan0721.md`：Online、Offline 和 Sequential 实验总体计划及持续状态；
 - `plan2_offline_support.md`：Plan 2 工程架构、入口隔离、数据/训练/恢复/汇总协议和验证记录；
 - `done/research_decision_register.md`：已归档的科研语义决定及其状态；

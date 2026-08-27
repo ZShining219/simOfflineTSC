@@ -13,29 +13,62 @@
 - 提供与 Online 入口隔离的 Plan 2 纯 Offline Batch-DQN/CQL-DQN 训练、数据校验、断点恢复和结果汇总能力。
 - 提供基于 Plan 1 静态历史档案与顺序在线交互的 HA-SODQN 半离线实验链路；当前正式实现为 Independent DQN，跨算法支持边界和服务器迁移步骤见 [半离线实验总结与跨算法复现实用指南](docs/semi_offline_cross_algorithm_reproduction.md)。
 
-## 原项目能力与 Offline 扩展边界
+## 实验模式与入口边界
 
-本仓库保留原有 LibSignal Online/传统控制流程，并在其旁路新增 Plan 2 纯 Offline DQN。Offline 是独立扩展，不会替换或改变原有实验入口。两种训练模式不能混用：
+本仓库在原有 LibSignal Online/传统控制流程旁路增加了纯 Offline、Sequential 和 HA-SODQN 半离线实验。四类入口拥有不同的数据来源、训练语义和输出结构，不能混用：
 
-| 项目 | 原项目 Online/传统 TSC | Plan 2 纯 Offline DQN 扩展 |
-| --- | --- | --- |
-| 正确入口 | `run.py` | `offline_run.py` |
-| 配置目录 | `configs/tsc/` | `configs/offline_tsc/` |
-| 支持算法 | 原有 DQN、传统控制及其他既有 agent | `batch_dqn`、`cql_dqn` |
-| 训练数据 | 运行中与仿真器交互，并使用 Online replay | 只读使用已验收的 Plan 1 正式 trajectory |
-| 仿真器用途 | 参与训练和评估 | 只在固定节点参与评估，不参与训练数据生成 |
-| 训练输出 | `data/output_data/tsc/` | `data/output_data/offline_tsc/` |
-| 额外依赖 | `requirements.txt` 及对应 agent/仿真器依赖 | 另加 `requirements-offline.txt` |
+| 项目 | Online/传统 TSC | Plan 2 纯 Offline DQN | Plan 3/4 Sequential DQN | HA-SODQN 半离线 |
+| --- | --- | --- | --- | --- |
+| 正确入口 | `run.py` | `offline_run.py` | `sequential_run.py` | `sequential_run.py` 的 HA 子命令 |
+| 主要配置 | `configs/tsc/` | `configs/offline_tsc/` | `configs/sequential/plan34*.yml` | `configs/sequential/ha_sodqn_b100.yml` |
+| 当前支持 | 传统控制、DQN、PPO 等既有 agent | `batch_dqn`、`cql_dqn` | Independent DQN | Independent DQN + 静态历史混合采样 |
+| 训练数据 | 仿真中在线生成 | 冻结的 Plan 1 trajectory | 四场景顺序在线交互 | 顺序在线交互 + Plan 1 静态档案 |
+| 仿真器用途 | 训练和评估 | 仅固定节点评估 | 每个 stage 训练和冻结评估 | 每个 stage 训练和冻结评估 |
+| 主要输出 | `data/output_data/tsc/` | `data/output_data/offline_tsc/` | `data/output_data/sequential/` | `data/output_data/ha_sodqn/` |
+| 额外依赖 | 核心依赖和对应 agent/仿真器 | 另加 `requirements-offline.txt` | PyTorch、SUMO | PyTorch、SUMO 和已验收历史资产 |
 
 调用规则：
 
 - 运行原有 Online DQN、FixedTime、MaxPressure 或其他原有 agent 时，只使用 `run.py`。
 - 运行 Plan 2 Batch-DQN/CQL-DQN 时，只使用 `offline_run.py train`。
+- 运行顺序 DQN、CS-HR 或 HA-SODQN 时，只使用 `sequential_run.py` 对应的 manifest、launch、status、audit 和 analyze 子命令。
 - 不要通过 `run.py --agent batch_dqn` 或 `run.py --agent cql_dqn` 启动 Offline。
 - 不要通过 `offline_run.py` 启动原有 Online DQN 或传统控制实验。
 - `offline_run.py` 训练期间不会向数据集追加 transition，也不会修改源 Plan 1 NPZ。
+- 当前 HA-SODQN 不能通过修改 YAML 直接切换为 Double DQN 或 PPO；跨算法验证需要先增加算法 identity、训练 target/loss、checkpoint 和 evaluator 适配。
 
-完整的 Offline 数据门禁、算法语义、恢复和汇总说明见 [docs/plan2_offline_support.md](docs/plan2_offline_support.md)。
+完整的 Offline 数据门禁、算法语义、恢复和汇总说明见 [Plan 2 支持说明](docs/plan2_offline_support.md)；半离线科学设计、结果边界、跨算法方案和服务器迁移步骤见 [半离线实验总结与跨算法复现实用指南](docs/semi_offline_cross_algorithm_reproduction.md)。
+
+## 当前科学实验体系
+
+项目围绕四个 SUMO 杭州单路口场景形成了由 Online 数据采集、纯 Offline 学习、顺序训练到半离线历史利用的实验链：
+
+| 阶段 | 研究问题 | 当前证据状态 |
+| --- | --- | --- |
+| Plan 1 Online DQN | 建立单场景在线基线、trajectory 和可恢复初始化 | 四场景 × 5 seeds，共 20 个正式运行已验收 |
+| Plan 2 Offline DQN | 固定数据下比较 Batch-DQN、CQL-DQN、数据阶段和留一场景迁移 | Plan 2A/2B/2C 共 160 个正式身份已验收，训练环境交互为 0 |
+| Plan 3/4 Sequential DQN | 比较场景切换时 clear、FIFO 和 matched-wait replay 策略 | b100 的 60 个正式运行已完成；b400 历史批次不能据局部结果视为完整验收 |
+| HA-SODQN | 检验 Plan 1 静态历史能否缓解顺序训练中的遗忘 | E0～E4 已完成；E4 为 4 orders × 5 seeds × 5 conditions，共 100 个身份 |
+
+HA-SODQN 的 E4 配对结果显示：历史利用在配对均值上明显降低旧场景 average/worst forgetting 并提高 retention，同时带来小幅当前场景 normalized travel-time AULC 代价。P1C 只允许使用已完成场景的历史，是主因果设置；P1F 从 T1 即可访问当前和未来场景，只能作为非因果 full-history reference。现有结果只证明 Independent DQN 协议下的表现，不能直接外推到 Double DQN、PPO 或其他 TSC agent。
+
+### 半离线正式场景
+
+| 代称 | network | 数据目录 |
+| --- | --- | --- |
+| S1 | `sumohz1x1_config2` | `data/raw_data/hangzhou_1x1_qc-yn_18041608_1h/` |
+| S2 | `sumohz1x1` | `data/raw_data/hangzhou_1x1_bc-tyc_18041610_1h/` |
+| S3 | `sumohz1x1_config4` | `data/raw_data/hangzhou_1x1_sb-sx_18041607_1h/` |
+| S4 | `sumohz1x1_config3` | `data/raw_data/hangzhou_1x1_kn-hz_18041608_1h/` |
+
+四个场景均为单个受控路口，使用 16 维 observation（8 维进入车道 count + 8 维当前相位 one-hot）和 8 个绿灯动作。正式顺序为：
+
+| Order | 场景顺序 |
+| --- | --- |
+| O1 | S4 → S1 → S3 → S2 |
+| O2 | S2 → S3 → S1 → S4 |
+| O3 | S1 → S4 → S2 → S3 |
+| O4 | S3 → S2 → S4 → S1 |
 
 ## 项目结构
 
@@ -43,17 +76,20 @@
 | --- | --- |
 | run.py | 实验主入口和命令行参数定义 |
 | offline_run.py | Plan 2 数据准备、校验和纯离线训练入口 |
+| sequential_run.py | Sequential DQN、CS-HR 和 HA-SODQN manifest/运行/审计入口 |
 | agent/ | 传统控制及强化学习智能体 |
 | world/ | CityFlow、SUMO 等仿真器适配层 |
 | trainer/ | 训练与评估流程 |
 | task/ | 交通信号控制任务编排 |
 | configs/tsc/ | 智能体和训练参数 |
 | configs/offline_tsc/ | Plan 2 Offline DQN 参数；不影响 Online 配置 |
+| configs/sequential/ | 顺序训练、CS-HR 和 HA-SODQN 冻结实验配置 |
 | configs/sim/ | 仿真器及路网配置 |
 | data/raw_data/ | 路网、交通流和信号方案数据 |
 | common/ | 注册器、配置加载、指标及格式转换工具 |
 | generator/ | 状态、相位和车辆特征生成器 |
 | dataset/ | 数据集接口 |
+| sequential/ | 顺序训练 agent、runtime、历史档案、OWP、恢复、验证和分析实现 |
 | docs/ | Plan、goal 及其他阶段性执行参考文件 |
 | tools/traffic_flow_profile/ | SUMO 单场景车流需求评估、标准度量计算与固定子图报告工具 |
 | tools/xiasha_sumo/ | xiasha1*1 语义事件到 SUMO 逐车、flow 和信号路网的转换工具 |
@@ -259,6 +295,61 @@ python offline_run.py train --agent batch_dqn --network sumohz1x1 \
 
 当前 manifest schema 为 v2，保存 source root ID、相对路径、原绝对路径、SHA-256、builder/feature/trajectory schema 和场景语义哈希；旧 v1 manifest 会被明确拒绝，必须用新 dataset ID 重建。`--source-root` 可在数据移动或 mount point 变化后重定位。更多命令、resume、I/O 基准和汇总格式见 [Plan 2 支持说明](docs/plan2_offline_support.md)。
 
+## Sequential 与半离线实验快速开始
+
+`sequential_run.py` 使用 manifest 管理顺序实验，不接受 `run.py` 风格的 `--agent/--network` 直接启动方式。先查看当前 checkout 支持的子命令：
+
+```bash
+python sequential_run.py --help
+```
+
+### Sequential DQN
+
+已有 Plan 1 正式运行目录和白名单时，可先导入对应 parent checkpoint 并生成 parent catalog，再构建和验证顺序实验计划：
+
+```bash
+python sequential_run.py import-parents \
+  --whitelist data/output_data/analysis/plan1/p1_formal_20_trajectory_whitelist_20260722.csv \
+  --output-dir data/output_data/sequential/plan34_engineering \
+  --config configs/sequential/plan34_b100.yml
+
+python sequential_run.py build-plan \
+  --parent-catalog data/output_data/sequential/plan34_engineering/parent_catalog.json \
+  --config configs/sequential/plan34_b100.yml \
+  --output data/output_data/sequential/plan34_engineering/formal_manifest.json
+
+python sequential_run.py validate \
+  --plan data/output_data/sequential/plan34_engineering/formal_manifest.json
+```
+
+正式 launch 会产生大规模 SUMO 训练并要求显式授权。执行前应先使用 pilot、检查磁盘和并发预算，并确认 manifest 冻结的 Git commit 与当前 checkout 一致。
+
+### HA-SODQN
+
+HA-SODQN 还依赖 Plan 1 episode-0 checkpoint、Plan 1 trajectory、Plan 2 Q1 schema-v2 数据集、behavior-seed audit、archive root manifest 和 initial-state catalog。资产就绪后先构建 smoke：
+
+```bash
+python sequential_run.py build-ha-plan \
+  --stage smoke \
+  --config configs/sequential/ha_sodqn_b100.yml \
+  --output data/output_data/ha_sodqn/engineering/smoke_manifest.json
+
+python sequential_run.py validate-ha-plan \
+  --plan data/output_data/ha_sodqn/engineering/smoke_manifest.json
+
+python sequential_run.py launch \
+  --manifest data/output_data/ha_sodqn/engineering/smoke_manifest.json \
+  --output-root data/output_data/ha_sodqn/smoke \
+  --max-child 4
+
+python sequential_run.py audit-ha \
+  --plan data/output_data/ha_sodqn/engineering/smoke_manifest.json \
+  --output-root data/output_data/ha_sodqn/smoke \
+  --output data/output_data/ha_sodqn/engineering/smoke_audit.json
+```
+
+冻结配置默认包含 P1C/P1F、DHOA/RAND/COV/CQ/CQA、R25/R50/R75、O1～O4 和 seeds 0～4。不要在缺少历史资产、未通过 smoke/完整单运行门禁或 checkout 与 manifest commit 不一致时启动正式矩阵。完整资产重建顺序和跨算法建议见 [半离线复现指南](docs/semi_offline_cross_algorithm_reproduction.md)。
+
 ## 输出结果与目录隔离
 
 原有 Online/传统实验输出保存在：
@@ -285,7 +376,34 @@ Plan 2 汇总输出保存在：
 data/output_data/analysis/plan2/<analysis_id>/
 ~~~
 
-这些目录彼此隔离。Offline 数据索引只引用 Plan 1 trajectory，不复制或修改源 NPZ；Offline checkpoint、指标和日志也不会写入原有 Online 运行目录。`data/output_data/` 已在 `.gitignore` 中忽略，避免提交大型实验产物。
+Sequential DQN 输出保存在：
+
+~~~text
+data/output_data/sequential/<experiment_id>/
+~~~
+
+HA-SODQN 的工程 manifest、正式运行和分析通常分别保存在：
+
+~~~text
+data/output_data/ha_sodqn/engineering_<date>/
+data/output_data/ha_sodqn/<experiment_id>/
+data/output_data/ha_sodqn/analysis_<commit>/<stage>/
+~~~
+
+这些目录彼此隔离。Offline 数据索引和 HA archive 只引用 Plan 1 trajectory，不复制或修改源 NPZ；Offline/Sequential/HA checkpoint、指标和日志也不会写入原有 Online 运行目录。`data/output_data/`、根目录历史 `output_data/`、`analysis/` 和 `tmp/` 均已在 `.gitignore` 中忽略，避免提交大型实验产物。
+
+## 在其他服务器复现
+
+Git 可以统一代码、配置和四个正式 SUMO 场景，但不会同步 trajectory、checkpoint、dataset index 或正式实验结果。推荐流程为：
+
+1. 在目标服务器 clone 当前实验分支并记录 commit SHA；
+2. 安装并记录 Python、PyTorch、SUMO、CUDA/driver 版本；
+3. 通过 `rsync`、对象存储或共享文件系统迁移 Plan 1 source runs，不把大型资产提交到 Git；
+4. 若 checkout 绝对路径变化，重建目标服务器白名单、Plan 2 schema-v2 index、initial-state catalog、behavior audit 和 archive manifest；
+5. 先运行 CLI/config 检查和 smoke，再运行完整 100×4 单 run 门禁；
+6. 所有正式 manifest 记录 Git commit、配置 SHA、数据 SHA、Order、seed 和 attempt/resume lineage。
+
+仅执行 `git pull` 可以得到公共代码和场景设施，但不足以直接运行 HA-SODQN。所需资产清单、路径重定位命令、哈希验证和跨算法正式矩阵见 [服务器迁移章节](docs/semi_offline_cross_algorithm_reproduction.md#8-新服务器迁移清单)。
 
 ## 格式转换
 
@@ -303,9 +421,11 @@ python converter.py --typ s2c
 ## 开发与复现实验建议
 
 - 新实验优先通过 configs/ 管理参数，避免在代码中硬编码。
+- Online、Offline、Sequential 和 HA-SODQN 必须使用各自入口，不能用相似参数名替代实验语义。
 - 修改智能体或训练流程后，至少运行一个受影响仿真器的最小代表性实验。
 - 记录仿真器、智能体、网络、随机种子和完整启动命令。
-- 不要提交 data/output_data/、模型检查点、缓存或其他可再生成的大文件。
+- 顺序和半离线正式实验还应记录 Order、Archive、Method、Ratio、manifest/config/data hash 和恢复链。
+- 不要提交 `data/output_data/`、`output_data/`、`analysis/`、`tmp/`、模型检查点、缓存或其他可再生成的大文件。
 - 大规模数据建议使用 Git LFS 或外部数据存储，并在文档中提供下载和校验信息。
 
 ## 项目来源

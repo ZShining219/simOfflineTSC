@@ -131,7 +131,7 @@
     <junction id=":J_16_0" type="internal" x="122.10" y="122.36" incLanes=":J_3_0 S2J_0 S2J_1" intLanes=":J_5_0 :J_5_1 :J_7_0 :J_8_0 :J_9_0 :J_9_1 :J_13_0 :J_13_1 :J_15_0" />
     <junction id=":J_17_0" type="internal" x="117.90" y="117.64" incLanes=":J_11_0 N2J_0 N2J_1" intLanes=":J_0_0 :J_1_0 :J_1_1 :J_5_0 :J_5_1 :J_7_0 :J_13_0 :J_13_1 :J_15_0" />
 
-    <connection from="E2J" to="J2N" fromLane="0" toLane="0" via=":J_4_0" dir="r" state="m" tl="J" linkIndex="0" />
+    <tlLogic id="J" type="static" programID="xiasha_cycle" offset="0"><phase duration="27" state="GrrrGGGrGGGrGrrr" name="NS直行绿" /><phase duration="3" state="yrrryyyryyyryrrr" name="NS直行黄" /><phase duration="2" state="rrrrrrrrrrrrrrrr" name="NS过渡红" /><phase duration="22" state="GrrrGrrGGrrGGrrr" name="NS左转绿" /><phase duration="3" state="yrrryrryyrryyrrr" name="NS左转黄" /><phase duration="5" state="rrrrrrrrrrrrrrrr" name="南北东西全红" /><phase duration="34" state="GGGrGrrrGrrrGGGr" name="EW直行绿" /><phase duration="3" state="yyyryrrryrrryyyr" name="EW直行黄" /><phase duration="2" state="rrrrrrrrrrrrrrrr" name="EW过渡红" /><phase duration="19" state="GrrGGrrrGrrrGrrG" name="EW左转绿" /><phase duration="3" state="yrryyrrryrrryrry" name="EW左转黄" /><phase duration="5" state="rrrrrrrrrrrrrrrr" name="东西南北全红" /></tlLogic><connection from="E2J" to="J2N" fromLane="0" toLane="0" via=":J_4_0" dir="r" state="m" tl="J" linkIndex="0" />
     <connection from="E2J" to="J2W" fromLane="0" toLane="0" via=":J_5_0" dir="s" state="m" tl="J" linkIndex="1" />
     <connection from="E2J" to="J2W" fromLane="1" toLane="0" via=":J_5_1" dir="s" state="m" tl="J" linkIndex="2" />
     <connection from="E2J" to="J2S" fromLane="2" toLane="1" via=":J_7_0" dir="l" state="m" tl="J" linkIndex="3" />

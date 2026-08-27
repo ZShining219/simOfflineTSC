@@ -1,3 +1,4 @@
+import copy
 import random
 import unittest
 
@@ -7,7 +8,9 @@ from dataset.offline_trajectory_dataset import OfflineBatch
 from sequential.historical_archive import (
     HistoricalArchive, derive_rng_seed, stable_digest,
 )
-from sequential.owp import build_historical_sampler
+from sequential.owp import (
+    build_historical_sampler, restore_rand_historical_sampler,
+)
 
 
 class DummyDataset:
@@ -147,6 +150,63 @@ class HistoricalArchiveTest(unittest.TestCase):
         view = archive(False).visibility('P1F', ['n1', 'n2', 'n3', 'n4'], 1)
         with self.assertRaisesRegex(ValueError, 'warm-up'):
             build_historical_sampler(view, 'CQA', 12, random.Random(1))
+
+    def test_rand_restore_uses_frozen_references_without_advancing_rng(self):
+        view = archive(False).visibility('P1F', ['n1', 'n2', 'n3', 'n4'], 2)
+        original = build_historical_sampler(
+            view, 'RAND', 12, random.Random(17),
+        )
+        original.sample(5)
+        state = original.state_dict()
+        checkpoint_rng = random.Random()
+        checkpoint_rng.setstate(state['rng_state'])
+        before = checkpoint_rng.getstate()
+
+        restored = restore_rand_historical_sampler(
+            view, 12, state, checkpoint_rng,
+        )
+
+        self.assertEqual(before, checkpoint_rng.getstate())
+        self.assertEqual(original.references, restored.references)
+        self.assertEqual(
+            original.manifest['owp_digest'], restored.manifest['owp_digest'],
+        )
+        self.assertEqual(original.rng.getstate(), restored.rng.getstate())
+        self.assertEqual(original.sample_count, restored.sample_count)
+        self.assertEqual(original.reuse_counts, restored.reuse_counts)
+        self.assertEqual(
+            list(original.sample(4).transition_ids),
+            list(restored.sample(4).transition_ids),
+        )
+
+    def test_rand_restore_rejects_tampered_checkpoint_identity(self):
+        view = archive(False).visibility('P1F', ['n1', 'n2', 'n3', 'n4'], 2)
+        original = build_historical_sampler(
+            view, 'RAND', 12, random.Random(17),
+        )
+        state = original.state_dict()
+
+        invalid_reference = copy.deepcopy(state)
+        invalid_reference['references'] = list(invalid_reference['references'])
+        invalid_reference['references'][0] = ('n1', 999)
+        with self.assertRaisesRegex(ValueError, 'not visible'):
+            restore_rand_historical_sampler(
+                view, 12, invalid_reference, random.Random(1),
+            )
+
+        invalid_digest = copy.deepcopy(state)
+        invalid_digest['manifest_digest'] = '0' * 64
+        with self.assertRaisesRegex(ValueError, 'identity changed'):
+            restore_rand_historical_sampler(
+                view, 12, invalid_digest, random.Random(1),
+            )
+
+        invalid_method = copy.deepcopy(state)
+        invalid_method['method'] = 'CQ'
+        with self.assertRaisesRegex(ValueError, 'method changed'):
+            restore_rand_historical_sampler(
+                view, 12, invalid_method, random.Random(1),
+            )
 
 
 if __name__ == '__main__':

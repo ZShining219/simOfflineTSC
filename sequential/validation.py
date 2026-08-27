@@ -31,6 +31,20 @@ def _validate_ha_visibility_networks(archive_mode, actual, expected):
     return len(actual) == len(expected) and set(actual) == set(expected)
 
 
+def _register_ha_sampling_window(windows, window):
+    """Register one global update, accepting only identical replay evidence."""
+    update_id = int(window['gradient_updates'])
+    previous = windows.get(update_id)
+    if previous is None:
+        windows[update_id] = window
+        return True
+    if previous != window:
+        raise ValueError(
+            'HA-SODQN duplicate diagnostic update conflicts on resume'
+        )
+    return False
+
+
 TRAJECTORY_KEY = re.compile(r'^stage_(\d+):episode_(\d+):trajectory$')
 EVALUATION_KEY = re.compile(
     r'^evaluation:stage_(\d+):local_(\d+):(.+)$'
@@ -61,12 +75,44 @@ def _resolve_attempt_chain_artifact(attempt_dir, *relative_parts):
     lineage_path = os.path.join(logical_root, 'logical_run_manifest.json')
     if os.path.isfile(lineage_path):
         lineage = read_json(lineage_path)
-        for attempt in reversed(lineage.get('attempts', [])):
-            candidate = os.path.join(
-                attempt['attempt_dir'], *relative_parts,
-            )
+        attempts = {
+            os.path.abspath(attempt['attempt_dir']): attempt
+            for attempt in lineage.get('attempts', [])
+        }
+        current = attempts.get(attempt_dir)
+        visited = {attempt_dir}
+        while current is not None:
+            resume_from = current.get('resume_from')
+            if not resume_from:
+                break
+            resume_from = os.path.abspath(resume_from)
+            predecessor_dir = next((
+                candidate_dir for candidate_dir in attempts
+                if os.path.commonpath((resume_from, candidate_dir)) == candidate_dir
+            ), None)
+            if predecessor_dir is None or predecessor_dir in visited:
+                break
+            visited.add(predecessor_dir)
+            candidate = os.path.join(predecessor_dir, *relative_parts)
             if os.path.isfile(candidate):
                 return candidate
+            current = attempts[predecessor_dir]
+        # Legacy lineages may predate explicit resume provenance. Only the
+        # immediately preceding attempt is a safe fallback; scanning every
+        # sibling can select evidence from a failed alternative branch.
+        if current is not None and not current.get('resume_from'):
+            ordered = lineage.get('attempts', [])
+            index = next((
+                i for i, attempt in enumerate(ordered)
+                if os.path.abspath(attempt['attempt_dir']) == attempt_dir
+            ), None)
+            if index is not None and index > 0:
+                predecessor_dir = os.path.abspath(
+                    ordered[index - 1]['attempt_dir']
+                )
+                candidate = os.path.join(predecessor_dir, *relative_parts)
+                if os.path.isfile(candidate):
+                    return candidate
     raise FileNotFoundError(direct)
 
 
@@ -310,7 +356,7 @@ def validate_ha_attempt(path):
         expected_behavior_seeds = set(archive['behavior_training_seeds'])
         if archive['behavior_seed_rule'].get('exclude_matching_training_seed'):
             expected_behavior_seeds.discard(int(child['training_seed']))
-    window_count = 0
+    sampling_windows_by_update = {}
     owp_digests = {}
     for diagnostic in diagnostics:
         stage = int(diagnostic['stage_index'])
@@ -335,7 +381,10 @@ def validate_ha_attempt(path):
             if previous != digest:
                 raise ValueError('OWP changed inside a stage')
         for window in diagnostic.get('sampling_windows', []):
-            window_count += 1
+            if not _register_ha_sampling_window(
+                sampling_windows_by_update, window,
+            ):
+                continue
             if int(window['online_count']) + int(window['offline_count']) != 64:
                 raise ValueError('HA-SODQN mixed batch size is not 64')
             offline_count = int(window['offline_count'])
@@ -371,6 +420,21 @@ def validate_ha_attempt(path):
                 or not np.isfinite(float(window['loss_offline']))
             ):
                 raise ValueError('HA-SODQN offline loss is not finite')
+            stability_branches = [('online_stability', int(window['online_count']))]
+            if offline_count:
+                stability_branches.append(('offline_stability', offline_count))
+            for branch, sample_count in stability_branches:
+                stability = window.get(branch)
+                if sample_count and not isinstance(stability, dict):
+                    raise ValueError(
+                        f'HA-SODQN {branch} evidence is missing'
+                    )
+                for key in ('q_abs_max', 'target_abs_max'):
+                    value = stability.get(key) if stability is not None else None
+                    if value is None or not np.isfinite(float(value)):
+                        raise ValueError(
+                            f'HA-SODQN {branch}.{key} is not finite'
+                        )
         if expected_behavior_seeds is not None:
             used_seeds = {
                 int(seed) for seed, count in
@@ -386,8 +450,10 @@ def validate_ha_attempt(path):
             }
             if any(episode < 1 or episode > 100 for episode in used_episodes):
                 raise ValueError('HA-SODQN sampled outside Plan 1 episodes 1-100')
-    if window_count != expected_updates:
+    expected_update_ids = set(range(1, expected_updates + 1))
+    if set(sampling_windows_by_update) != expected_update_ids:
         raise ValueError('HA-SODQN diagnostic update count mismatch')
+    window_count = len(sampling_windows_by_update)
     attempt_dir = validated['attempt_dir']
     if archive_mode != 'NONE':
         for stage in range(1, len(child['networks']) + 1):

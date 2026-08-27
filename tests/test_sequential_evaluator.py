@@ -1,5 +1,7 @@
 import os
 import tempfile
+import threading
+import time
 import unittest
 from types import SimpleNamespace
 
@@ -53,6 +55,11 @@ def fixture_success_worker(request_path):
         'valid': True, 'summary_path': summary_path,
         'decisions_path': decisions_path,
     })
+
+
+def fixture_slow_success_worker(request_path):
+    time.sleep(0.25)
+    fixture_success_worker(request_path)
 
 
 class DummySnapshotAgent:
@@ -166,6 +173,47 @@ class SequentialEvaluatorTests(unittest.TestCase):
             self.assertEqual(resumed['physical']['successful_attempt'], 4)
             self.assertTrue(os.path.isfile(os.path.join(cell, 'committed.json')))
             self.assertFalse(os.path.exists(os.path.join(cell, 'attempt_5')))
+
+    def test_concurrent_identical_physical_cell_is_evaluated_once(self):
+        with tempfile.TemporaryDirectory() as directory:
+            snapshot = self._snapshot(directory)
+            output_root = os.path.join(directory, 'evaluation')
+            results = []
+            errors = []
+            barrier = threading.Barrier(2)
+
+            def evaluate(local_episode):
+                try:
+                    barrier.wait()
+                    identity = self._identity(local_episode)
+                    identity['evaluation_network'] = 'shared'
+                    results.append(IndependentEvaluator(
+                        output_root, retries=3, timeout_seconds=30,
+                        worker_target=fixture_slow_success_worker,
+                    ).evaluate(snapshot, 'shared', self._protocol(), identity))
+                except BaseException as error:
+                    errors.append(error)
+
+            threads = [
+                threading.Thread(target=evaluate, args=(episode,))
+                for episode in (0, 1)
+            ]
+            for thread in threads:
+                thread.start()
+            for thread in threads:
+                thread.join(60)
+
+            self.assertFalse(any(thread.is_alive() for thread in threads))
+            self.assertEqual(errors, [])
+            self.assertEqual(len(results), 2)
+            self.assertEqual(sorted(result['reused'] for result in results), [False, True])
+            physical_root = os.path.join(output_root, 'physical')
+            cells = os.listdir(physical_root)
+            self.assertEqual(len(cells), 1)
+            cell = os.path.join(physical_root, cells[0])
+            self.assertTrue(os.path.isfile(os.path.join(cell, 'committed.json')))
+            self.assertTrue(os.path.isdir(os.path.join(cell, 'attempt_1')))
+            self.assertFalse(os.path.exists(os.path.join(cell, 'attempt_2')))
 
 
 if __name__ == '__main__':

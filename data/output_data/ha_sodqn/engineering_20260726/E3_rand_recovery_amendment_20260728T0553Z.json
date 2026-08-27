@@ -1,0 +1,77 @@
+{
+  "schema_version": 1,
+  "evidence_kind": "formal_experiment_recovery_code_amendment",
+  "created_at_utc": "2026-07-28T05:53:40Z",
+  "amendment_updated_at_utc": "2026-07-28T07:15:00Z",
+  "experiment_stage": "E3",
+  "protocol_id": "ha_sodqn_b100_v1",
+  "manifest_path": "/projects/simOfflineTSC/data/output_data/ha_sodqn/engineering_20260726/E3_manifest_e7705f7.json",
+  "manifest_file_sha256": "4c2f04ac1af850b895c6538a141e14e5acedccb041c41adf6c72b58aa33bb477",
+  "manifest_plan_digest": "3d416ca32a422d877d8951747f5201682cd4e0de5c6cd0c1b22e2d542e8e1838",
+  "original_frozen_git_commit": "e7705f77c76673321b5a977da713b2c2c9d2e5ce",
+  "recovery_fix_git_commit": "dd250c0142cbab93ee6ee8f6da07d8b3b57ad5e0",
+  "prior_recovery_fix_git_commit": "919f9d3174eb98120532f622f482e16528f08e72",
+  "git_branch": "codex/milestone0-experiment-infrastructure",
+  "fix_scope": {
+    "method": "RAND",
+    "defect": "Resume rebuilt the frozen RAND working-pool after restoring the post-construction HOA RNG state, producing a different pool identity.",
+    "resolution": "Restore the frozen RAND pool directly from checkpoint references, strictly reconstruct and verify its manifest digest, then restore sampler RNG and counters.",
+    "algorithm_definition_changed": false,
+    "experiment_protocol_changed": false,
+    "identity_set_changed": false,
+    "seed_or_budget_changed": false,
+    "manifest_modified": false
+    ,"diagnostic_recovery_evidence_changed": true
+  },
+  "affected_logical_run_ids": [
+    "P1C-RAND-R50-O2-SD4",
+    "P1F-RAND-R50-O2-SD4"
+  ],
+  "resume_checkpoints": {
+    "P1C-RAND-R50-O2-SD4": "/projects/simOfflineTSC/data/output_data/ha_sodqn/formal_e7705f7_20260726/P1C-RAND-R50-O2-SD4/attempts/attempt_1/checkpoints/committed/stage_04_episode_0096.pt",
+    "P1F-RAND-R50-O2-SD4": "/projects/simOfflineTSC/data/output_data/ha_sodqn/formal_e7705f7_20260726/P1F-RAND-R50-O2-SD4/attempts/attempt_1/checkpoints/committed/stage_03_episode_0037.pt"
+  },
+  "legacy_checkpoint_compatibility": {
+    "P1C-RAND-R50-O2-SD4": {
+      "stage_index": 4,
+      "owp_digest": "b0c87711c06f3f7a673e8b949db7f394738f0798c227e02638954995d7357e4b",
+      "reference_count": 5000,
+      "sample_count": 979200,
+      "hoa_rng_unchanged_during_restore": true
+    },
+    "P1F-RAND-R50-O2-SD4": {
+      "stage_index": 3,
+      "owp_digest": "45ac126fcdae080ad7b5ca6f182a72e7add20d3fc0ba0fbd60f071712e2aeaf5",
+      "reference_count": 5000,
+      "sample_count": 311040,
+      "hoa_rng_unchanged_during_restore": true
+    }
+  },
+  "verification": {
+    "git_diff_check": "passed",
+    "test_historical_archive": {"tests": 9, "result": "passed"},
+    "test_ha_agent": {"tests": 6, "result": "passed"},
+    "test_sequential_recovery": {"tests": 5, "result": "passed"},
+    "test_sequential_launcher": {"tests": 9, "result": "passed"},
+    "real_legacy_checkpoints": {"checkpoints": 2, "result": "passed"}
+  },
+  "lineage_policy": {
+    "preserve_interrupted_attempt_1": true,
+    "preserve_failed_attempt_2": true,
+    "resume_as_attempt_3": true,
+    "exclude_failed_predecessors_from_effective_analysis": true
+  },
+  "formal_gates": {
+    "validator_path": "data/output_data/ha_sodqn/engineering_20260726/E3_sequential_validation_e7705f7.json",
+    "validator_valid": true,
+    "validator_run_count": 50,
+    "evaluation_cell_count_per_run": 409,
+    "ha_audit_path": "data/output_data/ha_sodqn/engineering_20260726/E3_ha_audit_e7705f7.json",
+    "ha_audit_valid": true,
+    "ha_audit_run_count": 50,
+    "ha_audit_counts": {"total_decisions": 144000, "gradient_updates": 143000, "target_updates": 14300, "unique_sampling_windows": 143000},
+    "analysis_path": "data/output_data/ha_sodqn/analysis_e7705f7/E3/ha_analysis.json",
+    "analysis_valid": true,
+    "analysis_run_count": 50
+  }
+}

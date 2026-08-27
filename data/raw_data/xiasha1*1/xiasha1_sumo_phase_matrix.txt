@@ -1,0 +1,15 @@
+linkIndex	00	01	02	03	04	05	06	07	08	09	10	11	12	13	14	15
+movement	right	straight	straight	left	right	straight	straight	left	right	straight	straight	left	right	straight	straight	left
+connection	E2J->J2N	E2J->J2W	E2J->J2W	E2J->J2S	N2J->J2W	N2J->J2S	N2J->J2S	N2J->J2E	S2J->J2E	S2J->J2N	S2J->J2N	S2J->J2W	W2J->J2S	W2J->J2E	W2J->J2E	W2J->J2N
+00 NS直行绿 (27s)	G	r	r	r	G	G	G	r	G	G	G	r	G	r	r	r
+01 NS直行黄 (3s)	y	r	r	r	y	y	y	r	y	y	y	r	y	r	r	r
+02 NS过渡红 (2s)	r	r	r	r	r	r	r	r	r	r	r	r	r	r	r	r
+03 NS左转绿 (22s)	G	r	r	r	G	r	r	G	G	r	r	G	G	r	r	r
+04 NS左转黄 (3s)	y	r	r	r	y	r	r	y	y	r	r	y	y	r	r	r
+05 南北东西全红 (5s)	r	r	r	r	r	r	r	r	r	r	r	r	r	r	r	r
+06 EW直行绿 (34s)	G	G	G	r	G	r	r	r	G	r	r	r	G	G	G	r
+07 EW直行黄 (3s)	y	y	y	r	y	r	r	r	y	r	r	r	y	y	y	r
+08 EW过渡红 (2s)	r	r	r	r	r	r	r	r	r	r	r	r	r	r	r	r
+09 EW左转绿 (19s)	G	r	r	G	G	r	r	r	G	r	r	r	G	r	r	G
+10 EW左转黄 (3s)	y	r	r	y	y	r	r	r	y	r	r	r	y	r	r	y
+11 东西南北全红 (5s)	r	r	r	r	r	r	r	r	r	r	r	r	r	r	r	r

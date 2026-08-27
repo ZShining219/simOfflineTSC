@@ -1,16 +1,329 @@
 {
-  "input": "/projects/simOfflineTSC/data/raw_data/xiasha1*1/原始数据/语义事件表(13min).csv",
+  "schema_version": 2,
+  "input": "data/raw_data/xiasha1*1/原始数据/语义事件表(13min).csv",
+  "network": "data/raw_data/xiasha1*1/原始数据/real_scene.net.xml",
+  "cycle_file": "data/raw_data/xiasha1*1/原始数据/红绿灯周期",
   "total_records": 520,
   "valid_records": 355,
   "skipped_records": 165,
-  "skip_reasons": {
+  "skip_category_counts": {
+    "missing_exit": 43,
+    "multiple_errors": 122
+  },
+  "skip_error_component_counts": {
+    "invalid_time": 122,
+    "missing_entry": 122,
+    "missing_exit": 118
+  },
+  "skip_category_conservation": {
+    "equation": "165=0+43+0+122",
+    "passed": true
+  },
+  "skip_reasons_detail": {
     "missing_entry_edge_and_entry_time": 47,
-    "missing_exit_edge": 43,
-    "missing_entry_edge_and_exit_edge_and_entry_time": 75
+    "missing_entry_edge_and_exit_edge_and_entry_time": 75,
+    "missing_exit_edge": 43
+  },
+  "skip_audit_file": "xiasha1_sumo_skip_audit.csv",
+  "skip_summary_file": "xiasha1_sumo_skip_summary.csv",
+  "skip_bias_summary": {
+    "by_entry_edge": {
+      "<missing>": 122,
+      "E2J": 9,
+      "N2J": 14,
+      "S2J": 9,
+      "W2J": 11
+    },
+    "by_observed_time_bin": {
+      "0.00": 17,
+      "120.00": 13,
+      "180.00": 14,
+      "240.00": 12,
+      "300.00": 9,
+      "360.00": 10,
+      "420.00": 16,
+      "480.00": 10,
+      "540.00": 7,
+      "60.00": 17,
+      "600.00": 14,
+      "660.00": 12,
+      "720.00": 14
+    },
+    "summary_rows": 63
   },
   "shift_seconds": 6.52,
+  "depart_time_range": {
+    "min": 0.0,
+    "max": 780.46
+  },
   "flow_window_seconds": 60.0,
+  "demand_audit_file": "xiasha1_sumo_demand_audit.csv",
+  "demand_conservation": {
+    "valid_count": 355,
+    "vehicle_count": 355,
+    "flow_count": 355,
+    "flow_group_count": 104,
+    "conservation_equation": "355=355=355",
+    "passed": true,
+    "duplicate_vehicle_ids": [],
+    "od_counts": [
+      {
+        "entry_edge": "E2J",
+        "exit_edge": "J2E",
+        "valid_count": 1,
+        "vehicle_count": 1,
+        "flow_count": 1
+      },
+      {
+        "entry_edge": "E2J",
+        "exit_edge": "J2N",
+        "valid_count": 33,
+        "vehicle_count": 33,
+        "flow_count": 33
+      },
+      {
+        "entry_edge": "E2J",
+        "exit_edge": "J2S",
+        "valid_count": 11,
+        "vehicle_count": 11,
+        "flow_count": 11
+      },
+      {
+        "entry_edge": "E2J",
+        "exit_edge": "J2W",
+        "valid_count": 58,
+        "vehicle_count": 58,
+        "flow_count": 58
+      },
+      {
+        "entry_edge": "N2J",
+        "exit_edge": "J2E",
+        "valid_count": 23,
+        "vehicle_count": 23,
+        "flow_count": 23
+      },
+      {
+        "entry_edge": "N2J",
+        "exit_edge": "J2N",
+        "valid_count": 2,
+        "vehicle_count": 2,
+        "flow_count": 2
+      },
+      {
+        "entry_edge": "N2J",
+        "exit_edge": "J2S",
+        "valid_count": 91,
+        "vehicle_count": 91,
+        "flow_count": 91
+      },
+      {
+        "entry_edge": "N2J",
+        "exit_edge": "J2W",
+        "valid_count": 5,
+        "vehicle_count": 5,
+        "flow_count": 5
+      },
+      {
+        "entry_edge": "S2J",
+        "exit_edge": "J2E",
+        "valid_count": 18,
+        "vehicle_count": 18,
+        "flow_count": 18
+      },
+      {
+        "entry_edge": "S2J",
+        "exit_edge": "J2N",
+        "valid_count": 71,
+        "vehicle_count": 71,
+        "flow_count": 71
+      },
+      {
+        "entry_edge": "S2J",
+        "exit_edge": "J2S",
+        "valid_count": 2,
+        "vehicle_count": 2,
+        "flow_count": 2
+      },
+      {
+        "entry_edge": "S2J",
+        "exit_edge": "J2W",
+        "valid_count": 5,
+        "vehicle_count": 5,
+        "flow_count": 5
+      },
+      {
+        "entry_edge": "W2J",
+        "exit_edge": "J2E",
+        "valid_count": 27,
+        "vehicle_count": 27,
+        "flow_count": 27
+      },
+      {
+        "entry_edge": "W2J",
+        "exit_edge": "J2N",
+        "valid_count": 5,
+        "vehicle_count": 5,
+        "flow_count": 5
+      },
+      {
+        "entry_edge": "W2J",
+        "exit_edge": "J2S",
+        "valid_count": 3,
+        "vehicle_count": 3,
+        "flow_count": 3
+      }
+    ],
+    "time_window_counts": [
+      {
+        "window_begin": 0.0,
+        "window_end": 60.0,
+        "valid_count": 31,
+        "vehicle_count": 31,
+        "flow_count": 31
+      },
+      {
+        "window_begin": 60.0,
+        "window_end": 120.0,
+        "valid_count": 28,
+        "vehicle_count": 28,
+        "flow_count": 28
+      },
+      {
+        "window_begin": 120.0,
+        "window_end": 180.0,
+        "valid_count": 32,
+        "vehicle_count": 32,
+        "flow_count": 32
+      },
+      {
+        "window_begin": 180.0,
+        "window_end": 240.0,
+        "valid_count": 31,
+        "vehicle_count": 31,
+        "flow_count": 31
+      },
+      {
+        "window_begin": 240.0,
+        "window_end": 300.0,
+        "valid_count": 27,
+        "vehicle_count": 27,
+        "flow_count": 27
+      },
+      {
+        "window_begin": 300.0,
+        "window_end": 360.0,
+        "valid_count": 35,
+        "vehicle_count": 35,
+        "flow_count": 35
+      },
+      {
+        "window_begin": 360.0,
+        "window_end": 420.0,
+        "valid_count": 18,
+        "vehicle_count": 18,
+        "flow_count": 18
+      },
+      {
+        "window_begin": 420.0,
+        "window_end": 480.0,
+        "valid_count": 37,
+        "vehicle_count": 37,
+        "flow_count": 37
+      },
+      {
+        "window_begin": 480.0,
+        "window_end": 540.0,
+        "valid_count": 28,
+        "vehicle_count": 28,
+        "flow_count": 28
+      },
+      {
+        "window_begin": 540.0,
+        "window_end": 600.0,
+        "valid_count": 23,
+        "vehicle_count": 23,
+        "flow_count": 23
+      },
+      {
+        "window_begin": 600.0,
+        "window_end": 660.0,
+        "valid_count": 24,
+        "vehicle_count": 24,
+        "flow_count": 24
+      },
+      {
+        "window_begin": 660.0,
+        "window_end": 720.0,
+        "valid_count": 21,
+        "vehicle_count": 21,
+        "flow_count": 21
+      },
+      {
+        "window_begin": 720.0,
+        "window_end": 780.0,
+        "valid_count": 19,
+        "vehicle_count": 19,
+        "flow_count": 19
+      },
+      {
+        "window_begin": 780.0,
+        "window_end": 840.0,
+        "valid_count": 1,
+        "vehicle_count": 1,
+        "flow_count": 1
+      }
+    ]
+  },
+  "route_topology_audit_file": "xiasha1_sumo_route_topology_audit.csv",
+  "route_topology_audit": {
+    "observed_od_pairs": 15,
+    "missing_connection_records": 5,
+    "missing_connection_pairs": [
+      {
+        "entry_edge": "E2J",
+        "exit_edge": "J2E",
+        "count": 1
+      },
+      {
+        "entry_edge": "N2J",
+        "exit_edge": "J2N",
+        "count": 2
+      },
+      {
+        "entry_edge": "S2J",
+        "exit_edge": "J2S",
+        "count": 2
+      }
+    ]
+  },
   "controlled_connections": 16,
+  "connection_movement_audit_file": "xiasha1_sumo_connection_movement_audit.csv",
+  "phase_matrix_csv_file": "xiasha1_sumo_phase_matrix.csv",
+  "phase_matrix_text_file": "xiasha1_sumo_phase_matrix.txt",
+  "connection_audit": {
+    "candidate_connections": 16,
+    "controlled_connections": 16,
+    "omitted_connections": 0,
+    "duplicate_connections": [],
+    "duplicate_link_indices": [],
+    "link_indices_contiguous": true,
+    "phase_count": 12,
+    "phase_state_lengths": [
+      16
+    ],
+    "phase_duration_total": 128,
+    "movement_counts": {
+      "right": 4,
+      "straight": 8,
+      "left": 4
+    },
+    "u_turn_controlled_connections": 0
+  },
   "phase_durations_total": 128,
-  "exit_time_usage": "statistics only; not used for departure"
+  "phase_count": 12,
+  "simulation_begin_seconds": 0.0,
+  "simulation_end_seconds": 901,
+  "exit_time_usage": "not used for departure or arrival calibration",
+  "movement_classification": "network geometry vectors; straight/left/right/u_turn",
+  "strict_topology_requested": false
 }

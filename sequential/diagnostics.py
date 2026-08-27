@@ -228,3 +228,9 @@ class ReplayDiagnostics:
         self.previous_historical_ratio = state['previous_historical_ratio']
         self.full_batches = list(state['full_batches'])
         self.sampling_windows = list(state.get('sampling_windows', []))
+
+    def clear_episode_buffers(self):
+        """Discard transient evidence already covered by a resume boundary."""
+        self.sample_ages = []
+        self.full_batches = []
+        self.sampling_windows = []

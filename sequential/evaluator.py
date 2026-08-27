@@ -1,4 +1,5 @@
 import copy
+import fcntl
 import json
 import multiprocessing
 import os
@@ -19,6 +20,24 @@ from .io import atomic_json, read_json
 
 
 EVALUATION_SCHEMA_VERSION = 1
+
+
+class _PhysicalEvaluationLock:
+    def __init__(self, path):
+        self.path = os.path.abspath(path)
+        self.handle = None
+
+    def __enter__(self):
+        os.makedirs(os.path.dirname(self.path), exist_ok=True)
+        self.handle = open(self.path, 'a+', encoding='utf-8')
+        fcntl.flock(self.handle.fileno(), fcntl.LOCK_EX)
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        if self.handle is not None:
+            fcntl.flock(self.handle.fileno(), fcntl.LOCK_UN)
+            self.handle.close()
+            self.handle = None
 
 
 def _atomic_torch_save(payload, path):
@@ -352,79 +371,82 @@ class IndependentEvaluator:
         })
         physical_dir = os.path.join(self.output_root, 'physical', physical_key)
         committed_path = os.path.join(physical_dir, 'committed.json')
-        reused = os.path.isfile(committed_path)
-        if not reused:
-            os.makedirs(physical_dir, exist_ok=True)
-            attempted = {
-                int(name.split('_', 1)[1])
-                for name in os.listdir(physical_dir)
-                if name.startswith('attempt_') and name.split('_', 1)[1].isdigit()
-            }
-            first_attempt = max(attempted, default=0) + 1
-            for attempt in range(first_attempt, first_attempt + self.retries):
-                attempt_dir = os.path.join(physical_dir, f'attempt_{attempt}')
-                os.makedirs(attempt_dir, exist_ok=False)
-                request = {
-                    'snapshot_path': os.path.abspath(snapshot_path),
-                    'checkpoint_digest': checkpoint_digest,
-                    'evaluation_network': evaluation_network,
-                    'evaluation_protocol_digest': protocol_digest,
-                    'simulator_config': os.path.abspath(protocol['simulator_config']),
-                    'interface': protocol.get('interface', 'libsumo'),
-                    'action_interval': int(protocol['action_interval']),
-                    'decision_count': int(protocol['steps']) // int(
-                        protocol['action_interval']
-                    ),
-                    'attempt_dir': attempt_dir,
-                    'evaluation_seed': protocol.get('evaluation_seed'),
-                    'controller_id': identity.get('controller_id'),
-                    'agent': identity.get('agent', 'dqn'),
-                    'training_seed': identity.get('training_seed'),
-                    'checkpoint_episode': identity.get('global_episode'),
+        os.makedirs(physical_dir, exist_ok=True)
+        with _PhysicalEvaluationLock(os.path.join(physical_dir, 'evaluation.lock')):
+            reused = os.path.isfile(committed_path)
+            if not reused:
+                attempted = {
+                    int(name.split('_', 1)[1])
+                    for name in os.listdir(physical_dir)
+                    if name.startswith('attempt_') and name.split('_', 1)[1].isdigit()
                 }
-                request_path = os.path.join(attempt_dir, 'request.json')
-                atomic_json(request_path, request)
-                context = multiprocessing.get_context('spawn')
-                process = context.Process(target=self.worker_target, args=(request_path,))
-                try:
-                    process.start()
-                    process.join(self.timeout_seconds)
-                except BaseException:
-                    if process.pid is not None and process.is_alive():
+                first_attempt = max(attempted, default=0) + 1
+                for attempt in range(first_attempt, first_attempt + self.retries):
+                    attempt_dir = os.path.join(physical_dir, f'attempt_{attempt}')
+                    os.makedirs(attempt_dir, exist_ok=False)
+                    request = {
+                        'snapshot_path': os.path.abspath(snapshot_path),
+                        'checkpoint_digest': checkpoint_digest,
+                        'evaluation_network': evaluation_network,
+                        'evaluation_protocol_digest': protocol_digest,
+                        'simulator_config': os.path.abspath(protocol['simulator_config']),
+                        'interface': protocol.get('interface', 'libsumo'),
+                        'action_interval': int(protocol['action_interval']),
+                        'decision_count': int(protocol['steps']) // int(
+                            protocol['action_interval']
+                        ),
+                        'attempt_dir': attempt_dir,
+                        'evaluation_seed': protocol.get('evaluation_seed'),
+                        'controller_id': identity.get('controller_id'),
+                        'agent': identity.get('agent', 'dqn'),
+                        'training_seed': identity.get('training_seed'),
+                        'checkpoint_episode': identity.get('global_episode'),
+                    }
+                    request_path = os.path.join(attempt_dir, 'request.json')
+                    atomic_json(request_path, request)
+                    context = multiprocessing.get_context('spawn')
+                    process = context.Process(
+                        target=self.worker_target, args=(request_path,)
+                    )
+                    try:
+                        process.start()
+                        process.join(self.timeout_seconds)
+                    except BaseException:
+                        if process.pid is not None and process.is_alive():
+                            process.terminate()
+                            process.join(10)
+                            if process.is_alive():
+                                process.kill()
+                                process.join(10)
+                        raise
+                    if process.is_alive():
                         process.terminate()
                         process.join(10)
                         if process.is_alive():
                             process.kill()
                             process.join(10)
-                    raise
-                if process.is_alive():
-                    process.terminate()
-                    process.join(10)
-                    if process.is_alive():
-                        process.kill()
-                        process.join(10)
-                    atomic_json(os.path.join(attempt_dir, 'timeout.json'), {
-                        'timeout_seconds': self.timeout_seconds,
-                    })
-                success_path = os.path.join(attempt_dir, 'success.json')
-                if process.exitcode == 0 and os.path.isfile(success_path):
-                    success = read_json(success_path)
-                    committed = {
-                        'schema_version': EVALUATION_SCHEMA_VERSION,
-                        'physical_key': physical_key,
-                        'checkpoint_digest': checkpoint_digest,
-                        'evaluation_network': evaluation_network,
-                        'evaluation_protocol_digest': protocol_digest,
-                        'successful_attempt': attempt,
-                        'summary_path': success['summary_path'],
-                        'decisions_path': success['decisions_path'],
-                    }
-                    atomic_json(committed_path, committed)
-                    break
-            if not os.path.isfile(committed_path):
-                raise RuntimeError(
-                    f'Evaluation failed after three attempts: {physical_key}'
-                )
+                        atomic_json(os.path.join(attempt_dir, 'timeout.json'), {
+                            'timeout_seconds': self.timeout_seconds,
+                        })
+                    success_path = os.path.join(attempt_dir, 'success.json')
+                    if process.exitcode == 0 and os.path.isfile(success_path):
+                        success = read_json(success_path)
+                        committed = {
+                            'schema_version': EVALUATION_SCHEMA_VERSION,
+                            'physical_key': physical_key,
+                            'checkpoint_digest': checkpoint_digest,
+                            'evaluation_network': evaluation_network,
+                            'evaluation_protocol_digest': protocol_digest,
+                            'successful_attempt': attempt,
+                            'summary_path': success['summary_path'],
+                            'decisions_path': success['decisions_path'],
+                        }
+                        atomic_json(committed_path, committed)
+                        break
+                if not os.path.isfile(committed_path):
+                    raise RuntimeError(
+                        f'Evaluation failed after three attempts: {physical_key}'
+                    )
         committed = read_json(committed_path)
         logical_identity = dict(identity)
         required_identity = {

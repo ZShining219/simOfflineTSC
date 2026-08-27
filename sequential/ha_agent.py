@@ -10,7 +10,7 @@ from torch.nn.utils import clip_grad_norm_
 from .agent import SequentialCounters, SequentialDQNAgent
 from .core import SequentialReplay, TargetUpdateScheduler
 from .historical_archive import HistoricalArchive, derive_rng_seed
-from .owp import build_historical_sampler
+from .owp import build_historical_sampler, restore_rand_historical_sampler
 
 
 class HASODQNAgent(SequentialDQNAgent):
@@ -348,6 +348,12 @@ class HASODQNAgent(SequentialDQNAgent):
                 raise ValueError('Visible archive changed on resume')
             sampler_state = ha.get('historical_sampler_state')
             if sampler_state is not None:
-                self._build_sampler()
-                self.historical_sampler.load_state_dict(sampler_state)
+                if self.method == 'RAND':
+                    self.historical_sampler = restore_rand_historical_sampler(
+                        self.visible_archive, self.owp_capacity, sampler_state,
+                        self.hoa_rng,
+                    )
+                else:
+                    self._build_sampler()
+                    self.historical_sampler.load_state_dict(sampler_state)
         return self

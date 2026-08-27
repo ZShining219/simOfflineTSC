@@ -274,3 +274,75 @@ def build_historical_sampler(view, method, capacity, rng, alignment_observations
     digest_payload.pop('build_seconds')
     manifest['owp_digest'] = stable_digest(digest_payload)
     return HistoricalSampler(view, method, references, manifest, rng=rng)
+
+
+def restore_rand_historical_sampler(view, capacity, state, rng):
+    """Restore a frozen RAND pool without drawing a new pool identity.
+
+    The HOA RNG stored in a checkpoint reflects the state *after* RAND pool
+    construction.  Re-running ``build_historical_sampler`` from that state
+    therefore selects a different pool.  Reconstruct the immutable manifest
+    from the checkpoint references instead, then restore the sampler state.
+    """
+    started = time.perf_counter()
+    capacity = int(capacity)
+    if capacity <= 0:
+        raise ValueError('OWP capacity must be positive')
+    if not len(view):
+        raise ValueError('Cannot restore an offline sampler from an empty archive')
+    if state.get('schema_version') != OWP_SCHEMA_VERSION:
+        raise ValueError('Unsupported historical sampler state')
+    if state.get('method') != 'RAND':
+        raise ValueError('Historical sampler method changed on resume')
+    stored_references = state.get('references')
+    if stored_references is None:
+        raise ValueError('RAND historical sampler state has no frozen references')
+
+    references = []
+    referenced_indices = collections.defaultdict(list)
+    for value in stored_references:
+        if not isinstance(value, (tuple, list)) or len(value) != 2:
+            raise ValueError('Invalid RAND historical working-pool reference')
+        network, index = value
+        if (not isinstance(network, str)
+                or not isinstance(index, (int, np.integer))
+                or isinstance(index, (bool, np.bool_))):
+            raise ValueError('Invalid RAND historical working-pool reference')
+        index = int(index)
+        if network not in view.indices_by_network:
+            raise ValueError('RAND historical working-pool reference is not visible')
+        references.append((network, index))
+        referenced_indices[network].append(index)
+    selected_count = min(capacity, len(view))
+    if len(references) != selected_count or len(set(references)) != selected_count:
+        raise ValueError('RAND historical working-pool reference count changed')
+    for network, indices in referenced_indices.items():
+        if not np.all(np.isin(indices, view.indices_by_network[network])):
+            raise ValueError('RAND historical working-pool reference is not visible')
+
+    selected_ids = [
+        str(value)
+        for value in view.batch_from_references(references).transition_ids
+    ]
+    composition = collections.Counter(network for network, _ in references)
+    manifest = {
+        'schema_version': OWP_SCHEMA_VERSION,
+        'method': 'RAND',
+        'stage_visibility_digest': view.digest,
+        'candidate_count': len(view),
+        'configured_capacity': capacity,
+        'selected_count': selected_count,
+        'fixed_working_pool': True,
+        'source_composition': dict(sorted(composition.items())),
+        'unique_transition_ids_digest': stable_digest(sorted(selected_ids)),
+        'definitions': OWP_DEFINITIONS,
+        'quality_summary': None,
+        'alignment_summary': None,
+        'build_seconds': time.perf_counter() - started,
+    }
+    digest_payload = dict(manifest)
+    digest_payload.pop('build_seconds')
+    manifest['owp_digest'] = stable_digest(digest_payload)
+    sampler = HistoricalSampler(view, 'RAND', references, manifest, rng=rng)
+    sampler.load_state_dict(state)
+    return sampler

@@ -1,0 +1,16 @@
+entry_edge,exit_edge,observed_count,movement,direct_connection,status
+E2J,J2E,1,u_turn,false,MISSING_CONNECTION
+E2J,J2N,33,right,true,OK
+E2J,J2S,11,left,true,OK
+E2J,J2W,58,straight,true,OK
+N2J,J2E,23,left,true,OK
+N2J,J2N,2,u_turn,false,MISSING_CONNECTION
+N2J,J2S,91,straight,true,OK
+N2J,J2W,5,right,true,OK
+S2J,J2E,18,right,true,OK
+S2J,J2N,71,straight,true,OK
+S2J,J2S,2,u_turn,false,MISSING_CONNECTION
+S2J,J2W,5,left,true,OK
+W2J,J2E,27,straight,true,OK
+W2J,J2N,5,left,true,OK
+W2J,J2S,3,right,true,OK

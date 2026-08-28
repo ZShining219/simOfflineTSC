@@ -13,9 +13,11 @@ if 'SUMO_HOME' in os.environ:
 from common.registry import Registry
 
 import json
+import math
 import re
 import copy
 import time
+from collections import deque
 
 import sumolib
 import libsumo
@@ -372,6 +374,7 @@ class World(object):
         self._sumo_stdout_handle = None
         self.evaluation_output_dir = None
         self.last_close_report = None
+        self.plan5_context_enabled = bool(kwargs.get('plan5_context', False))
         if kwargs['interface'] == 'libsumo':
             self.interface_flag = True
         elif kwargs['interface'] == 'traci':
@@ -405,6 +408,8 @@ class World(object):
         self.map = sumo_dict['roadnetFile'].split('/')[-1].split('.')[0]
         
         self._start_engine()
+        if self.plan5_context_enabled:
+            self._initialize_plan5_entry_tracking()
         # TODO: roadnet not implemented but not necessary
         self.RIGHT = True  # TODO: currently set to be true
         self.interval = sumo_dict['interval']
@@ -541,6 +546,8 @@ class World(object):
         self.last_entered_vehicle_ids = tuple(entering_v)
         for v in entering_v:
             self.inside_vehicles.update({v: self.get_current_time()})
+            if self.plan5_context_enabled:
+                self._record_plan5_entry(v)
         exiting_v = self.eng.simulation.getArrivedIDList()
         self.last_exited_vehicle_ids = tuple(exiting_v)
         for v in exiting_v:
@@ -582,6 +589,127 @@ class World(object):
         self.real_delay= {}
         self.last_entered_vehicle_ids = tuple()
         self.last_exited_vehicle_ids = tuple()
+        if self.plan5_context_enabled:
+            self._reset_plan5_entry_tracking()
+
+    @staticmethod
+    def _plan5_cardinal_direction(start, end):
+        """Map an entry edge's travel vector to one frozen cardinal label."""
+        dx = float(end[0]) - float(start[0])
+        dy = float(end[1]) - float(start[1])
+        if dx == 0.0 and dy == 0.0:
+            raise ValueError('SUMO boundary edge has zero-length geometry')
+        if abs(abs(dx) - abs(dy)) <= 1e-12:
+            raise ValueError('SUMO boundary edge has ambiguous cardinal geometry')
+        if abs(dy) > abs(dx):
+            return 'North' if dy > 0 else 'South'
+        return 'East' if dx > 0 else 'West'
+
+    def _initialize_plan5_entry_tracking(self):
+        """Freeze geometry for actual network-entry edges without route lookahead."""
+        network = sumolib.net.readNet(self.net)
+        node_coordinates = [node.getCoord() for node in network.getNodes()]
+        if not node_coordinates:
+            raise ValueError('SUMO network has no nodes for boundary geometry')
+        min_x = min(point[0] for point in node_coordinates)
+        max_x = max(point[0] for point in node_coordinates)
+        min_y = min(point[1] for point in node_coordinates)
+        max_y = max(point[1] for point in node_coordinates)
+        bounds = [float(min_x), float(min_y), float(max_x), float(max_y)]
+
+        def is_boundary_origin(point):
+            x, y = float(point[0]), float(point[1])
+            return any(math.isclose(value, boundary, rel_tol=0.0, abs_tol=1e-9)
+                       for value, boundary in (
+                           (x, min_x), (x, max_x),
+                           (y, min_y), (y, max_y),
+                       ))
+
+        mapping = {}
+        for edge in network.getEdges(withInternal=False):
+            if not is_boundary_origin(edge.getFromNode().getCoord()):
+                continue
+            shape = edge.getShape()
+            if len(shape) < 2:
+                raise ValueError(
+                    f'Boundary edge has insufficient geometry: {edge.getID()}'
+                )
+            start, end = tuple(shape[0]), tuple(shape[-1])
+            mapping[edge.getID()] = {
+                'edge_id': edge.getID(),
+                'from_xy': [float(start[0]), float(start[1])],
+                'to_xy': [float(end[0]), float(end[1])],
+                'direction': self._plan5_cardinal_direction(start, end),
+                'network_node_bounds': bounds,
+                'boundary_rule': 'from_node_on_network_node_bounding_box',
+            }
+        if not mapping:
+            raise ValueError('SUMO network has no geometric boundary-entry edges')
+        self.plan5_boundary_entry_mapping = mapping
+        self._reset_plan5_entry_tracking()
+
+    def _reset_plan5_entry_tracking(self):
+        self.plan5_entry_events = deque()
+        self.plan5_all_entry_events = []
+        self.plan5_seen_departed_vehicles = set()
+
+    def _record_plan5_entry(self, vehicle_id):
+        """Record each SUMO departed vehicle once at its observed current edge."""
+        if vehicle_id in self.plan5_seen_departed_vehicles:
+            raise RuntimeError(f'Duplicate network-entry event for {vehicle_id}')
+        edge_id = self.eng.vehicle.getRoadID(vehicle_id)
+        mapping = self.plan5_boundary_entry_mapping.get(edge_id)
+        if mapping is None:
+            raise RuntimeError(
+                f'Departed vehicle {vehicle_id} entered on non-boundary edge {edge_id}'
+            )
+        event = {
+            'time_s': float(self.get_current_time()),
+            'vehicle_id': str(vehicle_id),
+            'edge_id': edge_id,
+            'direction': mapping['direction'],
+        }
+        self.plan5_seen_departed_vehicles.add(vehicle_id)
+        self.plan5_entry_events.append(event)
+        self.plan5_all_entry_events.append(dict(event))
+
+    def get_plan5_arrival_context(self, time_s=None, window_s=60):
+        """Return causal fixed-window counts/rates ordered [N,S,E,W]."""
+        now = float(self.get_current_time() if time_s is None else time_s)
+        window_s = float(window_s)
+        if window_s <= 0:
+            raise ValueError('Plan5 context window must be positive')
+        lower = now - window_s
+        while self.plan5_entry_events and self.plan5_entry_events[0]['time_s'] <= lower:
+            self.plan5_entry_events.popleft()
+        counts = {key: 0 for key in ('North', 'South', 'East', 'West')}
+        for event in self.plan5_entry_events:
+            if lower < event['time_s'] <= now:
+                counts[event['direction']] += 1
+        ordered = [counts[key] for key in ('North', 'South', 'East', 'West')]
+        return {
+            'time_s': now,
+            'window_s': window_s,
+            'counts': ordered,
+            'rates': [value / window_s for value in ordered],
+        }
+
+    def plan5_context_state_dict(self):
+        return {
+            'entry_events': [dict(item) for item in self.plan5_entry_events],
+            'all_entry_events': [dict(item) for item in self.plan5_all_entry_events],
+            'seen_departed_vehicles': sorted(self.plan5_seen_departed_vehicles),
+            'boundary_entry_mapping': copy.deepcopy(
+                self.plan5_boundary_entry_mapping
+            ),
+        }
+
+    def load_plan5_context_state_dict(self, state):
+        if state['boundary_entry_mapping'] != self.plan5_boundary_entry_mapping:
+            raise ValueError('Plan5 boundary-entry geometry mapping changed')
+        self.plan5_entry_events = deque(copy.deepcopy(state['entry_events']))
+        self.plan5_all_entry_events = copy.deepcopy(state['all_entry_events'])
+        self.plan5_seen_departed_vehicles = set(state['seen_departed_vehicles'])
 
     def configure_evaluation_output(self, output_dir):
         """Route the next SUMO start into an evaluation-attempt directory."""

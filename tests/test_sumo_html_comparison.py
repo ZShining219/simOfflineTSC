@@ -40,6 +40,10 @@ class SumoHtmlComparisonTest(unittest.TestCase):
         self.assertIn("SUMO-style traffic control comparison", html)
         self.assertIn("Focus intersection", html)
         self.assertIn("Focused intersection halting vehicles", html)
+        self.assertIn(
+            'const TOP_METHOD_ORDER = ["fixedtime", "cont_o2_final", "hadhoa"];',
+            html,
+        )
         self.assertIn("const PAYLOAD =", html)
         self.assertNotIn("__PAYLOAD__", html)
         self.assertNotIn("__SCENE__", html)

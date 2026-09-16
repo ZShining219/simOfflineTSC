@@ -368,6 +368,9 @@ def prepare_plan2_datasets(
 ):
     if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._-]*', dataset_id):
         raise ValueError('dataset_id contains unsupported characters')
+    if int(expected_episodes) <= 0:
+        raise ValueError('expected_episodes must be positive')
+    expected_episodes = int(expected_episodes)
     dataset_root = os.path.abspath(os.path.join(output_root, dataset_id))
     if os.path.exists(dataset_root):
         raise FileExistsError(f'Offline dataset id already exists: {dataset_root}')

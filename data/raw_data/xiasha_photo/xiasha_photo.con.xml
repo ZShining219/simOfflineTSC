@@ -1,0 +1,19 @@
+<?xml version='1.0' encoding='utf-8'?>
+<connections xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" version="1.1" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/connections_file.xsd">
+    <connection from="E2J" to="J2N" fromLane="0" toLane="1" tl="J" linkIndex="0" />
+    <connection from="E2J" to="J2W" fromLane="1" toLane="1" tl="J" linkIndex="1" shape="140.4,120 99.6,120" />
+    <connection from="E2J" to="J2W" fromLane="1" toLane="0" tl="J" linkIndex="2" shape="140.4,120 99.6,120" />
+    <connection from="E2J" to="J2S" fromLane="1" toLane="1" tl="J" linkIndex="3" />
+    <connection from="N2J" to="J2W" fromLane="0" toLane="0" tl="J" linkIndex="4" />
+    <connection from="N2J" to="J2S" fromLane="1" toLane="1" tl="J" linkIndex="5" shape="118.4,140.4 118.4,105.6" />
+    <connection from="N2J" to="J2S" fromLane="1" toLane="2" tl="J" linkIndex="6" shape="118.4,140.4 118.4,105.6" />
+    <connection from="N2J" to="J2E" fromLane="2" toLane="0" tl="J" linkIndex="7" />
+    <connection from="S2J" to="J2E" fromLane="0" toLane="0" tl="J" linkIndex="8" />
+    <connection from="S2J" to="J2N" fromLane="1" toLane="1" tl="J" linkIndex="9" shape="121.6,99.6 121.6,139.6" />
+    <connection from="S2J" to="J2N" fromLane="1" toLane="2" tl="J" linkIndex="10" shape="121.6,99.6 121.6,139.6" />
+    <connection from="S2J" to="J2W" fromLane="2" toLane="0" tl="J" linkIndex="11" />
+    <connection from="W2J" to="J2S" fromLane="0" toLane="0" tl="J" linkIndex="12" />
+    <connection from="W2J" to="J2E" fromLane="1" toLane="1" tl="J" linkIndex="13" shape="99.6,120 140.4,120" />
+    <connection from="W2J" to="J2E" fromLane="1" toLane="0" tl="J" linkIndex="14" shape="99.6,120 140.4,120" />
+    <connection from="W2J" to="J2N" fromLane="1" toLane="0" tl="J" linkIndex="15" />
+</connections>

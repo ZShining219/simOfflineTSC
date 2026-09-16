@@ -23,6 +23,10 @@ parser.add_argument('--seed', type=int, default=None, help="seed for pytorch bac
 parser.add_argument('--debug', type=bool, default=True)
 parser.add_argument('--interface', type=str, default="libsumo", choices=['libsumo','traci'], help="interface type") # libsumo(fast) or traci(slow)
 parser.add_argument('--delay_type', type=str, default="apx", choices=['apx','real'], help="method of calculating delay") # apx(approximate) or real
+parser.add_argument(
+    '--episodes', type=int, default=None,
+    help='Override training episodes for a bounded source asset run',
+)
 
 parser.add_argument('-t', '--task', type=str, default="tsc", help="task type to run")
 parser.add_argument('-a', '--agent', type=str, default="dqn", help="agent type of agents in RL environment")
@@ -52,6 +56,20 @@ class Runner:
         instantiate runner object with processed config and register config into Registry class
         """
         self.config, self.duplicate_config = build_config(pArgs)
+        if pArgs.episodes is not None:
+            if pArgs.episodes <= 0:
+                raise ValueError('--episodes must be positive')
+            self.config['trainer']['episodes'] = pArgs.episodes
+            if 'evaluation_episodes' in self.config['trainer']:
+                self.config['trainer']['evaluation_episodes'] = [
+                    episode for episode in self.config['trainer']['evaluation_episodes']
+                    if episode <= pArgs.episodes
+                ]
+            if 'resumable_checkpoint_episodes' in self.config['trainer']:
+                self.config['trainer']['resumable_checkpoint_episodes'] = [
+                    episode for episode in self.config['trainer']['resumable_checkpoint_episodes']
+                    if episode <= pArgs.episodes
+                ]
         self.config_sources = capture_config_sources(self.config)
         self.output_path = reserve_run_output(self.config)
         self.run_state = None

@@ -1,0 +1,39 @@
+<?xml version='1.0' encoding='utf-8'?>
+<edges xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/edges_file.xsd">
+    <edge id="N2J" from="N" to="J" priority="3" numLanes="3" speed="13.89" width="3.2">
+        <lane index="0" speed="13.89" width="3.2" shape="112,240 112,140.4" />
+        <lane index="1" speed="13.89" width="3.2" shape="115.2,240 115.2,140.4" />
+        <lane index="2" speed="13.89" width="3.2" shape="118.4,240 118.4,140.4" />
+    </edge>
+    <edge id="J2S" from="J" to="S" priority="3" numLanes="3" speed="13.89" width="3.2">
+        <lane index="0" speed="13.89" width="3.2" shape="112,105.6 112,0" />
+        <lane index="1" speed="13.89" width="3.2" shape="115.2,105.6 115.2,0" />
+        <lane index="2" speed="13.89" width="3.2" shape="118.4,105.6 118.4,0" />
+    </edge>
+    <edge id="S2J" from="S" to="J" priority="3" numLanes="3" speed="13.89" width="3.2">
+        <lane index="0" speed="13.89" width="3.2" shape="121.6,0 121.6,99.6" />
+        <lane index="1" speed="13.89" width="3.2" shape="124.8,0 124.8,99.6" />
+        <lane index="2" speed="13.89" width="3.2" shape="128,0 128,99.6" />
+    </edge>
+    <edge id="J2N" from="J" to="N" priority="3" numLanes="3" speed="13.89" width="3.2">
+        <lane index="0" speed="13.89" width="3.2" shape="121.6,139.6 121.6,240" />
+        <lane index="1" speed="13.89" width="3.2" shape="124.8,139.6 124.8,240" />
+        <lane index="2" speed="13.89" width="3.2" shape="128,139.6 128,240" />
+    </edge>
+    <edge id="E2J" from="E" to="J" priority="3" numLanes="2" speed="13.89" width="3.2">
+        <lane index="0" speed="13.89" width="3.2" shape="240,116.8 140.4,116.8" />
+        <lane index="1" speed="13.89" width="3.2" shape="240,120 140.4,120" />
+    </edge>
+    <edge id="J2W" from="J" to="W" priority="3" numLanes="2" speed="13.89" width="3.2">
+        <lane index="0" speed="13.89" width="3.2" shape="99.6,116.8 0,116.8" />
+        <lane index="1" speed="13.89" width="3.2" shape="99.6,120 0,120" />
+    </edge>
+    <edge id="W2J" from="W" to="J" priority="3" numLanes="2" speed="13.89" width="3.2">
+        <lane index="0" speed="13.89" width="3.2" shape="0,116.8 99.6,116.8" />
+        <lane index="1" speed="13.89" width="3.2" shape="0,120 99.6,120" />
+    </edge>
+    <edge id="J2E" from="J" to="E" priority="3" numLanes="2" speed="13.89" width="3.2">
+        <lane index="0" speed="13.89" width="3.2" shape="140.4,116.8 240,116.8" />
+        <lane index="1" speed="13.89" width="3.2" shape="140.4,120 240,120" />
+    </edge>
+</edges>

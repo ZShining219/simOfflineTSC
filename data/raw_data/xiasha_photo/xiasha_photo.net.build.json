@@ -1,0 +1,56 @@
+{
+  "network": "data/raw_data/xiasha_photo/xiasha_photo.net.xml",
+  "source": {
+    "nodes": "data/raw_data/xiasha_photo/xiasha_photo.nod.xml",
+    "edges": "data/raw_data/xiasha_photo/xiasha_photo.edg.xml",
+    "connections": "data/raw_data/xiasha_photo/xiasha_photo.con.xml"
+  },
+  "coordinate_system": "local metres; J=(120,120); north=+y; east=+x",
+  "geometry_assumption": "aerial-image proportional approximation; not survey-grade georeferencing",
+  "arm_length_m": 120.0,
+  "junction_box_m": 28.0,
+  "vehicle_lanes_per_approach": 3,
+  "lane_width_m": 3.2,
+  "stop_line_setback_m": 6.0,
+  "sidewalk_width_m": 2.2,
+  "median_width_m": 3.2,
+  "approach_lanes": {
+    "north_south": 3,
+    "east_west": 2
+  },
+  "link_indices": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15
+  ],
+  "sidewalks_and_crossings": true,
+  "netconvert": [
+    "/home/dev/miniforge3/envs/colight/lib/python3.10/site-packages/sumo/bin/netconvert",
+    "--node-files",
+    "/projects/simOfflineTSC/data/raw_data/xiasha_photo/xiasha_photo.nod.xml",
+    "--edge-files",
+    "/projects/simOfflineTSC/data/raw_data/xiasha_photo/xiasha_photo.edg.xml",
+    "--connection-files",
+    "/projects/simOfflineTSC/data/raw_data/xiasha_photo/xiasha_photo.con.xml",
+    "--output-file",
+    "/projects/simOfflineTSC/data/raw_data/xiasha_photo/xiasha_photo.net.xml",
+    "--no-turnarounds",
+    "--default.junctions.radius",
+    "8",
+    "--default.junctions.keep-clear",
+    "true"
+  ]
+}

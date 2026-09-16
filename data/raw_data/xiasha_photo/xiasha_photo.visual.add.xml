@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- SUMO-GUI overlay geometry (local coordinates match the network).  It
+     gives the junction the visual cues from the aerial image: four zebra
+     crossings, a central refuge/median, and a dark asphalt intersection. -->
+<additional>
+  <poly id="asphalt_junction" color="0.16,0.16,0.20" fill="1" layer="-10"
+        shape="106,106 134,106 134,134 106,134"/>
+  <poly id="median_north" color="0.72,0.72,0.72" fill="1" layer="-5"
+        shape="118.4,134 121.6,134 121.6,240 118.4,240"/>
+  <poly id="median_south" color="0.72,0.72,0.72" fill="1" layer="-5"
+        shape="118.4,0 121.6,0 121.6,106 118.4,106"/>
+  <poly id="crossing_north" color="0.95,0.95,0.95" fill="1" layer="-4"
+        shape="106,130 134,130 134,134 106,134"/>
+  <poly id="crossing_south" color="0.95,0.95,0.95" fill="1" layer="-4"
+        shape="106,106 134,106 134,110 106,110"/>
+  <poly id="crossing_east" color="0.95,0.95,0.95" fill="1" layer="-4"
+        shape="130,106 134,106 134,134 130,134"/>
+  <poly id="crossing_west" color="0.95,0.95,0.95" fill="1" layer="-4"
+        shape="106,106 110,106 110,134 106,134"/>
+</additional>

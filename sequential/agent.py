@@ -30,6 +30,54 @@ class SequentialCounters:
     target_updates: int
 
 
+class DuelingDQNNet(nn.Module):
+    """Small dueling head with the same input/action contract as ``DQNNet``."""
+
+    def __init__(self, input_dim, output_dim):
+        super().__init__()
+        self.activation_name = 'relu'
+        self.architecture_name = 'dueling_mlp'
+        self.feature = nn.Sequential(
+            nn.Linear(input_dim, 20), nn.ReLU(),
+            nn.Linear(20, 20), nn.ReLU(),
+        )
+        self.value = nn.Linear(20, 1)
+        self.advantage = nn.Linear(20, output_dim)
+
+    def forward(self, x, train=True):
+        def compute():
+            hidden = self.feature(x)
+            value = self.value(hidden)
+            advantage = self.advantage(hidden)
+            return value + advantage - advantage.mean(dim=1, keepdim=True)
+        if train:
+            return compute()
+        with torch.no_grad():
+            return compute()
+
+
+def normalize_algorithm_id(value):
+    value = str(value or 'independent_dqn').strip().lower()
+    aliases = {
+        'dqn': 'independent_dqn',
+        'independent': 'independent_dqn',
+        'ddqn': 'double_dqn',
+        'dueling_ddqn': 'dueling_double_dqn',
+    }
+    value = aliases.get(value, value)
+    allowed = {'independent_dqn', 'double_dqn', 'dueling_double_dqn'}
+    if value not in allowed:
+        raise ValueError(f'Unsupported sequential algorithm: {value}')
+    return value
+
+
+def build_q_network(algorithm_id, input_dim, output_dim):
+    algorithm_id = normalize_algorithm_id(algorithm_id)
+    if algorithm_id == 'dueling_double_dqn':
+        return DuelingDQNNet(input_dim, output_dim)
+    return DQNNet(input_dim, output_dim)
+
+
 def _readonly_array(value):
     array = np.array(value, copy=True)
     array.setflags(write=False)
@@ -40,8 +88,13 @@ class SequentialDQNAgent:
     """DQN implementation isolated from the repository's default Online path."""
 
     def __init__(self, world, rank, model_config, trainer_config,
-                 binding_factory=None):
+                 binding_factory=None, algorithm_id='independent_dqn'):
         self.rank = int(rank)
+        self.algorithm_id = normalize_algorithm_id(algorithm_id)
+        self.target_operator = (
+            'double_dqn' if self.algorithm_id != 'independent_dqn'
+            else 'plain_dqn'
+        )
         self.sub_agents = 1
         self.model_config = copy.deepcopy(model_config)
         self.trainer_config = copy.deepcopy(trainer_config)
@@ -60,8 +113,12 @@ class SequentialDQNAgent:
         self._binding_factory = binding_factory or self._default_binding_factory
         binding = self._make_binding(world)
         self._install_binding(binding)
-        self.model = DQNNet(self.ob_length, self.action_space.n)
-        self.target_model = DQNNet(self.ob_length, self.action_space.n)
+        self.model = build_q_network(
+            self.algorithm_id, self.ob_length, self.action_space.n,
+        )
+        self.target_model = build_q_network(
+            self.algorithm_id, self.ob_length, self.action_space.n,
+        )
         self.target_model.load_state_dict(self.model.state_dict())
         self.criterion = nn.MSELoss(reduction='mean')
         self.optimizer = optim.RMSprop(
@@ -149,10 +206,11 @@ class SequentialDQNAgent:
     @classmethod
     def from_parent(cls, world, rank, model_config, trainer_config,
                     parent_manifest, binding_factory=None,
-                    skip_replay_digest=False):
+                    skip_replay_digest=False, algorithm_id='independent_dqn'):
         agent = cls(
             world, rank, model_config, trainer_config,
             binding_factory=binding_factory,
+            algorithm_id=algorithm_id,
         )
         checkpoint = torch.load(parent_manifest['checkpoint_path'], map_location='cpu')
         payload = checkpoint['agents'][rank]
@@ -408,9 +466,7 @@ class SequentialDQNAgent:
         records = self.replay.sample(self.batch_size, random)
         state, next_state, rewards, actions = self._batchwise(records)
         with torch.no_grad():
-            target = rewards + self.gamma * torch.max(
-                self.target_model(next_state), dim=1
-            )[0]
+            target = rewards + self.gamma * self._bootstrap_values(next_state)
             target_full = self.model(state).detach().clone()
             for index, action in enumerate(actions):
                 target_full[index][action] = target[index]
@@ -439,9 +495,30 @@ class SequentialDQNAgent:
             'target_synced': target_synced,
         }
 
+    def _bootstrap_values(self, next_state):
+        """Return the target-network value under the frozen algorithm operator."""
+        target_operator = getattr(self, 'target_operator', 'plain_dqn')
+        if target_operator == 'plain_dqn':
+            return torch.max(self.target_model(next_state), dim=1)[0]
+        next_actions = self.model(next_state).argmax(dim=1, keepdim=True)
+        return self.target_model(next_state).gather(1, next_actions).squeeze(1)
+
     def full_state_dict(self):
+        algorithm_id = normalize_algorithm_id(
+            getattr(self, 'algorithm_id', 'independent_dqn')
+        )
+        target_operator = getattr(
+            self, 'target_operator',
+            'double_dqn' if algorithm_id != 'independent_dqn' else 'plain_dqn',
+        )
         return {
             'schema_version': 1,
+            'algorithm_id': algorithm_id,
+            'target_operator': target_operator,
+            'architecture_name': (
+                'dueling_mlp' if algorithm_id == 'dueling_double_dqn'
+                else 'dqn_mlp'
+            ),
             'online_model_state_dict': copy.deepcopy(self.model.state_dict()),
             'target_model_state_dict': copy.deepcopy(self.target_model.state_dict()),
             'optimizer_state_dict': copy.deepcopy(self.optimizer.state_dict()),
@@ -465,6 +542,17 @@ class SequentialDQNAgent:
     def load_full_state_dict(self, state):
         if state.get('schema_version') != 1:
             raise ValueError('Unsupported Sequential agent state schema')
+        state_algorithm = normalize_algorithm_id(
+            state.get('algorithm_id', 'independent_dqn')
+        )
+        expected_algorithm = normalize_algorithm_id(
+            getattr(self, 'algorithm_id', 'independent_dqn')
+        )
+        if state_algorithm != expected_algorithm:
+            raise ValueError(
+                'Sequential checkpoint algorithm mismatch: '
+                f'{state_algorithm} != {expected_algorithm}'
+            )
         self.model.load_state_dict(state['online_model_state_dict'])
         self.target_model.load_state_dict(state['target_model_state_dict'])
         self.optimizer.load_state_dict(state['optimizer_state_dict'])

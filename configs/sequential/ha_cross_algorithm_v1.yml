@@ -1,0 +1,36 @@
+schema_version: 1
+protocol_id: ha_cross_algorithm_v1
+base_config: configs/sequential/ha_sodqn_b100.yml
+algorithms:
+  - independent_dqn
+  - double_dqn
+  - dueling_double_dqn
+pilot:
+  order_id: O2
+  training_seed: 0
+  stage_episodes: [12, 12, 12, 12]
+  conditions:
+    - condition_id: CONT_FIFO
+      archive_mode: NONE
+      method: CONT
+      offline_ratio: 0.0
+    - condition_id: P1C_DHOA_R25
+      archive_mode: P1C
+      method: DHOA
+      offline_ratio: 0.25
+    - condition_id: P1C_CQ_R75
+      archive_mode: P1C
+      method: CQ
+      offline_ratio: 0.75
+    - condition_id: P1C_CQA_R75
+      archive_mode: P1C
+      method: CQA
+      offline_ratio: 0.75
+formal:
+  orders: [O1, O2, O3, O4]
+  training_seeds: [0, 1, 2, 3, 4]
+  stage_episodes: [100, 100, 100, 100]
+initial_state_catalogs:
+  independent_dqn: data/output_data/ha_sodqn/engineering_20260726/initial_state_catalog.json
+  double_dqn: data/output_data/ha_sodqn/engineering_20260726/initial_state_catalog.json
+  dueling_double_dqn: data/output_data/ha_sodqn/engineering_20260726/initial_state_catalog_dueling.json

@@ -7,7 +7,7 @@ import numpy as np
 import torch
 from torch.nn.utils import clip_grad_norm_
 
-from .agent import SequentialCounters, SequentialDQNAgent
+from .agent import SequentialCounters, SequentialDQNAgent, normalize_algorithm_id
 from .core import SequentialReplay, TargetUpdateScheduler
 from .historical_archive import HistoricalArchive, derive_rng_seed
 from .owp import build_historical_sampler, restore_rand_historical_sampler
@@ -18,10 +18,12 @@ class HASODQNAgent(SequentialDQNAgent):
                  binding_factory=None, archive_manifest=None,
                  ordered_networks=(), training_seed=0, archive_mode='none',
                  method='CONT', offline_ratio=0.0, owp_capacity=5000,
-                 alignment_warmup_episodes=10, verify_archive_hashes=True):
+                 alignment_warmup_episodes=10, verify_archive_hashes=True,
+                 algorithm_id='independent_dqn'):
         super().__init__(
             world, rank, model_config, trainer_config,
             binding_factory=binding_factory,
+            algorithm_id=algorithm_id,
         )
         self.training_seed = int(training_seed)
         self.ordered_networks = tuple(ordered_networks)
@@ -69,6 +71,22 @@ class HASODQNAgent(SequentialDQNAgent):
         checkpoint = torch.load(initial_state['checkpoint_path'], map_location='cpu')
         if checkpoint.get('checkpoint_type') != 'resumable' or checkpoint.get('episode') != 0:
             raise ValueError('HA-SODQN must start from a Plan 1 episode-0 checkpoint')
+        source_algorithm = normalize_algorithm_id(
+            initial_state.get('algorithm_id', 'independent_dqn')
+        )
+        if source_algorithm != agent.algorithm_id:
+            # Double DQN keeps the existing DQN MLP and only changes the
+            # target operator.  A dueling network needs a separately built
+            # initial-state catalog and must never consume incompatible DQN
+            # tensors by accident.
+            if not (
+                agent.algorithm_id == 'double_dqn'
+                and source_algorithm == 'independent_dqn'
+            ):
+                raise ValueError(
+                    'HA-SODQN initial-state algorithm mismatch: '
+                    f'{source_algorithm} != {agent.algorithm_id}'
+                )
         payload = checkpoint['agents'][rank]
         agent.model.load_state_dict(payload['online_model_state_dict'])
         agent.target_model.load_state_dict(payload['target_model_state_dict'])
@@ -185,9 +203,7 @@ class HASODQNAgent(SequentialDQNAgent):
         rewards = rewards.reshape(-1)
         actions = actions.reshape(-1)
         with torch.no_grad():
-            target = rewards + self.gamma * torch.max(
-                self.target_model(next_state), dim=1,
-            )[0]
+            target = rewards + self.gamma * self._bootstrap_values(next_state)
             target_full = self.model(state).detach().clone()
             for index, action in enumerate(actions):
                 target_full[index][action] = target[index]

@@ -191,6 +191,7 @@ def _parser():
     ha_initial.add_argument('--whitelist', default=DEFAULT_WHITELIST)
     ha_initial.add_argument('--output', required=True)
     ha_initial.add_argument('--config', default='configs/sequential/ha_sodqn_b100.yml')
+    ha_initial.add_argument('--source-episodes', type=int, default=400)
 
     ha_archive = subparsers.add_parser('build-ha-archive')
     ha_archive.add_argument('--dataset-root', required=True)
@@ -226,6 +227,56 @@ def _parser():
     ha_analysis.add_argument('--output-root', required=True)
     ha_analysis.add_argument('--whitelist', default=DEFAULT_WHITELIST)
     ha_analysis.add_argument('--output-dir', required=True)
+
+    cross_build = subparsers.add_parser(
+        'build-cross-algorithm-pilot',
+        help='Build the preregistered 12-run HA cross-algorithm pilot',
+    )
+    cross_build.add_argument('--config', default='configs/sequential/ha_cross_algorithm_v1.yml')
+    cross_build.add_argument('--output', required=True)
+    cross_validate = subparsers.add_parser('validate-cross-algorithm-pilot')
+    cross_validate.add_argument('--plan', required=True)
+    cross_formal_build = subparsers.add_parser(
+        'build-cross-algorithm-formal',
+        help='Build the preregistered 240-run HA cross-algorithm matrix',
+    )
+    cross_formal_build.add_argument(
+        '--config', default='configs/sequential/ha_cross_algorithm_v1.yml'
+    )
+    cross_formal_build.add_argument('--output', required=True)
+    cross_formal_validate = subparsers.add_parser(
+        'validate-cross-algorithm-formal'
+    )
+    cross_formal_validate.add_argument('--plan', required=True)
+    cross_analyze = subparsers.add_parser(
+        'analyze-cross-algorithm',
+        help='Analyze validated cross-algorithm HA runs',
+    )
+    cross_analyze.add_argument('--manifest', required=True)
+    cross_analyze.add_argument('--output-root', required=True)
+    cross_analyze.add_argument('--whitelist', required=True)
+    cross_analyze.add_argument('--output-dir', required=True)
+    dueling_catalog = subparsers.add_parser(
+        'build-dueling-initial-catalog',
+        help='Convert Plan 1 episode-0 assets to Dueling Double DQN assets',
+    )
+    dueling_catalog.add_argument('--source-catalog', required=True)
+    dueling_catalog.add_argument('--output', required=True)
+    dueling_catalog.add_argument('--output-root', required=True)
+    assets_build = subparsers.add_parser(
+        'build-cross-algorithm-assets-plan',
+        help='Design the immutable historical asset chain for cross-algorithm HA',
+    )
+    assets_build.add_argument(
+        '--config', default='configs/sequential/ha_cross_algorithm_assets_v1.yml'
+    )
+    assets_build.add_argument('--output', required=True)
+    assets_validate = subparsers.add_parser(
+        'validate-cross-algorithm-assets-plan',
+        help='Validate historical asset design and optionally require files',
+    )
+    assets_validate.add_argument('--plan', required=True)
+    assets_validate.add_argument('--require-existing', action='store_true')
     return parser
 
 
@@ -455,6 +506,7 @@ def main(argv=None):
         # initial catalog builder consumes the existing sequential validator.
         payload = build_initial_state_catalog(
             args.whitelist, args.output, args.config,
+            source_episodes=args.source_episodes,
         )
         result = {'valid': True, 'output': os.path.abspath(args.output),
                   'entry_count': payload['entry_count']}
@@ -521,6 +573,59 @@ def main(argv=None):
         )
         result = {'valid': report['valid'], 'run_count': report['run_count'],
                   'output': os.path.abspath(args.output_dir)}
+    elif args.command == 'build-cross-algorithm-pilot':
+        from .cross_algorithm import build_cross_algorithm_pilot_plan
+        payload = build_cross_algorithm_pilot_plan(args.output, args.config)
+        result = {
+            'valid': True, 'output': os.path.abspath(args.output),
+            'child_count': payload['child_count'],
+            'plan_digest': payload['plan_digest'],
+        }
+    elif args.command == 'validate-cross-algorithm-pilot':
+        from .cross_algorithm import validate_cross_algorithm_pilot
+        result = validate_cross_algorithm_pilot(args.plan)
+    elif args.command == 'build-cross-algorithm-formal':
+        from .cross_algorithm import build_cross_algorithm_formal_plan
+        payload = build_cross_algorithm_formal_plan(args.output, args.config)
+        result = {
+            'valid': True, 'output': os.path.abspath(args.output),
+            'child_count': payload['child_count'],
+            'plan_digest': payload['plan_digest'],
+        }
+    elif args.command == 'validate-cross-algorithm-formal':
+        from .cross_algorithm import validate_cross_algorithm_formal_plan
+        result = validate_cross_algorithm_formal_plan(args.plan)
+    elif args.command == 'analyze-cross-algorithm':
+        from .cross_analysis import analyze_cross_algorithm_experiment
+        report = analyze_cross_algorithm_experiment(
+            args.manifest, args.output_root, args.whitelist, args.output_dir,
+        )
+        result = {
+            'valid': report['valid'], 'run_count': report['run_count'],
+            'output': os.path.abspath(args.output_dir),
+        }
+    elif args.command == 'build-dueling-initial-catalog':
+        from .initial_state import build_dueling_initial_state_catalog
+        payload = build_dueling_initial_state_catalog(
+            args.source_catalog, args.output, args.output_root,
+        )
+        result = {
+            'valid': True, 'output': os.path.abspath(args.output),
+            'entry_count': payload['entry_count'],
+        }
+    elif args.command == 'build-cross-algorithm-assets-plan':
+        from .historical_assets import build_historical_asset_plan
+        payload = build_historical_asset_plan(args.output, args.config)
+        result = {
+            'valid': True, 'output': os.path.abspath(args.output),
+            'source_count': len(payload['source_identities']),
+            'plan_digest': payload['plan_digest'],
+        }
+    elif args.command == 'validate-cross-algorithm-assets-plan':
+        from .historical_assets import validate_historical_asset_plan
+        result = validate_historical_asset_plan(
+            args.plan, require_existing=args.require_existing,
+        )
     else:
         raise AssertionError(args.command)
     print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))

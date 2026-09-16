@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Xiasha photo-aligned four-arm junction.
+  Coordinates are local metres: J=(120,120), north is +y and east is +x.
+  The 240 m arms and 16 m junction box follow the proportions visible in
+  a1俯视底图.png; adjust these values when survey/OSM coordinates are available.
+-->
+<nodes xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/nodes_file.xsd">
+    <node id="N" type="priority" x="120.0" y="240.0"/>
+    <node id="S" type="priority" x="120.0" y="0.0"/>
+    <node id="E" type="priority" x="240.0" y="120.0"/>
+    <node id="W" type="priority" x="0.0" y="120.0"/>
+    <node id="J" type="traffic_light" x="120.0" y="120.0" radius="8.0"
+          shape="100.4,100.4 139.6,100.4 139.6,139.6 100.4,139.6"/>
+</nodes>

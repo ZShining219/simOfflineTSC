@@ -1,0 +1,88 @@
+{
+  "schema_version": 1,
+  "input": "data/raw_data/citysky/semantic_injection_validation.csv",
+  "input_sha256": "e951256215a031fb01d19fd7fd00d421591d1cd8e8145932bdeb0d8dd5e2d7e8",
+  "package_directory": "data/raw_data/citysky/sumo",
+  "evidence_directory": "final_result/citysky_semantic_sumo_evidence",
+  "simulation_end_seconds": 6934,
+  "network": {
+    "design_basis": "four source entry edges x four source exit edges",
+    "source_observed_od_pairs": 16,
+    "network_routeable_od_pairs": 16,
+    "all_observed_od_pairs_routeable": true,
+    "incoming_lanes_per_arm": 4,
+    "outgoing_lanes_per_arm": 4,
+    "lane_design_assumption": "The CSV depart_lane and arrival_lane columns are entirely empty. Four lanes are the minimum movement-separating design used here: right, two through lanes, and a shared left/U-turn lane.",
+    "controlled_connections": 20,
+    "signal_link_count": 20,
+    "signal_segment_count": 1863,
+    "netconvert_binary": "/home/dev/miniforge3/envs/colight/bin/netconvert",
+    "netconvert_command": [
+      "/home/dev/miniforge3/envs/colight/bin/python",
+      "/home/dev/miniforge3/envs/colight/bin/netconvert",
+      "--node-files",
+      "/projects/simOfflineTSC/data/raw_data/citysky/sumo/citysky.nod.xml",
+      "--edge-files",
+      "/projects/simOfflineTSC/data/raw_data/citysky/sumo/citysky.edg.xml",
+      "--connection-files",
+      "/projects/simOfflineTSC/data/raw_data/citysky/sumo/citysky.con.xml",
+      "--output-file",
+      "/projects/simOfflineTSC/data/raw_data/citysky/sumo/citysky.net.xml",
+      "--junctions.corner-detail",
+      "5"
+    ],
+    "netconvert_stderr": ""
+  },
+  "signal": {
+    "method": "nearest one-second majority of accepted entry/exit phase labels",
+    "accepted_labels": [
+      "NS_GREEN",
+      "ALL_RED",
+      "EW_GREEN"
+    ],
+    "ambiguous_labels_excluded_from_fit": [
+      "CONFLICT",
+      "TRANSITION_OR_ALL_RED"
+    ],
+    "accepted_samples": 8958,
+    "ambiguous_samples": 264,
+    "mixed_label_seconds": 85,
+    "minimum_reconstructed_dwell_seconds": 3,
+    "direct_green_switches_repaired": 62,
+    "minimum_clearance_interval_seconds": 4,
+    "clearance_intervals_expanded": 106,
+    "yellow_refinement_seconds": 3,
+    "turn_hold_before_axis_switch_seconds": 6,
+    "controller_refinement": "The broad CSV ALL_RED label is refined into yellow then all-red. Permissive left/U-turn entry closes before each axis switch so vehicles already inside the junction can clear safely.",
+    "observed_reconstruction_end_seconds": 5135,
+    "fallback_extension": [
+      {
+        "label": "NS_GREEN",
+        "duration_seconds": 15
+      },
+      {
+        "label": "ALL_RED",
+        "duration_seconds": 6
+      },
+      {
+        "label": "EW_GREEN",
+        "duration_seconds": 17
+      },
+      {
+        "label": "ALL_RED",
+        "duration_seconds": 6
+      }
+    ],
+    "zero_offset_match_rate": 0.9583612413485153,
+    "best_scan_offset_seconds": 0.0,
+    "best_scan_match_rate": 0.9583612413485153,
+    "limitation": "The CSV contains event-time phase labels but no controller log. Unobserved seconds are nearest-label interpolation; the post-observation flush interval uses a disclosed fallback cycle."
+  },
+  "demand": {
+    "complete_source_records": 4319,
+    "vehicle_records": 4319,
+    "flow_records": 4319,
+    "flow_groups": 838,
+    "conservation_passed": true
+  }
+}

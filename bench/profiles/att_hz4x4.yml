@@ -1,0 +1,78 @@
+# bench profile: 注意力线 hz4x4 两阶段基准（追溯登记版 v1）
+# 机制均引用仓内真实路径与既有工具；不新增语义。
+name: att_hz4x4
+line: attention
+purpose: >
+  阶段①判定"模型是否区分对场景"（分类关卡），阶段②判定"决策是否变好"
+  （冻结 eval 三指标 + 条件矩阵 + 经典基线对照）。①不过线不进②。
+
+net:
+  name: hz4x4                      # 杭州古荡 4×4 路网，16 信号路口
+  sim_config: configs/sim/hz4x4.cfg
+  event_plans:
+    train_eval: configs/events/plans/hz4x4_random_v1.yml      # 含 manifest.json
+    holdout_t3: configs/events/plans/att004_t3_eval_v1.yml    # held-out 布局
+    holdout_t4: configs/events/plans/att004_t4_eval_v1.yml
+  window: [900, 1200]              # 事件窗分层口径（秒）
+
+pipeline:
+  stage1_classification:
+    probe_driver: tools/run_tarl_repr_probe.py
+    probe_args: [--checkpoint, --config, --agent=tarl_attention, --network=hz4x4,
+                 --prefix, --output, --seed, --event-plan]
+    probe_outputs: [repr_records.npz, repr_labels.jsonl]
+    analyzer: tools/analyze_repr_probe.py
+    analyzer_args: [--dirs, --out]
+    nontext_bound: TARL_TEXT_CONDITION=empty 同型探针，给非文本信息通道上界
+    counterfactual_driver: tools/run_tarl_struct_cf.py
+    counterfactual_variants: [canonical, empty, wrong-location, wrong-type,
+                              both-wrong, foreign]
+    heldout_plans: [att004_t3_eval_v1, att004_t4_eval_v1]
+    report_card: 按 event kind 分解的 P/R/F1 + 探针 acc/F1 + 反事实分歧率
+  stage2_decision:
+    driver: tools/att004_cond_eval.py
+    driver_args: [--run-dir, --episode, --arm-config, --reps=3,
+                  --sumo-base=<train_seed>, --seed=<train_seed>, --tag]
+    arm_config: configs/tsc/att_entity_004/generated/a3s_condeval_e0.yml
+    inner_driver: tools/run_tarl_struct_cf.py   # cond_eval 内部逐条件调用
+    env_condition: TARL_TEXT_CONDITION          # canonical/empty/wrong_location/wrong_type/both_wrong
+    env_event: TARL_EVENT_CONDITION             # normal
+    conditions: [canonical, empty, wrong_location, wrong_type, both_wrong, normal]
+    ckpt_convention: <run_dir>/checkpoints/resumable/episode_0<EP>.pt
+    episodes_evaluated: [20, 50, 100]           # e200 臂追加 200
+    sumo_seeds_per_ckpt: [s, s+400000, s+800000]   # reps=3 固定档位
+    baselines:
+      tool: tools/att004_baseline_eval.py
+      agents: [fixedtime, maxpressure, colight, mplight]
+      configs: configs/tsc/att_entity_004/generated/baseval_<agent>.yml
+      checkpoint: RL 基线需对应训练 run 的 resumable ckpt；fixedtime/maxpressure 无
+    output_convention: data/output_data/analysis/att_entity_004/<eval_family>/<tag>
+
+metrics:
+  headline: [travel_time, throughput, unfinished_vehicles]   # 三指标强制同报
+  stratified: [queue_in_window_900_1200, queue_off_window, queue]
+  aux: [delay, waiting_time, reward_mean]
+  stage1: [per_kind_precision, per_kind_recall, per_kind_f1,
+           probe_balanced_accuracy, probe_f1, counterfactual_divergence]
+
+evidence:
+  - 训练 run 目录 evaluation/summary.json + records.jsonl（过程记录随 run_dir 留档）
+  - cond eval 输出 tarl_struct_cf_records.jsonl + 聚合表
+  - 阶段① repr_records.npz/repr_labels.jsonl + analyze_repr_probe report.csv
+  - 基线 eval 输出目录（baseline_cmp_probe 惯例）
+
+budget: gpu-heavy-34          # 训练档位；eval/探针可走 eval-light
+
+comparability:
+  same_net: hz4x4
+  same_condition_matrix: true
+  same_seed_set: true          # sumo seeds {s,s+400000,s+800000}；train seeds {7,17,27,37,47}
+  same_ngpu: true
+  note: 跨口径（不同 window/plan/条件集）结果并排时必须注明口径差
+
+rules:
+  - 阶段①不过线不进阶段②
+  - 三指标强制；禁止只报 action-change
+  - eval_mode=frozen_eval_attempt；产物归 run/包目录并回填台账
+  - 新 arm 复用同一条件矩阵；新条件/新计划走 profile 变更流程（commit + 变更日志）
+  - 禁止 dirty 树起正式 run；派发前 ledger REGISTERED

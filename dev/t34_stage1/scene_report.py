@@ -30,6 +30,7 @@ from pathlib import Path
 import numpy as np
 
 KIND_ID = {1: 'lane_blockage', 2: 'road_closure', 3: 'global_rain'}
+KIND_CODE = {v: k for k, v in KIND_ID.items()}
 KINDS = ['lane_blockage', 'road_closure', 'global_rain']
 
 
@@ -140,6 +141,29 @@ def multiclass_task(X, y, g, seed=0):
             'majority': float(maj), 'n_test': int(len(te))}
 
 
+def ztask_coverage(eps):
+    """Per-event channel coverage: fraction of in-window decision steps whose
+    z_task carries a row of the event's kind on >=1 node.  <1.0 reveals
+    structural invisibility (edge bound to an uncontrolled junction) or
+    first-active-report masking (e.g. rain broadcast claiming the node)."""
+    out = []
+    for ep in eps:
+        arr = ep['arr']
+        if 'z_task' not in arr:
+            continue
+        zt, ts = arr['z_task'], arr['t']
+        for ev in ep['events']:
+            m = (ts >= ev['begin']) & (ts < ev['end'])
+            if not m.any():
+                continue
+            hit = (zt[m][..., 1] == KIND_CODE[ev['kind']]).any(1)
+            out.append({'episode': ep['idx'],
+                        'plan_episode': ep['plan_episode'],
+                        'kind': ev['kind'], 'event_id': ev['event_id'],
+                        'coverage': float(hit.mean()), 'n_steps': int(m.sum())})
+    return out
+
+
 def node_frame(eps):
     """Per-node frames: h_it node feats + z_task-derived labels (canonical)."""
     Xs, pres, typ, gs = [], [], [], []
@@ -195,6 +219,7 @@ def main():
         frames[name] = {fk: decision_frame(eps, fn)
                         for fk, fn in feats.items()}
         cells[name]['cf'] = counterfactual_summary(d)
+        cells[name]['cov'] = ztask_coverage(eps)
 
     rows = []
     # ---- within-plan scene-level per-kind P/R/F1 (h_it primary) ----
@@ -217,6 +242,35 @@ def main():
                 rows.append({'cell': name, 'feature': fk,
                              'task': 'event_kind_multiclass',
                              'split': 'in-plan', **m})
+        # channel coverage QC (z_task is dumped pre-condition on canonical
+        # arms; empty arms legitimately report 0 everywhere)
+        for kind in KINDS:
+            evs = [c for c in cells[name]['cov'] if c['kind'] == kind]
+            if not evs:
+                continue
+            rows.append({'cell': name, 'feature': 'z_task',
+                         'task': f'channel_coverage_{kind}',
+                         'split': 'qc',
+                         'mean_coverage': float(np.mean(
+                             [c['coverage'] for c in evs])),
+                         'n_events': len(evs),
+                         'n_zero_cov': int(sum(c['coverage'] == 0
+                                               for c in evs))})
+        # closure decoding restricted to channel-visible closures: drop
+        # frames from episodes whose every closure had zero z_task coverage.
+        vis_ep = {c['episode'] for c in cells[name]['cov']
+                  if c['kind'] == 'road_closure' and c['coverage'] > 0}
+        inv_ep = {c['episode'] for c in cells[name]['cov']
+                  if c['kind'] == 'road_closure'} - vis_ep
+        if inv_ep:
+            X, y, g = frames[name]['h_it']
+            keep = np.array([gi not in inv_ep for gi in g])
+            yb = np.array(['road_closure' in yy for yy in y], dtype=int)
+            m = binary_task(X[keep], yb[keep], g[keep])
+            if m:
+                rows.append({'cell': name, 'feature': 'h_it',
+                             'task': 'scene_road_closure',
+                             'split': 'in-plan-visonly', **m})
 
     # ---- cross-plan transfer: train on `seen`, test on held-out cells ----
     if 'seen' in frames:
@@ -270,16 +324,36 @@ def main():
         cf = cell['cf']
         lines.append(f"## cell `{name}`  ({cell['dir']})")
         lines.append('')
-        lines.append('| task | feature | split | P | R | F1 | majority | n_test |')
+        lines.append('| task | feature | split | P | R | F1/bal_acc | majority | n_test |')
         lines.append('|---|---|---|---|---|---|---|---|')
         for r in rows:
             if r['cell'] != name and not r['cell'].endswith(name):
                 continue
-            lines.append('| {task} | {feature} | {split} | {p:.3f} | {r:.3f} '
-                         '| {f1:.3f} | {majority:.3f} | {n_test} |'
-                         .format(**{k: r.get(k, '') for k in
-                                    ('task', 'feature', 'split', 'p', 'r',
-                                     'f1', 'majority', 'n_test')}))
+            if r['split'] == 'qc':
+                lines.append('| %s | %s | qc | — | — | mean_cov=%.3f '
+                             '(zero %d/%d) | — | — |' % (
+                                 r['task'], r['feature'],
+                                 r['mean_coverage'], r['n_zero_cov'],
+                                 r['n_events']))
+                continue
+            p = r.get('p'); rr = r.get('r')
+            f1 = r.get('f1', r.get('f1_macro', r.get('bal_acc')))
+            lines.append('| %s | %s | %s | %s | %s | %.3f | %.3f | %s |' % (
+                r['task'], r['feature'], r['split'],
+                f'{p:.3f}' if isinstance(p, float) else '—',
+                f'{rr:.3f}' if isinstance(rr, float) else '—',
+                f1, r.get('majority', float('nan')), r.get('n_test', '')))
+        cov = cell.get('cov') or []
+        if cov:
+            lines.append('')
+            lines.append('z_task 通道覆盖（事件窗口内出现同类 type 行的步数占比；'
+                         '<1 提示边界边不可绑定或首报遮蔽）：')
+            lines.append('| episode | kind | event_id | coverage | steps |')
+            lines.append('|---|---|---|---|---|')
+            for c in cov:
+                lines.append(f"| {c['episode']} | {c['kind']} | "
+                             f"{c['event_id']} | {c['coverage']:.3f} | "
+                             f"{c['n_steps']} |")
         if cf:
             lines.append('')
             lines.append('反事实分歧率（动作改变节点比例均值，n_steps=%d）：' %

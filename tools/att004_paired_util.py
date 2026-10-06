@@ -49,6 +49,15 @@ AUX = ('queue', 'delay', 'waiting_time', 'reward_mean')
 ALL_METRICS = HEADLINE + AUX
 
 
+def _read_eval_summary(run_dir):
+    """Standard-protocol readout: the run's own `evaluation/summary.json`."""
+    path = Path(run_dir) / 'evaluation' / 'summary.json'
+    if not path.exists():
+        return None
+    payload = json.loads(path.read_text())
+    return payload.get('evaluations', [])
+
+
 def _read_records(run_dir):
     path = Path(run_dir) / 'metrics' / 'records.jsonl'
     if not path.exists():
@@ -308,6 +317,22 @@ def main():
                     'subset_sizes': {k: len(v) for k, v in subsets.items()},
                     'subsets': entries}
 
+        # Standard-protocol contrast, for the resolution comparison: the run's
+        # own eval episode(s).  Both `evaluation_episodes` entries replay the
+        # same single SUMO seed, so they are normally the same episode twice.
+        evals = {'canonical': _read_eval_summary(canon_dir),
+                 'empty': _read_eval_summary(empty_dir)}
+        if all(evals.values()):
+            pair_out['eval_episode'] = {
+                side: [{'episode': row.get('episode'),
+                        **{m: row.get(m) for m in HEADLINE + ('queue', 'delay')}}
+                       for row in rows]
+                for side, rows in evals.items()}
+            pair_out['eval_episode']['distinct_realisations'] = {
+                side: len({json.dumps({m: row.get(m) for m in HEADLINE},
+                                      sort_keys=True) for row in rows})
+                for side, rows in evals.items()}
+
         win_in, win_out = {}, {}
         if name in dumps and episode_events is not None:
             canon_dump, empty_dump = dumps[name]
@@ -344,6 +369,21 @@ def main():
                 if m in entries[subset]:
                     md.append(_fmt(entries[subset][m]))
             md.append('')
+        if 'eval_episode' in pair_out:
+            ev = pair_out['eval_episode']
+            md += ['### standard protocol (this run\'s own eval episode)', '',
+                   f'- distinct eval realisations: {ev["distinct_realisations"]}',
+                   '',
+                   '| side | episode | travel_time | throughput | unfinished_vehicles '
+                   '| queue | delay |', '|---|---|---|---|---|---|---|']
+            for side in ('canonical', 'empty'):
+                for row in ev[side]:
+                    md.append('| {} | {} | {:.4f} | {} | {} | {:.4f} | {:.6f} |'.format(
+                        side, row['episode'], row['travel_time'],
+                        row['throughput'], row['unfinished_vehicles'],
+                        row['queue'], row['delay']))
+            md.append('')
+
         if win_in:
             md += ['### event-window stratified queue (per-episode event window)', '',
                    '| metric | n | mean diff | sd | 95% CI (bootstrap) | +/-/0 | '

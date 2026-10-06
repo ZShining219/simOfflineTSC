@@ -1,5 +1,7 @@
 # 仓库协作指南
 
+> 本仓实验治理见 GOVERNANCE.md + EXPERIMENTS.md + bench/（台账 ledger/runs.jsonl 为事实源；一次性脚本登记见 dev/INDEX.md）。
+
 ## 项目概述
 
 本仓库是基于 LibSignal 整理的 Python 交通信号控制研究框架，提供与 Gym 风格兼容的交通环境，以及适用于 CityFlow 和 SUMO 仿真器的传统控制与强化学习智能体。
@@ -149,3 +151,18 @@ Agent 应帮助降低后续任务成本，而不仅是完成当前指令。
 ## 验证要求
 
 当前源码快照没有独立的自动化测试套件。仅修改代码时，应执行有针对性的导入或语法检查；修改运行行为时，应执行适用范围内最小规模的实验，并记录所用仿真器、智能体、路网、随机种子和完整命令。
+
+## 新 agent 上手 checklist
+
+1. 读 `GOVERNANCE.md`（仓内治理规范）+ 本文件 + `EXPERIMENTS.md`（台账即状态；机读事实源 `ledger/runs.jsonl`）。
+2. 认领登记见 `artifacts/wiki_claims/`（历史追溯登记不进 claims）。
+3. 新实验：设计定稿→台账 REGISTERED→SMOKE→远端 tmux 自治派发→收割三指标+过程记录→回填台账。正式 run 只允许 队列 runner + `run_queue_*.json` 或 `bench/` profile 两条路径；禁止新写一次性驱动脚本直拉正式 run（一次性件归 `dev/<topic>/` 并登 `dev/INDEX.md`）。
+4. 注意力线口径：三指标（travel_time/throughput/unfinished_vehicles）强制同报 + 事件窗分层 + 四层判定（表征/优化/语义效用/闭环）；阶段①分类关卡不过线不进阶段②，见 `bench/BENCH.md`。
+5. 本仓 GitHub public：入库文件禁写内网 IP/主机名/跳板拓扑/绝对路径，机器用代号 34/73，路径一律仓内相对路径。
+6. 拿不准 → 记"受阻"+原因，等裁决，不猜。
+
+## 架构变更日志
+
+| 日期 | commit | 改动 | 动机 | 影响臂/profile |
+|---|---|---|---|---|
+| 2026-10-07 | gov/experiment-governance | 落地 GOVERNANCE.md/EXPERIMENTS.md/ledger/runs.jsonl/bench//dev/INDEX.md；追溯登记 6516 run | 把既有科研资产整理进可审计治理结构，后续架构优化/新建必须 git 更新 | 全仓；注意力线新比对口径见 bench/profiles/att_hz4x4.yml |

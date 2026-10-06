@@ -249,6 +249,11 @@ def main():
                     metavar='NAME=CANON_DUMP_DIR:EMPTY_DUMP_DIR',
                     help='optional dump dirs enabling event-window queue split')
     ap.add_argument('--out', required=True, help='output directory')
+    ap.add_argument('--pool-subset', default='event_visible',
+                    choices=['all', 'event_planned', 'event_visible',
+                             'event_invisible', 'no_event'],
+                    help='subset pooled across all --pair entries into the '
+                         'headline block (needs --dumps for the event splits)')
     args = ap.parse_args()
 
     dumps = {}
@@ -261,6 +266,8 @@ def main():
     out.mkdir(parents=True, exist_ok=True)
 
     report = {'pairs': {}, 'dumps': {k: list(v) for k, v in dumps.items()}}
+    pooled = {m: [] for m in ALL_METRICS}
+    pooled_win_in, pooled_win_out = [], []
     csv_lines = ['pair,episode,has_event,' + ','.join(ALL_METRICS) +
                  ',win_queue_in,win_queue_out']
     md = ['# att004 paired canonical vs empty — per-episode utility readout', '',
@@ -310,6 +317,10 @@ def main():
                          for m, vals in per_metric.items()}
                    for key, keep in subsets.items()}
 
+        pool_keep = subsets[args.pool_subset]
+        for m, vals in per_metric.items():
+            pooled[m].extend(_select(vals, pool_keep).values())
+
         pair_out = {'canonical_dir': canon_dir, 'empty_dir': empty_dir,
                     'n_episodes': len(episodes),
                     'dump_offset': offset, 'alignment_hits': align_hits,
@@ -346,6 +357,8 @@ def main():
                 'queue_out_window': _summarise(list(win_out.values()),
                                                'queue_out_window'),
             }
+            pooled_win_in.extend(win_in[ep] for ep in win_in if ep in pool_keep)
+            pooled_win_out.extend(win_out[ep] for ep in win_out if ep in pool_keep)
 
         report['pairs'][name] = pair_out
 
@@ -400,6 +413,24 @@ def main():
             row += [f'{win_in[ep]:+.6f}' if ep in win_in else '',
                     f'{win_out[ep]:+.6f}' if ep in win_out else '']
             csv_lines.append(','.join(row))
+
+    pooled_out = {m: _summarise(pooled[m], m) for m in ALL_METRICS}
+    if pooled['travel_time']:
+        md += [f'# pooled across all pairs (subset = {args.pool_subset})', '',
+               '| metric | n | mean diff | sd | 95% CI (bootstrap) | +/-/0 | '
+               'sign p | MDE(80%) |', '|---|---|---|---|---|---|---|---|']
+        for m in ALL_METRICS:
+            md.append(_fmt(pooled_out[m]))
+        if pooled_win_in:
+            md += [_fmt(_summarise(pooled_win_in, 'queue_in_window')),
+                   _fmt(_summarise(pooled_win_out, 'queue_out_window'))]
+        md.append('')
+    report['pooled'] = {'subset': args.pool_subset, 'metrics': pooled_out}
+    if pooled_win_in:
+        report['pooled']['queue_in_window'] = _summarise(pooled_win_in,
+                                                         'queue_in_window')
+        report['pooled']['queue_out_window'] = _summarise(pooled_win_out,
+                                                          'queue_out_window')
 
     (out / 'paired_util.md').write_text('\n'.join(md) + '\n')
     (out / 'paired_util.json').write_text(json.dumps(report, indent=1) + '\n')

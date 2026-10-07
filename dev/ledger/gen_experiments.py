@@ -221,5 +221,13 @@ out.append("- §4.4 seed 贯通自检：对全部 DONE 训练行按 (campaign,ar
 out.append("- 相同 run 的隔离/重复派发副本以 `alias_of` 指向 canonical run，统计时去重。")
 out.append("")
 
-open("/data/users/zfh/workspace/projects/simOfflineTSC-gov/EXPERIMENTS.md", "w").write("\n".join(out))
+TARGET = "/data/users/zfh/workspace/projects/simOfflineTSC-gov/EXPERIMENTS.md"
+# 当前面板为人工维护区：重生成时抽取 <!-- PANEL-BEGIN/END --> 块原样回填。
+m = re.search(r"<!-- PANEL-BEGIN -->.*?<!-- PANEL-END -->", open(TARGET).read(), re.S)
+if m:
+    for i, line in enumerate(out):
+        if line.startswith("## 0."):
+            out[i:i] = [m.group(0), ""]
+            break
+open(TARGET, "w").write("\n".join(out))
 print("written", len(out), "lines")

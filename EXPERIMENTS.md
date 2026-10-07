@@ -5,6 +5,19 @@
 > 口径：`run_kind=train|eval|smoke|batch|calibration`；eval 行为单次冻结评估 attempt，`behavior_source` 指回训练 run 包名；`alias_of` 非空者不作独立样本统计。
 > 机器一律代号 34/73；路径均为仓内相对路径。
 
+<!-- PANEL-BEGIN -->
+## 当前面板（2026-10-07，campaign 收官时刷新）
+
+- **活跃研究线**：场景引导注意力 `att_entity_004`；研究代码在 `codex/milestone0-experiment-infrastructure` 分支（本日收编入库 c8be158..32d3e18，已与主干合并至 70f3dbf）。
+- **最新结论**：
+  - z_task 语义保真达标；held-out 场景分类证实文本通道携带场景身份（t34_devin）。
+  - "canonical≈empty" 修正为"事件窗内小幅净负"（t34_cc 配对 n=59）。
+  - 新缺陷：z_task 对 road_closure 有覆盖缺口（修复方案待裁决）。
+- **待办**：fixG 收官判读；a2s 臂挂起（6 个 REGISTERED 转 SCOPE_DISCARD）。
+- **接管测试**：t34_devin / t34_cc 均 DONE（test/t34_* 分支）。
+- **证据完整性**：台账 6516 行全字段，evidence_lost=0。
+<!-- PANEL-END -->
+
 ## 0. 总览
 
 登记 run 总数：**6516**（train 571、eval attempt 5771、smoke 127、calibration 18、batch 29）

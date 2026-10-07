@@ -37,4 +37,5 @@ data/output_data/
 
 # Do not commit shell wrappers or local caches.
 *.sh
+!dev/checks/*.sh
 *.ipynb

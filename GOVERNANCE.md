@@ -44,7 +44,8 @@ DESIGN → REGISTERED → SMOKE → RUNNING → DONE
 ```
 GOVERNANCE.md            # 本文件
 AGENTS.md                # agent 上手入口 + 架构变更日志
-EXPERIMENTS.md           # 人读台账主表
+EXPERIMENTS.md           # 台账索引（面板+总览+campaign 索引表）
+EXPERIMENTS/             # 每 campaign 一篇明细
 ledger/runs.jsonl        # 机读台账（仓根 ledger/，不放 artifacts/——那层被 gitignore）
 bench/                   # 测试集规范（BENCH.md + profiles/*.yml）
 configs/                 # 实验配置（tsc/、events/plans/、sim/）
@@ -77,10 +78,12 @@ superseded_by runtime_env
 - `metrics`：训练行填末次完整 eval 的 `travel_time/throughput/unfinished_vehicles/queue/delay`；eval attempt 行指标留在包 manifest，不重复展开。
 - 更正用追加新行 + `superseded_by`，不改旧行。
 
-### 4.2 `EXPERIMENTS.md`
+### 4.2 `EXPERIMENTS.md`（索引）+ `EXPERIMENTS/<campaign>.md`（明细）
 
-按 campaign 分节；节首：假设一句 + plan_id + 设计稿位置 + 结论（含负结论）；
-训练/smoke/批次行全表，eval attempt 按包聚合；追溯批次标 `（追溯登记 YYYY-MM-DD）`。
+分层结构，**按需取读、勿通读**：`EXPERIMENTS.md` = 索引层（当前面板 + 总览计数 + campaign 索引表含一句话结论）；
+每个 campaign 一篇 `EXPERIMENTS/<campaign>.md` = 明细层（假设一句 + plan_id + 设计稿位置 + 结论含负结论 +
+训练/smoke/批次行全表 + eval attempt 按包聚合）；追溯批次标 `（追溯登记 YYYY-MM-DD）`。
+重生成入口 `dev/ledger/gen_experiments.py`（仓根相对路径，输出索引+明细两层）。
 
 ### 4.3 时机
 
@@ -170,7 +173,7 @@ superseded_by runtime_env
 
 ## 12. 新 agent 上手 checklist
 
-1. 读 `GOVERNANCE.md` + `AGENTS.md` + `EXPERIMENTS.md`（台账即状态）。
+1. 读 `AGENTS.md` → `EXPERIMENTS.md` 顶部「当前面板」（现状）；`GOVERNANCE.md` 按需查节（新 run 流程看 §3-4，状态语义 §2，本仓硬约定 §5）；campaign 明细只读 `EXPERIMENTS/<相关campaign>.md`。
 2. 认领登记（`artifacts/wiki_claims/`）→ 台账 REGISTERED → §6 合法路径执行 → §4 回填。
 3. 改架构 = commit + 变更日志；改判据/口径属变更，台账开新 campaign，新旧口径不混排。
 4. 拿不准 → "受阻"+原因，等裁决。

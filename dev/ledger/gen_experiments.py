@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Generate EXPERIMENTS.md (human ledger) from runs.jsonl."""
 import json, collections, re
+from pathlib import Path
 
-ROWS = [json.loads(l) for l in open(
-    "/data/users/zfh/workspace/projects/simOfflineTSC-gov/ledger/runs.jsonl")]
+ROOT = Path(__file__).resolve().parents[2]
+ROWS = [json.loads(l) for l in open(ROOT / "ledger" / "runs.jsonl")]
 
 META = {
 "att_entity_004": {
@@ -114,16 +115,98 @@ def fmt_metrics(m):
         return str(v)
     return f"{f(vals[0])}/{f(vals[1])}/{f(vals[2])}"
 
+SHORT = {
+"att_entity_004": "当前主线：保真达标；canonical≈empty 修正为窗内小幅净负；closure 缺口待修",
+"att_entity_003": "TARL 对齐/传感矩阵完成（flx）；文本反事实探针完成",
+"att_entity_002": "SGA/concat 文本注入矩阵：H2 支持、H3 未支持",
+"arterial_1x6": "半离线干线 stage0/1/2 流水线完成",
+"plan1_dqn": "Plan1 在线 DQN 基线",
+"plan5_b100": "Plan5 b100 半离线批",
+"tarl_reproduction": "TARL 论文复现基线（完结，仅对照）",
+"tarl_v21_formal": "TARL v2.1 正式评估（完结）",
+"milestone0_infra": "基础设施验证",
+"paper_infra_validation": "paper 基建验证",
+"misc_probes": "零散探针",
+}
+
+camps = collections.Counter(r["campaign"] for r in ROWS)
+order = ["att_entity_004", "att_entity_003", "att_entity_002", "arterial_1x6",
+         "tarl_reproduction", "tarl_v21_formal", "plan5_b100", "plan1_dqn",
+         "milestone0_infra", "paper_infra_validation", "misc_probes"]
+
+# ---------- 明细文件：每 campaign 一篇 ----------
+DETAIL = ROOT / "EXPERIMENTS"
+DETAIL.mkdir(exist_ok=True)
+idx_rows = []
+for camp in order + sorted(set(camps) - set(order)):
+    rs = [r for r in ROWS if r["campaign"] == camp]
+    if not rs: continue
+    meta = META.get(camp, {"title": camp, "hypothesis": "—", "plan_id": "—",
+                           "design": "—", "conclusion": "—", "queues": "—"})
+    d = []
+    d.append(f"# {meta['title']}")
+    d.append("")
+    d.append("> 索引：[EXPERIMENTS.md](../EXPERIMENTS.md)；事实源 `ledger/runs.jsonl`")
+    d.append("")
+    d.append(f"- 假设：{meta['hypothesis']}")
+    d.append(f"- plan_id/队列：{meta['plan_id']}")
+    d.append(f"- 设计稿/证据位置：{meta['design']}")
+    d.append(f"- 结论：{meta['conclusion']}")
+    d.append(f"- 登记单元 {len(rs)}（train/eval/smoke/batch/calibration = "
+             f"{collections.Counter(r['run_kind'] for r in rs).get('train',0)}/"
+             f"{collections.Counter(r['run_kind'] for r in rs).get('eval',0)}/"
+             f"{collections.Counter(r['run_kind'] for r in rs).get('smoke',0)}/"
+             f"{collections.Counter(r['run_kind'] for r in rs).get('batch',0)}/"
+             f"{collections.Counter(r['run_kind'] for r in rs).get('calibration',0)}）"
+             f"（追溯登记 2026-10-07）")
+    d.append("")
+    core = [r for r in rs if r["run_kind"] != "eval"]
+    core.sort(key=lambda r: (r["run_kind"], r["run_id"]))
+    if core:
+        d.append("| run_id | 臂/net/seed | ep | 状态 | 起始 | TT/th/unfinished | 产物路径 | 备注 |")
+        d.append("|---|---|---|---|---|---|---|---|")
+        for r in core:
+            sid = f"{r.get('arm') or '—'}/{r.get('net') or '—'}/s{r.get('seed') if r.get('seed') is not None else '—'}"
+            ep = r.get("episodes_total")
+            note = (r.get("notes") or "").replace("|", "／")[:80]
+            if r.get("alias_of"): note = f"alias→{r['alias_of'][:40]}; " + note
+            d.append(f"| `{r['run_id'][:60]}` | {sid} | {ep if ep is not None else '—'} | "
+                     f"{r['status']} | {(r.get('started') or '—')[:10]} | {fmt_metrics(r.get('metrics'))} | "
+                     f"`{(r.get('run_dir') or '—')[:80]}` | {note} |")
+        d.append("")
+    evs = [r for r in rs if r["run_kind"] == "eval"]
+    if evs:
+        grp = collections.defaultdict(list)
+        for r in evs:
+            grp[r.get("behavior_source") or r.get("arm") or "?"].append(r)
+        d.append(f"评估 attempt 共 {len(evs)} 行，按包/来源聚合：")
+        d.append("")
+        d.append("| 评估包/来源 | n DONE/FAILED/ABORTED | 条件集 | eval seeds |")
+        d.append("|---|---|---|---|")
+        for pkg in sorted(grp):
+            g = grp[pkg]
+            sc = collections.Counter(r["status"] for r in g)
+            conds = sorted(set(r["condition"] for r in g if r["condition"]))
+            ess = sorted(set(r["eval_seed"] for r in g if r["eval_seed"] is not None))
+            d.append(f"| `{pkg[:60]}` | {sc.get('DONE',0)}/{sc.get('FAILED',0)}/{sc.get('ABORTED',0)} | "
+                     f"{','.join(conds)[:60] or '—'} | {','.join(map(str,ess))[:40] or '—'} |")
+        d.append("")
+    (DETAIL / f"{camp}.md").write_text("\n".join(d))
+    sc = collections.Counter(r["status"] for r in rs)
+    idx_rows.append(f"| `{camp}` | {len(rs)} | "
+                    f"{sc.get('DONE',0)}/{sc.get('FAILED',0)}/{sc.get('ABORTED',0)}/{sc.get('SCOPE_DISCARD',0)} | "
+                    f"{SHORT.get(camp,'—')} | [明细](EXPERIMENTS/{camp}.md) |")
+
+# ---------- 索引文件 ----------
 out = []
-out.append("# EXPERIMENTS — 实验台账（人读索引）")
+out.append("# EXPERIMENTS — 实验台账（索引）")
 out.append("")
 out.append("> 追溯登记 2026-10-07（治理分支 gov/experiment-governance）。")
-out.append("> 事实源 = `ledger/runs.jsonl`（每 run 一行机读，本文件为其人读投影）。")
+out.append("> 事实源 = `ledger/runs.jsonl`（每 run 一行机读）；本文件 = 索引层，明细按 campaign 分文件 `EXPERIMENTS/<campaign>.md`——**按需取读，勿通读**。")
 out.append("> 口径：`run_kind=train|eval|smoke|batch|calibration`；eval 行为单次冻结评估 attempt，"
            "`behavior_source` 指回训练 run 包名；`alias_of` 非空者不作独立样本统计。")
 out.append("> 机器一律代号 34/73；路径均为仓内相对路径。")
 out.append("")
-
 tot = collections.Counter(r["status"] for r in ROWS)
 out.append("## 0. 总览")
 out.append("")
@@ -135,10 +218,6 @@ out.append(f"登记 run 总数：**{len(ROWS)}**（train {sum(1 for r in ROWS if
 out.append("")
 out.append("| campaign | DONE | FAILED | ABORTED | SUPERSEDED | REGISTERED | SCOPE_DISCARD | LEGACY_UNCLEAR | 合计 |")
 out.append("|---|---|---|---|---|---|---|---|---|")
-camps = collections.Counter(r["campaign"] for r in ROWS)
-order = ["att_entity_004", "att_entity_003", "att_entity_002", "arterial_1x6",
-         "tarl_reproduction", "tarl_v21_formal", "plan5_b100", "plan1_dqn",
-         "milestone0_infra", "paper_infra_validation", "misc_probes"]
 for c in order + sorted(set(camps) - set(order)):
     rs = [r for r in ROWS if r["campaign"] == c]
     if not rs: continue
@@ -155,60 +234,12 @@ out.append("状态语义见 GOVERNANCE.md §2。LEGACY_UNCLEAR=0 表示全部可
            "队列/状态文件/目录归属证据还原出 campaign；个别 run 的臂内身份仍以命名约定为据，"
            "已在 notes 标注处保持保守。")
 out.append("")
-
-for camp in order + sorted(set(camps) - set(order)):
-    rs = [r for r in ROWS if r["campaign"] == camp]
-    if not rs: continue
-    meta = META.get(camp, {"title": camp, "hypothesis": "—", "plan_id": "—",
-                           "design": "—", "conclusion": "—", "queues": "—"})
-    out.append(f"## {meta['title']}")
-    out.append("")
-    out.append(f"- 假设：{meta['hypothesis']}")
-    out.append(f"- plan_id/队列：{meta['plan_id']}")
-    out.append(f"- 设计稿/证据位置：{meta['design']}")
-    out.append(f"- 结论：{meta['conclusion']}")
-    out.append(f"- 登记单元 {len(rs)}（train/eval/smoke/batch/calibration = "
-               f"{collections.Counter(r['run_kind'] for r in rs).get('train',0)}/"
-               f"{collections.Counter(r['run_kind'] for r in rs).get('eval',0)}/"
-               f"{collections.Counter(r['run_kind'] for r in rs).get('smoke',0)}/"
-               f"{collections.Counter(r['run_kind'] for r in rs).get('batch',0)}/"
-               f"{collections.Counter(r['run_kind'] for r in rs).get('calibration',0)}）"
-               f"（追溯登记 2026-10-07）")
-    out.append("")
-    # non-eval rows full table
-    core = [r for r in rs if r["run_kind"] != "eval"]
-    core.sort(key=lambda r: (r["run_kind"], r["run_id"]))
-    if core:
-        out.append("| run_id | 臂/net/seed | ep | 状态 | 起始 | TT/th/unfinished | 产物路径 | 备注 |")
-        out.append("|---|---|---|---|---|---|---|---|")
-        for r in core:
-            sid = f"{r.get('arm') or '—'}/{r.get('net') or '—'}/s{r.get('seed') if r.get('seed') is not None else '—'}"
-            ep = r.get("episodes_total")
-            note = (r.get("notes") or "").replace("|", "／")[:80]
-            if r.get("alias_of"): note = f"alias→{r['alias_of'][:40]}; " + note
-            out.append(f"| `{r['run_id'][:60]}` | {sid} | {ep if ep is not None else '—'} | "
-                       f"{r['status']} | {(r.get('started') or '—')[:10]} | {fmt_metrics(r.get('metrics'))} | "
-                       f"`{(r.get('run_dir') or '—')[:80]}` | {note} |")
-        out.append("")
-    # eval attempts aggregated by package (behavior_source) or arm
-    evs = [r for r in rs if r["run_kind"] == "eval"]
-    if evs:
-        grp = collections.defaultdict(list)
-        for r in evs:
-            grp[r.get("behavior_source") or r.get("arm") or "?"].append(r)
-        out.append(f"评估 attempt 共 {len(evs)} 行，按包/来源聚合：")
-        out.append("")
-        out.append("| 评估包/来源 | n DONE/FAILED/ABORTED | 条件集 | eval seeds |")
-        out.append("|---|---|---|---|")
-        for pkg in sorted(grp):
-            g = grp[pkg]
-            sc = collections.Counter(r["status"] for r in g)
-            conds = sorted(set(r["condition"] for r in g if r["condition"]))
-            ess = sorted(set(r["eval_seed"] for r in g if r["eval_seed"] is not None))
-            out.append(f"| `{pkg[:60]}` | {sc.get('DONE',0)}/{sc.get('FAILED',0)}/{sc.get('ABORTED',0)} | "
-                       f"{','.join(conds)[:60] or '—'} | {','.join(map(str,ess))[:40] or '—'} |")
-        out.append("")
-
+out.append("## 1. campaign 索引")
+out.append("")
+out.append("| campaign | runs | D/F/A/SD | 一句话结论 | 明细 |")
+out.append("|---|---|---|---|---|")
+out.extend(idx_rows)
+out.append("")
 out.append("## 附：追溯口径说明")
 out.append("")
 out.append("- `eval` 行 = 冻结评估 attempt（评估包内 `attempts/` 或 tsc 输出树下独立 eval 目录），"
@@ -221,8 +252,8 @@ out.append("- §4.4 seed 贯通自检：对全部 DONE 训练行按 (campaign,ar
 out.append("- 相同 run 的隔离/重复派发副本以 `alias_of` 指向 canonical run，统计时去重。")
 out.append("")
 
-TARGET = "/data/users/zfh/workspace/projects/simOfflineTSC-gov/EXPERIMENTS.md"
-# 当前面板为人工维护区：重生成时抽取 <!-- PANEL-BEGIN/END --> 块原样回填。
+TARGET = ROOT / "EXPERIMENTS.md"
+# 当前面板为人工维护区：重生成时抽取 <!-- PANEL-BEGIN/END --> 块原样回填（置于「0. 总览」前）。
 m = re.search(r"<!-- PANEL-BEGIN -->.*?<!-- PANEL-END -->", open(TARGET).read(), re.S)
 if m:
     for i, line in enumerate(out):
@@ -230,4 +261,4 @@ if m:
             out[i:i] = [m.group(0), ""]
             break
 open(TARGET, "w").write("\n".join(out))
-print("written", len(out), "lines")
+print("written index", len(out), "lines; detail files:", len(list(DETAIL.glob('*.md'))))

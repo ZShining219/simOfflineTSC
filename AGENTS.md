@@ -154,7 +154,7 @@ Agent 应帮助降低后续任务成本，而不仅是完成当前指令。
 
 ## 新 agent 上手 checklist
 
-1. 读 `GOVERNANCE.md`（仓内治理规范）+ 本文件 + `EXPERIMENTS.md`（台账即状态；机读事实源 `ledger/runs.jsonl`）。
+1. 读 `EXPERIMENTS.md` 顶部「当前面板」（现状/当前设计栈/代号地图）→ 本文件；`GOVERNANCE.md` 按需查节；campaign 明细在 `EXPERIMENTS/<campaign>.md`（勿通读索引层以外内容）；机读事实源 `ledger/runs.jsonl`。
 2. 认领登记见 `artifacts/wiki_claims/`（历史追溯登记不进 claims）。
 3. 新实验：设计定稿→台账 REGISTERED→SMOKE→远端 tmux 自治派发→收割三指标+过程记录→回填台账。正式 run 只允许 队列 runner + `run_queue_*.json` 或 `bench/` profile 两条路径；禁止新写一次性驱动脚本直拉正式 run（一次性件归 `dev/<topic>/` 并登 `dev/INDEX.md`）。
 4. 注意力线口径：三指标（travel_time/throughput/unfinished_vehicles）强制同报 + 事件窗分层 + 四层判定（表征/优化/语义效用/闭环）；阶段①分类关卡不过线不进阶段②，见 `bench/BENCH.md`。
@@ -169,3 +169,4 @@ Agent 应帮助降低后续任务成本，而不仅是完成当前指令。
 | 2026-10-07 | gov/experiment-governance r2 | GOVERNANCE §8.5-8.6 符号链接零容忍+产物快照条款；dev/checks/no_symlinks.sh；dev/ledger/ 收台账构建器；6×REGISTERED→SCOPE_DISCARD（a2s_stg2×5+inspect_mplight）；tools/*_matrix.sh×10 与 logs/final_result/interpretation 归档 dev/_legacy/20261007（实体在主树同名路径） | 落实 hitl 仓 P1 符号链接物化事故防护 + 治理待办裁决收口 | 规范/台账层；不动任何臂/profile/产物语义 |
 | 2026-10-07 | gov/experiment-governance r3 | EXPERIMENTS.md 顶部加「当前面板」人工维护区（gen_experiments.py 重生成时保留）；dev/checks/no_symlinks.sh 修正并入树（.gitignore 加例外）；AGENTS.md 记录 codex 分支代码收编（c8be158..32d3e18 + merge 70f3dbf，注意力线代码首次入库） | 落实「GitHub 唯一事实源」：main 合并治理层后可一眼定位当前状态 | 规范/台账层 |
 | 2026-10-07 | gov r4/main | EXPERIMENTS 面板补「当前有效设计栈+代号地图」：现行设计=scene_attention+tarl（z_task+aux）@codex 分支，历史代际 002/003/复现线标注完结 | 消歧：现状表述锚定当前代际，跨代对比须显式声明 | 规范/台账层 |
+| 2026-10-07 | gov r5/main | 台账改两层结构：EXPERIMENTS.md=索引（面板+总览+索引表），EXPERIMENTS/<campaign>.md=明细；gen_experiments.py 改仓根相对路径+双层输出；GOVERNANCE §4.2/上手清单改按需取读 | 长文本通读 token 开销过大 | 规范/台账层 |

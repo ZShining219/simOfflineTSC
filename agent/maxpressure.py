@@ -3,6 +3,7 @@ from common.registry import Registry
 from generator import LaneVehicleGenerator, IntersectionPhaseGenerator, IntersectionVehicleGenerator
 import numpy as np
 import gym
+from collections import deque
 
 
 @Registry.register_model('maxpressure')
@@ -15,6 +16,7 @@ class MaxPressureAgent(BaseAgent):
         self.world = world
         self.rank = rank
         self.model = None
+        self.replay_buffer = deque(maxlen=0)
 
         # get generator for each MaxPressure
         inter_id = self.world.intersection_ids[self.rank]
@@ -155,4 +157,3 @@ class MaxPressureAgent(BaseAgent):
         delay.append(self.delay.generate())
         delay = np.sum(np.squeeze(np.array(delay)))
         return delay
-

@@ -23,6 +23,8 @@ parser.add_argument('--thread_num', type=int, default=4, help='number of threads
 parser.add_argument('--ngpu', type=str, default="-1", help='gpu to be used')  # choose gpu card
 parser.add_argument('--prefix', type=str, default='test', help="the number of prefix in this running process")
 parser.add_argument('--seed', type=int, default=None, help="seed for pytorch backend")
+parser.add_argument('--sumo_seed', type=int, default=None,
+                    help="explicit SUMO traffic seed (kept separate from training seed)")
 parser.add_argument('--debug', type=bool, default=True)
 parser.add_argument('--interface', type=str, default="libsumo", choices=['libsumo','traci'], help="interface type") # libsumo(fast) or traci(slow)
 parser.add_argument('--delay_type', type=str, default="apx", choices=['apx','real'], help="method of calculating delay") # apx(approximate) or real
@@ -220,6 +222,7 @@ class Runner:
                     stage_checkpoint,
                     replay_policy=model_settings.get('replay_policy', 'clear'),
                     epsilon_mode=model_settings.get('epsilon_mode', 'reset_schedule'),
+                    load_optimizer=model_settings.get('stage_load_optimizer', True),
                 )
             if not self.resume:
                 self.model_archive_path = archive_runtime_model(
@@ -293,6 +296,13 @@ class EvaluationManifestRunner:
             config, simulator_source,
             protected_world_fields=protected_world_fields,
         )
+        if config['model'].get('graphic', False):
+            param = Registry.mapping['world_mapping']['setting'].param
+            if config['command']['world'] in ['cityflow', 'sumo']:
+                roadnet_path = param['dir'] + param['roadnetFile']
+            else:
+                roadnet_path = param['road_file_addr']
+            interface.Graph_World_Interface(roadnet_path)
         interface.Logger_path_Interface(config)
         os.makedirs(Registry.mapping['logger_mapping']['path'].path, exist_ok=True)
         interface.Trainer_param_Interface(config)
@@ -321,6 +331,9 @@ class EvaluationManifestRunner:
             controller['controller_id'], evaluation_seed
         )
         config = self._source_config(controller)
+        if controller.get('event_schedule') is not None:
+            config['trainer']['event_schedule'] = controller['event_schedule']
+            config['trainer'].pop('event_schedule_plan', None)
         command = config['command']
         command.update({
             'agent': controller['agent'],
@@ -344,9 +357,16 @@ class EvaluationManifestRunner:
         config['logger']['save_model'] = False
         snapshots = self._source_snapshots(controller)
         if self.collection['schema_version'] == 2:
+            source_signal_config = config['world'].get('signal_config')
             config['world'] = compose_evaluation_world_config(
                 config['world'], snapshots['simulator_source.cfg']
             )
+            # signal_config is agent-required world metadata (phase_pairs,
+            # lane_order, valid_acts) that never lives in simulator_source.cfg;
+            # the compose step would otherwise drop it.  Same-network
+            # evaluation only: network identity is validated below.
+            if source_signal_config is not None:
+                config['world']['signal_config'] = source_signal_config
             config['world']['saveReplay'] = False
             protected_world_fields = tuple(
                 field for field in config['world']
@@ -392,6 +412,7 @@ class EvaluationManifestRunner:
             ),
             'source_checkpoint_path': controller['checkpoint_path'],
             'source_checkpoint_sha256': controller['checkpoint_sha256'],
+            'event_schedule': controller.get('event_schedule'),
             'checkpoint_role': controller.get('checkpoint_role', 'best'),
             'checkpoint_audit': controller.get('checkpoint_audit'),
             'evaluation_traffic_seed': evaluation_seed,
@@ -417,7 +438,13 @@ class EvaluationManifestRunner:
                 evaluation_seed,
             )
             self.package.write_attempt_metadata(attempt_dir, attempt_metadata)
-            if controller['agent'] in {'dqn', 'shared_dqn'}:
+            if controller['agent'] in {
+                'dqn', 'shared_dqn', 'colight', 'sga_colight',
+                'concat_colight', 'sga_flx_colight',
+                'mplight', 'sga_mplight',
+                'tarl_sensor', 'tarl_gat', 'tarl_concat',
+                'tarl_attention', 'tarl_gating', 'tarl_selfattn', 'tarl_crossq',
+            }:
                 expected_type = (
                     'resumable'
                     if controller.get('checkpoint_role') == 'resumable'
@@ -426,6 +453,18 @@ class EvaluationManifestRunner:
                 trainer.load_online_checkpoint(
                     controller['checkpoint_path'], expected_type=expected_type,
                 )
+                audit = controller.get('checkpoint_audit') or {}
+                expected_hashes = audit.get('online_model_state_hashes')
+                if expected_hashes:
+                    loaded_hashes = [
+                        hash_torch_state_dict(agent.model.state_dict())
+                        for agent in trainer.agents
+                    ]
+                    if loaded_hashes != expected_hashes:
+                        raise ValueError(
+                            'Loaded online model hashes differ from '
+                            'manifest checkpoint audit'
+                        )
             elif controller['agent'] in {'batch_dqn', 'cql_dqn'}:
                 payload = torch.load(
                     controller['checkpoint_path'], map_location='cpu'

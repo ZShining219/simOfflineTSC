@@ -25,5 +25,8 @@ except ModuleNotFoundError as error:
     if error.name != 'pfrl':
         raise
 from .shared_dqn import SharedDQNAgent
+from . import tarl
+from .colight import SGAColightAgent, ConcatColightAgent
+from .mplight import SGAMPLightAgent
 
 # from .ppo_pfrl import IPPO_pfrl

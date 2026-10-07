@@ -3,6 +3,7 @@ from common.registry import Registry
 from generator import LaneVehicleGenerator, IntersectionPhaseGenerator, IntersectionVehicleGenerator
 import numpy as np
 import gym
+from collections import deque
 
 @Registry.register_model('fixedtime')
 class FixedTimeAgent(BaseAgent):
@@ -14,6 +15,9 @@ class FixedTimeAgent(BaseAgent):
         self.world = world
         self.rank = rank
         self.model = None
+        # Keep the common trainer/logger interface for non-RL controllers.
+        # An empty buffer makes structured logging and metric packaging safe.
+        self.replay_buffer = deque(maxlen=0)
 
         # get generator for each MaxPressure
         inter_id = self.world.intersection_ids[self.rank]

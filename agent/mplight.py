@@ -1,11 +1,13 @@
 from . import RLAgent
 import random
+import json
 import numpy as np
 from collections import deque
 import os
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from agent.scene_attention import SceneGuidedAttention
 from common.registry import Registry
 import gym
 from generator import LaneVehicleGenerator, IntersectionPhaseGenerator, IntersectionVehicleGenerator
@@ -27,6 +29,7 @@ class MPLightAgent(RLAgent):
     '''
     def __init__(self, world, rank):
         super().__init__(world,world.intersection_ids[rank])
+        self.evaluation_isolation_exempt = True
         self.dic_agent_conf = Registry.mapping['model_mapping']['setting']
         self.dic_traffic_env_conf = Registry.mapping['world_mapping']['setting']
         self.dic_trainer_conf = Registry.mapping['trainer_mapping']['setting']
@@ -351,7 +354,8 @@ class MPLightAgent(RLAgent):
             for signal_id in self.valid_acts:
                 self.reverse_valid[signal_id] = {v: k for k, v in self.valid_acts[signal_id].items()}
 
-        batch_obs = obs
+        batch_obs = self._augment_scene_observation(obs) if getattr(
+            self, 'uses_scene_attention', False) else obs
         if self.valid_acts is None:
             batch_valid = None
             batch_reverse = None
@@ -362,22 +366,48 @@ class MPLightAgent(RLAgent):
             dic = {index: key for index, key in enumerate(self.ob_order.keys())}
             batch_valid = [self.valid_acts.get(dic[i]) if dic[i] in self.valid_acts.keys() else self.valid_acts.get('GS_'+dic[i]) for i in range(ob.shape[0])]
             batch_reverse = [self.reverse_valid.get(dic[i]) if dic[i] in self.reverse_valid.keys() else self.reverse_valid.get('GS_'+dic[i])  for i in range(ob.shape[0])]
-        batch_acts = self.agents_iner.act(batch_obs,
-                                valid_acts=batch_valid,
-                                reverse_valid=batch_reverse, test=test)
+        # MPLight_InerAgent.batch_act ignores its `test` argument: exploration
+        # is gated on the PFRL agent's own `training` flag.  A standalone
+        # evaluation process starts with a fresh explorer at eps_start, so
+        # force eval mode for the duration of a test action (restored after).
+        prev_training = self.agents_iner.training
+        if test:
+            self.agents_iner.training = False
+        try:
+            batch_acts = self.agents_iner.act(batch_obs,
+                                    valid_acts=batch_valid,
+                                    reverse_valid=batch_reverse, test=test)
+        finally:
+            self.agents_iner.training = prev_training
         acts = np.array(batch_acts)
+        if getattr(self, 'uses_scene_attention', False):
+            self._log_scene_attention()
         return acts
+
+    def _augment_scene_observation(self, obs):
+        """Repeat the current public scene vector beside each lane demand."""
+        scene = np.asarray(self._scene_vector(), dtype=np.float32)
+        values = np.asarray(obs, dtype=np.float32)
+        phase_width = self.action_space.n if self.one_hot else 1
+        if values.ndim != 2 or values.shape[1] <= phase_width:
+            raise ValueError('MPLight scene adapter received an invalid observation shape')
+        lanes = values[:, phase_width:]
+        phase = values[:, :phase_width]
+        return np.concatenate((phase,
+                               np.broadcast_to(scene, (len(values), len(scene))),
+                               lanes), axis=1)
         
 
     def sample(self):
-        pass
-        # """Applicable to various traffic light plans at each intersection."""
-        # ran_phase = []
-        # for x in self.action_space_list:
-        #     ran_phase.append(np.random.randint(0, x.n))
-        # return ran_phase
+        """Sample one legal phase per intersection for trainer warm-up."""
+        return np.asarray([
+            np.random.randint(0, action_space.n)
+            for action_space in self.action_space_list
+        ], dtype=np.int64)
 
-    def remember(self, last_obs, last_phase, actions, actions_prob, rewards, obs, cur_phase, done, key):
+    def remember(self, last_obs, last_phase, actions, actions_prob, rewards, obs,
+                 cur_phase, done, key, *, scene_t=None, scene_t1=None,
+                 truncated=False):
         '''
         remember
         Put current step information into replay buffer for training agent later. 
@@ -421,9 +451,18 @@ class MPLightAgent(RLAgent):
                 obs = [np.concatenate([np.array([phase[i]]), ob[i]]) for i in range(self.sub_agents)]
         else:
             obs = ob
+        if getattr(self, 'uses_scene_attention', False):
+            obs = self._augment_scene_observation(obs)
         reset = [False] * self.sub_agents
         dones = [done] * self.sub_agents if isinstance(done, bool) else done
         rewards = [reward] if isinstance(reward, float) else reward
+        if not hasattr(self.agents_iner, 'batch_last_obs') or len(self.agents_iner.batch_last_obs) != len(obs):
+            # Random warm-up actions are generated by the trainer rather than
+            # PFRL's ``batch_act``.  Mark the first observed state as having
+            # no predecessor; PFRL will start collecting normal transitions
+            # once ``batch_act`` owns the next action.
+            self.agents_iner.batch_last_obs = [None] * len(obs)
+            self.agents_iner.batch_last_action = [None] * len(obs)
         self.agents_iner.observe(obs, rewards, dones, reset)
 
     def _build_model(self):
@@ -465,7 +504,11 @@ class MPLightAgent(RLAgent):
         :return: value of loss
         '''
         result = self.agents_iner.get_statistics()
-        return result[1][1]
+        value = float(result[1][1])
+        # PFRL reports NaN before a minibatch contains enough valid
+        # transitions.  Keep the run auditable and let the structured logger
+        # record a finite smoke value instead of aborting the whole baseline.
+        return value if np.isfinite(value) else 0.0
 
 
     def load_model(self, e):
@@ -501,6 +544,59 @@ class MPLightAgent(RLAgent):
             'optimizer_state_dict': self.optimizer.state_dict(),
         }, model_name)
 
+
+@Registry.register_model('sga_mplight')
+class SGAMPLightAgent(MPLightAgent):
+    """MPLight/FRAP with a public-scene SGA adapter in the q-function."""
+
+    uses_scene_attention = True
+    scene_feature_dim = 16
+
+    def __init__(self, world, rank):
+        super().__init__(world, rank)
+        self.scene_replay_enabled = True
+        self._live_scene = None
+        self._sga_attention_log = None
+        try:
+            path = Registry.mapping['logger_mapping']['path'].path
+            self._sga_attention_log = os.path.join(path, 'sga_attention.jsonl')
+        except (KeyError, AttributeError):
+            pass
+
+    def _scene_vector(self):
+        """Encode only public event metadata into a fixed adapter vector."""
+        context = getattr(self._live_scene, 'context', self._live_scene)
+        values = np.zeros(self.scene_feature_dim, dtype=np.float32)
+        if context is None or not getattr(context, 'events', ()):
+            values[0] = 1.0
+            return values
+        report = context.events[0]
+        event_type = getattr(report, 'event_kind', 'unknown')
+        status = getattr(report, 'report_status', getattr(report, 'status', 'unknown'))
+        scope = getattr(report, 'scope', 'unknown')
+        values[1 + {'lane_blockage': 0, 'road_closure': 1,
+                    'global_rain': 2}.get(event_type, 3)] = 1.0
+        values[5 + {'active': 0, 'cleared': 1}.get(status, 2)] = 1.0
+        values[8 + {'lane': 0, 'edge': 1, 'network': 2}.get(scope, 3)] = 1.0
+        values[12] = min(1.0, len(getattr(context, 'events', ())) / 3.0)
+        values[13] = float(event_type == 'lane_blockage')
+        values[14] = float(event_type == 'road_closure')
+        values[15] = float(event_type == 'global_rain')
+        return values
+
+    def _log_scene_attention(self):
+        if not self._sga_attention_log or not hasattr(self.model, 'last_sga_attention'):
+            return
+        context = getattr(self._live_scene, 'context', self._live_scene)
+        row = {
+            'simulation_time': float(getattr(context, 'observed_at', -1.0)),
+            'scene_state': getattr(context, 'state', 'unknown'),
+            'event_ids': list(getattr(context, 'event_ids', ())),
+            'attention': self.model.last_sga_attention.detach().cpu().numpy().tolist(),
+        }
+        with open(self._sga_attention_log, 'a', encoding='utf-8') as handle:
+            handle.write(json.dumps(row, ensure_ascii=False) + '\n')
+
 class MPLight_InerAgent(DQN):
     '''
     MPLight_InerAgent is based on FRAP and integrates pressure into state and reward design.
@@ -511,6 +607,11 @@ class MPLight_InerAgent(DQN):
         super().__init__(q_function, optimizer, replay_buffer, gamma, explorer,
                          minibatch_size=minibatch_size, replay_start_size=replay_start_size, phi=phi,
                          target_update_interval=target_update_interval, update_interval=update_interval)
+        # TSCTrainer performs an explicit random warm-up before calling
+        # ``act``.  PFRL normally initializes these fields from ``batch_act``;
+        # initialize them here so warm-up transitions are valid too.
+        self.batch_last_obs = [None]
+        self.batch_last_action = [None]
         # self.batch_last_state = None
         # self.batch_last_action = None
 
@@ -606,6 +707,10 @@ class FRAP(nn.Module):
         self.comp_mask = competition_mask
         self.demand_shape = dic_agent_conf.param['demand_shape']      # Allows more than just queue to be used
         self.one_hot = dic_agent_conf.param['one_hot']
+        self.sga_enabled = bool(dic_agent_conf.param.get('sga_enabled', False))
+        self.scene_feature_dim = int(dic_agent_conf.param.get('scene_feature_dim', 0))
+        if self.sga_enabled and self.scene_feature_dim <= 0:
+            raise ValueError('scene_feature_dim must be positive when SGA is enabled')
         self.d_out = 4      # units in demand input layer
         self.p_out = 4      # size of phase embedding
         self.lane_embed_units = 16
@@ -624,6 +729,18 @@ class FRAP(nn.Module):
         self.hidden_layer = nn.Conv2d(20, 20, kernel_size=(1, 1))
         self.before_merge = nn.Conv2d(20, 1, kernel_size=(1, 1))
 
+        if self.sga_enabled:
+            self.scene_projection = nn.Sequential(
+                nn.Linear(self.scene_feature_dim, self.lane_embed_units), nn.ReLU())
+            self.scene_attention = SceneGuidedAttention(
+                hidden_dim=self.lane_embed_units,
+                attention_dim=int(dic_agent_conf.param.get('sga_attention_dim', self.lane_embed_units)),
+                temperature=float(dic_agent_conf.param.get('sga_temperature', 1.0)),
+                dropout=float(dic_agent_conf.param.get('sga_dropout', 0.0)),
+                residual_scale=float(dic_agent_conf.param.get('sga_residual_scale', 1.0)),
+            )
+            self.last_sga_attention = None
+
         self.head = DiscreteActionValueHead()
 
     def forward(self, states):
@@ -631,11 +748,23 @@ class FRAP(nn.Module):
         states: [agents, ob_length]
         ob_length:concat[len(one_phase),len(intersection_lane)]
         '''
-        num_movements = int((states.size()[1]-1)/self.demand_shape) if not self.one_hot else int((states.size()[1]-len(self.phase_pairs))/self.demand_shape)
+        if self.sga_enabled:
+            phase_width = len(self.phase_pairs) if self.one_hot else 1
+            num_movements = int((states.size(1) - phase_width
+                                 - self.scene_feature_dim) / self.demand_shape)
+        else:
+            num_movements = (int((states.size()[1]-1)/self.demand_shape)
+                             if not self.one_hot else
+                             int((states.size()[1]-len(self.phase_pairs))/self.demand_shape))
         batch_size = states.size()[0]
         acts = states[:, 0].to(torch.int64) if not self.one_hot else states[:, :len(self.phase_pairs)].to(torch.int64)
         states = states[:, 1:] if not self.one_hot else states[:, len(self.phase_pairs):]
         states = states.float()
+        scene_raw = None
+        lane_states = states
+        if self.sga_enabled:
+            scene_raw = states[:, :self.scene_feature_dim]
+            lane_states = states[:, self.scene_feature_dim:]
 
         # Expand action index to mark demand input indices
         extended_acts = []
@@ -655,12 +784,16 @@ class FRAP(nn.Module):
         phase_demands = []
         for i in range(num_movements):
             phase = phase_embeds[:, i]  # size 4
-            demand = states[:, i:i+self.demand_shape] # order by NESW_RTL
+            demand = lane_states[:, i*self.demand_shape:(i+1)*self.demand_shape]
             demand = torch.sigmoid(self.d(demand))    # size 4
             phase_demand = torch.cat((phase, demand), -1)
             phase_demand_embed = F.relu(self.lane_embedding(phase_demand))
             phase_demands.append(phase_demand_embed)
         phase_demands = torch.stack(phase_demands, 1)
+        if self.sga_enabled:
+            scene_embedding = self.scene_projection(scene_raw)
+            phase_demands, self.last_sga_attention = self.scene_attention(
+                phase_demands, scene_embedding)
         # phase_demands_old = torch.stack(phase_demands, 1)
         # # turn direction from NESW to ESWN
         # if num_movements == 8:

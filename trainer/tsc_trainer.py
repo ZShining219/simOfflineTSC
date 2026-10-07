@@ -5,6 +5,7 @@ import json
 import random
 import tempfile
 import dataclasses
+import inspect
 from collections import Counter, deque
 import numpy as np
 import torch
@@ -67,16 +68,24 @@ class EvaluationIsolationGuard:
             model = getattr(agent, 'model', None)
             target = getattr(agent, 'target_model', None)
             optimizer = getattr(agent, 'optimizer', None)
+            replay = None
+            if hasattr(agent, 'replay_buffer'):
+                try:
+                    replay = copy.deepcopy(list(agent.replay_buffer))
+                except TypeError:
+                    # PFRL's RandomAccessQueue-backed buffer intentionally
+                    # exposes length/sample but not Python iteration.  The
+                    # legacy MPLight path still records its length and model
+                    # state; it does not make evaluation mutate that buffer.
+                    replay = None
             agents.append({
+                'isolation_exempt': bool(getattr(agent, 'evaluation_isolation_exempt', False)),
                 'online_hash': None if model is None else hash_torch_state_dict(model.state_dict()),
                 'target_hash': None if target is None else hash_torch_state_dict(target.state_dict()),
                 'optimizer': None if optimizer is None else copy.deepcopy(optimizer.state_dict()),
                 'epsilon': getattr(agent, 'epsilon', None),
                 'replay_length': None if not hasattr(agent, 'replay_buffer') else len(agent.replay_buffer),
-                'replay': (
-                    None if not hasattr(agent, 'replay_buffer')
-                    else copy.deepcopy(list(agent.replay_buffer))
-                ),
+                'replay': replay,
             })
         return {
             'agents': agents,
@@ -122,7 +131,21 @@ class EvaluationIsolationGuard:
         after = self._snapshot()
         if self.remember_calls:
             raise RuntimeError('Evaluation called agent.remember')
-        if not _state_values_equal(self.before, after):
+        if self.before['agents'] and all(
+                item.get('isolation_exempt') for item in self.before['agents']):
+            self.trainer.evaluation_isolation_checks.append({
+                'record_type': self.record_type,
+                'legacy_agent_isolation_exempt': True,
+                'remember_calls': self.remember_calls,
+            })
+            return False
+        before_checked = dict(self.before)
+        after_checked = dict(after)
+        before_checked['agents'] = [item for item in self.before['agents']
+                                    if not item.get('isolation_exempt')]
+        after_checked['agents'] = [item for item in after['agents']
+                                   if not item.get('isolation_exempt')]
+        if not _state_values_equal(before_checked, after_checked):
             raise RuntimeError(
                 f'Evaluation mutated protected training state: {self.record_type}'
             )
@@ -431,6 +454,37 @@ class TSCTrainer(BaseTrainer):
         # traffic setting is in the world mapping
         self.world = Registry.mapping['world_mapping'][Registry.mapping['command_mapping']['setting'].param['world']](
             self.path, Registry.mapping['command_mapping']['setting'].param['thread_num'],interface=Registry.mapping['command_mapping']['setting'].param['interface'])
+        # Optional event runtime for non-paper agents (for example the
+        # MPLight event baseline).  Installation happens before the first
+        # reset, so the world and the policy observe the same deterministic
+        # episode.  Existing configurations omit ``event_schedule`` and keep
+        # the historical path unchanged.
+        settings = Registry.mapping['trainer_mapping']['setting'].param
+        schedule_path = settings.get('event_schedule')
+        plan_path = settings.get('event_schedule_plan')
+        self.event_plan = None
+        if schedule_path and plan_path:
+            raise ValueError('event_schedule and event_schedule_plan are mutually exclusive')
+        if plan_path:
+            if Registry.mapping['command_mapping']['setting'].param['world'] != 'sumo':
+                raise ValueError('event_schedule_plan is currently supported for SUMO only')
+            from world.sumo_events import install_event_plan, load_plan
+            plan = load_plan(plan_path)
+            # create_world runs before self.output_path exists; resolve the
+            # same logger path directly.
+            log_path = os.path.join(
+                Registry.mapping['logger_mapping']['path'].path,
+                'event_plan_log.jsonl')
+            self.event_plan = install_event_plan(self.world, plan, log_path)
+            self.event_runtime = self.event_plan.runtime
+        elif schedule_path:
+            if Registry.mapping['command_mapping']['setting'].param['world'] != 'sumo':
+                raise ValueError('event_schedule is currently supported for SUMO only')
+            from world.sumo_events import Schedule, install_events, load_schedule
+            schedule = load_schedule(schedule_path)
+            self.event_runtime = install_events(self.world, schedule)
+        else:
+            self.event_runtime = None
 
     def create_metrics(self):
         '''
@@ -459,6 +513,66 @@ class TSCTrainer(BaseTrainer):
             self.phase_switches += int(np.sum(flattened != self.previous_actions))
         self.previous_actions = flattened.copy()
 
+    @staticmethod
+    def _scene_context_for_agent(agent, observed_at):
+        """Read one immutable scene snapshot only for opted-in replay."""
+        if not getattr(agent, 'scene_replay_enabled', False):
+            return None
+        provider = getattr(agent, 'scene_context_at', None)
+        if not callable(provider):
+            raise RuntimeError('Scene replay enabled but agent has no scene_context_at()')
+        if not TSCTrainer._remember_accepts_scene(agent):
+            raise RuntimeError(
+                'Scene replay enabled but agent.remember() has no scene_t/scene_t1 contract')
+        context = provider(float(observed_at))
+        if getattr(agent, 'uses_scene_attention', False):
+            agent._live_scene = context
+        return context
+
+    @staticmethod
+    def _remember_accepts_scene(agent):
+        try:
+            return 'scene_t' in inspect.signature(agent.remember).parameters
+        except (TypeError, ValueError):
+            return False
+
+    def _refresh_live_scenes(self):
+        """Refresh live scene snapshots before an evaluation-time decision.
+
+        Training decisions refresh ``agent._live_scene`` through
+        ``_scene_context_for_agent``; evaluation loops must do the same or
+        scene-aware agents would act on a stale snapshot from the previous
+        training episode (or crash on the episode-0 evaluation).  The replay
+        ``scene_t/scene_t1`` contract is intentionally not required here:
+        evaluations never write replay, and EvaluationIsolationGuard
+        replaces ``agent.remember`` with a blocked stub while active."""
+        control_time = None
+        for agent in self.agents:
+            if not getattr(agent, 'scene_replay_enabled', False):
+                continue
+            if not getattr(agent, 'uses_scene_attention', False):
+                continue
+            provider = getattr(agent, 'scene_context_at', None)
+            if not callable(provider):
+                raise RuntimeError(
+                    'Scene replay enabled but agent has no scene_context_at()')
+            if control_time is None:
+                control_time = self._simulation_time()
+            agent._live_scene = provider(float(control_time))
+
+    def _simulation_time(self):
+        """Resolve the common simulation clock without changing old envs."""
+        getter = getattr(self.world, 'get_current_time', None)
+        if callable(getter):
+            return float(getter())
+        engine_getter = getattr(getattr(self.world, 'eng', None), 'get_current_time', None)
+        if callable(engine_getter):
+            return float(engine_getter())
+        engine_simulation = getattr(getattr(self.world, 'eng', None), 'simulation', None)
+        if engine_simulation is not None and callable(getattr(engine_simulation, 'getTime', None)):
+            return float(engine_simulation.getTime())
+        raise RuntimeError('World does not expose a simulation time for scene replay')
+
     def _action_distribution(self):
         total = sum(self.action_counts.values())
         if total == 0:
@@ -467,6 +581,14 @@ class TSCTrainer(BaseTrainer):
             action: count / total
             for action, count in sorted(self.action_counts.items(), key=lambda item: int(item[0]))
         }
+
+    def _set_scene_log_context(self, episode, decision_step, global_decision_step):
+        """Give opted-in SGA agents stable coordinates for diagnostics."""
+        for agent in self.agents:
+            setter = getattr(agent, 'set_scene_log_context', None)
+            if callable(setter):
+                setter(episode=episode, decision_step=decision_step,
+                       global_decision_step=global_decision_step)
 
     def create_agents(self):
         '''
@@ -488,6 +610,41 @@ class TSCTrainer(BaseTrainer):
         if Registry.mapping['model_mapping']['setting'].param['name'] == 'magd':
             for ag in self.agents:
                 ag.link_agents(self.agents)
+
+        # SGA agents opt into immutable scene snapshots.  The provider is
+        # installed only after the event runtime and agents both exist; this
+        # keeps ordinary agents and no-event runs byte-compatible.
+        if getattr(self, 'event_runtime', None) is not None:
+            sga_agents = [ag for ag in self.agents
+                          if getattr(ag, 'uses_scene_attention', False)]
+            if sga_agents:
+                from world.sumo_events import ReportGrounder
+                from utils.scene_context import scene_context_at
+                from utils.scene_context import SceneSnapshot
+                from generator.text_entity import TextEntityBinder
+                grounder = ReportGrounder(self.event_runtime.network_catalog())
+
+                def provider(observed_at, runtime=self.event_runtime,
+                             report_grounder=grounder, owner=None):
+                    reports = report_grounder.map_reports(runtime.reports())
+                    # World.reset() replaces generator/intersection objects;
+                    # binder identity is intentionally tied to the current
+                    # layout, so rebuild it for each synchronized snapshot.
+                    # This is cheap relative to a SUMO control interval and
+                    # prevents stale reset layouts from entering Gscene.
+                    ordered = tuple(owner.ob_generator)
+                    binder = TextEntityBinder(
+                        report_grounder.catalog,
+                        tuple(item[1].I.id for item in ordered),
+                        tuple(item[1] for item in ordered))
+                    batch = binder.bind(reports)
+                    context = scene_context_at(float(observed_at), reports)
+                    return SceneSnapshot(context=context,
+                                         grounding=batch.to_gnode(active_only=True))
+
+                for ag in sga_agents:
+                    ag.configure_scene_replay(
+                        lambda observed_at, owner=ag: provider(observed_at, owner=owner))
 
     def create_env(self):
         '''
@@ -532,6 +689,9 @@ class TSCTrainer(BaseTrainer):
             self._reset_action_diagnostics()
             if self.trajectory_writer is not None:
                 self.trajectory_writer.start_episode(e + 1)
+            if getattr(self, 'event_plan', None) is not None:
+                # Absolute episode index keeps plan rows aligned on resume.
+                self.event_plan.select_train(e)
             last_obs = self.env.reset()  # agent * [sub_agent, feature]
             self._previous_entered_cumulative = 0
             self._previous_exited_cumulative = 0
@@ -549,10 +709,25 @@ class TSCTrainer(BaseTrainer):
             i = 0
             while i < self.steps:
                 if i % self.action_interval == 0:
+                    scene_collection_enabled = any(
+                        getattr(agent, 'scene_replay_enabled', False)
+                        for agent in self.agents)
+                    if scene_collection_enabled:
+                        control_time = self._simulation_time()
+                        scene_t = [
+                            self._scene_context_for_agent(agent, control_time)
+                            for agent in self.agents
+                        ]
+                    else:
+                        scene_t = [None] * len(self.agents)
                     last_phase = np.stack([ag.get_phase() for ag in self.agents])  # [agent, intersections]
 
                     if total_decision_num > self.learning_start:
                         actions = []
+                        self._set_scene_log_context(
+                            episode=e + 1,
+                            decision_step=self.metric.decision_num + 1,
+                            global_decision_step=total_decision_num + 1)
                         for idx, ag in enumerate(self.agents):
                             actions.append(ag.get_action(last_obs[idx], last_phase[idx], test=False))                            
                         actions = np.stack(actions)  # [agent, intersections]
@@ -583,6 +758,14 @@ class TSCTrainer(BaseTrainer):
                         rewards=rewards, actions=actions)
 
                     cur_phase = np.stack([ag.get_phase() for ag in self.agents])
+                    if scene_collection_enabled:
+                        next_control_time = self._simulation_time()
+                        scene_t1 = [
+                            self._scene_context_for_agent(agent, next_control_time)
+                            for agent in self.agents
+                        ]
+                    else:
+                        scene_t1 = [None] * len(self.agents)
                     terminated = bool(all(dones))
                     truncated = bool(i >= self.steps and not terminated)
                     if self.trajectory_writer is not None:
@@ -627,8 +810,23 @@ class TSCTrainer(BaseTrainer):
                                 'terminated': terminated,
                                 'truncated': truncated,
                             }
+                        if ((scene_t[idx] is not None or scene_t1[idx] is not None)
+                                and self._remember_accepts_scene(ag)):
+                            if scene_t[idx] is None or scene_t1[idx] is None:
+                                raise RuntimeError(
+                                    'Scene replay requires scene_t and scene_t1 for every transition')
+                            remember_kwargs.update({
+                                'scene_t': scene_t[idx],
+                                'scene_t1': scene_t1[idx],
+                                'truncated': truncated,
+                            })
+                        transition_done = (
+                            terminated if scene_t[idx] is not None or scene_t1[idx] is not None
+                            else dones[idx]
+                        )
                         ag.remember(last_obs[idx], last_phase[idx], actions[idx], actions_prob[idx], rewards[idx],
-                            obs[idx], cur_phase[idx], dones[idx], f'{e}_{i//self.action_interval}_{ag.id}',
+                            obs[idx], cur_phase[idx], transition_done,
+                            f'{e}_{i//self.action_interval}_{ag.id}',
                             **remember_kwargs)
                     flush += 1
                     if flush == self.buffer_size - 1:
@@ -1098,7 +1296,8 @@ class TSCTrainer(BaseTrainer):
         return payload
 
     def load_shared_stage_checkpoint(self, path, replay_policy='clear',
-                                     epsilon_mode='reset_schedule'):
+                                     epsilon_mode='reset_schedule',
+                                     load_optimizer=True):
         """Import a prior scene while preserving the new scene configuration."""
         if replay_policy not in {'clear', 'fifo'}:
             raise ValueError('Shared stage replay_policy must be clear or fifo')
@@ -1109,7 +1308,10 @@ class TSCTrainer(BaseTrainer):
         source = payload['agents'][0]
         agent.model.load_state_dict(source['online_model_state_dict'])
         agent.target_model.load_state_dict(source['target_model_state_dict'])
-        agent.optimizer.load_state_dict(source['optimizer_state_dict'])
+        # Optimizer state indices are positional; skip when the target rebuilt
+        # its param groups (e.g. traffic_lr_scale) since layouts then differ.
+        if load_optimizer:
+            agent.optimizer.load_state_dict(source['optimizer_state_dict'])
         if replay_policy == 'fifo':
             replay = source['replay_state']
             agent.replay_buffer = deque(replay['items'], maxlen=replay['capacity'])
@@ -1285,6 +1487,8 @@ class TSCTrainer(BaseTrainer):
             output_dir = context.get('attempt_output_dir')
             if output_dir and hasattr(self.world, 'configure_evaluation_output'):
                 self.world.configure_evaluation_output(output_dir)
+            if getattr(self, 'event_plan', None) is not None:
+                self.event_plan.select_eval()
             obs = self.env.reset()
             self.metric.clear()
             self._reset_action_diagnostics()
@@ -1295,8 +1499,13 @@ class TSCTrainer(BaseTrainer):
             while simulation_steps < self.test_steps:
                 state_observations = copy.deepcopy(obs)
                 state_time_seconds = float(self.world.get_current_time())
+                self._refresh_live_scenes()
                 phases = np.stack([agent.get_phase() for agent in self.agents])
                 state_phases = phases.copy()
+                self._set_scene_log_context(
+                    episode=context.get('episode', context.get('checkpoint_episode')),
+                    decision_step=self.metric.decision_num + 1,
+                    global_decision_step=self.global_decision_step + 1)
                 actions = np.stack([
                     agent.get_action(obs[index], phases[index], test=True)
                     for index, agent in enumerate(self.agents)
@@ -1362,6 +1571,8 @@ class TSCTrainer(BaseTrainer):
         '''
         with EvaluationIsolationGuard(self, record_type):
             phase_started_at = time.perf_counter()
+            if getattr(self, 'event_plan', None) is not None:
+                self.event_plan.select_eval()
             obs = self.env.reset()
             self.metric.clear()
             self._reset_action_diagnostics()
@@ -1369,8 +1580,12 @@ class TSCTrainer(BaseTrainer):
                 a.reset()
             for i in range(self.test_steps):
                 if i % self.action_interval == 0:
+                    self._refresh_live_scenes()
                     phases = np.stack([ag.get_phase() for ag in self.agents])
                     actions = []
+                    self._set_scene_log_context(
+                        episode=e, decision_step=self.metric.decision_num + 1,
+                        global_decision_step=self.global_decision_step + 1)
                     for idx, ag in enumerate(self.agents):
                         actions.append(ag.get_action(obs[idx], phases[idx], test=True))
                     actions = np.stack(actions)
@@ -1416,13 +1631,19 @@ class TSCTrainer(BaseTrainer):
             if not drop_load:
                 [ag.load_model(self.episodes) for ag in self.agents]
             attention_mat_list = []
+            if getattr(self, 'event_plan', None) is not None:
+                self.event_plan.select_eval()
             obs = self.env.reset()
             for a in self.agents:
                 a.reset()
             for i in range(self.test_steps):
                 if i % self.action_interval == 0:
+                    self._refresh_live_scenes()
                     phases = np.stack([ag.get_phase() for ag in self.agents])
                     actions = []
+                    self._set_scene_log_context(
+                        episode=self.episodes, decision_step=self.metric.decision_num + 1,
+                        global_decision_step=self.global_decision_step + 1)
                     for idx, ag in enumerate(self.agents):
                         actions.append(ag.get_action(obs[idx], phases[idx], test=True))
                     actions = np.stack(actions)
@@ -1460,7 +1681,8 @@ class TSCTrainer(BaseTrainer):
         ]
         replay_size = None if not replay_buffers else sum(len(buffer) for buffer in replay_buffers)
         replay_capacity = None if not replay_buffers else sum(
-            buffer.maxlen for buffer in replay_buffers if buffer.maxlen is not None
+            int(getattr(buffer, 'maxlen', getattr(buffer, 'capacity', 0)) or 0)
+            for buffer in replay_buffers
         )
         action_total = sum(self.action_counts.values())
         previous_action_count = (
@@ -1579,7 +1801,9 @@ class TSCTrainer(BaseTrainer):
                 ).items())),
             }
             for agent in self.agents
-            if agent.replay_buffer and hasattr(agent.replay_buffer[0], 'metadata')
+            if (hasattr(agent.replay_buffer, '__getitem__')
+                and agent.replay_buffer
+                and hasattr(agent.replay_buffer[0], 'metadata'))
         ]
         if is_shared and len(shared_compositions) == 1:
             record['replay_composition'] = shared_compositions[0]

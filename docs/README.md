@@ -8,6 +8,7 @@
 
 | 内容 | 状态 | 说明 |
 |---|---|---|
+| 文本实体注意力与有效性对比 | 设计完成，待实现及 pilot | 规则映射 v1 已固定；[text_entity_attention_experiment.md](text_entity_attention_experiment.md) 规定下一阶段实现、对照与证据边界，尚无新训练结果 |
 | Milestone 0 公共实验基础设施 | 已完成并归档 | 实现、回归和验收已完成，见 `done/milestone0_summary.md` |
 | 本轮 M1 优化与科研决策整理 | 已关闭并归档 | 仅表示本轮规则审核和决策确认结束，见 `done/m1_optimization_closure.md` |
 | Plan 0 环境、算法和场景冻结 | 未执行 | `plan0721.md` 中的后续执行计划，不得因 M1 优化关闭而视为完成 |

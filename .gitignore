@@ -12,3 +12,4 @@ data/output_data
 data/raw_data/grid4x4/*.xml
 data/raw_data/grid4x4/*.pdf
 *.ipynb
+/.secrets/

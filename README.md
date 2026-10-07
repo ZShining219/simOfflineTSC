@@ -10,6 +10,7 @@
 - 支持 DQN、FRAP、CoLight、PressLight、MPLight、MADDPG、MAGD、PPO 等强化学习方法。
 - 包含合成路网、杭州、纽约、科隆等多种实验数据与配置。
 - 提供 SUMO 与 CityFlow 路网、交通流格式转换工具。
+- 提供已在杭州 4×4 路网验证的 [SUMO 事件模块](world/sumo_events/README.md)，支持局部车道阻塞、整段有向道路封闭、全局降雨限速，以及与物理状态同步的文本报告和量化对比。
 - 提供与 Online 入口隔离的 Plan 2 纯 Offline Batch-DQN/CQL-DQN 训练、数据校验、断点恢复和结果汇总能力。
 - 提供基于 Plan 1 静态历史档案与顺序在线交互的 HA-SODQN 半离线实验链路；当前正式实现为 Independent DQN，跨算法支持边界和服务器迁移步骤见 [半离线实验总结与跨算法复现实用指南](docs/semi_offline_cross_algorithm_reproduction.md)。
 
@@ -32,12 +33,30 @@
 - 运行原有 Online DQN、FixedTime、MaxPressure 或其他原有 agent 时，只使用 `run.py`。
 - 运行 Plan 2 Batch-DQN/CQL-DQN 时，只使用 `offline_run.py train`。
 - 运行顺序 DQN、CS-HR 或 HA-SODQN 时，只使用 `sequential_run.py` 对应的 manifest、launch、status、audit 和 analyze 子命令。
+- 三模型专属奖励与看板使用 `python -m tools.run_paper_baseline`，属于在线训练的显式变体；不要直接用 `run.py -a paper_*`，详见 [工具模块](tools/README.md)。
 - 不要通过 `run.py --agent batch_dqn` 或 `run.py --agent cql_dqn` 启动 Offline。
 - 不要通过 `offline_run.py` 启动原有 Online DQN 或传统控制实验。
 - `offline_run.py` 训练期间不会向数据集追加 transition，也不会修改源 Plan 1 NPZ。
 - 当前 HA-SODQN 不能通过修改 YAML 直接切换为 Double DQN 或 PPO；跨算法验证需要先增加算法 identity、训练 target/loss、checkpoint 和 evaluator 适配。
 
 完整的 Offline 数据门禁、算法语义、恢复和汇总说明见 [Plan 2 支持说明](docs/plan2_offline_support.md)；半离线科学设计、结果边界、跨算法方案和服务器迁移步骤见 [半离线实验总结与跨算法复现实用指南](docs/semi_offline_cross_algorithm_reproduction.md)。
+
+## 近期模块工程状态
+
+截至 2026-09-20，近期工作处于工程接入与最小运行验证阶段。下表的验证来自已有记录，不能代替正式多种子算法实验。
+
+| 模块 | 已实现与验证 | 后续边界 / 维护入口 |
+| --- | --- | --- |
+| SUMO 事件与报告 | 阻塞、封路、降雨限速；hz4x4 五条件 × 三种子共 15 次机制对比 | 固定日程、同步报告；[事件模块 README](world/sumo_events/README.md) |
+| 规则实体映射 v1 | 公开报告 → 静态实体 → 实际车道观测位置，已有真实 SUMO 重放验证 | 不含自由文本理解或文本训练；[输入输出契约](world/sumo_events/README.md#规则实体映射-v1) |
+| FRAP / CoLight 原奖励接入 | 正常/事件短训练、实际梯度、评估隔离、标准检查点恢复；5 项测试通过 | 当前 hz4x4、CPU、CoLight phase=False；[依赖与复验](#5-可选智能体依赖) |
+| 三模型专属奖励与看板 | 三模型短训练，奖励身份隔离、TensorBoard、持久记录与图表导出；12 项测试通过 | SUMO 奖励适配；[实现设计与使用](tools/README.md#模型专属奖励与训练看板) |
+| P0 工程门禁 | 修正后的信号控制、三模型训练/同种子重放、事件与历史模块回归；112 项通过 | P1/P2 尚未执行；[配置、命令与证据](tools/README.md#p0-工程门禁) |
+| 飞书 Wiki 工具 | 配置、读取、列目录、创建和追加的本地实现 | 不自动同步实验；[命令与限制](tools/README.md#飞书-wiki-工具)，本次未验证远端访问 |
+
+当前组合关系：事件执行器提供交通扰动与公开报告，规则映射为后续模型准备实体关联；paper_* 训练入口接入事件、专属奖励和监控，**不会自动使用报告或实体矩阵学习文本策略**。新模型、多样扰动协议、pilot 与正式效果实验仍按 [文本实体注意力设计](docs/text_entity_attention_experiment.md) 推进。
+
+新实验通过显式 `sumo-green-yellow-v1` 适配器修正相位计时和黄灯执行，见 [P0 工程门禁](tools/README.md#p0-工程门禁)。旧入口保留原行为，旧 FixedTime 事件结果不能当作修正后基线。P1 场景标定与 P2 正式实验尚未执行。历史 TARL V2.1 使用独立冻结协议，其最终报告不支持稳定的事件语义收益；不与本轮新模块结果合并解释，见 [复现状态](reproduction/tarl_tsc/reports/REPRODUCTION_STATUS.md)。
 
 ## 当前科学实验体系
 
@@ -51,6 +70,17 @@
 | HA-SODQN | 检验 Plan 1 静态历史能否缓解顺序训练中的遗忘 | E0～E4 已完成；E4 为 4 orders × 5 seeds × 5 conditions，共 100 个身份 |
 
 HA-SODQN 的 E4 配对结果显示：历史利用在配对均值上明显降低旧场景 average/worst forgetting 并提高 retention，同时带来小幅当前场景 normalized travel-time AULC 代价。P1C 只允许使用已完成场景的历史，是主因果设置；P1F 从 T1 即可访问当前和未来场景，只能作为非因果 full-history reference。现有结果只证明 Independent DQN 协议下的表现，不能直接外推到 Double DQN、PPO 或其他 TSC agent。
+
+### TARL-TSC V2.1 复现范围与约束
+
+TARL-TSC 的独立复现位于 [`reproduction/tarl_tsc/`](reproduction/tarl_tsc/)，当前工作以 V2.1 冻结协议为准。进入该目录开展复现、排查或分析时，应先阅读其 [README](reproduction/tarl_tsc/README.md)，并明确以下边界：
+
+- **Attention 核心结构**：实现位于 `reproduction/tarl_tsc/models/tarl.py` 的 `TARLPolicy`；入口适配位于 `parent_adapter.py` 和 `agent/tarl.py`。
+- **事件语义与物理**：文本语义由 `events/semantic_v21.py` 定义，真实事件物理由 `events/runtime_v21.py` 执行；两者职责不能混用。
+- **正式训练与冻结参数**：正式训练配置为 `configs/v21_formal.yml`，冻结事件参数为 `configs/event_effects_v2_1.yaml`。相关配置、事件定义和正式结果共同构成 V2.1 的可追踪 protocol。
+- **修改前检查**：任何代码、配置或事件逻辑修改，都必须先判断是否会改变冻结 protocol、训练预算、模型结构或已经完成的结果；若会改变，应先记录影响范围并重新建立对应的验证或结果身份。
+- **结果保护**：不要直接修改 `reproduction/tarl_tsc/results/` 中的既有结果。新增分析、图表或报告应使用新的产物路径，并保留输入结果、配置和代码版本信息。
+- **复现定位**：这是 TARL-TSC 的兼容性参考复现，不应在未独立核验作者资产前表述为作者原始代码或作者精确结果。正式结果、审计状态和当前解释以 `reproduction/tarl_tsc/reports/` 中的报告为准。
 
 ### 半离线正式场景
 
@@ -79,12 +109,16 @@ HA-SODQN 的 E4 配对结果显示：历史利用在配对均值上明显降低�
 | sequential_run.py | Sequential DQN、CS-HR 和 HA-SODQN manifest/运行/审计入口 |
 | agent/ | 传统控制及强化学习智能体 |
 | world/ | CityFlow、SUMO 等仿真器适配层 |
+| [world/sumo_events/](world/sumo_events/README.md) | SUMO 三类事件执行、同步报告、World 接入与量化验证 |
 | trainer/ | 训练与评估流程 |
 | task/ | 交通信号控制任务编排 |
 | configs/tsc/ | 智能体和训练参数 |
 | configs/offline_tsc/ | Plan 2 Offline DQN 参数；不影响 Online 配置 |
 | configs/sequential/ | 顺序训练、CS-HR 和 HA-SODQN 冻结实验配置 |
 | configs/sim/ | 仿真器及路网配置 |
+| configs/rewards/ | 三模型专属奖励公式、所有权与作者代码出处 |
+| [tools/README.md](tools/README.md) | 专属奖励训练、看板与飞书 Wiki 工具的使用和设计 |
+| configs/events/ | SUMO 事件日程；包含 hz4x4 工程验证与量化对比配置 |
 | data/raw_data/ | 路网、交通流和信号方案数据 |
 | common/ | 注册器、配置加载、指标及格式转换工具 |
 | generator/ | 状态、相位和车辆特征生成器 |
@@ -104,6 +138,38 @@ Xiasha SUMO 转换最小示例（产物位于 `data/raw_data/xiasha1*1/`）：
 ```
 
 逐车需求使用 `xiasha1_sumo_vehicles.rou.xml`，聚合需求使用名称不同的 `xiasha1_sumo_flows.rou.xml`；两者及信号路网、附加文件和 `.sumocfg` 均由工具生成。详细参数与信号规则见 [tools/xiasha_sumo/README.md](tools/xiasha_sumo/README.md)。
+
+### SUMO 事件与同步文本报告模块
+
+[`world/sumo_events/`](world/sumo_events/README.md) 将事件日程、SUMO 中的实际交通限制和事实文本报告组织为可复用模块，供后续报告解析、交通实体映射与文本注意力研究调用。当前适配并验证的场景为 `hz4x4`（杭州古荡 4×4、16 个信号路口），使用 [`configs/sim/hz4x4.cfg`](configs/sim/hz4x4.cfg)。
+
+| 事件 | 仿真中的实际作用 | 结束时的处理 |
+| --- | --- | --- |
+| 局部车道阻塞 `lane_blockage` | 在指定车道的指定位置放置静止障碍物；相邻车道仍可能允许绕行 | 移除该障碍物 |
+| 整段道路封闭 `road_closure` | 禁止车辆进入一个有向 edge 的全部车道；车辆保留原计划路线 | 恢复原通行权限 |
+| 全局降雨 `global_rain` | 将全网机动车车道限速乘以配置系数，包含路口内部连接车道 | 恢复原限速 |
+
+事件物理区间为 `[begin, end)`；操作成功后在同一仿真时刻更新 `active` / `cleared` 报告，当前不引入播报延迟。报告使用固定英文事实模板，明确车道、道路、方向、路口和作用范围；解除报告表示限制已移除，拥堵消散仍由仿真演化决定。降雨采用限速代理，尚未标定完整天气交通模型。
+
+项目内通过 `install_events(world, schedule)` 在 `world.reset()` 前安装。当前规则实体映射已固定为 `sumo-report-grounding-v1`：通过 `ReportGrounder` 从逐条 `runtime.reports()` 与静态 `network_catalog()` 解析实体，再由 `TextEntityBinder` 绑定到实际车道观测顺序，输出实体—报告及特征—报告关联矩阵。保留原文、解除报告和未观测实体；不读取隐藏事件目标。`runtime.texts(...)` 仍是全网拼接广播的兼容接口，新映射路径应使用逐条报告。完整调用、论文依据、输入边界和冻结清单见 [规则实体映射 v1](world/sumo_events/README.md#规则实体映射-v1)。
+
+当前完成到确定性映射的工程验证，尚未接入新的文本实体注意力训练。后续可在相同实体链接和特征绑定接口前接入学习型抽取器，但现版不是通用自然语言理解模型。下一阶段的实现与对比实验设计见 [文本实体注意力验证方案](docs/text_entity_attention_experiment.md)，其拟议配置不代表已执行的实验。
+
+在仓库根目录、`colight` 环境中运行工程验证或五条件量化对比（输出目录必须尚不存在）：
+
+```bash
+python -m world.sumo_events \
+  --seeds 7 17 --repeats 2 --seconds 3600 \
+  --output data/output_data/sumo_events/hz4x4_validation_local
+
+python -m world.sumo_events.compare \
+  --seeds 7 17 27 --seconds 3600 \
+  --output data/output_data/sumo_events/hz4x4_comparison_local
+```
+
+工程验证使用 [`hz4x4.yml`](configs/events/hz4x4.yml)，检查实际作用、同步报告、恢复、车辆统计与同种子重放；量化入口使用 [`hz4x4_comparison.yml`](configs/events/hz4x4_comparison.yml)，比较无事件、三种单独事件和组合事件，输出逐秒 CSV、汇总指标及 PNG/PDF 图表。已有 15 次配对运行的事件—报告转换延迟均为 0 秒，逐步核对未发现状态不一致。
+
+这些结果支持当前场景下的事件机制验证。现有验证控制器在首次 20 秒后出现逐秒切换动作的行为，不能将这些结果解释为标准固定时制基线；局部阻塞的流量影响在当前配置下也较弱。具体量化结果、控制器限制与证据位置见 [验证与结果说明](world/sumo_events/README.md#验证与已有证据)。本模块独立于 TARL-TSC V2.1 冻结事件协议，接入新实验时需显式选择事件模块。
 
 ### SUMO HTML 回放与对比模块
 
@@ -226,7 +292,65 @@ seed 的含义由入口明确区分：`run.py --seed` 是原有 Online 流程的
 python -m pip install pfrl
 ~~~
 
-CoLight 的部分实现可能需要 PyTorch Geometric 及其扩展。请按 PyTorch 与 CUDA 版本参考 [PyTorch Geometric 安装文档](https://pytorch-geometric.readthedocs.io/en/latest/install/installation.html)。
+CoLight 的 `agent/colight.py` 需要 PyTorch Geometric 和 torch-scatter。2026-09-20 已接入并验证的组合为 Python 3.10.18、PyTorch `1.13.1+cu116`、torch-scatter `2.1.1+pt113cu116`、torch-geometric `2.3.1`；安装命令如下（要求已有匹配的 PyTorch，不会自动升级它）：
+
+```bash
+python -m pip install -r requirements-colight.txt
+python -m pip check
+```
+
+本机此次使用的 `colight` 解释器为 `data/output_data/cross_algorithm/plan5_b100/environment/micromamba/envs/colight/bin/python`。其他 Python/PyTorch/CUDA 组合需按 [PyG 安装说明](https://pytorch-geometric.readthedocs.io/en/latest/install/installation.html) 选择匹配 wheel，不应直接套用上述二进制版本。此次验证为 CPU 策略计算和 libsumo，不代表 GPU 加速已验证。
+
+CoLight 与 FRAP 已在杭州 `hz4x4` 上通过正常/事件场景的最小训练接入验证。FRAP 为 16 个路口各一个独立策略及 replay；CoLight 为一个共享图策略控制 16 个路口。FRAP 的八个相位竞争对在所有路口均与实际 SUMO 放行车道匹配（排除四条始终放行的右转车道），不能把 FRAP 的网络部署解释为显式路口间通信。
+
+使用 [短运行配置](configs/tsc/hz4x4_paper_smoke.yml) 复验正常场景（prefix 应尚不存在）：
+
+```bash
+OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 python run.py -w sumo -a frap -n hz4x4 \
+  --seed 7 --interface libsumo --prefix frap_hz4x4_smoke_local \
+  --experiment-config configs/tsc/hz4x4_paper_smoke.yml
+
+OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 python run.py -w sumo -a colight -n hz4x4 \
+  --seed 7 --interface libsumo --prefix colight_hz4x4_smoke_local \
+  --experiment-config configs/tsc/hz4x4_paper_smoke.yml
+
+OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 python -m pytest -q -s tests/test_paper_agents_sumo.py
+```
+
+配置固定训练与 SUMO 种子 7、两回合、每回合 300 秒、10 秒决策及 batch_size=4，只用于工程验证。事件测试通过测试内的 World 创建钩子调用公开 `install_events`，正常对照安装空日程；`run.py` 尚未新增正式事件训练命令行接口。测试覆盖每个策略真实非零梯度、参数更新、CoLight 图索引/批样本隔离、事件发生/解除、评估不修改训练状态和标准 `checkpoints/evaluation`、`checkpoints/resumable` 恢复。不要使用旧 `model/` 文件接口替代已验证的标准检查点路径。
+
+本地证据位于 `data/output_data/sumo_events/paper_agents_readiness_20260920_v3/test_hz4x4_training_readiness_*/readiness.json`（四个正常/事件案例），5 项测试通过。支持范围限定当前 hz4x4 和 CoLight 默认 `phase=False`、同构八相位配置；未宣称任意图顺序/异构相位接入、收敛或扰动泛化已验证。该次 FRAP/CoLight 接入验证未修改对应原模型及训练器源码，TARL V2.1 与规则映射 v1 文件身份保持原样；新环境增加的依赖需在后续实验中重新记录。
+
+### 6. 模型专属奖励与训练看板
+
+`python -m tools.run_paper_baseline` 是三种新奖励身份 `paper_frap/paper_presslight/paper_colight` 的显式入口，复用现有 Runner 和训练循环。选定作者代码分支的奖励由独立 YAML、不可变配置及检查点契约绑定；TensorBoard 展示实时曲线，JSONL/CSV 和 PNG/SVG 保存可追踪记录。详细公式、模块分工、指标口径、中断处理与复验命令统一维护在 [工具模块 README](tools/README.md#模型专属奖励与训练看板)。
+
+在已安装对应模型依赖的 `colight` 环境、仓库根目录运行：
+
+```bash
+python -m pip install -r requirements-dashboard.txt
+python -m tools.training_dashboard serve --logdir data/output_data/tsc --port 6006
+```
+
+另一个终端执行短训练（prefix 必须未使用）：
+
+```bash
+python -m tools.run_paper_baseline -w sumo -a paper_frap -n hz4x4 \
+  --seed 7 --interface libsumo --prefix paper_frap_reward_smoke \
+  --experiment-config configs/tsc/paper_p0.yml
+```
+
+打开 `http://127.0.0.1:6006` 查看曲线；运行目录下的 `monitor/` 保存 CSV 与图表。上述 overlay **包含固定事件**，两回合各 300 秒，训练与 SUMO 种子均为 7。正常对照应复制同一 P0 overlay 并仅将 `trainer.event_schedule` 设为 `null`，同时更换 prefix，保持信号控制配置一致；旧 `hz4x4_paper_smoke.yml` 未启用修正后的信号控制。
+
+2026-09-20 已有三模型真实短训练及奖励/监控验证记录，相关测试 12 项通过。这只支持工程链路，不能证明原论文完整复现或控制效果。新配置 `paper_p0.yml` 已显式启用修正后的信号控制，新增验证与复验见 [P0 工程门禁](tools/README.md#p0-工程门禁)；旧配置仍保留历史行为。新增清单入口支持逐回合事件计划、独立验证及恢复；旧单次 smoke 时间线不自动迁移。策略尚未接入文本实体注意力。
+
+### 7. 可复用的批量实验入口
+
+`python -m tools.run_paper_baseline` 现提供 `config / plan / preflight / launch / status / resume`，原单次训练参数继续支持。它复用 Runner、既有训练/评估循环和共享资源队列，通过配置和冻结任务清单组织并行实验，不为每个模型或 seed 新建启动脚本。
+
+[工程短测配置](configs/tsc/paper_experiment_smoke.yml) 与 [150 回合候选配置](configs/tsc/colight_event150.yml) 共同继承 [基础配置](configs/tsc/paper_experiment_base.yml)，由 `common.paper_experiment.load_config` 统一解析回合预算、时间网格、种子与目标分组。`config --config` 查看解析结果，`plan --config` 冻结运行计划；这些配置不作为旧入口的 `--experiment-config` 使用。完整命令、看板、资源池与恢复边界见 [批量实验使用说明](tools/README.md#批量实验的统一入口)。
+
+2026-09-20 首次开发预检发现的两例障碍车碰撞，已通过显式 `stopping-distance-v1` 动态放置检查完成修复和原案例复验；无安全空间时在插入前拒绝。全套复检 72 次尝试、70 次完成、2 次安全拒绝，实际碰撞/传送为 0，准入仍为 `not_ready`。障碍占用长度与路由需求筛选也已纳入配置，相关回归 20 项通过。强度标定显示默认 5 米单障碍仍偏弱，较长阻塞区虽能增大排队，却经常没有安全放置空间。150 回合训练未启动；当前证据和物理语义边界见 [动态放置修复与阻塞强度标定](tools/README.md#动态放置修复与阻塞强度标定)。
 
 ## 原项目 Online/传统实验快速开始
 

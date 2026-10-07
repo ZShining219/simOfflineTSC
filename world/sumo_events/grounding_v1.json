@@ -1,0 +1,74 @@
+{
+  "schema_version": "grounding-baseline-manifest-v1",
+  "module_version": "sumo-report-grounding-v1",
+  "frozen_at": "2026-09-18",
+  "status": "engineering_validated",
+  "identity_sha256": "c80832470273c1516384c94d774df4c4b92b01c09c8a0d39d86994ba4f3a9520",
+  "identity_rule": "SHA256 of files_sha256 serialized as JSON with sort_keys=True and separators=(comma,colon)",
+  "scope": "Controlled report extraction, static entity linking and incoming lane_count feature binding; no learned extractor or attention training.",
+  "paths_relative_to": "repository root",
+  "public_api": [
+    "world.sumo_events.ReportGrounder",
+    "utils.text_grounding.EntityCatalog",
+    "utils.text_grounding.GroundedReport",
+    "utils.text_grounding.GroundingError",
+    "generator.text_entity.TextEntityBinder",
+    "generator.text_entity.GroundingBatch"
+  ],
+  "compatibility": {
+    "templates": "three event types x active/cleared",
+    "observation": "incoming lane_count, average=None, negative=False",
+    "python_syntax": "3.9",
+    "verified_python": "3.10.18",
+    "verified_sumo": "1.27.1"
+  },
+  "files_sha256": {
+    "utils/text_grounding.py": "32c2e1404acd5b74ed74c5e3711775f49471673b95cd8622ae0fe85d3ff5a060",
+    "generator/text_entity.py": "7135c63706e4ac4ea6e38c279c36bb34ce874e889c164c6d66f7f8cd1400786c",
+    "world/sumo_events/grounding.py": "56af2c87b4625e2895f7a5a7553e20f8aaff94d4dab42f207c6ac64cc3fde475",
+    "world/sumo_events/__init__.py": "a5d6bb9fab0ecd72652fc60bee87a79b4576197f46ed00e7888d21b2205c9512",
+    "tests/test_text_grounding.py": "9346c86480b7745fe51fdcc6f8b4e8ffc0c62ab50253112fcf8ff0b02fc56b64",
+    "tests/test_text_grounding_sumo.py": "eb4a4d2195ebfb863546b0319e373579c775f8db751e7bd3ba1aaf97350bb3d3",
+    "world/sumo_events/runtime.py": "5db448773272baaff8b1764e4067411a974b92269be509cbceb644852751ffcf",
+    "world/sumo_events/schema.py": "ce48c47eeedbe917d23272b3a4b570bd43de3619be645fe586a0e6ba56440aef",
+    "world/sumo_events/integration.py": "55907b2735a60aa7a95e4693b6782dada14c94d06a6c1f538256b3869f5af22f",
+    "world/sumo_events/trex_blockage.py": "07f332050dc4c7b93ce2c38b20538e03d0923c1bfecfbba0f26a8500ef49b17c",
+    "generator/lane_vehicle.py": "6f5863ff21af9f187315e9ee83c53dbeac698a6c44320b26cf6061185f7ef1ad",
+    "world/world_sumo.py": "af26493d458aa6fc4dc85b4e0cfa7b78ff44a6e3a373c821653f39647284629b",
+    "agent/fixedtime.py": "82a56ceea7c78f576ebb0e82a74a604d972ead0ae39a215d446697207a195722",
+    "configs/events/hz4x4.yml": "4f85b73b7ee4f2b6a7c4c0dc430a262c083375ed6a0b245c76b5e4558d42ca9b",
+    "configs/sim/hz4x4.cfg": "24480c01292ea30afb0c074a43ddcb47563d97815aa132e9f7d8e082357b7b6e",
+    "tests/test_sumo_events.py": "2e52c012495400dbaec984a71b80fe169e4431f56550abf429a67187c54a7f4d",
+    "tests/test_sumo_event_comparison.py": "b64851645929fb5dd32309d1fe6fc1771154a9294f67efc7fc32e45d44b965a2"
+  },
+  "verification": {
+    "test_result": "66 passed",
+    "test_result_source": "Executed four-file pytest regression on 2026-09-18; integration evidence linked below",
+    "command": [
+      "/data/users/zfh/workspace/projects/simOfflineTSC/data/output_data/cross_algorithm/plan5_b100/environment/micromamba/envs/colight/bin/python",
+      "-m",
+      "pytest",
+      "-q",
+      "tests/test_text_grounding.py",
+      "tests/test_text_grounding_sumo.py",
+      "tests/test_sumo_events.py",
+      "tests/test_sumo_event_comparison.py",
+      "--basetemp=data/output_data/sumo_events/grounding_validation_20260918_v2"
+    ],
+    "evidence_path": "data/output_data/sumo_events/grounding_validation_20260918_v2/test_hz4x4_report_feature_roun0/validation.json",
+    "evidence_sha256": "8f441a73b5575ae084755d9537475c5136f1612b4ed8b91b484b4ee2ddefd626",
+    "agent": "FixedTimeAgent (mapping validation only)",
+    "network": "hz4x4",
+    "seed": 7,
+    "repeats": 2,
+    "seconds_per_repeat": 245,
+    "feature_value_comparisons": 60852,
+    "matching_replay_trace_sha256": "24e08095f7e75246775bd5fbce442847be8874b9961ae85391cbf18f5bf690e9",
+    "artifacts_in_git": false
+  },
+  "boundaries": [
+    "File snapshot, not a Git release or complete environment lock.",
+    "No claim of free-form NLP generalization or control-policy benefit.",
+    "Future learned extraction requires a new version; do not overwrite this manifest."
+  ]
+}

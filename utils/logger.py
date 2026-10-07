@@ -552,15 +552,23 @@ def validate_sumo_runtime_evidence(log_path, expected_identity, summary):
     finished = int(summary['throughput'])
     unfinished = int(summary['unfinished_vehicles'])
     expected = expected_identity['expected_vehicle_count']
-    if expected is not None and loaded != expected:
+    # SUMO's "Inserted" counts insertion events; a vehicle that is removed and
+    # reinserted increments it without changing the unique-vehicle ledger.
+    # Identity therefore checks unique vehicles: finished+unfinished+waiting.
+    accounted = finished + unfinished + waiting
+    if expected is not None and accounted != expected:
         raise ValueError(
-            f'SUMO loaded vehicle count {loaded} does not match target {expected}'
+            f'Unique vehicle accounting {accounted} does not match target '
+            f'{expected}'
         )
-    if running != unfinished or inserted != finished + unfinished:
+    # Inserted equals the departed-vehicle count plus any reinsertion events,
+    # so it must at least cover the departed ledger (finished + running) but
+    # excludes vehicles still waiting to depart.
+    if inserted < finished + running or loaded < accounted or running != unfinished:
         raise ValueError(
             'SUMO vehicle accounting does not match evaluation metrics: '
-            f'inserted={inserted}, finished={finished}, '
-            f'running={running}, unfinished={unfinished}'
+            f'inserted={inserted}, loaded={loaded}, finished={finished}, '
+            f'running={running}, unfinished={unfinished}, waiting={waiting}'
         )
     return {
         'runtime_route_path': runtime_route,
@@ -620,11 +628,13 @@ def archive_run_config(config, source_snapshots, resolved_world):
 def _json_value(value):
     """Convert common scalar configuration values to JSON-safe values."""
     if hasattr(value, 'item'):
-        return value.item()
+        value = value.item()
     if isinstance(value, dict):
         return {str(key): _json_value(item) for key, item in value.items()}
     if isinstance(value, (list, tuple)):
         return [_json_value(item) for item in value]
+    if isinstance(value, float) and not np.isfinite(value):
+        return None
     if isinstance(value, (str, int, float, bool)) or value is None:
         return value
     return str(value)
@@ -1219,6 +1229,10 @@ def load_evaluation_collection_manifest(path):
         if controller['agent'] not in {
             'dqn', 'shared_dqn', 'batch_dqn', 'cql_dqn',
             'fixedtime', 'maxpressure',
+            'colight', 'sga_colight', 'concat_colight',
+            'sga_flx_colight', 'mplight', 'sga_mplight',
+            'tarl_sensor', 'tarl_gat', 'tarl_concat',
+            'tarl_attention', 'tarl_gating', 'tarl_selfattn', 'tarl_crossq',
         }:
             raise ValueError(f"Unsupported evaluation agent: {controller['agent']}")
         run_dir = os.path.abspath(os.path.expanduser(controller['run_dir']))
@@ -1247,7 +1261,12 @@ def load_evaluation_collection_manifest(path):
         checkpoint_episode = None
         checkpoint_sha256 = None
         checkpoint_audit = None
-        if controller['agent'] in {'dqn', 'shared_dqn'}:
+        if controller['agent'] in {
+            'dqn', 'shared_dqn', 'colight', 'sga_colight', 'concat_colight',
+            'sga_flx_colight', 'mplight', 'sga_mplight',
+            'tarl_sensor', 'tarl_gat', 'tarl_concat',
+            'tarl_attention', 'tarl_gating', 'tarl_selfattn', 'tarl_crossq',
+        }:
             if not isinstance(checkpoint, str) or not checkpoint:
                 raise ValueError(
                     f'DQN-family controller {controller_id} requires checkpoint')

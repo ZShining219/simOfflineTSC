@@ -14,6 +14,7 @@ from torch import nn
 import torch.nn.functional as F
 import torch.optim as optim
 from torch.nn.utils import clip_grad_norm_
+from utils.scene_context import pack_scene_transition, unpack_scene_transition
 
 
 @Registry.register_model('dqn')
@@ -64,6 +65,7 @@ class DQNAgent(RLAgent):
         self.gamma = Registry.mapping['model_mapping']['setting'].param['gamma']
         self.grad_clip = Registry.mapping['model_mapping']['setting'].param['grad_clip']
         self.epsilon = Registry.mapping['model_mapping']['setting'].param['epsilon']
+        self.initial_epsilon = self.epsilon
         self.epsilon_decay = Registry.mapping['model_mapping']['setting'].param['epsilon_decay']
         self.epsilon_min = Registry.mapping['model_mapping']['setting'].param['epsilon_min']
         self.learning_rate = Registry.mapping['model_mapping']['setting'].param['learning_rate']
@@ -190,7 +192,9 @@ class DQNAgent(RLAgent):
         model = DQNNet(self.ob_length, self.action_space.n)
         return model
 
-    def remember(self, last_obs, last_phase, actions, actions_prob, rewards, obs, cur_phase, done, key):
+    def remember(self, last_obs, last_phase, actions, actions_prob, rewards, obs,
+                 cur_phase, done, key, *, scene_t=None, scene_t1=None,
+                 truncated=False):
         '''
         remember
         Put current step information into replay buffer for training agent later.
@@ -204,6 +208,9 @@ class DQNAgent(RLAgent):
         :param cur_phase: current step phase
         :param done: boolean, decide whether the process is done
         :param key: key to store this record, e.g., episode_step_agentid
+        :param scene_t/scene_t1: optional replay SceneReplayState snapshots;
+            when supplied, the ten-field scene contract is stored.
+        :param truncated: optional horizon truncation flag stored with scene replay.
         :return: None
         '''
         self._ensure_replay_utilization_counters()
@@ -212,7 +219,14 @@ class DQNAgent(RLAgent):
             self.replay_insert_step.pop(evicted_key, None)
         self.replay_total_collected += 1
         self.replay_insert_step[key] = self.replay_total_collected
-        self.replay_buffer.append((key, (last_obs, last_phase, actions, rewards, obs, cur_phase)))
+        if scene_t is None and scene_t1 is None and not truncated:
+            # Preserve the legacy payload for ordinary agents/checkpoints.
+            payload = (last_obs, last_phase, actions, rewards, obs, cur_phase)
+        else:
+            payload = pack_scene_transition(
+                last_obs, last_phase, scene_t, actions, rewards, obs,
+                cur_phase, scene_t1, done, truncated)
+        self.replay_buffer.append((key, payload))
 
     def _ensure_replay_utilization_counters(self):
         defaults = {
@@ -329,15 +343,16 @@ class DQNAgent(RLAgent):
         :param samples: original samples record in replay buffer
         :return state_t, state_tp, rewards, actions: information with batch form
         '''
-        obs_t = np.concatenate([item[1][0] for item in samples])
-        obs_tp = np.concatenate([item[1][4] for item in samples])
+        payloads = [unpack_scene_transition(item[1]) for item in samples]
+        obs_t = np.concatenate([item.obs_t for item in payloads])
+        obs_tp = np.concatenate([item.obs_t1 for item in payloads])
         if self.phase:
             if self.one_hot:
-                phase_t = np.concatenate([utils.idx2onehot(item[1][1], self.action_space.n) for item in samples])
-                phase_tp = np.concatenate([utils.idx2onehot(item[1][5], self.action_space.n) for item in samples])
+                phase_t = np.concatenate([utils.idx2onehot(item.phase_t, self.action_space.n) for item in payloads])
+                phase_tp = np.concatenate([utils.idx2onehot(item.phase_t1, self.action_space.n) for item in payloads])
             else:
-                phase_t = np.concatenate([item[1][1] for item in samples])
-                phase_tp = np.concatenate([item[1][5] for item in samples])
+                phase_t = np.concatenate([item.phase_t for item in payloads])
+                phase_tp = np.concatenate([item.phase_t1 for item in payloads])
             feature_t = np.concatenate([obs_t, phase_t], axis=1)
             feature_tp = np.concatenate([obs_tp, phase_tp], axis=1)
         else:
@@ -345,8 +360,8 @@ class DQNAgent(RLAgent):
             feature_tp = obs_tp
         state_t = torch.tensor(feature_t, dtype=torch.float32)
         state_tp = torch.tensor(feature_tp, dtype=torch.float32)
-        rewards = torch.tensor(np.array([item[1][3] for item in samples]), dtype=torch.float32)  # TODO: BETTER WA
-        actions = torch.tensor(np.array([item[1][2] for item in samples]), dtype=torch.long)
+        rewards = torch.tensor(np.array([item.reward for item in payloads]), dtype=torch.float32)  # TODO: BETTER WA
+        actions = torch.tensor(np.array([item.action for item in payloads]), dtype=torch.long)
         return state_t, state_tp, rewards, actions
 
     def train(self):
@@ -357,6 +372,11 @@ class DQNAgent(RLAgent):
         :param: None
         :return: value of loss
         '''
+        # Early episodes can contain fewer transitions than one minibatch.
+        # Return a zero loss until enough samples exist; this preserves the
+        # normal update path once the replay buffer reaches batch_size.
+        if len(self.replay_buffer) < self.batch_size:
+            return np.array(0.0, dtype=np.float32)
         samples = random.sample(self.replay_buffer, self.batch_size)
         self._record_replay_samples(samples)
         b_t, b_tp, rewards, actions = self._batchwise(samples)
@@ -384,6 +404,16 @@ class DQNAgent(RLAgent):
         '''
         weights = self.model.state_dict()
         self.target_model.load_state_dict(weights)
+
+    def reset_epsilon(self, mode):
+        # Same semantics as shared_dqn.SharedDQNAgent.reset_epsilon so the
+        # shared stage-checkpoint loader works for both agent bases.
+        if mode == 'reset_schedule':
+            self.epsilon = self.initial_epsilon
+        elif mode == 'fixed_low':
+            self.epsilon = self.epsilon_min
+        elif mode != 'continue_schedule':
+            raise ValueError(f'Unknown epsilon mode: {mode}')
 
     def load_model(self, e):
         '''

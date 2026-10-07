@@ -1,0 +1,5 @@
+# Local, persistent dashboard; no TensorFlow server or cloud account required.
+tensorboard==2.18.0
+# TensorBoard 2.18 imports pkg_resources, removed by newer setuptools releases.
+setuptools==80.9.0
+matplotlib>=3.7,<4

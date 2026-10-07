@@ -1,5 +1,13 @@
 # simOfflineTSC
 
+## 仓库状态速览（2026-10-07）
+
+- **当前研究代码分支**：`codex/milestone0-experiment-infrastructure`（场景引导注意力线 + 半离线基础设施；全部实验配置、工具链与测试已收编入库）
+- **实验台账**：`EXPERIMENTS.md` 顶部「当前面板」查看最新进度与结论；`ledger/runs.jsonl` 为逐 run 机读事实源
+- **实验纪律**：`GOVERNANCE.md`（登记→冒烟→派发→收割→回填全流程）+ `bench/`（正式验收口径）
+- **上手入口**：`AGENTS.md` → `EXPERIMENTS.md` 面板；PR 承载每次架构改动的"为什么"
+
+
 面向交通信号控制（Traffic Signal Control，TSC）的跨仿真器实验框架。本项目基于 LibSignal 整理，提供与 OpenAI Gym 风格兼容的交通环境、统一训练流程，以及传统控制和强化学习基线，可用于单路口与多路口场景实验。
 
 ## 主要功能

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Same 16-link ordering as xiasha1*1/xiasha1_sumo_signal.add.xml. -->
+<additional>
+  <tlLogic id="J" type="static" programID="xiasha_photo_cycle" offset="73">
+    <phase duration="27" state="grrrgGGrgGGrgrrrrrrr" name="NS直行绿"/>
+    <phase duration="3" state="yrrryyyryyyryrrrrrrr" name="NS直行黄"/>
+    <phase duration="2" state="rrrrrrrrrrrrrrrrrrrr" name="NS过渡红"/>
+    <phase duration="22" state="grrrgrrGgrrGgrrrrrrrr" name="NS左转绿"/>
+    <phase duration="3" state="yrrryrryyrryyrrrrrrr" name="NS左转黄"/>
+    <phase duration="5" state="rrrrrrrrrrrrrrrrrrrr" name="南北东西全红"/>
+    <phase duration="34" state="gGgrgrrrgrrrgGgrrrrr" name="EW直行绿"/>
+    <phase duration="3" state="yyyryrrryrrryy yrrrr" name="EW直行黄"/>
+    <phase duration="2" state="rrrrrrrrrrrrrrrrrrrr" name="EW过渡红"/>
+    <phase duration="19" state="grrGgrrrgrrrgrrGrrrr" name="EW左转绿"/>
+    <phase duration="3" state="yrryyrrryrrryrryrrrr" name="EW左转黄"/>
+    <phase duration="5" state="rrrrrrrrrrrrrrrrrrrr" name="东西南北全红"/>
+  </tlLogic>
+</additional>

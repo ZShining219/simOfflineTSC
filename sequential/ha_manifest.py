@@ -40,6 +40,9 @@ def validate_ha_config(config):
         raise ValueError('HA-SODQN method definitions changed')
     if config.get('offline_ratios') != [0.25, 0.5, 0.75]:
         raise ValueError('HA-SODQN offline ratios changed')
+    algorithm_id = str(config.get('algorithm_id', 'independent_dqn')).lower()
+    if algorithm_id not in {'independent_dqn', 'double_dqn', 'dueling_double_dqn'}:
+        raise ValueError(f'Unsupported HA-SODQN algorithm_id: {algorithm_id}')
     trainer = config.get('trainer', {})
     required = {
         'stage_episodes': [100, 100, 100, 100],
@@ -92,6 +95,7 @@ def _child(config, initial_index, order_id, seed, archive_mode, method, ratio,
            stage_episodes, experiment_stage):
     networks = config['orders'][order_id]
     initial = initial_index[(order_id, int(seed))]
+    algorithm_id = str(config.get('algorithm_id', 'independent_dqn')).lower()
     if archive_mode == 'NONE':
         logical_id = f'CONT-FIFO-{order_id}-SD{seed}'
         condition = 'CONT_FIFO'
@@ -99,11 +103,14 @@ def _child(config, initial_index, order_id, seed, archive_mode, method, ratio,
         ratio_name = f'R{int(round(float(ratio) * 100)):02d}'
         logical_id = f'{archive_mode}-{method}-{ratio_name}-{order_id}-SD{seed}'
         condition = 'HA_SODQN'
+    if algorithm_id != 'independent_dqn':
+        logical_id = f'{algorithm_id}-{logical_id}'
     return {
         'logical_run_id': logical_id,
         'experiment_stage': experiment_stage,
         'condition': condition,
         'policy': 'ha_sodqn',
+        'algorithm_id': algorithm_id,
         'order_id': order_id,
         'training_seed': int(seed),
         'networks': list(networks),

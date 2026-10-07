@@ -1,0 +1,21 @@
+schema_version: 1
+protocol_id: ha_cross_algorithm_assets_v1
+
+# This file designs the immutable historical input chain.  It does not
+# fabricate trajectories or checkpoints; A0 must be produced by Plan 1.
+networks:
+  - sumohz1x1_config2
+  - sumohz1x1
+  - sumohz1x1_config4
+  - sumohz1x1_config3
+behavior_training_seeds: [0, 1, 2, 3, 4]
+source_episodes: 100
+archive_episode_range: [1, 100]
+paths:
+  source_root: data/output_data/tsc/sumo_dqn
+  whitelist: data/output_data/analysis/plan1/p1_cross_algorithm_assets_whitelist.csv
+  dataset_root: data/output_data/offline_datasets/plan2/ha_cross_algorithm_assets_v1
+  archive_manifest: data/output_data/ha_sodqn/engineering_cross_algorithm/archive_root_manifest.json
+  initial_state_catalog: data/output_data/ha_sodqn/engineering_cross_algorithm/initial_state_catalog.json
+  dueling_initial_state_catalog: data/output_data/ha_sodqn/engineering_cross_algorithm/initial_state_catalog_dueling.json
+  dueling_initial_root: data/output_data/ha_sodqn/engineering_cross_algorithm/dueling_initial

@@ -1,11 +1,13 @@
 {
   "schema_version": 2,
-  "input": "data/raw_data/xiasha1*1/原始数据/语义事件表(13min).csv",
+  "input": "tools/语义事件表(13min).csv",
   "network": "data/raw_data/xiasha1*1/原始数据/real_scene.net.xml",
   "cycle_file": "data/raw_data/xiasha1*1/原始数据/红绿灯周期",
   "total_records": 520,
   "valid_records": 355,
   "skipped_records": 165,
+  "routeable_records": 350,
+  "topology_excluded_records": 5,
   "skip_category_counts": {
     "missing_exit": 43,
     "multiple_errors": 122
@@ -51,29 +53,94 @@
     },
     "summary_rows": 63
   },
-  "shift_seconds": 6.52,
+  "shift_seconds": 263.5752407144843,
+  "logic_line_alignment": {
+    "source": "image-derived coarse prior; refined and audited by event matching",
+    "distance_reference": "metres from the junction-side end of each external edge",
+    "positions": {
+      "N": {
+        "distance_m": 15.0,
+        "min_m": 9.0,
+        "max_m": 24.0
+      },
+      "S": {
+        "distance_m": 14.0,
+        "min_m": 8.0,
+        "max_m": 23.0
+      },
+      "E": {
+        "distance_m": 10.0,
+        "min_m": 6.0,
+        "max_m": 18.0
+      },
+      "W": {
+        "distance_m": 10.0,
+        "min_m": 6.0,
+        "max_m": 18.0
+      }
+    },
+    "pre_roll_seconds_by_entry": {
+      "N2J": 1.055240714484305,
+      "S2J": 1.055240714484305,
+      "E2J": 1.055240714484305,
+      "W2J": 1.055240714484305
+    },
+    "depart_position_rule": "entry logic-line position minus upstream pre-roll distance",
+    "pre_roll_distance_meters": 12.0,
+    "depart_speed_mps": 10.0,
+    "clock_warmup_cycles": 2,
+    "departure_adjustment_file": "data/raw_data/xiasha1*1/xiasha1_sumo_departure_alignment.csv",
+    "departure_adjustment_records": 350,
+    "departure_adjustment_range_seconds": [
+      -108.74,
+      -0.01
+    ],
+    "detectors": {
+      "detector_count": 18,
+      "output_file": "/projects/simOfflineTSC/data/raw_data/xiasha1*1/xiasha1_sumo_logic_line_events.xml"
+    },
+    "source_id_policy": "each CSV row is an independent SUMO vehicle; source IDs are trace metadata"
+  },
+  "signal_alignment": {
+    "anchor_vehicle_id": "lv_0016",
+    "anchor_route": "E2J -> J2W",
+    "anchor_depart_seconds": 255.91000000000005,
+    "anchor_travel_time_to_stop_line_seconds": 2.2,
+    "anchor_arrival_seconds": 258.11000000000007,
+    "target_phase": "EW直行绿",
+    "target_phase_start_in_cycle_seconds": 62.0,
+    "anchor_convention_offset_seconds": 68.11000000000007,
+    "cycle_seconds": 128,
+    "signal_offset_seconds": 73.0,
+    "effective_phase_position_at_anchor_seconds": 57.11000000000007,
+    "sumo_offset_semantics": "phase_position=(simulation_time-offset) mod cycle",
+    "offset_source": "explicit_cli_override",
+    "offset_method": "observed_exit_proxy",
+    "calibration_proxy": "complete trajectory exit_time + normalized shift",
+    "calibration_records": 291,
+    "calibration_matched_records": 153,
+    "calibration_match_rate": 0.5257731958762887,
+    "calibration_tied_best_count": 1,
+    "calibration_tied_best_min_seconds": 76.3,
+    "calibration_tied_best_max_seconds": 76.3,
+    "calibration_scan_file": "xiasha1_sumo_signal_offset_scan.csv",
+    "calibration_limitation": "The source has no stop-line timestamp or phase label; exit_time is a proxy and cannot establish video-phase ground truth."
+  },
   "depart_time_range": {
-    "min": 0.0,
-    "max": 780.46
+    "min": 163.38000000000005,
+    "max": 1030.6499999999999
   },
   "flow_window_seconds": 60.0,
   "demand_audit_file": "xiasha1_sumo_demand_audit.csv",
   "demand_conservation": {
-    "valid_count": 355,
-    "vehicle_count": 355,
-    "flow_count": 355,
-    "flow_group_count": 104,
-    "conservation_equation": "355=355=355",
+    "valid_count": 350,
+    "vehicle_count": 350,
+    "flow_count": 350,
+    "flow_group_count": 111,
+    "conservation_equation": "350=350=350",
     "passed": true,
     "duplicate_vehicle_ids": [],
     "od_counts": [
-      {
-        "entry_edge": "E2J",
-        "exit_edge": "J2E",
-        "valid_count": 1,
-        "vehicle_count": 1,
-        "flow_count": 1
-      },
       {
         "entry_edge": "E2J",
         "exit_edge": "J2N",
@@ -104,13 +171,6 @@
       },
       {
         "entry_edge": "N2J",
-        "exit_edge": "J2N",
-        "valid_count": 2,
-        "vehicle_count": 2,
-        "flow_count": 2
-      },
-      {
-        "entry_edge": "N2J",
         "exit_edge": "J2S",
         "valid_count": 91,
         "vehicle_count": 91,
@@ -136,13 +196,6 @@
         "valid_count": 71,
         "vehicle_count": 71,
         "flow_count": 71
-      },
-      {
-        "entry_edge": "S2J",
-        "exit_edge": "J2S",
-        "valid_count": 2,
-        "vehicle_count": 2,
-        "flow_count": 2
       },
       {
         "entry_edge": "S2J",
@@ -175,102 +228,116 @@
     ],
     "time_window_counts": [
       {
-        "window_begin": 0.0,
-        "window_end": 60.0,
-        "valid_count": 31,
-        "vehicle_count": 31,
-        "flow_count": 31
-      },
-      {
-        "window_begin": 60.0,
-        "window_end": 120.0,
-        "valid_count": 28,
-        "vehicle_count": 28,
-        "flow_count": 28
-      },
-      {
         "window_begin": 120.0,
         "window_end": 180.0,
-        "valid_count": 32,
-        "vehicle_count": 32,
-        "flow_count": 32
+        "valid_count": 2,
+        "vehicle_count": 2,
+        "flow_count": 2
       },
       {
         "window_begin": 180.0,
         "window_end": 240.0,
-        "valid_count": 31,
-        "vehicle_count": 31,
-        "flow_count": 31
+        "valid_count": 5,
+        "vehicle_count": 5,
+        "flow_count": 5
       },
       {
         "window_begin": 240.0,
         "window_end": 300.0,
-        "valid_count": 27,
-        "vehicle_count": 27,
-        "flow_count": 27
+        "valid_count": 36,
+        "vehicle_count": 36,
+        "flow_count": 36
       },
       {
         "window_begin": 300.0,
         "window_end": 360.0,
-        "valid_count": 35,
-        "vehicle_count": 35,
-        "flow_count": 35
+        "valid_count": 29,
+        "vehicle_count": 29,
+        "flow_count": 29
       },
       {
         "window_begin": 360.0,
         "window_end": 420.0,
-        "valid_count": 18,
-        "vehicle_count": 18,
-        "flow_count": 18
-      },
-      {
-        "window_begin": 420.0,
-        "window_end": 480.0,
-        "valid_count": 37,
-        "vehicle_count": 37,
-        "flow_count": 37
-      },
-      {
-        "window_begin": 480.0,
-        "window_end": 540.0,
-        "valid_count": 28,
-        "vehicle_count": 28,
-        "flow_count": 28
-      },
-      {
-        "window_begin": 540.0,
-        "window_end": 600.0,
-        "valid_count": 23,
-        "vehicle_count": 23,
-        "flow_count": 23
-      },
-      {
-        "window_begin": 600.0,
-        "window_end": 660.0,
-        "valid_count": 24,
-        "vehicle_count": 24,
-        "flow_count": 24
-      },
-      {
-        "window_begin": 660.0,
-        "window_end": 720.0,
         "valid_count": 21,
         "vehicle_count": 21,
         "flow_count": 21
       },
       {
+        "window_begin": 420.0,
+        "window_end": 480.0,
+        "valid_count": 31,
+        "vehicle_count": 31,
+        "flow_count": 31
+      },
+      {
+        "window_begin": 480.0,
+        "window_end": 540.0,
+        "valid_count": 23,
+        "vehicle_count": 23,
+        "flow_count": 23
+      },
+      {
+        "window_begin": 540.0,
+        "window_end": 600.0,
+        "valid_count": 29,
+        "vehicle_count": 29,
+        "flow_count": 29
+      },
+      {
+        "window_begin": 600.0,
+        "window_end": 660.0,
+        "valid_count": 27,
+        "vehicle_count": 27,
+        "flow_count": 27
+      },
+      {
+        "window_begin": 660.0,
+        "window_end": 720.0,
+        "valid_count": 31,
+        "vehicle_count": 31,
+        "flow_count": 31
+      },
+      {
         "window_begin": 720.0,
         "window_end": 780.0,
+        "valid_count": 30,
+        "vehicle_count": 30,
+        "flow_count": 30
+      },
+      {
+        "window_begin": 780.0,
+        "window_end": 840.0,
+        "valid_count": 21,
+        "vehicle_count": 21,
+        "flow_count": 21
+      },
+      {
+        "window_begin": 840.0,
+        "window_end": 900.0,
+        "valid_count": 26,
+        "vehicle_count": 26,
+        "flow_count": 26
+      },
+      {
+        "window_begin": 900.0,
+        "window_end": 960.0,
+        "valid_count": 17,
+        "vehicle_count": 17,
+        "flow_count": 17
+      },
+      {
+        "window_begin": 960.0,
+        "window_end": 1020.0,
         "valid_count": 19,
         "vehicle_count": 19,
         "flow_count": 19
       },
       {
-        "window_begin": 780.0,
-        "window_end": 840.0,
-        "valid_count": 1,
-        "vehicle_count": 1,
-        "flow_count": 1
+        "window_begin": 1020.0,
+        "window_end": 1080.0,
+        "valid_count": 3,
+        "vehicle_count": 3,
+        "flow_count": 3
       }
     ]
   },
@@ -294,12 +361,42 @@
         "exit_edge": "J2S",
         "count": 2
       }
-    ]
+    ],
+    "routeable_records": 350,
+    "excluded_from_sumo_routes": 5,
+    "exclusion_policy": "drop_missing_connection_records"
   },
   "controlled_connections": 16,
   "connection_movement_audit_file": "xiasha1_sumo_connection_movement_audit.csv",
   "phase_matrix_csv_file": "xiasha1_sumo_phase_matrix.csv",
   "phase_matrix_text_file": "xiasha1_sumo_phase_matrix.txt",
+  "signal_offset_scan_file": "xiasha1_sumo_signal_offset_scan.csv",
+  "lane_connection_rebuild": {
+    "enabled": true,
+    "changes": [
+      {
+        "from": "N2J",
+        "to": "J2S",
+        "from_lane": 1,
+        "old_to_lane": 0,
+        "new_to_lane": 1
+      },
+      {
+        "from": "S2J",
+        "to": "J2N",
+        "from_lane": 1,
+        "old_to_lane": 0,
+        "new_to_lane": 1
+      }
+    ],
+    "change_count": 2,
+    "netconvert_command": [
+      "/home/dev/miniforge3/envs/colight/bin/python",
+      "/home/dev/miniforge3/envs/colight/bin/netconvert"
+    ],
+    "export_stderr": "",
+    "rebuild_stderr": ""
+  },
   "connection_audit": {
     "candidate_connections": 16,
     "controlled_connections": 16,
@@ -322,8 +419,8 @@
   "phase_durations_total": 128,
   "phase_count": 12,
   "simulation_begin_seconds": 0.0,
-  "simulation_end_seconds": 901,
-  "exit_time_usage": "not used for departure or arrival calibration",
+  "simulation_end_seconds": 1415,
+  "exit_time_usage": "target time for crossing the same direction-specific video exit line; never treated directly as a stop-line timestamp",
   "movement_classification": "network geometry vectors; straight/left/right/u_turn",
   "strict_topology_requested": false
 }

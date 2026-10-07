@@ -464,13 +464,15 @@ canvas { display: block; width: 100%; height: auto; background: #fafafa; }
 <script>
 const PAYLOAD = __PAYLOAD__;
 const METHODS = PAYLOAD.methods;
+const TOP_METHOD_ORDER = ["fixedtime", "cont_o2_final", "hadhoa"];
+const TOP_METHODS = TOP_METHOD_ORDER.filter(method => METHODS.includes(method));
 const COLORS = PAYLOAD.colors;
 const labels = PAYLOAD.method_labels;
 const CATALOG = PAYLOAD.intersections || {};
 const boards = document.getElementById('boards');
 const panels = {};
-const topViews = Object.fromEntries(METHODS.map(method => [method, {zoom: 1, panX: 0, panY: 0, dragging: false, pointerId: null, lastX: 0, lastY: 0}]));
-for (const method of METHODS) {
+const topViews = Object.fromEntries(TOP_METHODS.map(method => [method, {zoom: 1, panX: 0, panY: 0, dragging: false, pointerId: null, lastX: 0, lastY: 0}]));
+for (const method of TOP_METHODS) {
   const panel = document.createElement('section'); panel.className = 'panel'; panel.style.setProperty('--method-color', COLORS[method]);
   panel.innerHTML = `<h2>${labels[method]}</h2><div class="viewMode">选定路口局部视角 · 远端四向道路已裁剪</div><div class="panelViewTools"><button class="zoomOut" type="button" title="缩小">−</button><button class="resetView" type="button">重置</button><button class="zoomIn" type="button" title="放大">+</button><span class="viewHint">滚轮缩放 · 拖动移动</span></div><canvas class="topCanvas" width="800" height="600"></canvas><div class="stats"><span class="queue"></span><span class="jam"></span><span class="throughput"></span></div>`;
   boards.appendChild(panel); panels[method] = {panel, canvas: panel.querySelector('canvas'), viewMode: panel.querySelector('.viewMode'), viewHint: panel.querySelector('.viewHint'), queue: panel.querySelector('.queue'), jam: panel.querySelector('.jam'), throughput: panel.querySelector('.throughput')};
@@ -818,11 +820,11 @@ function canvasPoint(event, canvas) {
   ];
 }
 function targetMethods(method) {
-  return linkTopViews.checked ? METHODS : [method];
+  return linkTopViews.checked ? TOP_METHODS : [method];
 }
 function renderTopPanels(index) {
   const time = times[index], intersectionId = intersectionSelect.value || Object.keys(CATALOG)[0];
-  for (const method of METHODS) {
+  for (const method of TOP_METHODS) {
     const state = byMethod[method][time], panel = panels[method], view = topViews[method];
     const ctx = panel.canvas.getContext('2d');
     drawPanelScene(ctx, panel.canvas, state, intersectionId, view);
@@ -892,12 +894,12 @@ document.getElementById('play').onclick = () => { if (timer) { stop(); return; }
 document.getElementById('stepBack').onclick = () => { stop(); render(Number(timeline.value) - 1); };
 document.getElementById('stepForward').onclick = () => { stop(); render(Number(timeline.value) + 1); };
 timeline.oninput = () => { stop(); render(Number(timeline.value)); };
-intersectionSelect.onchange = () => { for (const method of METHODS) { topViews[method].zoom = 1; topViews[method].panX = 0; topViews[method].panY = 0; } render(Number(timeline.value)); };
+intersectionSelect.onchange = () => { for (const method of TOP_METHODS) { topViews[method].zoom = 1; topViews[method].panX = 0; topViews[method].panY = 0; } render(Number(timeline.value)); };
 detailMethod.onchange = () => render(Number(timeline.value));
 linkTopViews.onchange = () => renderTopPanels(Number(timeline.value));
 overlayTopViews.onchange = () => renderTopPanels(Number(timeline.value));
 document.getElementById('speed').onchange = () => { if (timer) { stop(); document.getElementById('play').click(); } };
-for (const method of METHODS) bindTopView(method);
+for (const method of TOP_METHODS) bindTopView(method);
 render(0);
 </script>
 </body>

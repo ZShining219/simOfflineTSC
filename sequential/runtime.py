@@ -60,7 +60,9 @@ class SequentialChildRunner:
         self.stage_episodes = list(self.child['stage_episodes'])
         self.policy = self.child['policy']
         self.training_seed = int(self.child['training_seed'])
-        self.is_ha_sodqn = self.plan.get('protocol_id') == 'ha_sodqn_b100_v1'
+        # Cross-algorithm pilot manifests use a separate protocol identity but
+        # the same HA-SODQN runtime semantics and policy marker.
+        self.is_ha_sodqn = self.policy == 'ha_sodqn'
         self.parent_manifest = (
             None if self.is_ha_sodqn
             else read_json(self.child['parent_import_manifest'])
@@ -154,21 +156,24 @@ class SequentialChildRunner:
         if self.is_ha_sodqn:
             payload.update({
                 'protocol_id': self.plan['protocol_id'],
+                'algorithm_id': self.child.get('algorithm_id', 'independent_dqn'),
                 'experiment_stage': self.plan['experiment_stage'],
                 'archive_mode': self.child['archive_mode'],
                 'method': self.child['method'],
                 'offline_ratio': self.child['offline_ratio'],
                 'archive_root_manifest': self.plan.get('archive_root_manifest'),
                 'archive_digest': self.plan.get('archive_digest'),
-                'initial_state_catalog': self.plan['initial_state_catalog'],
+                'initial_state_catalog': self.child.get(
+                    'initial_state_catalog', self.plan.get('initial_state_catalog')
+                ),
                 'initial_checkpoint': self.child['initial_checkpoint'],
                 'initial_checkpoint_file_sha256': self.child[
                     'initial_checkpoint_file_sha256'
                 ],
-                'git_commit': self.plan['git_commit'],
-                'git_branch': self.plan['git_branch'],
-                'git_remote': self.plan['git_remote'],
-                'rng_config': self.plan['rng_config'],
+                'git_commit': self.plan.get('git_commit'),
+                'git_branch': self.plan.get('git_branch'),
+                'git_remote': self.plan.get('git_remote'),
+                'rng_config': self.plan.get('rng_config'),
             })
         else:
             payload.update({
@@ -248,6 +253,7 @@ class SequentialChildRunner:
                 alignment_warmup_episodes=int(
                     self.child['alignment_warmup_episodes']
                 ),
+                algorithm_id=self.child.get('algorithm_id', 'independent_dqn'),
             )
         else:
             self.agent = agent_cls.from_parent(

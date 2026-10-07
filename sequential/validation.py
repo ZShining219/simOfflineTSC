@@ -49,6 +49,7 @@ TRAJECTORY_KEY = re.compile(r'^stage_(\d+):episode_(\d+):trajectory$')
 EVALUATION_KEY = re.compile(
     r'^evaluation:stage_(\d+):local_(\d+):(.+)$'
 )
+HA_PROTOCOLS = {'ha_sodqn_b100_v1', 'ha_cross_algorithm_v1'}
 
 
 def resolve_effective_attempt(path):
@@ -212,7 +213,7 @@ def validate_attempt(path):
         raise ValueError('Logical run identity differs between state and child manifest')
     trajectories, evaluations, diagnostics = _operation_maps(state)
     lower_triangle = (
-        child.get('protocol_id') == 'ha_sodqn_b100_v1'
+        child.get('protocol_id') in HA_PROTOCOLS
         or child.get('condition') in {'M0', 'M1', 'M2', 'M3'}
     )
     first_stage = 1 if lower_triangle else 2
@@ -296,7 +297,7 @@ def validate_attempt(path):
         'total_episode_count': sum(int(value) for value in child['stage_episodes']),
         'child_episode_references': trajectory_refs,
     }
-    if child.get('protocol_id') == 'ha_sodqn_b100_v1':
+    if child.get('protocol_id') in HA_PROTOCOLS:
         logical_view['initial_state'] = {
             'checkpoint_episode': 0,
             'checkpoint_path': child['initial_checkpoint'],
@@ -322,8 +323,13 @@ def validate_attempt(path):
 def validate_ha_attempt(path):
     validated = validate_attempt(path)
     child = validated['child_manifest']
-    if child.get('protocol_id') != 'ha_sodqn_b100_v1':
+    if child.get('protocol_id') not in HA_PROTOCOLS:
         raise ValueError('Attempt is not an HA-SODQN run')
+    if child.get('protocol_id') == 'ha_cross_algorithm_v1':
+        algorithm_id = child.get('algorithm_id')
+        if algorithm_id not in {
+                'independent_dqn', 'double_dqn', 'dueling_double_dqn'}:
+            raise ValueError('Cross-algorithm attempt has invalid algorithm identity')
     diagnostics = []
     for key, operation in validated['state']['completed_operations'].items():
         if key.endswith(':diagnostic'):
@@ -340,6 +346,9 @@ def validate_ha_attempt(path):
     if total_decisions != expected_decisions:
         raise ValueError('HA-SODQN decision budget mismatch')
     final_state = validated['final_checkpoint']['agent_state']
+    if child.get('protocol_id') == 'ha_cross_algorithm_v1':
+        if final_state.get('algorithm_id') != child.get('algorithm_id'):
+            raise ValueError('Cross-algorithm checkpoint identity mismatch')
     counters = final_state['counters']
     expected_updates = max(0, total_decisions - 1000)
     if int(counters['global_decision_step']) != total_decisions:

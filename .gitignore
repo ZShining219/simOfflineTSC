@@ -2,14 +2,41 @@ __pycache__/
 *.DS_Store
 .idea/
 .vscode/
-data/output_data
+data/output_data/
 /artifacts/
 /output_data/
 /analysis/
 /tmp/
-.ipynb
+*.ipynb
+
+# Generated experiment products. Keep reproducible source, configs and raw inputs
+# under version control; keep simulator replays, figures, logs and checkpoints out.
+/final_result/*
+!/final_result/.gitkeep
+*.log
+*.pt
+*.pth
+*.ckpt
+*.npz
+*.npy
+*.pkl
+*.pickle
+*.h5
+*.hdf5
+*.onnx
+*.fcd.xml
+*.vehroute.xml
+*.tripinfo.xml
+*.summary.xml
+*.netstate.xml
+*.sqlite
+
+# Local images and ad-hoc exports generated during analysis.
+*.png
+*.jpg
+*.jpeg
+
+# Do not commit shell wrappers or local caches.
 *.sh
-data/raw_data/grid4x4/*.xml
-data/raw_data/grid4x4/*.pdf
 *.ipynb
 /.secrets/

@@ -84,6 +84,10 @@ def build_parser():
     )
     prepare.add_argument('--source-root', default=None)
     prepare.add_argument('--source-root-id', default='plan1_formal_root', type=_identifier)
+    prepare.add_argument(
+        '--expected-episodes', type=int, default=400,
+        help='Episodes per source run (cross-algorithm history uses 100)',
+    )
 
     validate = subparsers.add_parser(
         'validate-dataset', help='Verify a generated offline dataset manifest and shards'
@@ -296,6 +300,7 @@ def main(argv=None):
     if args.offline_command == 'prepare-plan2':
         path = prepare_plan2_datasets(
             args.run_list, args.output_root, args.dataset_id,
+            expected_episodes=args.expected_episodes,
             source_root=args.source_root, source_root_id=args.source_root_id,
         )
         print(f'Plan 2 dataset indexes prepared: {path}')

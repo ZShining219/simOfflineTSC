@@ -1,0 +1,17 @@
+﻿entry_edge,exit_edge,movement,source_complete_od_count,network_connection_count,from_lanes,to_lanes,link_indices,routeable
+N2J,J2N,u_turn,4,1,3,3,4,True
+N2J,J2E,left,321,1,3,3,3,True
+N2J,J2S,through,335,2,1;2,1;2,1;2,True
+N2J,J2W,right,45,1,0,0,0,True
+E2J,J2N,right,458,1,0,0,5,True
+E2J,J2E,u_turn,2,1,3,3,9,True
+E2J,J2S,left,87,1,3,3,8,True
+E2J,J2W,through,433,2,1;2,1;2,6;7,True
+S2J,J2N,through,1145,2,1;2,1;2,11;12,True
+S2J,J2E,right,231,1,0,0,10,True
+S2J,J2S,u_turn,2,1,3,3,14,True
+S2J,J2W,left,111,1,3,3,13,True
+W2J,J2N,left,74,1,3,3,18,True
+W2J,J2E,through,931,2,1;2,1;2,16;17,True
+W2J,J2S,right,138,1,0,0,15,True
+W2J,J2W,u_turn,2,1,3,3,19,True

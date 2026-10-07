@@ -8,6 +8,7 @@ from dataclasses import asdict
 import hashlib
 import json
 import math
+import os
 from pathlib import Path
 
 import sumolib
@@ -77,6 +78,11 @@ class SumoEventRuntime:
         self._factor = 1.0
         self._base_speed = {}
         self._base_permissions = {}
+        # w34 P3 probe hook: TARL_INJECT_SHIFT_S shifts the REPORT publication
+        # clock only — physics (closures/obstacles/speed factors) still apply at
+        # true event boundaries.  shift>0 delays text injection, shift<0 makes
+        # reports arrive early (forecast).  Unset -> bit-identical behavior.
+        self._report_shift = float(os.environ.get('TARL_INJECT_SHIFT_S', '0'))
 
     def _validate_targets(self):
         if any(e.kind == 'global_rain' for e in self.schedule.events) and not self._rain_lanes:
@@ -204,8 +210,12 @@ class SumoEventRuntime:
                 self._factor = factor
             self._verify_obstacles()
             # Publish only after the entire batch is confirmed in SUMO.
+            # The report clock may be shifted by _report_shift (P3 probe): the
+            # message lifecycle slides as a whole while physics stays on `now`.
+            report_now = now - self._report_shift
             for event in self.schedule.events:
-                status = 'active' if event.event_id in active_ids else ('cleared' if now >= event.end else 'pending')
+                status = ('active' if event.begin <= report_now < event.end
+                          else ('cleared' if report_now >= event.end else 'pending'))
                 if status != self._states[event.event_id]:
                     self._states[event.event_id] = status
                     report = Report(event.event_id, status, now, self._render(event, status))
@@ -233,8 +243,11 @@ class SumoEventRuntime:
             where = (f"lane {event.lane_id} ({label} lane), on {lane['direction']} road {lane['edge_id']} "
                      f"approaching junction {lane['to_junction']}")
             if status == 'active':
+                # Under TARL_INJECT_SHIFT_S<0 the report may publish before the
+                # obstacle is inserted; fall back to the planned position.
+                position = self._positions.get(event.event_id, event.position)
                 return prefix + (f'A stationary obstacle locally blocks {where}, '
-                                 f'at {self._positions[event.event_id]:.2f} m from the lane start.')
+                                 f'at {position:.2f} m from the lane start.')
             return prefix + f'The obstacle on {where} has been removed.'
         if event.kind == 'road_closure':
             lane = self._lanes[self._edges[event.edge_id][0]]

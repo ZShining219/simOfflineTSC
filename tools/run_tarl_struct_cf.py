@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from pathlib import Path
 import runpy
 import sys
@@ -127,12 +128,26 @@ def run(args):
 
     original_init = agent_class.__init__
 
+    # w34 P1 probe: TARL_ALPHA_SCALE rescales the whole text-conditioned fusion
+    # contribution at inference (policy._fuse_head output, applied before the
+    # learnable fusion_alpha gate — effective strength = alpha_env * fusion_alpha
+    # for fixG; direct strength for gate-less arms).  alpha=1 -> bit-identical.
+    alpha_scale = float(os.environ.get('TARL_ALPHA_SCALE', '1.0'))
+
     def patched_init(self, world, rank):
         original_init(self, world, rank)
         if getattr(self, 'event_input', 'bert') != 'structured':
             raise RuntimeError('run_tarl_struct_cf requires event_input=structured')
         self.model.load_state_dict(saved_state)
         self.model.eval()
+        if alpha_scale != 1.0:
+            policy = self.model.policy
+            orig_fuse_head = policy._fuse_head
+
+            def scaled_fuse_head(x, train):
+                return alpha_scale * orig_fuse_head(x, train)
+
+            policy._fuse_head = scaled_fuse_head
 
     def patched_get_action(self, ob, phase, test=False):
         with torch.no_grad():

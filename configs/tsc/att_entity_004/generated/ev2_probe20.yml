@@ -1,0 +1,41 @@
+# eval_v2 probe config (20 episodes) — fixG model section; used by the w34_2
+# probe runs (P1 alpha sweep / P3 injection-shift) on the fixG s7 ep200 ckpt.
+# Seeds stay base+ep so probe runs share demand realisations with the first 20
+# episodes of the formal 40-episode eval_v2 runs (alpha=1 / shift=0 reuse).
+model:
+  batch_size: 128
+  epsilon: 0.8
+  epsilon_decay: 0.99995
+  epsilon_min: 0.05
+  event_input: structured
+  gamma: 0.99
+  grad_clip: 5.0
+  grad_ledger: true
+  grad_probe_interval: 0
+  huber_beta: 10.0
+  learning_rate: 0.0001
+  name: tarl_attention
+  one_hot: true
+  phase: true
+  semantic_aux: {enabled: true, lambda: 1.0}
+  fusion_gate: true
+  starvation_guard: {enabled: true, t_max_s: 180.0, theta: 30.0}
+  tarl_impl: paper
+  td_loss_fn: huber
+  train_model: true
+
+trainer:
+  episodes: 20
+  steps: 3600
+  test_steps: 3600
+  learning_start: 1000000000
+  buffer_size: 50000
+  action_interval: 10
+  update_model_rate: 1
+  update_target_rate: 200
+  test_when_train: false
+  event_schedule_plan: configs/events/plans/hz4x4_random_v1.yml
+  sumo_seed_per_episode: true
+
+logger:
+  save_rate: 25

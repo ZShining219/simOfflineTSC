@@ -8,14 +8,17 @@
 <!-- PANEL-BEGIN -->
 ## 当前面板（2026-10-07，campaign 收官时刷新）
 
-- **活跃研究线**：场景引导注意力 `att_entity_004`；研究代码在 `codex/milestone0-experiment-infrastructure` 分支（本日收编入库 c8be158..32d3e18，已与主干合并至 70f3dbf）。
-- **最新结论**：
-  - z_task 语义保真达标；held-out 场景分类证实文本通道携带场景身份（t34_devin）。
-  - "canonical≈empty" 修正为"事件窗内小幅净负"（t34_cc 配对 n=59）。
-  - 新缺陷：z_task 对 road_closure 有覆盖缺口（修复方案待裁决）。
-- **待办**：fixG 收官判读；a2s 臂挂起（6 个 REGISTERED 转 SCOPE_DISCARD）。
+- **当前有效设计栈**：`agent/scene_attention.py` + `agent/tarl.py`——per-node z_task 结构化槽位 + SemanticAuxHead 辅助监督 + 反事实探针四层判定；配置族 `configs/tsc/att_entity_004/`；参考臂 `a3s`，最新修复线 `fixG`（收官待判读）。
+- **代码位置**：`codex/milestone0-experiment-infrastructure` 分支（收编点 c8be158..32d3e18，已与主干合并 70f3dbf）；main=治理层+半离线基线。
+- **代号地图**（历史代际，明细在各 campaign 节）：
+  - `tarl_reproduction`/`tarl_v21_formal` = TARL 论文复现基线（完结，仅对照用）
+  - `att_entity_002` = SGA/concat/MPLight 文本注入矩阵（完结：H2 支持、H3 否）
+  - `att_entity_003` = TARL 对齐/传感矩阵 flx（完结）
+  - `att_entity_004` = **当前主线**（z_task+aux+反事实）；`sga_gb` 梯度门线 pilot 负结果已停
+  - `arterial_1x6`/`plan5_b100` = 半离线线（技术点3，独立于注意力线）
+- **最新结论**：z_task 语义保真达标、held-out 证实文本携场景身份（t34_devin）；"canonical≈empty"修正为"事件窗内小幅净负"（t34_cc，配对 n=59）；road_closure 覆盖缺口待裁决修复。
 - **接管测试**：t34_devin / t34_cc 均 DONE（test/t34_* 分支）。
-- **证据完整性**：台账 6516 行全字段，evidence_lost=0。
+- **证据完整性**：台账 6516 行，evidence_lost=0。
 <!-- PANEL-END -->
 
 ## 0. 总览

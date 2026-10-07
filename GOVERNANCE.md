@@ -120,6 +120,21 @@ superseded_by runtime_env
 
 见 `bench/BENCH.md` 与 `bench/profiles/att_hz4x4.yml`：阶段①场景区分分类关卡不过线不进阶段②决策优化。
 
+### 5.5 语义变更通道（奖励 / 文本条件 / 指标）
+
+**奖励、文本条件（z_task/文本注入方式）、指标定义是科研优化对象，可以改——但必须走显性化通道，禁止偷改。**
+一个 campaign 的可比性前提是"各臂共享同一奖励/指标语义"；无声改动会让台账里同名 run
+变成不同尺子量的数，可比性归零。按改动对象分三档：
+
+| 对象 | 例子 | 必经动作 |
+|---|---|---|
+| 奖励/辅助监督 | aux 损失权重、奖励塑形项 | **新臂名**（a3s→fixG 式命名）+ plan/config 写明覆写项 + commit + AGENTS.md 变更日志一行 |
+| 文本条件/事件注入 | z_task 槽位结构、绑定规则、事件计划 | 新臂或新 campaign + 变更日志；事件计划属冻结对照，改动须说明对 eval 可比性的影响 |
+| 指标定义本身 | 三指标公式、事件窗边界、配对判据 | **最重一档**：设计稿先行 → 新口径名（旧列保留不覆盖）→ 所属 campaign 整体重打基线 → 历史 run 台账备注标"旧口径"；新旧口径不在同一对照表混排 |
+
+判定口诀：**改完以后，如果新旧 run 的同名指标不能直接比，就是语义变更，按上表走。**
+拿不准 → "受阻"+原因等裁决，不擅自 commit 语义变更。
+
 ## 6. 启动与运行规范
 
 1. 正式实验只允许两条路径：(a) 队列 runner + `run_queue_*.json`（历史工具：`tools/run_experiment_queue.py`、`tools/run_arterial_experiment_queue.py`、`tools/att004_build_queue.py` 产物 + 对应 `run_state_*` 看门狗）；(b) `bench/` profile 流程。**禁止新写一次性 `*_driver.sh`/`run_*.sh` 直拉正式 run。**

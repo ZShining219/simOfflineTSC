@@ -1,0 +1,21 @@
+# w34_3 baseline eval_v2: MaxPressure under the shared eval_v2 frozen eval set.
+model:
+  name: maxpressure
+  train_model: True  # episodes loop gated on this flag; tool neuters learning (att004_baseline_eval neuters remember/train/sample->greedy)
+  t_min: 10
+
+trainer:
+  episodes: 40
+  steps: 3600
+  test_steps: 3600
+  learning_start: 1000000000
+  buffer_size: 1
+  action_interval: 10
+  update_model_rate: 1
+  update_target_rate: 200
+  test_when_train: false
+  event_schedule_plan: configs/events/plans/hz4x4_random_v1.yml
+  sumo_seed_per_episode: true
+
+logger:
+  save_rate: 1

@@ -10,8 +10,12 @@ z_task delivery outcome as one of
                    by closure_binding='nearest_upstream' (closure_bind arm)
     gap            road_closure whose lanes no controlled node observes and
                    the legacy binder drops it (canonical/fixG/fixR/a3s arms)
-    masked         bound report loses its node to an earlier-report_id event
-                   sharing the node during overlap (first-report-wins)
+
+plus an informational ``co_active`` flag: the event's bound nodes overlap
+with another concurrently-active report.  This is NOT a delivery failure —
+the binder keeps a [nodes, reports] matrix and the policy pools events at
+event level with a dynamic max_events, so co-active reports are all seen;
+it only means attention must arbitrate several claims on one node.
 
 Node observation layout approximation: a controlled node observes the motor-
 vehicle, non-internal lanes of edges whose to_junction is that node — the
@@ -144,20 +148,15 @@ def audit(plan, tls, lanes):
                     rec.update(class_='gap', nodes=[], upstream=up,
                                detail=f"unobserved edge; upstream={up}")
             rows.append(rec)
-        # masking: same-node overlap between active reports; sorted report_id wins
-        masked = set()
-        evs = [r for r in rows if r['class_'] in ('bound',)]
+        # co-activity flag: same-node overlap between concurrently-active
+        # bound reports (informational only — all co-active reports are
+        # delivered; the policy arbitrates them in event-level attention)
+        evs = [r for r in rows if r['class_'] == 'bound']
         for i, a in enumerate(evs):
             for b in evs[i+1:]:
-                if a['begin'] < b['end'] and b['begin'] < a['end']:
-                    shared = set(a['nodes']) & set(b['nodes'])
-                    if shared:
-                        loser = max(a['event_id'], b['event_id'])
-                        masked.add(loser)
-        for r in rows:
-            if r['event_id'] in masked:
-                r['class_'] = 'masked'
-                r['detail'] += ' (masked by earlier report_id)'
+                if a['begin'] < b['end'] and b['begin'] < a['end'] \
+                        and set(a['nodes']) & set(b['nodes']):
+                    a['co_active'] = b['co_active'] = True
         episodes[ep] = rows
     return episodes, obs_lanes
 
@@ -178,22 +177,37 @@ def main():
                 seen.add(k)
                 closure_log.append(r)
 
-    # join paired diffs: record episode = plan episode + 1
+    # join paired diffs onto PLAN episodes.  paired_util's CSV mixes keyings:
+    # metric columns sit on the trainer's 1-based record index (record N ran
+    # plan N-1) while win_queue_* / has_event sit on the 0-based npz==plan
+    # index.  Re-key each column family explicitly: metrics <- row p+1,
+    # window fields <- row p.
+    rows_by_ep = {(r['pair'], int(r['episode'])): r
+                  for r in csv.DictReader(PAIRED_CSV.open())}
+    pairs = sorted({p for p, _ in rows_by_ep})
     diffs = defaultdict(list)
-    for row in csv.DictReader(PAIRED_CSV.open()):
-        plan_ep = int(row['episode']) - 1
-        rows = audit_rows.get(plan_ep, [])
-        kinds = {r['kind'] for r in rows}
-        classes = {r['class_'] for r in rows}
-        for metric in ('travel_time', 'queue', 'win_queue_in', 'win_queue_out'):
-            v = row.get(metric)
-            if v:
-                key = (metric,
-                       '+'.join(sorted(kinds)) or 'no_event',
-                       'has_gap' if 'gap' in classes else
-                       ('has_masked' if 'masked' in classes else
-                        ('all_bound' if classes else 'no_event')))
-                diffs[key].append((row['pair'], float(v)))
+    for plan_ep in range(MAX_EP):
+        for pair in pairs:
+            met = rows_by_ep.get((pair, plan_ep + 1))
+            win = rows_by_ep.get((pair, plan_ep))
+            if met is None:
+                continue
+            merged = {m: met.get(m) for m in
+                      ('travel_time', 'queue', 'waiting_time', 'throughput')}
+            merged['win_queue_in'] = win.get('win_queue_in') if win else None
+            merged['win_queue_out'] = win.get('win_queue_out') if win else None
+            rows = audit_rows.get(plan_ep, [])
+            kinds = {r['kind'] for r in rows}
+            classes = {r['class_'] for r in rows}
+            co = any(r.get('co_active') for r in rows)
+            for metric, v in merged.items():
+                if v:
+                    key = (metric,
+                           '+'.join(sorted(kinds)) or 'no_event',
+                           ('has_gap' if 'gap' in classes else
+                            ('co_active' if co else
+                             ('all_bound' if classes else 'no_event'))))
+                    diffs[key].append((pair, float(v)))
 
     strata = {}
     for (metric, kind, cls), vals in sorted(diffs.items()):
@@ -237,7 +251,8 @@ def main():
                 md.append(f"| {kind} | {cls} | {metric} | {s['n']} | {s['mean']:+.4f} |")
     (OUT / 'audit.md').write_text('\n'.join(md) + '\n')
     print(f'wrote {OUT}/audit.{{json,md}}; events={len(table)}; '
-          f'classes={json.dumps({c: sum(1 for r in table if r["class_"]==c) for c in ("bound","gap","masked")}, sort_keys=True)}')
+          f'classes={json.dumps({c: sum(1 for r in table if r["class_"]==c) for c in ("bound","gap")}, sort_keys=True)}; '
+          f'co_active={sum(1 for r in table if r.get("co_active"))}')
 
 
 if __name__ == '__main__':

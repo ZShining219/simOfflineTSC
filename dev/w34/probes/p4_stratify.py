@@ -63,30 +63,46 @@ def main():
     for r in audit['episodes']:
         ep_events[r['episode']].append(r)
 
-    rows = list(csv.DictReader(PAIRED.open()))
+    # paired_util's CSV mixes keyings: metric columns sit on the trainer's
+    # 1-based record index (record N ran plan N-1) while win_queue_* /
+    # has_event sit on the 0-based npz==plan index.  Re-key explicitly.
+    rows_by_ep = {(r['pair'], int(r['episode'])): r
+                  for r in csv.DictReader(PAIRED.open())}
+    pairs = sorted({p for p, _ in rows_by_ep})
     groups = defaultdict(lambda: defaultdict(list))
-    for r in rows:
-        ep = int(r['episode'])
-        pe = ep - 1
+    merged_rows = []
+    for pe in range(40):
         events = ep_events.get(pe, [])
         kinds = '+'.join(sorted({e['kind'] for e in events})) or 'no_event'
         classes = {e['class_'] for e in events}
+        co = any(e.get('co_active') for e in events)
         cls = ('has_gap' if 'gap' in classes else
-               'has_masked' if 'masked' in classes else
+               'co_active' if co else
                ('all_bound' if classes else 'no_event'))
-        # event window share of episode: sum of unioned windows vs episode len
         wins = [(e['begin'], e['end']) for e in events]
         win_s = sum(b - a for a, b in wins)
-        arm, seed = r['pair'].rsplit('_', 1)
-        for m in METRICS:
-            v = r.get(m)
-            if not v:
+        for pair in pairs:
+            met = rows_by_ep.get((pair, pe + 1))
+            win = rows_by_ep.get((pair, pe))
+            if met is None:
                 continue
-            x = float(v)
-            for key in (('arm', arm), ('arm_seed', r['pair']),
-                        ('kind', kinds), ('class', cls),
-                        ('win_bucket', f'{int(win_s)//300*300}-{int(win_s)//300*300+300}s')):
-                groups[key][m].append(x)
+            merged = {'pair': pair, 'plan_ep': pe, 'kinds': kinds, 'cls': cls,
+                      'win_s': win_s,
+                      'win_queue_in': win.get('win_queue_in') if win else None,
+                      'win_queue_out': win.get('win_queue_out') if win else None}
+            for m in ('travel_time', 'waiting_time', 'queue', 'delay'):
+                merged[m] = met.get(m)
+            merged_rows.append(merged)
+            arm = pair.rsplit('_', 1)[0]
+            for m in METRICS:
+                v = merged.get(m)
+                if not v:
+                    continue
+                x = float(v)
+                for key in (('arm', arm), ('arm_seed', pair),
+                            ('kind', kinds), ('class', cls),
+                            ('win_bucket', f'{int(win_s)//300*300}-{int(win_s)//300*300+300}s')):
+                    groups[key][m].append(x)
 
     result = {}
     for (dim, val), mets in sorted(groups.items()):
@@ -96,20 +112,15 @@ def main():
     # sparse-window artifact test: corr(win_share, episode diff) &
     # window-only vs episode-mean diff comparison
     sparse = {}
-    for m in ('travel_time', 'queue'):
-        pairs = []
-        for r in rows:
-            if r.get(m) and r.get('win_' + ('queue' if m == 'queue' else 'travel_time') + '_in'):
-                pe = int(r['episode']) - 1
-                wins = [(e['begin'], e['end']) for e in ep_events.get(pe, [])]
-                share = sum(b - a for a, b in wins) / 3600.0
-                pairs.append((share, float(r[m]),
-                              float(r['win_queue_in' if m == 'queue' else 'win_travel_time_in'])))
-        if len(pairs) > 5:
-            n = len(pairs)
-            xs = [p[0] for p in pairs]
+    for m in ('queue',):
+        triples = [(r['win_s'] / 3600.0, float(r[m]), float(r['win_queue_in']))
+                   for r in merged_rows
+                   if r.get(m) and r.get('win_queue_in')]
+        if len(triples) > 5:
+            n = len(triples)
+            xs = [t[0] for t in triples]
             for idx, name in ((1, 'episode_diff'), (2, 'window_diff')):
-                ys = [p[idx] for p in pairs]
+                ys = [t[idx] for t in triples]
                 mx, my = st.mean(xs), st.mean(ys)
                 cov = sum((a - mx) * (b - my) for a, b in zip(xs, ys))
                 sx = math.sqrt(sum((a - mx) ** 2 for a in xs))

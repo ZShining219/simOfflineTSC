@@ -14,6 +14,16 @@ Variants (per-node z_task matrix, applied to the canonical feature rows):
     both-wrong     wrong-type composed with wrong-location
     foreign        a fabricated road_closure row placed on the last node (OOD)
 
+Protocols (`--eval_protocol`):
+    eval_v1   legacy: every plan episode replays the same SUMO demand
+              realisation (single --sumo_seed), so the effective eval sample
+              is one trajectory.
+    eval_v2   requires trainer.sumo_seed_per_episode: true in --config and
+              --dump_dir.  Plan episode e runs with --seed sumo_seed+e, so a
+              single run yields one paired demand realisation per episode
+              (n>=30 with a 40-episode config); two runs differing only in
+              TARL_TEXT_CONDITION give the per-episode paired contrast.
+
 Usage mirrors tools/run_tarl_text_cf.py but requires an event_input=structured
 config and checkpoint.
 """
@@ -27,6 +37,7 @@ import sys
 
 import numpy as np
 import torch
+import yaml
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -82,11 +93,31 @@ def _flush_dump(dump_dir, state):
     state['last_t'] = -1.0
 
 
+def _check_eval_protocol(args):
+    """Cross-check --eval_protocol against the trainer config's seed mode."""
+    cfg = yaml.safe_load(Path(args.config).read_text())
+    per_episode = bool((cfg.get('trainer') or {}).get('sumo_seed_per_episode'))
+    if args.eval_protocol == 'eval_v2':
+        if not per_episode:
+            raise SystemExit(
+                '--eval_protocol eval_v2 requires trainer.sumo_seed_per_episode:'
+                ' true in the config')
+        if not args.dump_dir:
+            raise SystemExit(
+                '--eval_protocol eval_v2 requires --dump_dir (deterministic '
+                'policy rollouts + per-episode z_task evidence)')
+    elif per_episode:
+        raise SystemExit(
+            'Config sets trainer.sumo_seed_per_episode; pass '
+            '--eval_protocol eval_v2 (eval_v1 cannot pair per-episode seeds)')
+
+
 def run(args):
     import agent.tarl  # noqa: F401  (registers tarl_* classes)
     from common.registry import Registry
     from reproduction.tarl_tsc.models.paper_tarl import ZTASK_FIELDS
 
+    _check_eval_protocol(args)
     agent_class = Registry.mapping['model_mapping'][args.agent]
     checkpoint = torch.load(args.checkpoint, map_location='cpu')
     saved_state = checkpoint['agents'][0]['online_model_state_dict']
@@ -222,7 +253,8 @@ def run(args):
             (dump_dir / 'event_plan_log.jsonl').write_text(plan_log.read_text())
         meta = {'agent': args.agent, 'checkpoint': str(args.checkpoint),
                 'config': str(args.config), 'seed': args.seed,
-                'sumo_seed': args.sumo_seed, 'prefix': args.prefix}
+                'sumo_seed': args.sumo_seed, 'prefix': args.prefix,
+                'eval_protocol': args.eval_protocol}
         (dump_dir / 'manifest.json').write_text(json.dumps(meta, indent=1))
 
 
@@ -236,6 +268,10 @@ def main():
     parser.add_argument('--output', required=True)
     parser.add_argument('--seed', type=int, default=7)
     parser.add_argument('--sumo_seed', type=int, default=None)
+    parser.add_argument('--eval_protocol', default='eval_v1',
+                        choices=('eval_v1', 'eval_v2'),
+                        help='eval_v2 requires trainer.sumo_seed_per_episode '
+                             'in config and --dump_dir')
     parser.add_argument('--dump_dir', default=None,
                         help='if set, dump per-decision arrays (obs/z_task/'
                              'h_it/z_post/fusion_w/action/queue) as per-episode '

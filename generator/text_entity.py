@@ -46,6 +46,12 @@ class GroundingBatch:
     lane_report_mask: np.ndarray  # [catalog lanes, reports]
     feature_report_mask: np.ndarray  # [intersections, max feature size, reports]
     valid_feature_mask: np.ndarray  # [intersections, max feature size]; excludes padding
+    # Optional node-level fallback bindings [intersections, reports]: set for
+    # reports the lane-level masks cannot bind (e.g. road_closure on a boundary
+    # edge observed by no controlled node) when the binder runs with
+    # ``closure_binding='nearest_upstream'``.  Kept distinct from
+    # feature_report_mask so the lane-level audit trail stays honest.
+    node_fallback_mask: np.ndarray = None
 
     @property
     def texts(self):
@@ -78,6 +84,9 @@ class GroundingBatch:
         report_scopes = tuple(item.report.scope for item in selected)
         feature_report_mask = self.feature_report_mask[:, :, report_indices]
         lane_report_mask = self.lane_report_mask[:, report_indices]
+        node_fallback_mask = (
+            None if self.node_fallback_mask is None
+            else self.node_fallback_mask[:, report_indices])
         node_report_mask = np.any(feature_report_mask, axis=1)
         global_columns = np.asarray(
             [scope in ('global', 'network') for scope in report_scopes], dtype=bool)
@@ -86,6 +95,8 @@ class GroundingBatch:
             # particular node has no directly observed lane binding.
             global_nodes = np.any(self.valid_feature_mask, axis=1)
             node_report_mask[:, global_columns] = global_nodes[:, None]
+        if node_fallback_mask is not None:
+            node_report_mask = node_report_mask | node_fallback_mask
         node_relation = np.zeros((*node_report_mask.shape, 3), dtype=bool)
         node_relation[..., 0] = node_report_mask
         node_index = {node: index for index, node in enumerate(self.intersection_ids)}
@@ -121,6 +132,7 @@ class GroundingBatch:
             node_event_relation=node_relation,
             lane_ids=tuple(self.lane_ids),
             node_ids=tuple(self.intersection_ids),
+            node_fallback_mask=node_fallback_mask,
         )
 
 
@@ -130,11 +142,26 @@ class TextEntityBinder:
     Reads the generator's actual lane order, never a guessed ID suffix order.
     Unsupported aggregation/features are rejected. Phase/text concatenation is
     outside this adapter; masks apply to the original lane observation only.
+
+    ``closure_binding='nearest_upstream'`` enables the closure_bind repair:
+    edge-scope ``road_closure`` reports whose target lanes are observed by no
+    controlled node (e.g. boundary edges ending at priority junctions) are
+    bound at node level to the nearest controlled upstream junction, found by
+    breadth-first search over predecessor edges.  The fallback lands in
+    ``node_fallback_mask`` — lane-level masks stay truthful to the physical
+    referent.  ``closure_bind_max_hops`` bounds the upstream search depth.
     """
 
-    def __init__(self, catalog, intersection_ids, generators):
+    _CLOSURE_BIND_MODES = (None, 'nearest_upstream')
+
+    def __init__(self, catalog, intersection_ids, generators,
+                 closure_binding=None, closure_bind_max_hops=4):
+        if closure_binding not in self._CLOSURE_BIND_MODES:
+            raise ValueError(f'Invalid closure_binding {closure_binding!r}')
         self.catalog = catalog
         self.intersection_ids = tuple(intersection_ids)
+        self.closure_binding = closure_binding
+        self._closure_bind_max_hops = int(closure_bind_max_hops)
         self._generators = tuple(generators)
         if (len(set(self.intersection_ids)) != len(self.intersection_ids)
                 or len(self.intersection_ids) != len(self._generators) or not self._generators):
@@ -146,6 +173,37 @@ class TextEntityBinder:
             for feature_index, lane_id in enumerate(lanes):
                 self._bindings.setdefault(lane_id, []).append(
                     FeatureBinding(lane_id, node_id, node_index, feature_index))
+        self._edge_from = None
+        self._upstream_pred = None
+        if self.closure_binding is not None:
+            self._node_rank = {node: i for i, node in
+                               enumerate(self.intersection_ids)}
+            self._edge_from = {}
+            self._upstream_pred = {}
+            for lane_id in self.catalog.lane_ids:
+                lane = self.catalog.lane(lane_id)
+                self._edge_from[lane['edge_id']] = lane['from_junction']
+                self._upstream_pred.setdefault(
+                    lane['to_junction'], set()).add(lane['from_junction'])
+
+    def _nearest_upstream_node(self, edge_id):
+        """Nearest controlled junction upstream of ``edge_id`` (BFS by hops)."""
+        start = self._edge_from.get(edge_id)
+        if start is None:
+            return None
+        seen, frontier = set(), {start}
+        for _ in range(self._closure_bind_max_hops):
+            hits = [j for j in frontier if j in self._node_rank]
+            if hits:
+                return min(hits, key=lambda j: self._node_rank[j])
+            seen |= frontier
+            nxt = set()
+            for junction in frontier:
+                nxt |= self._upstream_pred.get(junction, set())
+            frontier = nxt - seen
+            if not frontier:
+                return None
+        return None
 
     def _read_layout(self):
         rows = []
@@ -199,7 +257,22 @@ class TextEntityBinder:
                 for binding in current:
                     feature_mask[binding.intersection_index, binding.feature_index, j] = True
             bound.append(BoundReport(report, tuple(bindings), tuple(unobserved)))
+        node_fallback = None
+        if self.closure_binding is not None:
+            node_fallback = np.zeros(
+                (len(self.intersection_ids), len(reports)), dtype=bool)
+            for j, item in enumerate(bound):
+                report = item.report
+                if (item.feature_bindings or report.scope != 'edge'
+                        or report.event_kind != 'road_closure'
+                        or not report.target_lane_ids):
+                    continue
+                edge = self.catalog.lane(report.target_lane_ids[0])['edge_id']
+                node = self._nearest_upstream_node(edge)
+                if node is not None:
+                    node_fallback[self._node_rank[node], j] = True
+            node_fallback.setflags(write=False)
         for array in (lane_mask, feature_mask, valid):
             array.setflags(write=False)
         return GroundingBatch(tuple(bound), lane_ids, self.intersection_ids, self.feature_sizes,
-                              lane_mask, feature_mask, valid)
+                              lane_mask, feature_mask, valid, node_fallback)

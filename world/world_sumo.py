@@ -400,6 +400,7 @@ class World(object):
         configured_sumo_seed = Registry.mapping['command_mapping']['setting'].param.get(
             'sumo_seed'
         )
+        self._next_episode_seed = None
         if configured_sumo_seed is not None:
             self.sumo_cmd += ['--seed', str(int(configured_sumo_seed))]
         self.warning = sumo_dict['no_warning']
@@ -716,10 +717,27 @@ class World(object):
         self.evaluation_output_dir = os.path.abspath(output_dir)
         os.makedirs(self.evaluation_output_dir, exist_ok=True)
 
+    def set_episode_seed(self, seed):
+        """Arm the SUMO --seed for the next engine start only.
+
+        Episode plans use this to give each plan episode an independent demand
+        realisation (per-episode seed mode); it is consumed once by
+        ``_start_engine`` so a later reset without an explicit seed falls back
+        to the single configured seed instead of silently reusing a stale one.
+        """
+        self._next_episode_seed = int(seed)
+
     def _start_engine(self):
         if self._connection_open:
             raise RuntimeError('SUMO connection is already open')
         command = list(self.sumo_cmd)
+        if self._next_episode_seed is not None:
+            seed_value = str(self._next_episode_seed)
+            self._next_episode_seed = None
+            if '--seed' in command:
+                command[command.index('--seed') + 1] = seed_value
+            else:
+                command += ['--seed', seed_value]
         stdout = None
         if self.evaluation_output_dir is not None:
             command += [

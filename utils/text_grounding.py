@@ -49,6 +49,10 @@ class Gnode:
     node_event_relation: Optional[np.ndarray] = None
     lane_ids: Tuple[str, ...] = ()
     node_ids: Tuple[str, ...] = ()
+    # Node-level fallback bindings applied on top of the lane-derived mask
+    # (closure_binding='nearest_upstream'); kept separate so the physical
+    # referent audit in feature_report_mask stays intact.
+    node_fallback_mask: Optional[np.ndarray] = None
 
     def __post_init__(self):
         arrays = {
@@ -92,6 +96,12 @@ class Gnode:
             raise ValueError('Gnode.node_event_relation must have shape [nodes, reports, 3]')
         if self.lane_ids and len(self.lane_ids) != self.lane_report_mask.shape[0]:
             raise ValueError('Gnode.lane_ids disagree with lane_report_mask')
+        if self.node_fallback_mask is not None:
+            fallback = np.asarray(self.node_fallback_mask, dtype=bool).copy()
+            if fallback.shape != self.node_report_mask.shape:
+                raise ValueError('Gnode.node_fallback_mask disagrees with node_report_mask')
+            fallback.setflags(write=False)
+            object.__setattr__(self, 'node_fallback_mask', fallback)
         if self.node_ids and len(self.node_ids) != self.node_mask.shape[0]:
             raise ValueError('Gnode.node_ids disagree with node masks')
         if self.scope not in {'none', 'local', 'global', 'mixed'}:

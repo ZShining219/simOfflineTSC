@@ -97,13 +97,21 @@ class PlanController:
     ``select_train(episode)`` arms the indexed plan row; ``select_eval()``
     arms the fixed eval schedule.  A reset without a pending selection fails
     loudly so no code path can silently consume or replay the wrong episode.
+
+    With ``episode_seed_base`` set, each train-role selection also arms
+    ``world.set_episode_seed(base + episode)`` before the wrapped reset, so
+    every plan episode replays an independent SUMO demand realisation (the
+    eval_v2 protocol).  Eval-role selections keep the single configured seed,
+    preserving the frozen eval scenario exactly as the legacy protocol.
     """
 
-    def __init__(self, world, plan, runtime, log_path=None):
+    def __init__(self, world, plan, runtime, log_path=None,
+                 episode_seed_base=None):
         self.world = world
         self.plan = plan
         self.runtime = runtime
         self.log_path = None if log_path is None else Path(log_path)
+        self.episode_seed_base = episode_seed_base
         self._pending = None
         self.last_selection = None
         base_reset = world.reset
@@ -114,6 +122,11 @@ class PlanController:
                     'Episode plan requires select_train/select_eval before reset')
             role, schedule, episode = self._pending
             self._pending = None
+            applied_seed = None
+            if (self.episode_seed_base is not None and role == 'train'
+                    and episode is not None):
+                applied_seed = self.episode_seed_base + episode
+                world.set_episode_seed(applied_seed)
             # Close first: the wrapped close detaches the previous engine so
             # the runtime is unbound and legally accepts the next schedule.
             world.close()
@@ -121,6 +134,8 @@ class PlanController:
             result = base_reset(*args, **kwargs)
             self.last_selection = {'role': role, 'episode': episode,
                                'schedule_sha256': runtime.schedule_sha256}
+            if applied_seed is not None:
+                self.last_selection['sumo_seed'] = applied_seed
             self._log(self.last_selection, schedule)
             return result
 
@@ -146,18 +161,22 @@ class PlanController:
             handle.write(json.dumps(row, sort_keys=True) + '\n')
 
 
-def install_event_plan(world, plan, log_path=None):
+def install_event_plan(world, plan, log_path=None, episode_seed_base=None):
     """Attach a frozen episode plan to a closed World before its first reset.
 
     The existing ``install_events`` machinery keeps ownership of the wrapped
     ``reset/step_sim/close`` chain and the traffic-filtered connection view;
     this layer only swaps the runtime's schedule inside that wrapped reset.
+    ``episode_seed_base`` enables the eval_v2 per-episode seed mode: train
+    episode e runs SUMO with ``--seed base+e`` (requires a configured
+    ``--sumo_seed``); eval-role resets keep the configured seed unchanged.
     """
     if getattr(world, '_connection_open', False):
         raise ValueError('Install the episode plan on a closed World before reset')
     if getattr(world, '_sumo_event_runtime', None) is not None:
         raise ValueError('An event runtime is already installed')
     runtime = install_events(world, plan.eval_schedule)
-    controller = PlanController(world, plan, runtime, log_path)
+    controller = PlanController(world, plan, runtime, log_path,
+                                episode_seed_base=episode_seed_base)
     world._sumo_event_plan = controller
     return controller

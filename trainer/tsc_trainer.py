@@ -475,7 +475,19 @@ class TSCTrainer(BaseTrainer):
             log_path = os.path.join(
                 Registry.mapping['logger_mapping']['path'].path,
                 'event_plan_log.jsonl')
-            self.event_plan = install_event_plan(self.world, plan, log_path)
+            # eval_v2 protocol: each train-role plan episode runs SUMO with
+            # --seed sumo_seed+episode so a single eval produces one paired
+            # sample per plan episode (n>=30) instead of replaying one demand
+            # realisation.  Requires an explicit --sumo_seed base.
+            episode_seed_base = None
+            if settings.get('sumo_seed_per_episode'):
+                episode_seed_base = Registry.mapping[
+                    'command_mapping']['setting'].param.get('sumo_seed')
+                if episode_seed_base is None:
+                    raise ValueError(
+                        'sumo_seed_per_episode requires an explicit --sumo_seed')
+            self.event_plan = install_event_plan(
+                self.world, plan, log_path, episode_seed_base=episode_seed_base)
             self.event_runtime = self.event_plan.runtime
         elif schedule_path:
             if Registry.mapping['command_mapping']['setting'].param['world'] != 'sumo':

@@ -1,0 +1,19 @@
+includes:
+  - configs/tsc/mplight.yml
+
+# Short, auditable event baseline.  This is a development run, not a formal
+# performance claim: one seed, two episodes, and a fixed public schedule.
+trainer:
+  episodes: 2
+  steps: 300
+  test_steps: 300
+  learning_start: 20
+  buffer_size: 500
+  action_interval: 10
+  update_model_rate: 1
+  update_target_rate: 10
+  test_when_train: false
+  event_schedule: configs/events/hz4x4.yml
+
+logger:
+  save_rate: 1

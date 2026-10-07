@@ -1,0 +1,13 @@
+includes:
+  - configs/tsc/mplight.yml
+
+model:
+  name: sga_mplight
+  sga_enabled: True
+  scene_feature_dim: 16
+  demand_shape: 1
+  sga_attention_dim: 8
+  sga_temperature: 1.0
+  sga_dropout: 0.0
+  sga_residual_scale: 1.0
+

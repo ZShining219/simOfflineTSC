@@ -1,0 +1,14 @@
+schema_version: paper-reward-v1
+profile_id: colight_author_queue_sumo_v1
+owner: colight
+statistic: queue_sum
+lane_scope: all_incoming
+weight: -0.25
+normal_factor: 20.0
+stopped_speed_mps: 0.1
+temporal_aggregation: action_interval_mean
+references:
+  - https://github.com/wingsweihua/colight/blob/04440b722e7f36d7043a3f2ad8e40c3df301fad3/runexp.py
+  - https://github.com/wingsweihua/colight/blob/04440b722e7f36d7043a3f2ad8e40c3df301fad3/CoLight_agent.py
+  - https://github.com/wingsweihua/colight/blob/04440b722e7f36d7043a3f2ad8e40c3df301fad3/anon_env.py
+qualification: "Author runexp queue penalty and CoLight_agent TD scaling, projected to SUMO full incoming-lane current speed < 0.1 m/s. Per-node local rewards remain separate in the shared graph update; not a global sum broadcast to all nodes."

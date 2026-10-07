@@ -1,0 +1,5 @@
+includes:
+  - configs/tsc/frap.yml
+model:
+  name: paper_frap
+  reward_profile: configs/rewards/frap.yml

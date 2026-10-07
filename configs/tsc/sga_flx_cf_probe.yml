@@ -1,0 +1,30 @@
+# Counterfactual probe profile for frozen SGA-FLX checkpoints.  Uses the
+# fixed eval schedule (events 900-1200s, known ids hz_*) so the
+# wrong_location variant can relocate grounding to a distant node.
+# Self-contained overlay.
+model:
+  name: sga_flx_colight
+  train_model: False
+  sga_enabled: True
+  sga_input_mode: text_multi_event_flx
+  sga_meta_dim: 64
+  sga_attention_dim: 64
+  sga_flx_heads: 4
+  sga_grounding_bias: 1.0
+  batch_size: 8
+
+trainer:
+  episodes: 1
+  steps: 1500
+  test_steps: 1500
+  learning_start: 100000
+  buffer_size: 500
+  action_interval: 10
+  update_model_rate: 1
+  update_target_rate: 10
+  test_when_train: false
+  event_schedule: configs/events/eval/all.yml
+
+logger:
+  save_rate: 1
+  attention: true

@@ -1,0 +1,7 @@
+# Frozen evaluation condition (ATT-ENTITY-002 test library).
+# All events confined to [900,1200): traffic develops for 900 s first,
+# enabling clean before/during/after event-window metrics.
+events:
+- {begin: 900, edge_id: road_2_2_0, end: 1200, event_id: hz_road_01, kind: road_closure}
+- {begin: 900, end: 1200, event_id: hz_rain_01, kind: global_rain, speed_factor: 0.7}
+schema_version: sumo-events-v1

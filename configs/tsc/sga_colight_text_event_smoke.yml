@@ -1,0 +1,31 @@
+includes:
+  - configs/tsc/sga_colight.yml
+
+# Frozen Zscene/Gscene implementation smoke profile.  The historical
+# sga_colight.yml remains the structured-scene baseline; this profile opts into
+# event-level Frozen-BERT + metadata fusion and binder-aligned Gscene.
+model:
+  name: sga_colight
+  sga_input_mode: text_multi_event
+  sga_meta_dim: 64
+  sga_attention_dim: 64
+  sga_temperature: 1.0
+  sga_residual_scale: 1.0
+  sga_grounding_bias: 1.0
+  batch_size: 8
+
+trainer:
+  episodes: 2
+  steps: 300
+  test_steps: 300
+  learning_start: 20
+  buffer_size: 500
+  action_interval: 10
+  update_model_rate: 1
+  update_target_rate: 10
+  test_when_train: false
+  event_schedule: configs/events/hz4x4.yml
+
+logger:
+  save_rate: 1
+  attention: true

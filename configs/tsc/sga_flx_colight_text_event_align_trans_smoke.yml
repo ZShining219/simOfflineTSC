@@ -1,0 +1,39 @@
+includes:
+  - configs/tsc/sga_flx_colight.yml
+
+# Engineering smoke for SGA-FLX + GRIF-style transition alignment (stage-3 arm B).
+# Three episodes cover the event rows of the shared plan; verifies the
+# episode accumulator, pair construction, auxiliary loss and diagnostics.
+model:
+  name: sga_flx_colight
+  sga_input_mode: text_multi_event_flx
+  sga_meta_dim: 64
+  sga_attention_dim: 64
+  sga_flx_heads: 4
+  sga_grounding_bias: 1.0
+  sga_align_lambda: 0.1
+  sga_align_tau: 0.07
+  sga_align_window_cap_steps: 60
+  sga_align_min_active_steps: 3
+  sga_align_max_events: 16
+  sga_align_min_events: 2
+  sga_align_buffer_episodes: 32
+  sga_align_mode: transition
+  sga_align_seed: 1301
+  batch_size: 8
+
+trainer:
+  episodes: 3
+  steps: 300
+  test_steps: 300
+  learning_start: 20
+  buffer_size: 500
+  action_interval: 10
+  update_model_rate: 1
+  update_target_rate: 10
+  test_when_train: false
+  event_schedule_plan: configs/events/plans/hz4x4_align_smoke_v1.yml
+
+logger:
+  save_rate: 1
+  attention: true

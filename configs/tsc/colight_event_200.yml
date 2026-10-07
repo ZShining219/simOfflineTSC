@@ -1,0 +1,31 @@
+includes:
+  - configs/tsc/colight.yml
+
+# Formal 200-episode event-trained CoLight comparator.  The event schedule is
+# deliberately explicit so the physical perturbation is identical to the
+# scene-aware policies; CoLight itself receives no report or grounding input.
+model:
+  name: colight
+  train_model: True
+  epsilon: 0.8
+  epsilon_decay: 0.99995
+  epsilon_min: 0.05
+  batch_size: 8
+
+trainer:
+  episodes: 200
+  steps: 3600
+  test_steps: 3600
+  learning_start: 1000
+  buffer_size: 5000
+  action_interval: 10
+  update_model_rate: 1
+  update_target_rate: 10
+  test_when_train: false
+  evaluation_episodes: [0, 50, 100, 150, 200]
+  resumable_checkpoint_episodes: [0, 50, 100, 150, 200]
+  event_schedule: configs/events/hz4x4.yml
+
+logger:
+  save_rate: 25
+  attention: false

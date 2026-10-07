@@ -1,0 +1,13 @@
+includes:
+  - configs/tsc/colight.yml
+
+# SGA-FLX base profile: CoLight backbone with the zero-init cross-attention
+# event injection module (agent.scene_attention.SceneCrossAttentionResidual).
+model:
+  name: sga_flx_colight
+  sga_enabled: True
+  sga_input_mode: text_multi_event_flx
+  sga_meta_dim: 64
+  sga_attention_dim: 64
+  sga_flx_heads: 4
+  sga_grounding_bias: 1.0

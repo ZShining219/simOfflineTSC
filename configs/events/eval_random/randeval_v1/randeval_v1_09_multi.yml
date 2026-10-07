@@ -1,0 +1,14 @@
+schema_version: sumo-events-v1
+events:
+- event_id: randeval_v1_09_e0
+  kind: lane_blockage
+  begin: 731
+  end: 1223
+  lane_id: road_0_2_0_2
+  position: 521.9
+  position_tolerance: 20.0
+- event_id: randeval_v1_09_e1
+  kind: road_closure
+  begin: 1483
+  end: 1697
+  edge_id: road_1_1_2

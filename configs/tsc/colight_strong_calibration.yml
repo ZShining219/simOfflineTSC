@@ -1,0 +1,47 @@
+# Stage A only: frozen-policy calibration, no optimizer updates or training.
+extends: colight_event150.yml
+purpose: engineering
+episodes: 1
+validation_every: 1
+test_episodes: [1]
+event_execution:
+  placement:
+    obstacle_length_m: 30
+events:
+  block_distance: 1
+  position_tolerance: 0.5
+  durations: [600, 900]
+  rain_factors: [0.7, 0.5]
+preflight:
+  controllers: [fixedtime, maxpressure]
+  seeds: [101, 103]
+  event_duration: 900
+calibration:
+  version: strong-events-stage-a-v1
+  profiles:
+    S1: {duration: 600, blocked_lanes: 1, rain_factor: 0.7}
+    S2: {duration: 900, blocked_lanes: 2, rain_factor: 0.5}
+  local_begin: 900
+  rain_begins: [600, 900, 1200]
+  target_count: 3
+  exposure_fraction: 0.3333333333333333
+  selection_seed: 500101
+  max_simulations: 200
+  wall_seconds: 3600
+  recovery_seconds: 600
+  recovery_hold_seconds: 60
+  recovery_absolute_queue: 5
+  recovery_relative_queue: 0.2
+  thresholds:
+    local_queue_delta: 5
+    flow_drop_fraction: 0.2
+    speed_drop_fraction: 0.15
+    net_J_fraction: 0.05
+    minimum_success_fraction: 0.6666666666666666
+  frozen_policies:
+    colight_s7:
+      publication: data/output_data/paper_robustness/colight_event150/20260920_force5m_v1/train/normal_s7/published/episode_0150.json
+      sha256: 83566e107feb14347eb7f7c116bd8160fd7386a38a1358d9b3d273c2bafca38b
+    colight_s17:
+      publication: data/output_data/paper_robustness/colight_event150/20260920_force5m_v1/train/normal_s17/published/episode_0150.json
+      sha256: 7805a789176025c4ba3519b325a3ca5d9df9afde240c79c85cde2d085261c8cf

@@ -1,0 +1,21 @@
+{
+  "conditions": {
+    "randeval_v1_00_normal": "configs/events/eval_random/randeval_v1/randeval_v1_00_normal.yml",
+    "randeval_v1_01_single": "configs/events/eval_random/randeval_v1/randeval_v1_01_single.yml",
+    "randeval_v1_02_single": "configs/events/eval_random/randeval_v1/randeval_v1_02_single.yml",
+    "randeval_v1_03_multi": "configs/events/eval_random/randeval_v1/randeval_v1_03_multi.yml",
+    "randeval_v1_04_single": "configs/events/eval_random/randeval_v1/randeval_v1_04_single.yml",
+    "randeval_v1_05_multi": "configs/events/eval_random/randeval_v1/randeval_v1_05_multi.yml",
+    "randeval_v1_06_normal": "configs/events/eval_random/randeval_v1/randeval_v1_06_normal.yml",
+    "randeval_v1_07_normal": "configs/events/eval_random/randeval_v1/randeval_v1_07_normal.yml",
+    "randeval_v1_08_single": "configs/events/eval_random/randeval_v1/randeval_v1_08_single.yml",
+    "randeval_v1_09_multi": "configs/events/eval_random/randeval_v1/randeval_v1_09_multi.yml",
+    "randeval_v1_10_multi": "configs/events/eval_random/randeval_v1/randeval_v1_10_multi.yml",
+    "randeval_v1_11_single": "configs/events/eval_random/randeval_v1/randeval_v1_11_single.yml"
+  },
+  "count": 12,
+  "seed": 20261005,
+  "set_id": "randeval_v1",
+  "set_sha256": "b7dd5683fde526501b26971367507a8c82e9fb264022f221a63c1da3008d6650",
+  "train_plan_seed": 20260928
+}

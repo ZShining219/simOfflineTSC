@@ -1,0 +1,38 @@
+# MPLight formal 200-episode run on the SHARED random episode plan
+# (paired with colight/sga arms of ATT-ENTITY-003 stage-4 baseline study).
+# Self-contained: overlays do not resolve `includes`.
+model:
+  name: mplight
+  train_model: True
+  n_layers: 2
+  rotation: true
+  conflict_matrix: true
+  merge: multiply
+  d_dense: 20
+  learning_rate: 0.001
+  batch_size: 32
+  gamma: 0.99
+  eps_start: 1.0
+  eps_end: 0.0
+  eps_decay: 220
+  target_update: 500
+  demand_shape: 1
+  phase: True
+
+trainer:
+  episodes: 200
+  steps: 3600
+  test_steps: 3600
+  learning_start: -1
+  buffer_size: 10000
+  action_interval: 10
+  update_model_rate: 1
+  update_target_rate: 10
+  test_when_train: false
+  evaluation_episodes: [0, 50, 100, 150, 200]
+  resumable_checkpoint_episodes: [0, 50, 100, 150, 200]
+  event_schedule_plan: configs/events/plans/hz4x4_random_v1.yml
+
+logger:
+  save_rate: 25
+  attention: false

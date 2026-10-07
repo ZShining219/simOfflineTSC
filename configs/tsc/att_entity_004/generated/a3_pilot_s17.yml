@@ -1,0 +1,41 @@
+# ATT-ENTITY-004 generated config (a3_pilot_s17)
+model:
+  name: tarl_attention
+  train_model: True
+  tarl_impl: paper
+  one_hot: True
+  phase: True
+  batch_size: 128
+  gamma: 0.99
+  learning_rate: 0.0001
+  epsilon: 0.8
+  epsilon_decay: 0.99995
+  epsilon_min: 0.05
+  grad_clip: 5.0
+  # A3 SGA-GB mechanism pilot: event-conditioned per-sample traffic
+  # gradient damping driven by the EMA-smoothed fusion-input ratio R_t.
+  # alpha_s = clip(R*/R_ema, alpha_min, 1) applied only to the event samples'
+  # contribution to theta_traffic = {traffic_mlp, state_projection}.
+  grad_ledger: true
+  sga_gb:
+    enabled: true
+    r_star: 3.0
+    alpha_min: 0.1
+    ema_beta: 0.98
+    warmup_steps: 500
+trainer:
+  episodes: 100
+  steps: 3600
+  test_steps: 3600
+  learning_start: 1000
+  buffer_size: 50000
+  action_interval: 10
+  update_model_rate: 1
+  update_target_rate: 200
+  test_when_train: false
+  evaluation_episodes: [0, 50, 100]
+  resumable_checkpoint_episodes: [0, 50, 100]
+  event_schedule_plan: configs/events/plans/hz4x4_random_v1.yml
+
+logger:
+  save_rate: 25

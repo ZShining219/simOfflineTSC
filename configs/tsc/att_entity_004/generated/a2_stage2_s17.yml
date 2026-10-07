@@ -1,0 +1,40 @@
+# ATT-ENTITY-004 generated config (a2_stage2_s17)
+model:
+  name: tarl_attention
+  train_model: True
+  tarl_impl: paper
+  one_hot: True
+  phase: True
+  batch_size: 128
+  gamma: 0.99
+  learning_rate: 0.0001
+  epsilon: 0.8
+  epsilon_decay: 0.99995
+  epsilon_min: 0.05
+  grad_clip: 5.0
+  # A2 stage2: unfreeze the traffic encoder but keep its learning rate
+  # far below the text pathway's (traffic_lr_scale applied to lr).
+  # stage_load_optimizer=false because the two-group RMSprop layout differs
+  # from the single-group state saved in the stage1 checkpoint.
+  stage_checkpoint: /data/users/zfh/workspace/projects/simOfflineTSC/data/output_data/tsc/sumo_tarl_attention/hz4x4/att004_stg1_s17/checkpoints/resumable/episode_0200.pt
+  replay_policy: fifo
+  epsilon_mode: continue_schedule
+  stage_load_optimizer: false
+  traffic_lr_scale: 0.1
+  grad_ledger: true
+trainer:
+  episodes: 100
+  steps: 3600
+  test_steps: 3600
+  learning_start: 1000
+  buffer_size: 50000
+  action_interval: 10
+  update_model_rate: 1
+  update_target_rate: 200
+  test_when_train: false
+  evaluation_episodes: [0, 50, 100]
+  resumable_checkpoint_episodes: [0, 50, 100]
+  event_schedule_plan: configs/events/plans/hz4x4_random_v1.yml
+
+logger:
+  save_rate: 25

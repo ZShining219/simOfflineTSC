@@ -1,0 +1,31 @@
+{
+  "args": {
+    "begin_max": 1800,
+    "begin_min": 600,
+    "dur_max": 600,
+    "dur_min": 180,
+    "episodes": 200,
+    "eval": "/data/users/zfh/workspace/projects/simOfflineTSC/configs/events/hz4x4_comparison.yml",
+    "horizon": 3600,
+    "net": "/data/users/zfh/workspace/projects/simOfflineTSC/data/raw_data/hangzhou_4x4_gudang_18041610_1h/hangzhou_4x4_gudang_18041610_1h.net.xml",
+    "normal": 0.3,
+    "plan_id": "hz4x4_random_v1",
+    "position_min_ratio": 0.25,
+    "position_tolerance": 20.0,
+    "rain_max": 0.9,
+    "rain_min": 0.7,
+    "recovery": 600,
+    "seed": 20260928,
+    "single": 0.4
+  },
+  "counts": {
+    "multi": 61,
+    "normal": 55,
+    "single": 84
+  },
+  "episodes": 200,
+  "net_sha256": "5a74ada65f5148d23347be3f1f3babdb0b90df2418cd1382e6023469aee25499",
+  "out": "configs/events/plans/hz4x4_random_v1.yml",
+  "plan_id": "hz4x4_random_v1",
+  "plan_sha256": "2cf642a9b851cb6a3f96ab52fd4a6b9a75143dfc2ed5ae1b708568400f8f5faa"
+}

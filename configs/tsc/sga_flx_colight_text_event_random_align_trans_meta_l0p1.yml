@@ -1,0 +1,45 @@
+# Stage-3 experiment A pilot: SGA-FLX + GRIF-style event-transition alignment.
+# Identical to sga_flx_colight_text_event_random_200.yml except the
+# auxiliary alignment term (model.sga_align_*) — single changed factor.
+# GRIF-style transition + location-free meta repr (B'): fixes the text-side memorization channel found in A.
+model:
+  name: sga_flx_colight
+  train_model: True
+  sga_enabled: True
+  sga_input_mode: text_multi_event_flx
+  sga_meta_dim: 64
+  sga_attention_dim: 64
+  sga_flx_heads: 4
+  sga_grounding_bias: 1.0
+  sga_align_lambda: 0.1
+  sga_align_tau: 0.07
+  sga_align_window_cap_steps: 60
+  sga_align_min_active_steps: 3
+  sga_align_max_events: 16
+  sga_align_min_events: 2
+  sga_align_buffer_episodes: 32
+  sga_align_mode: transition
+  sga_align_event_repr: meta
+  sga_align_seed: 1301
+  epsilon: 0.8
+  epsilon_decay: 0.99995
+  epsilon_min: 0.05
+  batch_size: 8
+
+trainer:
+  episodes: 200
+  steps: 3600
+  test_steps: 3600
+  learning_start: 1000
+  buffer_size: 5000
+  action_interval: 10
+  update_model_rate: 1
+  update_target_rate: 10
+  test_when_train: false
+  evaluation_episodes: [0, 50, 100, 150, 200]
+  resumable_checkpoint_episodes: [0, 50, 100, 150, 200]
+  event_schedule_plan: configs/events/plans/hz4x4_random_v1.yml
+
+logger:
+  save_rate: 25
+  attention: true

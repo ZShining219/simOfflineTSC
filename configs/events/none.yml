@@ -1,0 +1,5 @@
+# Explicit no-event schedule for N-train controls.  Keeping an installed,
+# empty runtime makes scene-aware agents replay an empty Z/G snapshot instead
+# of silently falling back to the legacy transition schema.
+schema_version: sumo-events-v1
+events: []

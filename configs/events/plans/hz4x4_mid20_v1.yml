@@ -1,0 +1,210 @@
+schema_version: sumo-episode-plan-v1
+plan_id: hz4x4_mid20_v1
+# Mid-density variant (3 clusters x 240s = 720s ~ 20%) of hz4x4_random_v1 for the "beat-SOTA-on-home-turf" probe:
+# recurring compound events raise event duty cycle from ~8% to intermediate.
+# Same demand; only the event schedule changes.
+episodes:
+- episode: 0
+  label: dense:closure+blockage
+  events:
+  - event_id: dense0_e0
+    kind: road_closure
+    begin: 300
+    end: 520
+    edge_id: road_1_2_3
+  - event_id: dense0_e1
+    kind: lane_blockage
+    begin: 380
+    end: 500
+    lane_id: road_2_0_1_0
+    position: 401.9
+    position_tolerance: 20.0
+  - event_id: dense0_e2
+    kind: global_rain
+    begin: 900
+    end: 1150
+    speed_factor: 0.72
+  - event_id: dense0_e3
+    kind: road_closure
+    begin: 1300
+    end: 1520
+    edge_id: road_3_1_2
+  - event_id: dense0_e4
+    kind: lane_blockage
+    begin: 1380
+    end: 1500
+    lane_id: road_4_0_1_0
+    position: 401.9
+    position_tolerance: 20.0
+  - event_id: dense0_e5
+    kind: global_rain
+    begin: 1900
+    end: 2150
+    speed_factor: 0.72
+  - event_id: dense0_e6
+    kind: road_closure
+    begin: 2300
+    end: 2520
+    edge_id: road_2_3_2
+  - event_id: dense0_e7
+    kind: lane_blockage
+    begin: 2380
+    end: 2500
+    lane_id: road_3_2_0_0
+    position: 401.9
+    position_tolerance: 20.0
+  - event_id: dense0_e8
+    kind: road_closure
+    begin: 3000
+    end: 3220
+    edge_id: road_1_1_0
+- episode: 1
+  label: dense:closure+rain
+  events:
+  - event_id: dense1_e0
+    kind: lane_blockage
+    begin: 350
+    end: 470
+    lane_id: road_4_0_1_0
+    position: 401.9
+    position_tolerance: 20.0
+  - event_id: dense1_e1
+    kind: road_closure
+    begin: 800
+    end: 1020
+    edge_id: road_1_1_3
+  - event_id: dense1_e2
+    kind: global_rain
+    begin: 850
+    end: 1100
+    speed_factor: 0.72
+  - event_id: dense1_e3
+    kind: lane_blockage
+    begin: 1500
+    end: 1620
+    lane_id: road_3_1_1_0
+    position: 401.9
+    position_tolerance: 20.0
+  - event_id: dense1_e4
+    kind: road_closure
+    begin: 1700
+    end: 1920
+    edge_id: road_1_3_2
+  - event_id: dense1_e5
+    kind: global_rain
+    begin: 2400
+    end: 2650
+    speed_factor: 0.72
+  - event_id: dense1_e6
+    kind: road_closure
+    begin: 2450
+    end: 2670
+    edge_id: road_3_2_1
+  - event_id: dense1_e7
+    kind: lane_blockage
+    begin: 3100
+    end: 3220
+    lane_id: road_2_0_1_0
+    position: 401.9
+    position_tolerance: 20.0
+- episode: 2
+  label: dense:blockage-heavy
+  events:
+  - event_id: dense2_e0
+    kind: lane_blockage
+    begin: 400
+    end: 540
+    lane_id: road_4_0_1_0
+    position: 401.9
+    position_tolerance: 20.0
+  - event_id: dense2_e1
+    kind: lane_blockage
+    begin: 900
+    end: 1040
+    lane_id: road_2_0_1_0
+    position: 401.9
+    position_tolerance: 20.0
+  - event_id: dense2_e2
+    kind: road_closure
+    begin: 1400
+    end: 1620
+    edge_id: road_1_2_3
+  - event_id: dense2_e3
+    kind: lane_blockage
+    begin: 1900
+    end: 2040
+    lane_id: road_3_1_1_0
+    position: 401.9
+    position_tolerance: 20.0
+  - event_id: dense2_e4
+    kind: global_rain
+    begin: 2300
+    end: 2550
+    speed_factor: 0.72
+  - event_id: dense2_e5
+    kind: lane_blockage
+    begin: 2800
+    end: 2940
+    lane_id: road_1_1_0_0
+    position: 401.9
+    position_tolerance: 20.0
+- episode: 3
+  label: normal
+  events: []
+- episode: 4
+  label: normal
+  events: []
+eval:
+  schema_version: sumo-events-v1
+  events:
+  - event_id: mid20_c1_block
+    kind: lane_blockage
+    begin: 400
+    end: 640
+    lane_id: road_1_1_0_2
+    position: 401.9
+    position_tolerance: 20
+  - event_id: mid20_c1_close
+    kind: road_closure
+    begin: 400
+    end: 640
+    edge_id: road_2_2_0
+  - event_id: mid20_c1_rain
+    kind: global_rain
+    begin: 400
+    end: 640
+    speed_factor: 0.7
+  - event_id: mid20_c2_block
+    kind: lane_blockage
+    begin: 1500
+    end: 1740
+    lane_id: road_2_0_1_0
+    position: 401.9
+    position_tolerance: 20
+  - event_id: mid20_c2_close
+    kind: road_closure
+    begin: 1500
+    end: 1740
+    edge_id: road_1_2_3
+  - event_id: mid20_c2_rain
+    kind: global_rain
+    begin: 1500
+    end: 1740
+    speed_factor: 0.72
+  - event_id: mid20_c3_block
+    kind: lane_blockage
+    begin: 2600
+    end: 2840
+    lane_id: road_3_1_1_0
+    position: 401.9
+    position_tolerance: 20
+  - event_id: mid20_c3_close
+    kind: road_closure
+    begin: 2600
+    end: 2840
+    edge_id: road_2_3_2
+  - event_id: mid20_c3_rain
+    kind: global_rain
+    begin: 2600
+    end: 2840
+    speed_factor: 0.7

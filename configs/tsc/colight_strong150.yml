@@ -1,0 +1,26 @@
+# Formal N150/E150: closure-focused training, rain retained as a held-out stressor.
+extends: colight_event150.yml
+seeds: [107, 117, 127, 137, 147]
+validation_every: 25
+test_episodes: [150]
+event_execution:
+  placement:
+    obstacle_length_m: 30
+events:
+  begin: [600, 900, 1200]
+  durations: [600, 900]
+  rain_factors: [0.7, 0.5]
+  block_distance: 1
+  position_tolerance: 0.5
+  validation_begin: [900]
+  test_begin: [750, 1050, 1350]
+  evaluation_duration: 900
+  mixed_cycle: [normal, normal, normal, normal, normal, road_closure, road_closure, road_closure, lane_blockage, lane_blockage]
+strong_events:
+  profiles:
+    S1: {duration: 600, blocked_lanes: 1, rain_factor: 0.7}
+    S2: {duration: 900, blocked_lanes: 2, rain_factor: 0.5}
+  exposure_file: data/output_data/paper_robustness/strong_event_stage_a_20260920/calibration_v2/case_bank.json
+  exposure_sha256: 762a489b78fa09130bf42569155178f965911921bf61a52ccba773bc3198888d
+  exposure_fraction: 0.3333333333333333
+  clearance_controls: true

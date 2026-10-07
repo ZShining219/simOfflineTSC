@@ -1,0 +1,25 @@
+# ATT-ENTITY-002 反事实探针：concat_colight 变体（300s 早期事件协议）。
+# 显式全量参数（--experiment-config overlay 不解析 includes）。
+model:
+  name: concat_colight
+  train_model: False
+  test_model: True
+  sga_enabled: True
+  sga_input_mode: concat
+  sga_meta_dim: 64
+  sga_attention_dim: 64
+  sga_temperature: 1.0
+  sga_residual_scale: 1.0
+  sga_grounding_bias: 1.0
+  batch_size: 8
+
+trainer:
+  episodes: 1
+  steps: 300
+  test_steps: 300
+  action_interval: 10
+  event_schedule: configs/events/hz4x4.yml
+
+logger:
+  save_rate: 1
+  attention: true

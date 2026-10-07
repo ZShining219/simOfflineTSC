@@ -1,0 +1,13 @@
+includes:
+  - configs/tsc/colight.yml
+
+# Base registration for the same-backbone formal concat comparator.  Research
+# profiles override the episode budget, event schedule and logging policy.
+model:
+  name: concat_colight
+  sga_enabled: True
+  sga_input_mode: concat
+  sga_meta_dim: 64
+  sga_attention_dim: 64
+  sga_temperature: 1.0
+  sga_residual_scale: 1.0

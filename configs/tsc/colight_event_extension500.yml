@@ -1,0 +1,9 @@
+# Stage 2: retain E150 state and add 175 closure + 175 blockage episodes.
+# Use `extend`, never `plan`: the completed E150 prefix must be imported.
+extends: colight_strong150.yml
+regimes: [mixed]
+episodes: 500
+validation_every: 100
+test_episodes: [500]
+events:
+  mixed_cycle: [road_closure, lane_blockage]

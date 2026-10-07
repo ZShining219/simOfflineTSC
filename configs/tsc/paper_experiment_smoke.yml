@@ -1,0 +1,29 @@
+# Lifecycle engineering test, not a research budget.
+extends: paper_experiment_base.yml
+purpose: engineering
+seeds: [7]
+episodes: 2
+seconds: 60
+validation_every: 1
+test_episodes: [2]
+model:
+  batch_size: 2
+trainer:
+  learning_start: 2
+  buffer_size: 30
+events:
+  begin: [10]
+  durations: [10]
+  validation_begin: [20]
+  test_begin: [30, 40]
+  evaluation_duration: 10
+  recovery_seconds: 5
+  cases_per_kind: 2
+  test_sumo_seeds: [400007]
+  mixed_cycle: [normal, global_rain]
+preflight:
+  seeds: [101]
+  controllers: [fixedtime]
+  event_begin: 20
+  event_duration: 10
+  target_count: 1

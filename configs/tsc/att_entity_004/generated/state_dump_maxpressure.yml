@@ -1,0 +1,23 @@
+model:
+  name: maxpressure
+  train_model: true
+  t_min: 10
+trainer:
+  episodes: 10
+  steps: 3600
+  test_steps: 3600
+  learning_start: 1000000000
+  buffer_size: 0
+  action_interval: 10
+  update_model_rate: 0
+  update_target_rate: 0
+  test_when_train: false
+  evaluation_episodes:
+  - 0
+  - 10
+  resumable_checkpoint_episodes:
+  - 0
+  - 10
+  event_schedule_plan: configs/events/plans/att004_state_lib_v1.yml
+logger:
+  save_rate: 1

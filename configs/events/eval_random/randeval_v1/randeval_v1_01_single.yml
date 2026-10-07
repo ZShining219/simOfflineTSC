@@ -1,0 +1,7 @@
+schema_version: sumo-events-v1
+events:
+- event_id: randeval_v1_01_e0
+  kind: global_rain
+  begin: 1188
+  end: 1642
+  speed_factor: 0.757

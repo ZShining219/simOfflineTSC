@@ -1,0 +1,58 @@
+episodes:
+- episode: 0
+  events: []
+  label: randeval_v1_00_normal
+- episode: 1
+  events:
+  - {begin: 1188, end: 1642, event_id: randeval_v1_01_e0, kind: global_rain, speed_factor: 0.757}
+  label: randeval_v1_01_single
+- episode: 2
+  events:
+  - {begin: 1446, edge_id: road_3_2_3, end: 1926, event_id: randeval_v1_02_e0, kind: road_closure}
+  label: randeval_v1_02_single
+- episode: 3
+  events:
+  - {begin: 906, end: 1273, event_id: randeval_v1_03_e0, kind: lane_blockage, lane_id: road_2_3_3_1,
+    position: 280.1, position_tolerance: 20.0}
+  - {begin: 1368, end: 1688, event_id: randeval_v1_03_e1, kind: global_rain, speed_factor: 0.759}
+  label: randeval_v1_03_multi
+- episode: 4
+  events:
+  - {begin: 1046, end: 1614, event_id: randeval_v1_04_e0, kind: lane_blockage, lane_id: road_1_3_0_1,
+    position: 680.1, position_tolerance: 20.0}
+  label: randeval_v1_04_single
+- episode: 5
+  events:
+  - {begin: 1072, edge_id: road_2_0_1, end: 1259, event_id: randeval_v1_05_e0, kind: road_closure}
+  - {begin: 1666, end: 2088, event_id: randeval_v1_05_e1, kind: global_rain, speed_factor: 0.825}
+  label: randeval_v1_05_multi
+- episode: 6
+  events: []
+  label: randeval_v1_06_normal
+- episode: 7
+  events: []
+  label: randeval_v1_07_normal
+- episode: 8
+  events:
+  - {begin: 1763, edge_id: road_3_2_1, end: 2107, event_id: randeval_v1_08_e0, kind: road_closure}
+  label: randeval_v1_08_single
+- episode: 9
+  events:
+  - {begin: 731, end: 1223, event_id: randeval_v1_09_e0, kind: lane_blockage, lane_id: road_0_2_0_2,
+    position: 521.9, position_tolerance: 20.0}
+  - {begin: 1483, edge_id: road_1_1_2, end: 1697, event_id: randeval_v1_09_e1, kind: road_closure}
+  label: randeval_v1_09_multi
+- episode: 10
+  events:
+  - {begin: 746, end: 1268, event_id: randeval_v1_10_e0, kind: global_rain, speed_factor: 0.737}
+  - {begin: 1618, edge_id: road_4_3_1, end: 2188, event_id: randeval_v1_10_e1, kind: road_closure}
+  label: randeval_v1_10_multi
+- episode: 11
+  events:
+  - {begin: 965, end: 1519, event_id: randeval_v1_11_e0, kind: lane_blockage, lane_id: road_0_1_0_0,
+    position: 609.4, position_tolerance: 20.0}
+  label: randeval_v1_11_single
+eval:
+  events: []
+plan_id: randeval_v1_probe
+schema_version: sumo-episode-plan-v1

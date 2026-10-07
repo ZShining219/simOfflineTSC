@@ -1,0 +1,24 @@
+# ATT-ENTITY-002 反事实探针：覆盖冻结评估事件窗口 [900,1200) 的变体。
+# 显式全量参数（--experiment-config overlay 不解析 includes）。
+# 与 sga_counterfactual_eval.yml 的差别：episode 1500s、事件日程用冻结评估 all.yml。
+model:
+  name: sga_colight
+  train_model: False
+  test_model: True
+  sga_input_mode: text_multi_event
+  sga_attention_dim: 64
+  sga_temperature: 1.0
+  sga_dropout: 0.0
+  sga_residual_scale: 1.0
+  batch_size: 8
+
+trainer:
+  episodes: 1
+  steps: 1500
+  test_steps: 1500
+  action_interval: 10
+  event_schedule: configs/events/eval/all.yml
+
+logger:
+  save_rate: 1
+  attention: true

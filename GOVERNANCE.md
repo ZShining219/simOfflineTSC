@@ -138,6 +138,13 @@ superseded_by runtime_env
 2. 治理文件随仓 git；分支 `gov/<主题>`；push 主线需用户明确指令。
 3. 新 tmux 会话名不得撞 `devin`/`devin2`；建议 `d34_*`/`d73_*`/任务前缀。
 4. commit message 用中文。
+5. **符号链接零容忍（P1 条款，2026-10-07 hitl 仓事故立）**：严禁符号链接入库
+   （git mode 120000）；提交前 `git ls-files -s | awk '$1=="120000"'` 必须为空；
+   merge/checkout/pull 前 `git ls-tree -r <ref> | awk '$1=="120000"'` dry-run，命中即停手
+   ——gitignored 目录（runs//artifacts//data/output_data/）在 merge 下零保护，会被树内
+   符号链接静默覆盖。
+6. **产物快照**：runs//artifacts//data/output_data/ 等 gitignored 产物树须定期 rsync
+   快照到仓外目录（orchestration/bin/snapshot_artifacts.sh）；快照是 run 级明细最后防线。
 
 ## 9. wiki 联动
 

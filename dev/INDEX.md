@@ -60,13 +60,18 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
 
 ## dev/ 现状
 
-- `dev/govern_1007/`：本治理任务的授权暂存位（当前为空，临时产物放治理工作区 scratch）。
-- `dev/_legacy/20261007/`：见 `dev/_legacy/20261007/README.md`（本轮无移入件）。
+- `dev/ledger/`：台账构建器（inventory.py / build_ledger.py / gen_experiments.py +
+  README），2026-10-07 裁决收仓长期维护；源自治理工作区 govern_1007/scratch/。
+- `dev/govern_1007/`：本治理任务的授权暂存位（当前为空）。
+- `dev/_legacy/20261007/`：见 `dev/_legacy/20261007/README.md`。
 
-## 存疑/待裁决
+## 已裁决归档（2026-10-07 Z 裁）
 
-1. `tools/*_matrix.sh` 8 件矩阵驱动：倾向归档 `dev/_legacy/`（治理 §6.1 已禁止该模式
-   新写），但它们与 `logs/*.log`、run_state 证据链绑定，本轮保守不移；请裁决。
-2. `logs/*.log`（根目录运行时日志）、`final_result/*.log`：产物类散件，是否归
-   `dev/_legacy/` 或并入对应 run 目录，待裁决（不删）。
-3. `interpretation/`（空目录）、`dev/govern_1007/`（空）：保留原位待裁决。
+1. `tools/*_matrix*.sh` 10 件矩阵驱动 → 主树 `dev/_legacy/20261007/matrix_drivers/`
+   （§6.1 已禁止该模式新写；原路径留此记录供证据链对照：原 `tools/`、配套运行日志
+   原 `logs/*.log`）。
+2. 根目录散件 `logs/`、`final_result/`、`interpretation/`（空目录）→ 主树
+   `dev/_legacy/20261007/loose_1007/`（保持目录原名，不并入 run 目录以免改产物原始性）。
+3. 台账 6 个 REGISTERED → SCOPE_DISCARD：`att004__a2_stg2_s{7,17,27,37,47}`
+   （a2s 臂 stg2 已挂起）与 `inspect_mplight`（基线已被 baseline_eval 覆盖）。
+   附注已写入 runs.jsonl 各行 notes，EXPERIMENTS.md 已重生成。

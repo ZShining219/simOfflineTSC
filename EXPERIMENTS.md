@@ -11,7 +11,7 @@
 
 | campaign | DONE | FAILED | ABORTED | SUPERSEDED | REGISTERED | SCOPE_DISCARD | LEGACY_UNCLEAR | 合计 |
 |---|---|---|---|---|---|---|---|---|
-| att_entity_004 | 1812 | 126 | 30 | 0 | 5 | 5 | 0 | 1978 |
+| att_entity_004 | 1812 | 126 | 30 | 0 | 0 | 10 | 0 | 1978 |
 | att_entity_003 | 1372 | 67 | 0 | 0 | 0 | 0 | 0 | 1439 |
 | att_entity_002 | 2206 | 26 | 59 | 0 | 0 | 0 | 0 | 2291 |
 | arterial_1x6 | 501 | 8 | 0 | 0 | 0 | 0 | 0 | 509 |
@@ -21,8 +21,8 @@
 | plan1_dqn | 27 | 0 | 4 | 4 | 0 | 0 | 0 | 35 |
 | milestone0_infra | 12 | 0 | 0 | 0 | 0 | 0 | 0 | 12 |
 | paper_infra_validation | 19 | 0 | 0 | 0 | 0 | 0 | 0 | 19 |
-| misc_probes | 1 | 5 | 0 | 0 | 1 | 0 | 0 | 7 |
-| **合计** | 6165 | 243 | 93 | 4 | 6 | 5 | 0 | **6516** |
+| misc_probes | 1 | 5 | 0 | 0 | 0 | 1 | 0 | 7 |
+| **合计** | 6165 | 243 | 93 | 4 | 0 | 11 | 0 | **6516** |
 
 状态语义见 GOVERNANCE.md §2。LEGACY_UNCLEAR=0 表示全部可识别 run 均通过队列/状态文件/目录归属证据还原出 campaign；个别 run 的臂内身份仍以命名约定为据，已在 notes 标注处保持保守。
 
@@ -31,7 +31,7 @@
 - 假设：事件信息以结构化 z_task 槽位 + 语义辅助头进入 TARL 注意力，应同时提升场景区分与决策优化（H: 结构化+aux > 纯文本注入）。
 - plan_id/队列：att004_wave1/fix/struct/formal/ablation/holdout/e200 波次队列
 - 设计稿/证据位置：artifacts/att_entity_004/{run_queue_att004_*.json, run_state_*/}；configs/tsc/att_entity_004/generated/*.yml；artifacts/att_entity_004/{ABLATION_ARMS_DESIGN,DIVIDE_CONQUER_DESIGN,SGA_REPAIR_DESIGN}.md
-- 结论：fixG/fixR/fixD/crossq/ablA/ablation/a2s/a3s/holdout 波次均完成并留档；stg2 波次登记未执行（REGISTERED），stg1/ctl 部分臂 DROPPED（SCOPE_DISCARD）；SGA-GB 梯度线经 pilot 判定为负结果后停止（SGA_GB_PILOT_RESULT.md）；三指标+条件矩阵证据在 data/output_data/analysis/att_entity_004/ 与 baseline_cmp.md。
+- 结论：fixG/fixR/fixD/crossq/ablA/ablation/a2s/a3s/holdout 波次均完成并留档；stg2 波次登记未执行、2026-10-07 裁决转 SCOPE_DISCARD，stg1/ctl 部分臂 DROPPED（SCOPE_DISCARD）；SGA-GB 梯度线经 pilot 判定为负结果后停止（SGA_GB_PILOT_RESULT.md）；三指标+条件矩阵证据在 data/output_data/analysis/att_entity_004/ 与 baseline_cmp.md。
 - 登记单元 1978（train/eval/smoke/batch/calibration = 83/1862/33/0/0）（追溯登记 2026-10-07）
 
 | run_id | 臂/net/seed | ep | 状态 | 起始 | TT/th/unfinished | 产物路径 | 备注 |
@@ -74,11 +74,11 @@
 | `att004__a2_stg1_s17` | att004_stg1_s17/hz4x4/s17 | — | SCOPE_DISCARD | — | — | `—` | 队列登记无对应产物目录(prefix=att004_stg1_s17); 队列标记 DROPPED=未派发; 目标目录不存在（计划输出位置仅作记录） |
 | `att004__a2_stg1_s37` | att004_stg1_s37/hz4x4/s37 | — | SCOPE_DISCARD | — | — | `—` | 队列登记无对应产物目录(prefix=att004_stg1_s37); 队列标记 DROPPED=未派发; 目标目录不存在（计划输出位置仅作记录） |
 | `att004__a2_stg1_s47` | att004_stg1_s47/hz4x4/s47 | — | SCOPE_DISCARD | — | — | `—` | 队列登记无对应产物目录(prefix=att004_stg1_s47); 队列标记 DROPPED=未派发; 目标目录不存在（计划输出位置仅作记录） |
-| `att004__a2_stg2_s17` | att004_stg2_s17/hz4x4/s17 | — | REGISTERED | — | — | `—` | 队列登记无对应产物目录(prefix=att004_stg2_s17); 目标目录不存在（计划输出位置仅作记录） |
-| `att004__a2_stg2_s27` | att004_stg2_s27/hz4x4/s27 | — | REGISTERED | — | — | `—` | 队列登记无对应产物目录(prefix=att004_stg2_s27); 目标目录不存在（计划输出位置仅作记录） |
-| `att004__a2_stg2_s37` | att004_stg2_s37/hz4x4/s37 | — | REGISTERED | — | — | `—` | 队列登记无对应产物目录(prefix=att004_stg2_s37); 目标目录不存在（计划输出位置仅作记录） |
-| `att004__a2_stg2_s47` | att004_stg2_s47/hz4x4/s47 | — | REGISTERED | — | — | `—` | 队列登记无对应产物目录(prefix=att004_stg2_s47); 目标目录不存在（计划输出位置仅作记录） |
-| `att004__a2_stg2_s7` | att004_stg2_s7/hz4x4/s7 | — | REGISTERED | — | — | `—` | 队列登记无对应产物目录(prefix=att004_stg2_s7); 目标目录不存在（计划输出位置仅作记录） |
+| `att004__a2_stg2_s17` | att004_stg2_s17/hz4x4/s17 | — | SCOPE_DISCARD | — | — | `—` | 队列登记无对应产物目录(prefix=att004_stg2_s17); 目标目录不存在（计划输出位置仅作记录） ／ 2026-10-07 裁决：a2s 臂 s |
+| `att004__a2_stg2_s27` | att004_stg2_s27/hz4x4/s27 | — | SCOPE_DISCARD | — | — | `—` | 队列登记无对应产物目录(prefix=att004_stg2_s27); 目标目录不存在（计划输出位置仅作记录） ／ 2026-10-07 裁决：a2s 臂 s |
+| `att004__a2_stg2_s37` | att004_stg2_s37/hz4x4/s37 | — | SCOPE_DISCARD | — | — | `—` | 队列登记无对应产物目录(prefix=att004_stg2_s37); 目标目录不存在（计划输出位置仅作记录） ／ 2026-10-07 裁决：a2s 臂 s |
+| `att004__a2_stg2_s47` | att004_stg2_s47/hz4x4/s47 | — | SCOPE_DISCARD | — | — | `—` | 队列登记无对应产物目录(prefix=att004_stg2_s47); 目标目录不存在（计划输出位置仅作记录） ／ 2026-10-07 裁决：a2s 臂 s |
+| `att004__a2_stg2_s7` | att004_stg2_s7/hz4x4/s7 | — | SCOPE_DISCARD | — | — | `—` | 队列登记无对应产物目录(prefix=att004_stg2_s7); 目标目录不存在（计划输出位置仅作记录） ／ 2026-10-07 裁决：a2s 臂 st |
 | `att004_a2s_s17` | a2s/hz4x4/s17 | 100 | DONE | 2026-10-01 | 367.1/2717/266 | `data/output_data/tsc/sumo_tarl_attention/hz4x4/att004_a2s_s17` |  |
 | `att004_a2s_s27` | a2s/hz4x4/s27 | 100 | DONE | 2026-10-02 | 395.7/2551/432 | `data/output_data/tsc/sumo_tarl_attention/hz4x4/att004_a2s_s27` |  |
 | `att004_a2s_s37` | a2s/hz4x4/s37 | 100 | DONE | 2026-10-02 | 392.9/2698/285 | `data/output_data/tsc/sumo_tarl_attention/hz4x4/att004_a2s_s37` |  |
@@ -1247,14 +1247,14 @@
 - 假设：readiness/inspect/frap_colight 适配探针等一次性验证。
 - plan_id/队列：—
 - 设计稿/证据位置：data/output_data/tsc 下散件
-- 结论：1 DONE、5 FAILED、1 REGISTERED（inspect_mplight）。
+- 结论：1 DONE、5 FAILED、1 SCOPE_DISCARD（inspect_mplight，2026-10-07 裁决：基线已被 baseline_eval 覆盖）。
 - 登记单元 7（train/eval/smoke/batch/calibration = 0/0/7/0/0）（追溯登记 2026-10-07）
 
 | run_id | 臂/net/seed | ep | 状态 | 起始 | TT/th/unfinished | 产物路径 | 备注 |
 |---|---|---|---|---|---|---|---|
 | `frap_adaptation_probe2_20260920` | frap_adaptation_probe2_20260920/hz4x4/s7 | 2 | DONE | 2026-09-20 | 161.1/29/213 | `data/output_data/tsc/sumo_frap/hz4x4/frap_adaptation_probe2_20260920` |  |
 | `frap_adaptation_probe_20260920` | frap_adaptation_probe_20260920/hz4x4/s7 | — | FAILED | — | — | `data/output_data/tsc/sumo_frap/hz4x4/frap_adaptation_probe_20260920` |  |
-| `inspect_mplight` | inspect_mplight/hz4x4/s7 | — | REGISTERED | — | — | `data/output_data/tsc/sumo_mplight/hz4x4/inspect_mplight` |  |
+| `inspect_mplight` | inspect_mplight/hz4x4/s7 | — | SCOPE_DISCARD | — | — | `data/output_data/tsc/sumo_mplight/hz4x4/inspect_mplight` | 2026-10-07 裁决：mplight 基线已由 baseline_eval 90 记录覆盖，独立探针废弃 |
 | `rewards_dashboard_probe_20260920` | rewards_dashboard_probe_20260920/hz4x4/s7 | 1 | FAILED | 2026-09-20 | 193.9/19/223 | `data/output_data/tsc/sumo_paper_frap/hz4x4/rewards_dashboard_probe_20260920` |  |
 | `sumo_colight__hz4x4__readiness` | readiness/hz4x4/s7 | — | FAILED | — | — | `data/output_data/tsc/sumo_colight/hz4x4/readiness` |  |
 | `sumo_frap__hz4x4__readiness` | readiness/hz4x4/s7 | — | FAILED | — | — | `data/output_data/tsc/sumo_frap/hz4x4/readiness` |  |

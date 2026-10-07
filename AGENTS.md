@@ -166,3 +166,4 @@ Agent 应帮助降低后续任务成本，而不仅是完成当前指令。
 | 日期 | commit | 改动 | 动机 | 影响臂/profile |
 |---|---|---|---|---|
 | 2026-10-07 | gov/experiment-governance | 落地 GOVERNANCE.md/EXPERIMENTS.md/ledger/runs.jsonl/bench//dev/INDEX.md；追溯登记 6516 run | 把既有科研资产整理进可审计治理结构，后续架构优化/新建必须 git 更新 | 全仓；注意力线新比对口径见 bench/profiles/att_hz4x4.yml |
+| 2026-10-07 | gov/experiment-governance r2 | GOVERNANCE §8.5-8.6 符号链接零容忍+产物快照条款；dev/checks/no_symlinks.sh；dev/ledger/ 收台账构建器；6×REGISTERED→SCOPE_DISCARD（a2s_stg2×5+inspect_mplight）；tools/*_matrix.sh×10 与 logs/final_result/interpretation 归档 dev/_legacy/20261007（实体在主树同名路径） | 落实 hitl 仓 P1 符号链接物化事故防护 + 治理待办裁决收口 | 规范/台账层；不动任何臂/profile/产物语义 |

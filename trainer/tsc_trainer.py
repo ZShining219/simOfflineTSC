@@ -454,12 +454,23 @@ class TSCTrainer(BaseTrainer):
         # traffic setting is in the world mapping
         self.world = Registry.mapping['world_mapping'][Registry.mapping['command_mapping']['setting'].param['world']](
             self.path, Registry.mapping['command_mapping']['setting'].param['thread_num'],interface=Registry.mapping['command_mapping']['setting'].param['interface'])
+        settings = Registry.mapping['trainer_mapping']['setting'].param
+        # Optional corrected green/yellow signal execution (same adapter as
+        # the paper_* batch path).  Opt-in via trainer.signal_control; runs
+        # without it keep the legacy pseudo_step semantics unchanged.
+        signal_control = settings.get('signal_control')
+        if signal_control is not None:
+            if Registry.mapping['command_mapping']['setting'].param['world'] != 'sumo':
+                raise ValueError('signal_control is currently supported for SUMO only')
+            if settings['action_interval'] <= signal_control['yellow_seconds']:
+                raise ValueError('action_interval must exceed signal_control.yellow_seconds')
+            from world.sumo_signal_control import install_signal_control
+            install_signal_control(self.world, signal_control)
         # Optional event runtime for non-paper agents (for example the
         # MPLight event baseline).  Installation happens before the first
         # reset, so the world and the policy observe the same deterministic
         # episode.  Existing configurations omit ``event_schedule`` and keep
         # the historical path unchanged.
-        settings = Registry.mapping['trainer_mapping']['setting'].param
         schedule_path = settings.get('event_schedule')
         plan_path = settings.get('event_schedule_plan')
         self.event_plan = None

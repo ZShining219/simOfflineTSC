@@ -1,0 +1,23 @@
+# Engineering smoke overlay for the dqn_gy5 arm; not a training budget.
+# Use with -w sumo -n hz4x4 -a dqn --seed 7 --interface libsumo.
+command:
+  sumo_seed: 7
+trainer:
+  episodes: 2
+  steps: 300
+  test_steps: 300
+  learning_start: 5
+  buffer_size: 100
+  action_interval: 10
+  evaluation_episodes: [0, 2]
+  resumable_checkpoint_episodes: [0, 2]
+  test_when_train: false
+  signal_control:
+    version: sumo-green-yellow-v1
+    yellow_seconds: 5
+model:
+  batch_size: 4
+world:
+  saveReplay: false
+logger:
+  save_rate: 1

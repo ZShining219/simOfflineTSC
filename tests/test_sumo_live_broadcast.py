@@ -97,17 +97,32 @@ class SumoLiveBroadcastTest(unittest.TestCase):
 
     def test_page_contains_stream_and_phase_panel(self):
         page = build_page()
-        self.assertIn("EventSource('/api/stream')", page)
         self.assertIn('phaseGrid', page)
-        self.assertIn('api/control', page)
+        self.assertIn('mapHost', page)
+        self.assertIn('/static/js/app.js', page)
+        self.assertIn('/static/js/renderer', page)
+        app_js = (Path(__file__).parent.parent /
+                  'tools/sumo_live_broadcast/static/js/app.js').read_text()
+        self.assertIn("EventSource('/api/stream')", app_js)
+        self.assertIn('api/control', app_js)
 
     def test_page_recovers_live_state_from_frames(self):
         # The server only emits 'status' messages while not live; a frame is
         # the sole signal that building finished.  The page must infer the
         # live transition inside onFrame or the overlay stays in 'building'.
-        page = build_page()
-        onframe = page.split('function onFrame(f) {', 1)[1]
+        app_js = (Path(__file__).parent.parent /
+                  'tools/sumo_live_broadcast/static/js/app.js').read_text()
+        onframe = app_js.split('function onFrame(f) {', 1)[1]
         self.assertIn("sessionState !== 'live'", onframe[:800])
+
+    def test_map_renderers_implement_the_same_contract(self):
+        js_dir = (Path(__file__).parent.parent /
+                  'tools/sumo_live_broadcast/static/js')
+        for name in ('renderer_canvas.js', 'renderer_deckgl.js'):
+            src = (js_dir / name).read_text()
+            for method in ('setNetwork', 'pushFrame', 'setFocus',
+                           'fit', 'resize', 'dispose'):
+                self.assertIn(method, src, f'{name} missing {method}')
 
     def test_parser_defaults(self):
         args = build_parser().parse_args([])

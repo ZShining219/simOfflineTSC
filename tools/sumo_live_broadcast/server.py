@@ -17,6 +17,18 @@ from __future__ import annotations
 import json
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
+
+STATIC_DIR = Path(__file__).resolve().parent / 'static'
+_MIME = {
+    '.js': 'application/javascript; charset=utf-8',
+    '.mjs': 'application/javascript; charset=utf-8',
+    '.css': 'text/css; charset=utf-8',
+    '.map': 'application/json',
+    '.png': 'image/png',
+    '.svg': 'image/svg+xml',
+    '.woff2': 'font/woff2',
+}
 
 
 class _Handler(BaseHTTPRequestHandler):
@@ -28,6 +40,20 @@ class _Handler(BaseHTTPRequestHandler):
     @property
     def engine(self):
         return self.server.engine
+
+    def _send_static(self, rel_path):
+        path = (STATIC_DIR / rel_path).resolve()
+        if not path.is_file() or STATIC_DIR not in path.parents:
+            self._send_json({'error': 'not found'}, status=404)
+            return
+        body = path.read_bytes()
+        mime = _MIME.get(path.suffix.lower(), 'application/octet-stream')
+        self.send_response(200)
+        self.send_header('Content-Type', mime)
+        self.send_header('Content-Length', str(len(body)))
+        self.send_header('Cache-Control', 'no-store')
+        self.end_headers()
+        self.wfile.write(body)
 
     def _send_json(self, payload, status=200):
         body = json.dumps(payload, ensure_ascii=False).encode('utf-8')
@@ -49,10 +75,14 @@ class _Handler(BaseHTTPRequestHandler):
     # -- routes -------------------------------------------------------------
 
     def do_GET(self):
-        if self.path in ('/', '/index.html'):
+        path = self.path.split('?', 1)[0]
+        if path in ('/', '/index.html'):
             self._send_html(self.server.page_html)
             return
-        if self.path == '/api/init':
+        if path.startswith('/static/'):
+            self._send_static(path[len('/static/'):])
+            return
+        if path == '/api/init':
             self._send_json(self.engine.init_payload())
             return
         if self.path.startswith('/api/stream'):

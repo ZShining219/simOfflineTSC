@@ -135,7 +135,7 @@ data/output_data/ha_sodqn/               # HA-SODQN engineering / 正式运行 /
   ```
 
   辅助实现 `tools/sumo_gui_comparison.py`（SUMO-GUI/TraCI 截图或 GIF 回放）；页面产物输出到 `/tmp` 等产物目录，不提交 Git。
-- **`tools/sumo_live_broadcast/`**：浏览器实时转播服务（libsumo 实时步进，SSE 收帧 + HTTP POST 控制）。支持运行时切换 FixedTime/MaxPressure/SOTL/DQN 快照/人工接管、相位卡片点击接管、变速与决策点等待确认；多路口场景（如 S5=sumohz4x4）下控制器逐路口决策，相位面板可通过下拉或点击地图路口切换。最小示例 `python -m tools.sumo_live_broadcast --scene S2 --port 8010`；常驻托管脚本 `supervise.sh` 遵循仓库 `*.sh` 约定不入 Git。回归测试 `tests/test_sumo_live_broadcast.py`。
+- **`tools/sumo_live_broadcast/`**：浏览器实时转播服务（libsumo 实时步进，SSE 收帧 + HTTP POST 控制）。支持运行时切换 FixedTime/MaxPressure/SOTL/DQN 快照/人工接管、相位卡片点击接管、变速与决策点等待确认；多路口场景（如 S5=sumohz4x4）下控制器逐路口决策，相位面板可通过下拉或点击地图路口切换。地图渲染可插拔：默认 deck.gl WebGL 渲染（`static/vendor/deck.min.js`，MIT），`?renderer=canvas` 可切回无依赖 Canvas 实现，两者实现同一契约（`static/js/renderer.js`）。最小示例 `python -m tools.sumo_live_broadcast --scene S2 --port 8010`；常驻托管脚本 `supervise.sh` 遵循仓库 `*.sh` 约定不入 Git。回归测试 `tests/test_sumo_live_broadcast.py`。
 
 ## 在其他服务器复现
 

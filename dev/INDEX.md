@@ -1,0 +1,84 @@
+# dev/INDEX — 一次性脚本与散装驱动登记
+
+> 追溯登记 2026-10-07（gov/experiment-governance 分支）。登记范围：仓根、`scripts/`、
+> `tools/`、`dev/` 下的启动/驱动/一次性脚本。**本轮盘点未发现可判定为"孤儿"的脚本，
+> 未做任何移动**；存疑项见文末。后续一次性脚本一律放 `dev/<topic>/` 并在此登记。
+
+## 仓根入口（非一次性，保留原位）
+
+| 路径 | 用途 | 关联 | 判定 |
+|---|---|---|---|
+| `run.py` | 实验主入口/参数定义 | 全仓 | 正式入口 |
+| `offline_run.py` | 离线数据训练入口 | 半离线线 | 正式入口 |
+| `sequential_run.py` | sequential 模块入口 | sequential/ | 模块入口 |
+| `arterial_run.py` | arterial 线入口 | arterial/ | 模块入口 |
+| `environment.py` | 环境探测辅助 | — | 基础设施 |
+| `scripts/compare_run_configs.py` | M0 run 配置比对（调 utils/run_config_compare） | milestone0_infra | 工具件，保留 |
+
+## tools/ — 一次性启动/驱动脚本（campaign 绑定，原位保留）
+
+以下为"一次性矩阵派发/批次驱动"性质脚本。它们绑定了已完成 campaign 的派发方式，
+是证据链的一部分（对应 `logs/*.log`、`artifacts/*/run_state_*`），**不移**；
+今后同用途新脚本不得再写进 tools/，须放 `dev/<topic>/`。
+
+| 路径 | 用途 | 关联 campaign |
+|---|---|---|
+| `tools/dense_eval_matrix.sh` | dense 条件评估矩阵派发 | att_entity_004 |
+| `tools/mid15_eval_matrix.sh` | mid15 评估矩阵派发 | att_entity_004 |
+| `tools/mid20_eval_matrix.sh` | mid20 评估矩阵派发 | att_entity_004 |
+| `tools/single_eval_matrix.sh` | single 条件评估矩阵 | att_entity_004 |
+| `tools/sga_cf_probe_matrix.sh` / `sga_cf_probe_matrix2.sh` | sga 反事实探针矩阵 | att_entity_002 |
+| `tools/flx_diag_probe_matrix.sh` / `flx_stage2_probe_matrix.sh` | flx 诊断/stage2 探针矩阵 | att_entity_003 |
+| `tools/att004_baseline_matrix.sh` | att004 基线评估矩阵 | att_entity_004 |
+| `tools/att004_statelib_matrix.sh` | att004 state-lib 矩阵 | att_entity_004 |
+
+## tools/ — campaign 专用分析/构建脚本（原位保留）
+
+`att004_*`（12 件：cond_eval、baseline_eval、build_queue、focus_null/score、holdout_plans、
+probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx_*`/`sga_*`/
+`analyze_*`/`build_*`/`stage5_*`/`aggregate_text_utility`/`allocation_accuracy_*`/
+`plan1_*`/`audit_arterial_*`/`build_arterial_*`/`capture_arterial_*`/`run_arterial_*`/
+`run_tarl_*`/`run_align_retrieval`/`run_sga_counterfactual` 等——均为对应 campaign
+的一次性但**证据关联**分析/构建件，归属见 `EXPERIMENTS.md` 各节；不移。
+
+## tools/ — 可复用工具（长期件，原位保留）
+
+`run_experiment_queue.py`（队列 runner）、`run_paper_baseline.py`、`training_dashboard.py`、
+`feishu_wiki.py`、`resource_efficiency_audit.py`、`resource_evidence_dashboard.py`、
+`ha_continuous_resource_audit.py`、`render_resource_efficiency_cei.py`、
+`resource_metric_audit.py`、`traffic_visualization.py`、`sumo_gui_comparison.py`、
+`sumo_html_comparison.py`、`export_compact_experiment_tables.py`、`experiment_plotting/`、
+`traffic_flow_profile/`、`xiasha_sumo/`、`convert_mplight_ckpt.py`、`mb_gate_precheck.py`、
+`watch_stage5_eval.py`、`stage_eval_aggregate.py`、`run_tarl_grad_diag.py` 等；
+登记/说明以 `tools/README.md` 为准。
+
+## artifacts/ 内部驱动（证据附属，原位保留）
+
+`artifacts/att_entity_004/run_state_*/run_*.sh`、`artifacts/sga_concat_colight_200_v1/
+{wave1_watcher,flip_epsilon_after_stragglers}.sh` 等——评估/看门狗脚本已随状态目录
+成为 campaign 证据本体，不移出 artifacts/。
+
+## dev/ 现状
+
+- `dev/ledger/`：台账构建器（inventory.py / build_ledger.py / gen_experiments.py +
+  README），2026-10-07 裁决收仓长期维护；源自治理工作区 govern_1007/scratch/。
+- `dev/w34/probes/`：w34_2 零训练探针分析件——`p2_binding_audit.py`（离线
+  绑定审计：bound/fallback_bind/gap/co_active 分类 + 配对差分层）、
+  `p4_stratify.py`（臂/种子/事件类/窗长分层 + 稀疏窗伪影检验）。消费
+  eval_v2_paired 产物，不改原始 run 输出；随 feat/w34-eval-v2-closure 入库。
+- `dev/govern_1007/`：本治理任务的授权暂存位（当前为空）。
+- `dev/scene_semantics/`：轨迹场景语义标注探索件（P0 窗口恢复/统计 → P2 事实描述+冻结编码 →
+  P3 三层匹配验证），探索期实现；执行依据 `docs/plan_trajectory_scene_semantics.md`，
+  产物落 `data/output_data/scene_semantics/`。
+- `dev/_legacy/20261007/`：见 `dev/_legacy/20261007/README.md`。
+
+## 已裁决归档（2026-10-07 Z 裁）
+
+1. `tools/*_matrix*.sh` 10 件矩阵驱动 → 主树 `dev/_legacy/20261007/matrix_drivers/`
+   （§6.1 已禁止该模式新写；原路径留此记录供证据链对照：原 `tools/`、配套运行日志
+   原 `logs/*.log`）。
+2. 根目录散件 `logs/`、`final_result/`、`interpretation/`（空目录）→ 主树
+   `dev/_legacy/20261007/loose_1007/`（保持目录原名，不并入 run 目录以免改产物原始性）。
+3. 台账 6 个 REGISTERED → SCOPE_DISCARD：`att004__a2_stg2_s{7,17,27,37,47}`
+   （a2s 臂 stg2 已挂起）与 `inspect_mplight`（基线已被 baseline_eval 覆盖）。
+   附注已写入 runs.jsonl 各行 notes，EXPERIMENTS.md 已重生成。

@@ -19,6 +19,7 @@
 | Plan 3～Plan 4 双预算 Sequential DQN | 正式实验执行中 | b400/b100 工程支持与三策略真实 SUMO Pilot 已通过；两个 60-run 正式批次正在共享总并发 8 下执行，120/120 强验收前不得标记通过，见 `plan0721.md` |
 | Task G episode-100 场景对门禁 | 已完成并按协议停止 | high/low 分离未达到预注册门槛，原定定向 G1 未执行；证据位于 `data/output_data/analysis/plan34/episode100_pair_gate_20260723/` |
 | 半离线跨算法实验 | 进行中 | DQN、Double DQN、Dueling Double DQN 的 12-run Pilot 与 240-run 正式矩阵，见 `plan_cross_algorithm_semi_offline.md` |
+| 轨迹场景语义标注 | 进行中 | 历史轨迹→观测窗口→事实描述→冻结编码的内外匹配可行性验证（不做 RL），见 `plan_trajectory_scene_semantics.md` |
 
 状态解释：
 

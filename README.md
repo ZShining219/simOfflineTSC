@@ -18,6 +18,7 @@
 - 支持 DQN、FRAP、CoLight、PressLight、MPLight、MADDPG、MAGD、PPO 等强化学习方法。
 - 包含合成路网、杭州、纽约、科隆等多种实验数据与配置。
 - 提供 SUMO 与 CityFlow 路网、交通流格式转换工具。
+- 提供 SUMO 实时转播页面，可在浏览器中观察实时仿真正在运行的信号控制，并随时切换控制器或人工接管相位。
 - 提供与 Online 入口隔离的 Plan 2 纯 Offline Batch-DQN/CQL-DQN 训练、数据校验、断点恢复和结果汇总能力。
 - 提供基于 Plan 1 静态历史档案与顺序在线交互的 HA-SODQN 半离线实验链路；当前正式实现为 Independent DQN，跨算法支持边界和服务器迁移步骤见 [半离线实验总结与跨算法复现实用指南](docs/semi_offline_cross_algorithm_reproduction.md)。
 
@@ -103,7 +104,9 @@ HA-SODQN 的 E4 配对结果显示：历史利用在配对均值上明显降低�
 | tools/xiasha_sumo/ | xiasha1*1 语义事件到 SUMO 逐车、flow 和信号路网的转换工具 |
 | tools/sumo_html_comparison.py | 将已记录的 SUMO 决策回放为可交互的单 HTML 多控制器对比页面 |
 | tools/sumo_gui_comparison.py | 基于 SUMO-GUI/TraCI 的截图或 GIF 回放工具 |
+| tools/sumo_live_broadcast/ | SUMO 实时转播服务：libsumo 实时步进，浏览器页面经 SSE 收帧、HTTP POST 发控制命令 |
 | tests/test_sumo_html_comparison.py | SUMO HTML 回放模块的最小回归测试 |
+| tests/test_sumo_live_broadcast.py | SUMO 实时转播模块的最小回归测试 |
 
 Xiasha SUMO 转换最小示例（产物位于 `data/raw_data/xiasha1*1/`）：
 
@@ -167,6 +170,34 @@ python -m http.server 8765 --bind 127.0.0.1 \
 然后访问 `http://127.0.0.1:8765/sumo_html_comparison.html`，结束服务时在终端按 `Ctrl+C`。HTML、`comparison_states.json` 和 `manifest.json` 是可再生成的实验产物，建议输出到 `/tmp` 或其他实验产物目录，不提交到 Git。
 
 该模块的源码 `tools/sumo_html_comparison.py`、辅助回放实现 `tools/sumo_gui_comparison.py` 和测试 `tests/test_sumo_html_comparison.py` 已纳入 Git 跟踪。当前工作区的修改仍需通过正常的 `git diff` 检查后再提交；页面生成物不作为模块源码版本管理对象。
+
+### SUMO 实时转播模块
+
+`tools/sumo_live_broadcast/` 提供浏览器实时转播服务，与 `sumo_html_comparison.py` 的事后回放定位不同：本模块由 libsumo 按墙钟时间实时步进仿真（默认 1 仿真秒对应 `1/speed` 墙钟秒），前端页面通过 SSE 逐帧接收路网、车辆、信号灯与路口状态，并通过 HTTP POST 回传控制命令。web 服务进程常驻，SUMO world 仅在页面开启会话后分阶段构建（进度可见、可取消），会话关闭即释放。
+
+页面支持：
+
+- 在 FixedTime、MaxPressure、SOTL、已注册 DQN 系快照/检查点和人工接管之间随时切换控制器；控制器决策异常时保持上一动作，不阻塞交通。
+- 右侧相位卡片面板展示全部绿灯相位、当前生效相位与控制器目标相位；点击相位即切入人工接管。
+- 暂停/继续、0.05–32 倍墙钟速度、决策点等待确认模式、仿真重置和 S1–S4 仿真包切换。
+- 帧间插值使每仿真秒一帧的 SSE 流仍呈现连续车流；侧边栏保留最近决策与事件历史。
+
+最小启动示例（默认场景 S2，端口 8010）：
+
+```bash
+python -m tools.sumo_live_broadcast --scene S2 --port 8010
+```
+
+注册额外 Q-network 权重（兼容 sequential 快照、可恢复 checkpoint 与裸 state_dict，自动识别 `dqn_mlp`/`dueling_mlp` 结构）：
+
+```bash
+python -m tools.sumo_live_broadcast --scene S4 \
+  --model dhoa=output_data/.../snapshots/sumohz1x1_config3.pt
+```
+
+`--models-dir` 默认扫描 `output_data/sequential/` 下与场景同名的 `snapshots/*.pt`；`--default-controller`、`--action-interval`（默认 10 仿真秒）、`--speed`、`--sumo-seed` 及 FixedTime/MaxPressure/SOTL 参数均可命令行覆盖。常驻运行可用 `tools/sumo_live_broadcast/supervise.sh {start|stop|restart|status}` 托管（本地运维脚本，遵循仓库 `*.sh` 约定不纳入 Git），服务异常退出会自动重启，日志写入 `/tmp/sumo_live_broadcast*.log`。
+
+控制器适配层只读仿真状态与模型权重，不修改实验数据；对应最小回归测试为 `tests/test_sumo_live_broadcast.py`。
 
 ### docs 目录
 

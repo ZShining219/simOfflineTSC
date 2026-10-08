@@ -66,6 +66,14 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
   绑定审计：bound/fallback_bind/gap/co_active 分类 + 配对差分层）、
   `p4_stratify.py`（臂/种子/事件类/窗长分层 + 稀疏窗伪影检验）。消费
   eval_v2_paired 产物，不改原始 run 输出；随 feat/w34-eval-v2-closure 入库。
+- `dev/lag_utility/`：滞后窗口（pre-symptom）效用分析件——`phase_map.py`
+  （离线导出 hz4x4 相位→lanelink 映射 + 进口道特征序 → `hz4x4_phase_map.json`）、
+  `lag_analysis.py`（事件→症状滞后分布 / bound-feeder-down 三侧发散 /
+  首发散时刻 / 死需求份额 / foreign 特异性，消费 eval_v2 dump+probe）、
+  `run_oracle_deadlane.py`（closure 激活期馈入节点死车道观测遮蔽 oracle，
+  判决文本通道可兑现上界）、`probe_junction_block.py`（libsumo 微探针：
+  封闭边需求车辆的滞留位置/车道/箱内阻塞核验）。探索期实现，产物落
+  `data/output_data/analysis/att_entity_004/lag_utility/`。
 - `dev/govern_1007/`：本治理任务的授权暂存位（当前为空）。
 - `dev/scene_semantics/`：轨迹场景语义标注探索件（P0 窗口恢复/统计 → P2 事实描述+冻结编码 →
   P3 三层匹配验证），探索期实现；执行依据 `docs/plan_trajectory_scene_semantics.md`，

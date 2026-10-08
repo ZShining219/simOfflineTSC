@@ -83,6 +83,12 @@ class SumoEventRuntime:
         # true event boundaries.  shift>0 delays text injection, shift<0 makes
         # reports arrive early (forecast).  Unset -> bit-identical behavior.
         self._report_shift = float(os.environ.get('TARL_INJECT_SHIFT_S', '0'))
+        # lag-utility probe hook: TARL_ANNOUNCE_LEAD_S=L publishes the 'active'
+        # report at begin-L (advance warning) while 'cleared' still fires at the
+        # true end — unlike a negative _report_shift it does NOT extend the
+        # message past the physical event.  Physics is always on true `now`.
+        # Unset -> bit-identical behavior.
+        self._announce_lead = float(os.environ.get('TARL_ANNOUNCE_LEAD_S', '0'))
 
     def _validate_targets(self):
         if any(e.kind == 'global_rain' for e in self.schedule.events) and not self._rain_lanes:
@@ -212,9 +218,12 @@ class SumoEventRuntime:
             # Publish only after the entire batch is confirmed in SUMO.
             # The report clock may be shifted by _report_shift (P3 probe): the
             # message lifecycle slides as a whole while physics stays on `now`.
+            # _announce_lead moves only the 'active' onset earlier; clearing
+            # stays at the true event end (no post-event persistence artifact).
             report_now = now - self._report_shift
             for event in self.schedule.events:
-                status = ('active' if event.begin <= report_now < event.end
+                active_at = event.begin - self._announce_lead
+                status = ('active' if active_at <= report_now < event.end
                           else ('cleared' if report_now >= event.end else 'pending'))
                 if status != self._states[event.event_id]:
                     self._states[event.event_id] = status

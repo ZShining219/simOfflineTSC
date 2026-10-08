@@ -1,0 +1,27 @@
+# signal_control_v1 baseline eval_v2: legacy-DQN frozen ckpt
+# (scv1_dqn_legacy_s7 ep400 resumable checkpoint) under the shared
+# eval_v2 frozen eval set — plan episodes 0..39 of hz4x4_random_v1,
+# sumo_seed = 9000 + plan_episode.  Legacy pseudo_step (no transition),
+# matching the training-time semantics of that run.
+# att004_baseline_eval.py loads the checkpoint and redirects
+# sample() to the greedy policy — train_model stays true only to
+# pass the task.py train() gate.
+model:
+  name: dqn
+  train_model: True
+
+trainer:
+  episodes: 40
+  steps: 3600
+  test_steps: 3600
+  learning_start: -1
+  buffer_size: 1
+  action_interval: 10
+  update_model_rate: 1
+  update_target_rate: 10
+  test_when_train: false
+  event_schedule_plan: configs/events/plans/hz4x4_random_v1.yml
+  sumo_seed_per_episode: true
+
+logger:
+  save_rate: 1

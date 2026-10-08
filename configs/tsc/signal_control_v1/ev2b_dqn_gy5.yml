@@ -1,0 +1,29 @@
+# signal_control_v1 eval_v2: dqn_gy5 frozen ckpt
+# (scv1_dqn_gy5_s7 ep400 resumable checkpoint) under the shared
+# eval_v2 frozen eval set — plan episodes 0..39 of hz4x4_random_v1,
+# sumo_seed = 9000 + plan_episode.
+# CRITICAL: trainer.signal_control installs sumo-green-yellow-v1 —
+# eval must run under the same green/yellow execution semantics the
+# checkpoint was trained with (GOVERNANCE §5.5).
+model:
+  name: dqn
+  train_model: True
+
+trainer:
+  episodes: 40
+  steps: 3600
+  test_steps: 3600
+  learning_start: -1
+  buffer_size: 1
+  action_interval: 10
+  update_model_rate: 1
+  update_target_rate: 10
+  test_when_train: false
+  event_schedule_plan: configs/events/plans/hz4x4_random_v1.yml
+  sumo_seed_per_episode: true
+  signal_control:
+    version: sumo-green-yellow-v1
+    yellow_seconds: 5
+
+logger:
+  save_rate: 1

@@ -23,7 +23,7 @@
 
 ## 0. 总览
 
-登记 run 总数：**6558**（train 574、eval attempt 5798、smoke 128、calibration 18、batch 29）
+登记 run 总数：**6560**（train 574、eval attempt 5800、smoke 128、calibration 18、batch 29）
 
 | campaign | DONE | FAILED | ABORTED | SUPERSEDED | REGISTERED | SCOPE_DISCARD | LEGACY_UNCLEAR | 合计 |
 |---|---|---|---|---|---|---|---|---|
@@ -38,8 +38,8 @@
 | milestone0_infra | 12 | 0 | 0 | 0 | 0 | 0 | 0 | 12 |
 | paper_infra_validation | 19 | 0 | 0 | 0 | 0 | 0 | 0 | 19 |
 | misc_probes | 1 | 5 | 0 | 0 | 0 | 1 | 0 | 7 |
-| signal_control_v1 | 0 | 0 | 0 | 0 | 2 | 0 | 0 | 2 |
-| **合计** | 6205 | 243 | 93 | 4 | 2 | 11 | 0 | **6558** |
+| signal_control_v1 | 0 | 0 | 0 | 0 | 4 | 0 | 0 | 4 |
+| **合计** | 6205 | 243 | 93 | 4 | 4 | 11 | 0 | **6560** |
 
 状态语义见 GOVERNANCE.md §2。LEGACY_UNCLEAR=0 表示全部可识别 run 均通过队列/状态文件/目录归属证据还原出 campaign；个别 run 的臂内身份仍以命名约定为据，已在 notes 标注处保持保守。
 
@@ -58,7 +58,7 @@
 | `milestone0_infra` | 12 | 12/0/0/0 | 基础设施验证 | [明细](EXPERIMENTS/milestone0_infra.md) |
 | `paper_infra_validation` | 19 | 19/0/0/0 | paper 基建验证 | [明细](EXPERIMENTS/paper_infra_validation.md) |
 | `misc_probes` | 7 | 1/5/0/1 | 零散探针 | [明细](EXPERIMENTS/misc_probes.md) |
-| `signal_control_v1` | 2 | 0/0/0/0 | — | [明细](EXPERIMENTS/signal_control_v1.md) |
+| `signal_control_v1` | 4 | 0/0/0/0 | — | [明细](EXPERIMENTS/signal_control_v1.md) |
 
 ## 附：追溯口径说明
 

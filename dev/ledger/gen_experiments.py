@@ -7,6 +7,14 @@ ROOT = Path(__file__).resolve().parents[2]
 ROWS = [json.loads(l) for l in open(ROOT / "ledger" / "runs.jsonl")]
 
 META = {
+"signal_control_v1": {
+ "title": "SUMO 修正绿黄执行（sumo-green-yellow-v1）主线训练验证",
+ "hypothesis": "在 run.py/TSCTrainer 主线启用 sumo-green-yellow-v1（5s 黄灯过渡、清空期锁相）后，DQN 在 hz4x4 上可正常训练收敛；与无过渡 legacy 臂的指标差异反映换相物理成本的口径变化（语义变更，GOVERNANCE §5.5，两臂指标不与历史无过渡 run 直接可比）。",
+ "plan_id": "scv1_gy5_v1",
+ "design": "artifacts/signal_control_v1/run_queue_dqn_gy5.json；configs/tsc/{dqn_gy5,dqn_gy5_smoke}.yml；适配器 world/sumo_signal_control.py；trainer/tsc_trainer.py signal_control 安装点",
+ "conclusion": "进行中：2 臂 REGISTERED（dqn_gy5 + 同种子 legacy 对照），400ep train_frozen_eval seed=7。",
+ "queues": "artifacts/signal_control_v1/run_queue_dqn_gy5.json",
+},
 "att_entity_004": {
  "title": "ATT-ENTITY-004 结构化事件输入 + 语义辅助（注意力线当前主线）",
  "hypothesis": "事件信息以结构化 z_task 槽位 + 语义辅助头进入 TARL 注意力，应同时提升场景区分与决策优化（H: 结构化+aux > 纯文本注入）。",
@@ -15,7 +23,11 @@ META = {
            "configs/tsc/att_entity_004/generated/*.yml；"
            "artifacts/att_entity_004/{ABLATION_ARMS_DESIGN,DIVIDE_CONQUER_DESIGN,SGA_REPAIR_DESIGN}.md",
  "conclusion": "fixG/fixR/fixD/crossq/ablA/ablation/a2s/a3s/holdout 波次均完成并留档；"
-               "stg2 波次登记未执行、2026-10-07 裁决转 SCOPE_DISCARD，stg1/ctl 部分臂 DROPPED（SCOPE_DISCARD）；"
+               "\n- **fixG 收官测评收割（2026-10-07，eval 实为 10-05 已跑完、此前未汇总判读）**：fe_fixG_* 网格 5 seed×{ep50/100/150/200}×5 条件×3 eval seed 共 300 run 全存在。"
+               "判读：①优化层——fixG vs a3s 同 seed/同 eval 配对 canonical TT ep50 −24.9s、ep100 −8.9s（收敛更快且更优）；"
+               "②表征层——wrong_type−canonical 中位 +1.34s 非零，类型语义仍在影响行为；"
+               "③**效用层未翻正**——canonical−empty 中位 +0.58s（均值 +2.27s 被 s? 单点 +28.7s 拉高），文本通道相对 empty 仍无净收益，独家信息设计需求不变。"
+               "evidence：hz4x4/fe_fixG_*。stg2 波次登记未执行、2026-10-07 裁决转 SCOPE_DISCARD，stg1/ctl 部分臂 DROPPED（SCOPE_DISCARD）；"
                "SGA-GB 梯度线经 pilot 判定为负结果后停止（SGA_GB_PILOT_RESULT.md）；"
                "三指标+条件矩阵证据在 data/output_data/analysis/att_entity_004/ 与 baseline_cmp.md。",
  "queues": "run_queue_att004_{wave1,fix,struct,formal,ablation,ablA,holdout,stage2}.json + artifacts/att004_e200/run_queue_e200.json",
@@ -191,7 +203,14 @@ for camp in order + sorted(set(camps) - set(order)):
             d.append(f"| `{pkg[:60]}` | {sc.get('DONE',0)}/{sc.get('FAILED',0)}/{sc.get('ABORTED',0)} | "
                      f"{','.join(conds)[:60] or '—'} | {','.join(map(str,ess))[:40] or '—'} |")
         d.append("")
-    (DETAIL / f"{camp}.md").write_text("\n".join(d))
+    # 明细文件尾部人工维护区：<!-- EXTRA-BEGIN/END --> 块原样回填（同索引层 PANEL 约定）。
+    detail_path = DETAIL / f"{camp}.md"
+    if detail_path.exists():
+        xm = re.search(r"<!-- EXTRA-BEGIN -->.*?<!-- EXTRA-END -->",
+                       detail_path.read_text(), re.S)
+        if xm:
+            d.append(xm.group(0))
+    detail_path.write_text("\n".join(d))
     sc = collections.Counter(r["status"] for r in rs)
     idx_rows.append(f"| `{camp}` | {len(rs)} | "
                     f"{sc.get('DONE',0)}/{sc.get('FAILED',0)}/{sc.get('ABORTED',0)}/{sc.get('SCOPE_DISCARD',0)} | "

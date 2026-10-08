@@ -7,14 +7,26 @@
 - 设计稿/证据位置：artifacts/att_entity_004/{run_queue_att004_*.json, run_state_*/}；configs/tsc/att_entity_004/generated/*.yml；artifacts/att_entity_004/{ABLATION_ARMS_DESIGN,DIVIDE_CONQUER_DESIGN,SGA_REPAIR_DESIGN}.md
 - 结论：fixG/fixR/fixD/crossq/ablA/ablation/a2s/a3s/holdout 波次均完成并留档；
 - **fixG 收官测评收割（2026-10-07，eval 实为 10-05 已跑完、此前未汇总判读）**：fe_fixG_* 网格 5 seed×{ep50/100/150/200}×5 条件×3 eval seed 共 300 run 全存在。判读：①优化层——fixG vs a3s 同 seed/同 eval 配对 canonical TT ep50 −24.9s、ep100 −8.9s（收敛更快且更优）；②表征层——wrong_type−canonical 中位 +1.34s 非零，类型语义仍在影响行为；③**效用层未翻正**——canonical−empty 中位 +0.58s（均值 +2.27s 被 s? 单点 +28.7s 拉高），文本通道相对 empty 仍无净收益，独家信息设计需求不变。evidence：hz4x4/fe_fixG_*。stg2 波次登记未执行、2026-10-07 裁决转 SCOPE_DISCARD，stg1/ctl 部分臂 DROPPED（SCOPE_DISCARD）；SGA-GB 梯度线经 pilot 判定为负结果后停止（SGA_GB_PILOT_RESULT.md）；三指标+条件矩阵证据在 data/output_data/analysis/att_entity_004/ 与 baseline_cmp.md。
-- 登记单元 1978（train/eval/smoke/batch/calibration = 83/1862/33/0/0）（追溯登记 2026-10-07）
+- 登记单元 2018（train/eval/smoke/batch/calibration = 84/1889/34/0/0）（追溯登记 2026-10-07）
 
 | run_id | 臂/net/seed | ep | 状态 | 起始 | TT/th/unfinished | 产物路径 | 备注 |
 |---|---|---|---|---|---|---|---|
+| `ev2p_fixG_s7_a0_can` | fixG_s7/hz4x4/s7 | 20 | DONE | 2026-10-07 | — | `data/output_data/analysis/att_entity_004/eval_v2/ev2p_fixG_s7_a0_can` | w34_2 zero-train probe: alpha_scale=0 (CPU-only, canonical condition) |
+| `ev2p_fixG_s7_a0p25_can` | fixG_s7/hz4x4/s7 | 20 | DONE | 2026-10-07 | — | `data/output_data/analysis/att_entity_004/eval_v2/ev2p_fixG_s7_a0p25_can` | w34_2 zero-train probe: alpha_scale=0.25 (CPU-only, canonical condition) |
+| `ev2p_fixG_s7_a0p5_can` | fixG_s7/hz4x4/s7 | 20 | DONE | 2026-10-07 | — | `data/output_data/analysis/att_entity_004/eval_v2/ev2p_fixG_s7_a0p5_can` | w34_2 zero-train probe: alpha_scale=0.5 (CPU-only, canonical condition) |
+| `ev2p_fixG_s7_a1p5_can` | fixG_s7/hz4x4/s7 | 20 | DONE | 2026-10-07 | — | `data/output_data/analysis/att_entity_004/eval_v2/ev2p_fixG_s7_a1p5_can` | w34_2 zero-train probe: alpha_scale=1.5 (CPU-only, canonical condition) |
+| `ev2p_fixG_s7_a2_can` | fixG_s7/hz4x4/s7 | 20 | DONE | 2026-10-07 | — | `data/output_data/analysis/att_entity_004/eval_v2/ev2p_fixG_s7_a2_can` | w34_2 zero-train probe: alpha_scale=2 (CPU-only, canonical condition) |
+| `ev2p_fixG_s7_km10_can` | fixG_s7/hz4x4/s7 | 20 | DONE | 2026-10-07 | — | `data/output_data/analysis/att_entity_004/eval_v2/ev2p_fixG_s7_km10_can` | w34_2 zero-train probe: inject_shift=-10 (CPU-only, canonical condition) |
+| `ev2p_fixG_s7_km20_can` | fixG_s7/hz4x4/s7 | 20 | DONE | 2026-10-07 | — | `data/output_data/analysis/att_entity_004/eval_v2/ev2p_fixG_s7_km20_can` | w34_2 zero-train probe: inject_shift=-20 (CPU-only, canonical condition) |
+| `ev2p_fixG_s7_km5_can` | fixG_s7/hz4x4/s7 | 20 | DONE | 2026-10-07 | — | `data/output_data/analysis/att_entity_004/eval_v2/ev2p_fixG_s7_km5_can` | w34_2 zero-train probe: inject_shift=-5 (CPU-only, canonical condition) |
+| `ev2p_fixG_s7_kp10_can` | fixG_s7/hz4x4/s7 | 20 | DONE | 2026-10-07 | — | `data/output_data/analysis/att_entity_004/eval_v2/ev2p_fixG_s7_kp10_can` | w34_2 zero-train probe: inject_shift=10 (CPU-only, canonical condition) |
+| `ev2p_fixG_s7_kp20_can` | fixG_s7/hz4x4/s7 | 20 | DONE | 2026-10-07 | — | `data/output_data/analysis/att_entity_004/eval_v2/ev2p_fixG_s7_kp20_can` | w34_2 zero-train probe: inject_shift=20 (CPU-only, canonical condition) |
+| `ev2p_fixG_s7_kp5_can` | fixG_s7/hz4x4/s7 | 20 | DONE | 2026-10-07 | — | `data/output_data/analysis/att_entity_004/eval_v2/ev2p_fixG_s7_kp5_can` | w34_2 zero-train probe: inject_shift=5 (CPU-only, canonical condition) |
 | `att004_abl_smoke_concat` | abl_smoke_concat/hz4x4/s7 | 2 | DONE | 2026-10-03 | 204.2/617/1440 | `data/output_data/tsc/sumo_tarl_concat/hz4x4/att004_abl_smoke_concat` |  |
 | `att004_abl_smoke_selfattn` | abl_smoke_selfattn/hz4x4/s7 | 2 | DONE | 2026-10-03 | 361.8/562/1538 | `data/output_data/tsc/sumo_tarl_selfattn/hz4x4/att004_abl_smoke_selfattn` |  |
 | `att004_atsmoke_ctrl` | atsmoke_ctrl/hz4x4/s7 | 1 | DONE | 2026-10-05 | 661.8/2331/652 | `data/output_data/tsc/sumo_tarl_attention/hz4x4/att004_atsmoke_ctrl` |  |
 | `att004_bert_regress` | bert_regress/hz4x4/s7 | 4 | DONE | 2026-10-01 | 160.6/22/220 | `data/output_data/tsc/sumo_tarl_attention/hz4x4/att004_bert_regress` |  |
+| `att004_closure_bind_smoke` | closure_bind_s7/hz4x4/s7 | 2 | DONE | 2026-10-07 | 587.1/—/— | `data/output_data/tsc/sumo_tarl_attention/hz4x4/att004_closure_bind_smoke` | closure_bind 2ep smoke before formal 200ep run |
 | `att004_crossq_smoke` | crossq_smoke/hz4x4/s7 | 1 | DONE | 2026-10-05 | 661.8/2331/652 | `data/output_data/tsc/sumo_tarl_crossq/hz4x4/att004_crossq_smoke` |  |
 | `att004_h1x1_smoke_a2` | h1x1_smoke_a2/sumohz1x1/s7 | 2 | DONE | 2026-10-03 | 59.8/89/267 | `data/output_data/tsc/sumo_tarl_attention/sumohz1x1/att004_h1x1_smoke_a2` |  |
 | `att004_h1x1_smoke_a3s` | h1x1_smoke_a3s/sumohz1x1/s7 | — | FAILED | — | — | `data/output_data/tsc/sumo_tarl_attention/sumohz1x1/att004_h1x1_smoke_a3s` |  |
@@ -78,6 +90,7 @@
 | `att004_abl_concats_s7` | abl_concats/hz4x4/s7 | 100 | DONE | 2026-10-03 | 360.2/2726/257 | `data/output_data/tsc/sumo_tarl_concat/hz4x4/att004_abl_concats_s7` |  |
 | `att004_abl_selfattns_s17` | abl_selfattns/hz4x4/s17 | 100 | DONE | 2026-10-03 | 371.8/2724/259 | `data/output_data/tsc/sumo_tarl_selfattn/hz4x4/att004_abl_selfattns_s17` |  |
 | `att004_abl_selfattns_s7` | abl_selfattns/hz4x4/s7 | 100 | DONE | 2026-10-03 | 368.8/2722/261 | `data/output_data/tsc/sumo_tarl_selfattn/hz4x4/att004_abl_selfattns_s7` |  |
+| `att004_closure_bind_s7` | closure_bind_s7/hz4x4/s7 | 200 | DONE | 2026-10-07 | — | `data/output_data/tsc/sumo_tarl_attention/hz4x4/att004_closure_bind_s7` | 200ep DONE; last20 TT 345.5; 16 unique fallback binds logged |
 | `att004_ctl_s17` | ctl/hz4x4/s17 | 100 | DONE | 2026-10-01 | 367.6/2565/418 | `data/output_data/tsc/sumo_tarl_attention/hz4x4/att004_ctl_s17` |  |
 | `att004_ctl_s37` | ctl/hz4x4/s37 | 100 | DONE | 2026-10-01 | 354.5/2705/278 | `data/output_data/tsc/sumo_tarl_attention/hz4x4/att004_ctl_s37` |  |
 | `att004_ctl_s7` | ctl/hz4x4/s7 | 100 | DONE | 2026-10-01 | 391.3/2327/656 | `data/output_data/tsc/sumo_tarl_attention/hz4x4/att004_ctl_s7` |  |
@@ -128,14 +141,14 @@
 | `sumo_tarl_crossq__hz4x4__att004_crossq_s47` | crossq/hz4x4/s47 | 200 | DONE | 2026-10-05 | 355.8/2733/250 | `data/output_data/tsc/sumo_tarl_crossq/hz4x4/att004_crossq_s47` |  |
 | `sumo_tarl_crossq__hz4x4__att004_crossq_s7` | crossq/hz4x4/s7 | 200 | DONE | 2026-10-05 | 354.4/2731/252 | `data/output_data/tsc/sumo_tarl_crossq/hz4x4/att004_crossq_s7` |  |
 
-评估 attempt 共 1862 行，按包/来源聚合：
+评估 attempt 共 1889 行，按包/来源聚合：
 
 | 评估包/来源 | n DONE/FAILED/ABORTED | 条件集 | eval seeds |
 |---|---|---|---|
 | `a2s` | 49/0/0 | — | — |
 | `a3s` | 122/0/0 | — | — |
-| `a3s_s17` | 45/0/0 | — | — |
-| `a3s_s7` | 45/0/0 | — | — |
+| `a3s_s17` | 47/0/0 | canonical,empty | — |
+| `a3s_s7` | 48/0/0 | canonical,empty,wrong_type | — |
 | `ablA_concats_s17` | 45/0/0 | — | — |
 | `ablA_concats_s27` | 28/2/0 | — | — |
 | `ablA_concats_s37` | 30/0/0 | — | — |
@@ -154,7 +167,9 @@
 | `att004_fixD_s7` | 0/1/0 | — | — |
 | `att004_fixR_s17` | 6/1/0 | — | — |
 | `att004_fixR_s7` | 15/0/0 | — | — |
+| `closure_bind_s7` | 3/0/0 | canonical,empty,wrong_type | — |
 | `colight` | 72/0/0 | — | — |
+| `colight_s7_e200` | 1/0/0 | physical_only | — |
 | `crossq_s17` | 60/0/0 | — | — |
 | `crossq_s27` | 60/0/0 | — | — |
 | `crossq_s37` | 60/0/0 | — | — |
@@ -162,14 +177,14 @@
 | `crossq_s7` | 60/0/0 | — | — |
 | `fixD_s17` | 45/0/0 | — | — |
 | `fixD_s7` | 45/0/0 | — | — |
-| `fixG_s17` | 60/18/0 | — | — |
-| `fixG_s27` | 60/20/0 | — | — |
-| `fixG_s37` | 60/19/0 | — | — |
-| `fixG_s47` | 60/35/0 | — | — |
-| `fixG_s7` | 60/18/0 | — | — |
-| `fixR_s17` | 45/0/0 | — | — |
-| `fixR_s7` | 45/0/0 | — | — |
-| `fixedtime` | 36/0/0 | — | — |
+| `fixG_s17` | 62/18/0 | canonical,empty | — |
+| `fixG_s27` | 62/20/0 | canonical,empty | — |
+| `fixG_s37` | 62/19/0 | canonical,empty | — |
+| `fixG_s47` | 62/35/0 | canonical,empty | — |
+| `fixG_s7` | 63/18/0 | canonical,empty,wrong_type | — |
+| `fixR_s17` | 47/0/0 | canonical,empty | — |
+| `fixR_s7` | 47/0/0 | canonical,empty | — |
+| `fixedtime` | 37/0/0 | physical_only | — |
 | `ft_ev` | 3/0/0 | — | — |
 | `ft_noev` | 6/0/0 | — | — |
 | `ft_noevB` | 6/0/0 | — | — |
@@ -177,14 +192,15 @@
 | `ho_t3_s7` | 15/0/0 | — | — |
 | `ho_t4_s17` | 15/0/0 | — | — |
 | `ho_t4_s7` | 15/0/0 | — | — |
-| `maxpressure` | 36/0/0 | — | — |
-| `mplight` | 72/0/0 | — | — |
+| `maxpressure` | 37/0/0 | physical_only | — |
+| `mplight` | 73/0/0 | physical_only | — |
 | `s17_can` | 2/0/0 | — | — |
 | `s17_emp` | 1/0/0 | — | — |
 | `smoke_colight` | 1/0/0 | — | — |
 | `smoke_fixed` | 1/0/0 | — | — |
 | `smoke_mplight` | 1/0/0 | — | — |
 
+<!-- EXTRA-BEGIN -->
 ## eval_v2 批次（w34_1，2026-10-07，commit 3a04dad feat/w34-eval-v2-closure）
 
 - 协议：`tools/run_tarl_struct_cf.py --eval_protocol eval_v2` + `trainer.sumo_seed_per_episode: true`；
@@ -223,3 +239,4 @@
   （仍逊 empty、逊 maxpressure ~2s）。
 - **T3 preview 臂设计注记**：REPORT_w34_3.md §T3（announce_lead_time + announced
   状态族，仅设计不实现；对照合法性已论证）。
+<!-- EXTRA-END -->

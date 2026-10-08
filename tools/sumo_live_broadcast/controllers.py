@@ -3,8 +3,9 @@
 Every controller exposes the same surface so the broadcast engine can treat
 traditional agents, DQN-family snapshots, and a human operator uniformly:
 
-    bind(world, rank)   attach to a live ``world_sumo.World``
-    decide() -> int     pick the next held green-phase action index
+    bind(world, ranks)  attach to a live ``world_sumo.World`` for the given
+                        controlled intersection ranks (default: rank 0 only)
+    decide(rank) -> int pick the next held green-phase action for one junction
     reset()             drop per-run state (optional)
 
 Adapters never start SUMO themselves and never mutate experiment data; they
@@ -143,33 +144,40 @@ def _payload_from_state_dict(state_dict, kind, path):
 # ---------------------------------------------------------------------------
 
 class LegacyAgentController:
-    """Adapter over ``agent/`` classes with the (world, rank) constructor."""
+    """Adapter over ``agent/`` classes with the (world, rank) constructor.
+
+    One adapter serves every controlled rank: each rank gets its own agent
+    instance because the legacy classes store per-intersection generators.
+    """
 
     def __init__(self, controller_id, label, registry_name):
         self.id = controller_id
         self.label = label
         self.kind = 'builtin'
         self.registry_name = registry_name
-        self._agent = None
-        self._inter = None
+        self._agents = {}
 
-    def bind(self, world, rank=0):
+    def bind(self, world, ranks=None):
         import agent  # noqa: F401 - registers model classes
         from common.registry import Registry
 
         agent_cls = Registry.mapping['model_mapping'][self.registry_name]
-        self._agent = agent_cls(world, rank)
-        self._inter = world.id2intersection[world.intersection_ids[rank]]
+        self._agents = {
+            int(rank): agent_cls(world, int(rank))
+            for rank in (ranks or [0])
+        }
         return self
 
-    def decide(self):
-        phase = self._agent.get_phase()
-        action = self._agent.get_action(None, phase, test=True)
+    def decide(self, rank=0):
+        agent = self._agents[int(rank)]
+        phase = agent.get_phase()
+        action = agent.get_action(None, phase, test=True)
         return int(action)
 
     def reset(self):
-        if self._agent is not None and hasattr(self._agent, 'reset'):
-            self._agent.reset()
+        for agent in self._agents.values():
+            if hasattr(agent, 'reset'):
+                agent.reset()
 
 
 class SnapshotController:
@@ -187,7 +195,8 @@ class SnapshotController:
         self.weights_path = str(weights_path)
         self.detail = detail or {}
         self._payload = None
-        self._agent = None
+        self._model = None
+        self._agents = {}
 
     @property
     def payload(self):
@@ -195,75 +204,82 @@ class SnapshotController:
             self._payload = load_qnet_payload(self.weights_path)
         return self._payload
 
-    def bind(self, world, rank=0):
+    def bind(self, world, ranks=None):
         from sequential.agent import build_q_network
-        from sequential.evaluator import InferenceOnlyDQN
 
         payload = self.payload
-        if payload['architecture'] == 'dqn_mlp':
-            snapshot = {
-                'model': {
-                    'input_dim': payload['input_dim'],
-                    'output_dim': payload['output_dim'],
-                    'phase': payload['phase'],
-                    'one_hot': payload['one_hot'],
-                },
-                'online_model_state_dict': payload['state_dict'],
-            }
-            self._agent = InferenceOnlyDQN(world, snapshot)
-        else:
-            self._agent = _build_inference_agent(
-                world, payload, build_q_network, rank=rank,
+        if self._model is None:
+            self._model = build_q_network(
+                payload['algorithm_id'], payload['input_dim'],
+                payload['output_dim'],
             )
-        self._inter = world.id2intersection[world.intersection_ids[rank]]
+            self._model.load_state_dict(payload['state_dict'])
+            self._model.eval()
+        # Independent-DQN deployment shares one weight set across junctions;
+        # each rank only needs its own generators/intersection binding.
+        self._agents = {
+            int(rank): _build_inference_agent(
+                world, payload, int(rank), model=self._model,
+            )
+            for rank in (ranks or [0])
+        }
         return self
 
-    def decide(self):
-        observation = self._agent.get_ob()
-        phase = self._agent.get_phase()
-        action = self._agent.get_action(observation, phase)
-        return int(np.asarray(action).reshape(-1)[0])
+    def decide(self, rank=0):
+        return _inference_action(self._agents[int(rank)])
 
     def reset(self):
         pass
 
 
 class ManualController:
-    """Human operator: holds the last requested green phase.
+    """Human operator: per-junction hold of the last requested green phase.
 
-    With no explicit request the controller simply keeps whichever green phase
-    is currently targeted, so traffic never waits on the operator.
+    With no explicit request on a junction the controller simply keeps
+    whichever green phase is currently targeted there, so traffic never
+    waits on the operator.
     """
 
     def __init__(self, controller_id='manual', label='人工接管'):
         self.id = controller_id
         self.label = label
         self.kind = 'manual'
-        self._inter = None
-        self._requested = None
+        self._world = None
+        self._requested = {}
 
-    def bind(self, world, rank=0):
-        self._inter = world.id2intersection[world.intersection_ids[rank]]
-        self._requested = None
+    def bind(self, world, ranks=None):
+        self._world = world
+        self._requested = {}
         return self
 
-    def request_phase(self, phase_index):
-        self._requested = int(phase_index)
+    def request_phase(self, rank, phase_index):
+        self._requested[int(rank)] = int(phase_index)
+
+    def release(self, rank=None):
+        if rank is None:
+            self._requested.clear()
+        else:
+            self._requested.pop(int(rank), None)
 
     def pending(self):
-        return self._requested
+        return dict(self._requested)
 
-    def decide(self):
-        if self._requested is not None:
-            return int(self._requested)
-        return int(self._inter.virtual_phase)
+    def decide(self, rank=0):
+        rank = int(rank)
+        if rank in self._requested:
+            return self._requested[rank]
+        inter = self._world.id2intersection[
+            self._world.intersection_ids[rank]
+        ]
+        return int(inter.virtual_phase)
 
     def reset(self):
-        self._requested = None
+        self._requested = {}
 
 
-def _build_inference_agent(world, payload, build_q_network, rank=0):
-    """Assemble an InferenceOnlyDQN-equivalent for non-plain architectures."""
+def _build_inference_agent(world, payload, rank=0, model=None):
+    """Assemble an InferenceOnlyDQN-equivalent bound to one junction rank."""
+    from sequential.agent import build_q_network
     from sequential.evaluator import InferenceOnlyDQN
 
     agent = InferenceOnlyDQN.__new__(InferenceOnlyDQN)
@@ -272,14 +288,43 @@ def _build_inference_agent(world, payload, build_q_network, rank=0):
     agent.sub_agents = 1
     agent.phase = bool(payload['phase'])
     agent.one_hot = bool(payload['one_hot'])
-    agent.model = build_q_network(
-        payload['algorithm_id'], payload['input_dim'], payload['output_dim'],
-    )
-    agent.model.load_state_dict(payload['state_dict'])
-    agent.model.eval()
+    agent.model = model
+    if agent.model is None:
+        agent.model = build_q_network(
+            payload['algorithm_id'], payload['input_dim'],
+            payload['output_dim'],
+        )
+        agent.model.load_state_dict(payload['state_dict'])
+        agent.model.eval()
     agent.epsilon = 0.0
     _bind_generators(agent, world)
     return agent
+
+
+def _inference_action(agent):
+    """``InferenceOnlyDQN.get_action`` without assuming ``dense_*`` layers.
+
+    The stock implementation reads ``model.dense_3.out_features`` for the
+    phase one-hot width, which breaks dueling heads; the shared model's real
+    output width is recovered via ``_output_dim`` instead.
+    """
+    import torch
+    from agent import utils as agent_utils
+
+    observation = agent.get_ob()
+    phase = agent.get_phase()
+    if agent.phase:
+        out_dim = _output_dim(agent.model)
+        phase_feature = (
+            agent_utils.idx2onehot(phase, out_dim)
+            if agent.one_hot else phase
+        )
+        feature = np.concatenate([observation, phase_feature], axis=1)
+    else:
+        feature = observation
+    with torch.no_grad():
+        values = agent.model(torch.as_tensor(feature, dtype=torch.float32))
+    return int(np.argmax(values.cpu().numpy(), axis=1)[0])
 
 
 def _bind_generators(agent, world):

@@ -31,6 +31,8 @@ SCENE_CONFIGS = {
     'S2': 'configs/sim/sumohz1x1.cfg',
     'S3': 'configs/sim/sumohz1x1_config4.cfg',
     'S4': 'configs/sim/sumohz1x1_config3.cfg',
+    'S5': 'configs/sim/sumohz4x4.cfg',
+    'S6': 'configs/sim/sumohz4x4_hetero.cfg',
 }
 
 # Curated default checkpoints outside the snapshot scan root.  These are the
@@ -181,7 +183,7 @@ def build_parser():
     )
     parser.add_argument(
         '--scene', default='S2',
-        help='S1-S4 label or SUMO network name (default: S2)',
+        help='S1-S6 label or SUMO network name (default: S2)',
     )
     parser.add_argument(
         '--sim-config', default=None,

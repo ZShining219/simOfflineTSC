@@ -87,7 +87,7 @@ class BroadcastEngine:
 
     def __init__(self, scene, source_config, controllers,
                  default_controller_id=None, action_interval=10, speed=1.0,
-                 sumo_seed=None, runtime_dir=None, rank=0,
+                 sumo_seed=None, runtime_dir=None, ranks=None,
                  model_params=None, scene_configs=None):
         self.scene = scene
         self.scene_key = str(scene)
@@ -108,7 +108,12 @@ class BroadcastEngine:
         self.action_interval = max(1, int(action_interval))
         self.speed = float(speed)
         self.sumo_seed = sumo_seed
-        self.rank = int(rank)
+        # Intersection ranks the active controller drives; None -> every
+        # signalized junction once the world is known.
+        self._ranks_param = None if ranks is None else [int(r) for r in ranks]
+        self.controlled_ranks = [0]
+        self._rank_tl = {}
+        self._tl_rank = {}
         self.model_params = {**DEFAULT_MODEL_PARAMS, **(model_params or {})}
         self.runtime_dir = Path(
             runtime_dir or (Path(tempfile.gettempdir()) / 'sumo_live_broadcast')
@@ -116,11 +121,17 @@ class BroadcastEngine:
         self.runtime_dir.mkdir(parents=True, exist_ok=True)
 
         self.world = None
-        self.held_action = 0
+        # Per-rank held green-phase targets; junctions without an entry fall
+        # back to their own virtual_phase (frozen hold).
+        self.held_actions = {}
+        # Operator-pinned green phases, per rank; pinned junctions skip the
+        # controller at every decision tick until released.
+        self.manual_overrides = {}
         self.paused = False
         self.wait_enabled = False
-        self.awaiting = None          # None | 'confirm' | 'manual'
-        self._proposed_action = None
+        self.awaiting = None          # None | 'confirm'
+        self._proposed_actions = None
+        self._pending_choices = {}
         self._next_decision_t = 0.0
         self._decision_index = 0
         self._history = []
@@ -180,14 +191,19 @@ class BroadcastEngine:
         catalog = _intersection_catalog(self.world.eng)
         for tl_id, item in catalog.items():
             item['links'] = _controlled_link_triples(self.world.eng, tl_id)
-        inter = self.world.id2intersection[
-            self.world.intersection_ids[self.rank]
-        ]
+        panels = {
+            tl_id: _phase_panel_info(inter)
+            for tl_id, inter in self.world.id2intersection.items()
+        }
         self._init_payload = {
             'scene': self.scene,
             'network': self.network,
             'intersections': catalog,
-            'intersection': _phase_panel_info(inter),
+            'panels': panels,
+            'controlled': [
+                self._rank_tl[rank] for rank in self.controlled_ranks
+            ],
+            'focus': self._rank_tl[self.controlled_ranks[0]],
         }
 
     def init_payload(self):
@@ -226,8 +242,13 @@ class BroadcastEngine:
     def switch_controller(self, controller_id):
         self.command('switch_controller', controller_id=str(controller_id))
 
-    def manual_phase(self, phase_index):
-        self.command('manual_phase', phase=int(phase_index))
+    def manual_phase(self, phase_index, target=None):
+        self.command(
+            'manual_phase', phase=int(phase_index), target=target,
+        )
+
+    def release_manual(self, target=None):
+        self.command('release_manual', target=target)
 
     def set_scene(self, scene_key):
         self.command('set_scene', scene=str(scene_key))
@@ -322,6 +343,21 @@ class BroadcastEngine:
             self.scene = Path(new_config).stem
             self.scene_key = scene_key
             self.source_config = new_config
+            self._rank_tl = {
+                rank: tl_id
+                for rank, tl_id in enumerate(world.intersection_ids)
+            }
+            self._tl_rank = {
+                tl_id: rank for rank, tl_id in self._rank_tl.items()
+            }
+            requested = (
+                self._ranks_param
+                if self._ranks_param is not None
+                else list(self._rank_tl)
+            )
+            self.controlled_ranks = [
+                rank for rank in requested if rank in self._rank_tl
+            ] or [0]
             self.network = load_network_geometry(new_config)
             self._prepare_static_payload()
             self._reset_session_state()
@@ -361,11 +397,16 @@ class BroadcastEngine:
         self._latest_frame = None
 
     def _reset_session_state(self):
-        self.held_action = 0
+        self.held_actions = {
+            rank: int(inter.virtual_phase)
+            for rank, inter in enumerate(self.world.intersections)
+        }
+        self.manual_overrides = {}
         self._decision_index = 0
         self._next_decision_t = float(self.world.get_current_time())
         self.awaiting = None
-        self._proposed_action = None
+        self._proposed_actions = None
+        self._pending_choices = {}
         self._bound.clear()
         self._history.clear()
         self.paused = False
@@ -402,12 +443,12 @@ class BroadcastEngine:
                 self._handle_decision(now)
                 if self.awaiting is not None:
                     continue
-            # Every controlled junction keeps its current target; only the
-            # broadcast rank receives the held action (S1-S4 are 1x1 anyway).
+            # Every junction steps toward its held target; junctions the
+            # controller does not drive keep their own virtual_phase (frozen).
             actions = [
-                int(inter.virtual_phase) for inter in self.world.intersections
+                self.held_actions.get(rank, int(inter.virtual_phase))
+                for rank, inter in enumerate(self.world.intersections)
             ]
-            actions[self.rank] = self.held_action
             self.world.step(actions)
             self._publish(self._sample_frame())
             self._pace()
@@ -445,22 +486,25 @@ class BroadcastEngine:
     def _handle_decision(self, now):
         self._decision_index += 1
         controller = self.controllers[self.controller_id]
-        proposal = None
-        error = None
-        if not (self.wait_enabled and controller.kind == 'manual'):
+        proposals = {}
+        errors = {}
+        for rank in self.controlled_ranks:
+            if rank in self.manual_overrides:
+                proposals[rank] = int(self.manual_overrides[rank])
+                continue
             try:
-                proposal = int(controller.decide())
+                proposals[rank] = int(controller.decide(rank))
             except Exception as exc:  # never block traffic on a bad decision
-                error = f'{type(exc).__name__}: {exc}'
-                proposal = int(self.held_action)
-        self._proposed_action = proposal
+                errors[self._rank_tl[rank]] = f'{type(exc).__name__}: {exc}'
+                proposals[rank] = int(self.held_actions.get(rank, 0))
+        self._proposed_actions = proposals
+        self._pending_choices = {}
         self._next_decision_t += self.action_interval
         if self.wait_enabled:
-            self.awaiting = 'manual' if controller.kind == 'manual' else 'confirm'
+            self.awaiting = 'confirm'
             self._publish(self._sample_frame())
             return
-        self.held_action = proposal
-        self._record_decision(proposal, controller.id, error=error)
+        self._commit_actions(proposals, controller.id, errors=errors)
 
     def _drain_commands(self):
         while True:
@@ -473,7 +517,8 @@ class BroadcastEngine:
             except Exception as exc:
                 self._status_message = f'{op} failed: {exc}'
             if op in ('pause', 'speed', 'wait', 'switch_controller',
-                      'manual_phase', 'reset', 'resolve_decision'):
+                      'manual_phase', 'release_manual', 'reset',
+                      'resolve_decision'):
                 self._publish_status()
 
     def _apply_command(self, op, kwargs):
@@ -495,58 +540,109 @@ class BroadcastEngine:
         elif op == 'wait':
             self.wait_enabled = bool(kwargs.get('value'))
             if not self.wait_enabled and self.awaiting is not None:
-                self._resolve_awaiting(self._proposed_action)
+                self._resolve_awaiting({})
         elif op == 'switch_controller':
             self._switch_controller(kwargs['controller_id'])
         elif op == 'manual_phase':
-            self._apply_manual_phase(int(kwargs['phase']))
+            self._apply_manual_phase(int(kwargs['phase']), kwargs.get('target'))
+        elif op == 'release_manual':
+            self._release_manual(kwargs.get('target'))
         elif op == 'set_scene':
             self._switch_scene(kwargs['scene'])
         elif op == 'resolve_decision':
             if self.awaiting is not None:
-                action = kwargs.get('phase')
-                if action is None:
-                    action = (
-                        self._proposed_action
-                        if self._proposed_action is not None
-                        else self.held_action
-                    )
-                self._resolve_awaiting(int(action))
+                self._resolve_awaiting(kwargs)
         elif op == 'reset':
             self._reset_world()
 
-    def _resolve_awaiting(self, action):
-        controller = self.controllers[self.controller_id]
-        if (
-            controller.kind != 'manual'
-            and self._proposed_action is not None
-            and int(action) != int(self._proposed_action)
-        ):
-            # Picking a different phase than the model proposed is an
-            # operator override: hand control to the manual controller.
-            self._switch_controller('manual')
-            controller = self.controllers[self.controller_id]
-        if controller.kind == 'manual':
-            controller.request_phase(action)
-        self.held_action = int(action)
-        self._record_decision(int(action), controller.id)
-        self.awaiting = None
-        self._proposed_action = None
-
-    def _apply_manual_phase(self, phase):
-        controller = self.controllers[self.controller_id]
-        if controller.kind != 'manual':
-            # Clicking a phase while a model is active takes over control.
-            self._switch_controller('manual')
-            controller = self.controllers[self.controller_id]
-        controller.request_phase(phase)
-        if self.awaiting is not None:
-            self._resolve_awaiting(phase)
-            return
-        self.held_action = int(phase)
+    def _commit_actions(self, actions, source, note=None, errors=None):
+        for rank, phase in actions.items():
+            self.held_actions[rank] = int(phase)
         self._record_decision(
-            int(phase), 'manual', note='operator override',
+            actions, source, note=note, errors=errors,
         )
+        self.awaiting = None
+        self._proposed_actions = None
+        self._pending_choices = {}
+
+    def _resolve_awaiting(self, kwargs):
+        controller = self.controllers[self.controller_id]
+        merged = dict(self._proposed_actions or {})
+        for rank, phase in self._pending_choices.items():
+            merged[rank] = phase
+        # Optional single-junction override carried on the resolve call.
+        if kwargs.get('phase') is not None:
+            merged[self._resolve_rank(kwargs.get('junction'))] = int(
+                kwargs['phase']
+            )
+        note = None
+        adjusted = [
+            self._rank_tl[rank]
+            for rank, phase in self._pending_choices.items()
+            if self._proposed_actions is None
+            or self._proposed_actions.get(rank) != phase
+        ]
+        for rank in self._pending_choices:
+            if self._rank_tl[rank] in adjusted:
+                self.manual_overrides[rank] = self._pending_choices[rank]
+        if adjusted:
+            note = '人工调整 ' + ','.join(adjusted)
+        self._commit_actions(merged, controller.id, note=note)
+        self._publish_status()
+
+    def _resolve_rank(self, target):
+        """Map a junction selector value (tl id, or int rank) to a rank."""
+        if target is None:
+            return self.controlled_ranks[0]
+        tl_id = str(target)
+        if tl_id in self._tl_rank:
+            return self._tl_rank[tl_id]
+        try:
+            rank = int(target)
+        except (TypeError, ValueError):
+            rank = -1
+        if 0 <= rank < len(self._rank_tl):
+            return rank
+        raise ValueError(f'未知路口: {target}')
+
+    def _apply_manual_phase(self, phase, target=None):
+        rank = self._resolve_rank(target)
+        if self.awaiting is not None:
+            # While paused at a decision point a click only marks the choice
+            # for that junction; '应用并继续' applies the merged vector.
+            self._pending_choices[rank] = int(phase)
+            if len(self.controlled_ranks) == 1:
+                self._resolve_awaiting({})
+            self._publish_status()
+            return
+        self.manual_overrides[rank] = int(phase)
+        self.held_actions[rank] = int(phase)
+        self._record_decision(
+            int(phase), 'manual',
+            junction=self._rank_tl[rank], note='operator override',
+        )
+        self._publish_status()
+
+    def _release_manual(self, target=None):
+        controller = self.controllers[self.controller_id]
+        ranks = (
+            list(self.controlled_ranks)
+            if target is None
+            else [self._resolve_rank(target)]
+        )
+        for rank in ranks:
+            if rank not in self.manual_overrides:
+                continue
+            self.manual_overrides.pop(rank, None)
+            self._pending_choices.pop(rank, None)
+            try:
+                self.held_actions[rank] = int(controller.decide(rank))
+            except Exception:
+                pass
+            self._record_event(
+                f'{self._rank_tl[rank]} 解除人工接管 → {controller.id}'
+            )
+        self._publish_status()
 
     def _switch_controller(self, controller_id):
         if controller_id not in self.controllers:
@@ -560,7 +656,9 @@ class BroadcastEngine:
     def _bind_controller(self, controller_id):
         if controller_id in self._bound:
             return
-        self.controllers[controller_id].bind(self.world, rank=self.rank)
+        self.controllers[controller_id].bind(
+            self.world, ranks=self.controlled_ranks,
+        )
         self._bound.add(controller_id)
 
     def _switch_scene(self, scene_key):
@@ -578,16 +676,9 @@ class BroadcastEngine:
 
     def _reset_world(self):
         self.world.reset()
-        self.held_action = 0
-        self._decision_index = 0
-        self._next_decision_t = 0.0
-        self.awaiting = None
-        self._proposed_action = None
-        self._bound.clear()
+        self._reset_session_state()
         self._bind_controller(self.controller_id)
-        self._history.clear()
         self._record_event('simulation reset')
-        self._next_wall = time.monotonic()
 
     # ----------------------------------------------------------------- frames
 
@@ -596,17 +687,27 @@ class BroadcastEngine:
             return 0.0
         return float(self.world.get_current_time())
 
-    def _record_decision(self, action, source, note=None, error=None):
+    def _record_decision(self, action, source, note=None, errors=None,
+                         junction=None):
         entry = {
             't': self._sim_time(),
             'decision': self._decision_index,
-            'action': int(action),
             'source': source,
         }
+        if isinstance(action, dict):
+            entry['actions'] = {
+                self._rank_tl[rank]: int(phase)
+                for rank, phase in action.items()
+                if rank in self._rank_tl
+            }
+        else:
+            entry['action'] = int(action)
+        if junction is not None:
+            entry['junction'] = junction
         if note:
             entry['note'] = note
-        if error:
-            entry['error'] = error
+        if errors:
+            entry['errors'] = dict(errors)
         self._history.append(entry)
         del self._history[:-80]
 
@@ -624,7 +725,6 @@ class BroadcastEngine:
         catalog = self._init_payload['intersections']
         intersections = _intersection_details(world, catalog, vehicles, lights)
         lane_queue = world.get_lane_waiting_vehicle_count()
-        inter = world.id2intersection[world.intersection_ids[self.rank]]
         now = float(world.get_current_time())
         controller = self.controllers[self.controller_id]
         return {
@@ -648,12 +748,27 @@ class BroadcastEngine:
             'halting': sum(1 for v in vehicles if v['speed'] < 0.1),
             'controller': {'id': controller.id, 'label': controller.label,
                            'kind': controller.kind},
-            'held_action': int(self.held_action),
-            'virtual_phase': int(inter.virtual_phase),
-            'current_phase_raw': int(inter.get_current_phase()),
+            'held_actions': {
+                tl: int(self.held_actions.get(rank, 0))
+                for rank, tl in self._rank_tl.items()
+            },
+            'manual': {
+                self._rank_tl[rank]: int(phase)
+                for rank, phase in self.manual_overrides.items()
+            },
             'decision_index': self._decision_index,
             'next_decision_in': max(0.0, self._next_decision_t - now),
-            'proposed_action': self._proposed_action,
+            'proposed_actions': (
+                {
+                    self._rank_tl[rank]: int(phase)
+                    for rank, phase in self._proposed_actions.items()
+                }
+                if self._proposed_actions is not None else None
+            ),
+            'pending_choices': {
+                self._rank_tl[rank]: int(phase)
+                for rank, phase in self._pending_choices.items()
+            },
             'awaiting': self.awaiting,
             'paused': bool(self.paused),
             'wait_enabled': bool(self.wait_enabled),

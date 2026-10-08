@@ -49,6 +49,8 @@ SCENE_ALIASES = {
     "S2": "sumohz1x1",
     "S3": "sumohz1x1_config4",
     "S4": "sumohz1x1_config3",
+    "S5": "sumohz4x4",
+    "S6": "sumohz4x4_hetero",
 }
 DEFAULT_S2_FIXEDTIME_INPUT = (
     Path(__file__).resolve().parents[1]

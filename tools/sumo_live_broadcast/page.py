@@ -39,6 +39,10 @@ PAGE_HTML = r"""<!doctype html>
   #side section { padding:10px 12px; border-bottom:1px solid var(--line); }
   #side h2 { font-size:13px; margin:0 0 8px; color:#45515a; text-transform:uppercase; letter-spacing:.04em; }
   #controllerSelect { min-width:150px; }
+  #interSel { max-width:210px; padding:2px 4px; }
+  .pinTag { font-size:11px; color:#fff; background:#7b1fa2; border-radius:8px; padding:0 6px; margin-left:6px; }
+  #releaseBtn { padding:1px 8px; font-size:12px; margin-left:6px; }
+  .jlabel { font-size:10px; }
   #phaseGrid { display:grid; grid-template-columns:repeat(4, 1fr); gap:8px; }
   .phaseCard { position:relative; border:2px solid var(--line); border-radius:6px; padding:4px; text-align:center; cursor:pointer; background:#fafcfc; transition:border-color .15s, box-shadow .15s, transform .1s; }
   .phaseCard canvas { width:100%; display:block; }
@@ -127,6 +131,7 @@ PAGE_HTML = r"""<!doctype html>
   <aside id="side">
     <section id="decisionBox">
       <h2>决策状态</h2>
+      <div class="prop"><label>路口 <select id="interSel"></select></label><span id="manualTag" class="pinTag" style="display:none">人工接管</span><button id="releaseBtn" style="display:none">解除接管</button></div>
       <div class="prop">当前生效相位 <b id="phaseInEffect">-</b> · 目标相位 <b id="phaseTarget">-</b></div>
       <div class="prop">最近决策 <span id="lastDecision">-</span></div>
       <div class="prop" id="ctlSrc" style="font-size:11px;color:#6a7a84"></div>
@@ -145,6 +150,7 @@ PAGE_HTML = r"""<!doctype html>
 </main>
 <script>
 let INIT = null, CATALOG = {}, LANES = [], laneById = {}, BOUNDS = null;
+let PANELS = {}, CONTROLLED = [];
 let PHASES = [], YELLOW_DICT = {}, PHASE_COUNT = 0, INTER_ID = null;
 let lastFrame = null, prevFrame = null, frameStamp = [0, 0];
 const map = document.getElementById('map');
@@ -190,6 +196,14 @@ function drawLights(ctx, lights) {
     ctx.fillStyle = '#ffffffdd'; const tw = ctx.measureText(tag).width + 8;
     ctx.fillRect(x + 12, y - 8, tw, 15); ctx.strokeStyle = '#536875'; ctx.strokeRect(x + 12, y - 8, tw, 15);
     ctx.fillStyle = '#17202a'; ctx.fillText(tag, x + 16, y + 4);
+    // Junction id label; double-stroke on the focused one.
+    const short = String(j.id).length > 16 ? String(j.id).slice(0, 15) + '…' : String(j.id);
+    ctx.font = '10px Arial'; const iw = ctx.measureText(short).width + 6;
+    ctx.fillStyle = '#ffffffcc'; ctx.fillRect(x - iw / 2, y + 12, iw, 13);
+    ctx.strokeStyle = j.id === INTER_ID ? '#7b1fa2' : '#8fa0a8';
+    ctx.lineWidth = j.id === INTER_ID ? 2 : 0.8;
+    ctx.strokeRect(x - iw / 2, y + 12, iw, 13);
+    ctx.fillStyle = '#45515a'; ctx.fillText(short, x - iw / 2 + 3, y + 22);
   }
 }
 function drawVehicle(ctx, v) {
@@ -400,6 +414,18 @@ function drawPhaseCard(canvas, state) {
   ctx.beginPath(); ctx.moveTo(ax - 3, ay - 2); ctx.lineTo(ax, ay - 7); ctx.lineTo(ax + 3, ay - 2); ctx.stroke();
 }
 let pendingPhase = null;   // clicked but not yet confirmed by a frame
+function setFocus(id) {
+  if (!PANELS[id]) return;
+  INTER_ID = id;
+  const p = PANELS[id];
+  PHASES = p.phases || []; PHASE_COUNT = p.phase_count || 0;
+  YELLOW_DICT = p.yellow_dict || {};
+  pendingPhase = null;
+  buildPhaseCards();
+  if (lastFrame) updatePhaseCards(lastFrame);
+  const sel = document.getElementById('interSel');
+  if (sel.value !== id) sel.value = id;
+}
 function buildPhaseCards() {
   const grid = document.getElementById('phaseGrid'); grid.innerHTML = '';
   PHASES.forEach(p => {
@@ -415,27 +441,36 @@ function buildPhaseCards() {
       pendingPhase = p.index;
       document.querySelectorAll('.phaseCard').forEach(c => c.classList.remove('chosen'));
       card.classList.add('chosen');
-      post('phase', {phase: p.index});
+      post('phase', {phase: p.index, junction: INTER_ID});
     };
-    card.title = `P${p.index}: ${p.state}（点击切换，自动转人工接管）`;
+    card.title = `P${p.index}: ${p.state}（点击接管路口 ${INTER_ID}）`;
   });
 }
 function updatePhaseCards(f) {
-  if (pendingPhase !== null && f.held_action === pendingPhase) pendingPhase = null;
-  const inEffect = f.current_phase_raw < PHASE_COUNT ? f.current_phase_raw : null;
-  const via = YELLOW_DICT && f.current_phase_raw >= PHASE_COUNT
-    ? Object.entries(YELLOW_DICT).find(e => e[1] === f.current_phase_raw) : null;
+  const held = (f.held_actions || {})[INTER_ID];
+  const picked = (f.pending_choices || {})[INTER_ID];
+  const proposed = f.awaiting ? (f.proposed_actions || {})[INTER_ID] : null;
+  const raw = ((f.lights || {})[INTER_ID] || [null])[0];
+  if (pendingPhase !== null && held === pendingPhase) pendingPhase = null;
+  const inEffect = raw !== null && raw < PHASE_COUNT ? raw : null;
+  const via = raw !== null && raw >= PHASE_COUNT
+    ? Object.entries(YELLOW_DICT).find(e => e[1] === raw) : null;
   document.getElementById('phaseInEffect').textContent =
-    inEffect !== null ? 'P' + inEffect : (via ? '黄灯 ' + via[0].replace('_', '→') : 'P' + f.current_phase_raw);
-  document.getElementById('phaseTarget').textContent = 'P' + f.held_action;
+    inEffect !== null ? 'P' + inEffect : (via ? '黄灯 ' + via[0].replace('_', '→') : (raw === null ? '-' : 'P' + raw));
+  document.getElementById('phaseTarget').textContent = held === undefined ? '-' : 'P' + held;
   document.querySelectorAll('.phaseCard').forEach(c => {
     const i = Number(c.dataset.phase);
     c.classList.toggle('effect', i === inEffect);
-    c.classList.toggle('target', i === f.held_action);
-    c.classList.toggle('proposed', Boolean(f.awaiting) && i === f.proposed_action);
-    c.classList.toggle('chosen', pendingPhase !== null && i === pendingPhase && i !== f.held_action);
-    c.classList.toggle('manualOk', f.controller.kind === 'manual' || Boolean(f.awaiting));
+    c.classList.toggle('target', i === held);
+    c.classList.toggle('proposed', Boolean(f.awaiting) && i === proposed);
+    c.classList.toggle('chosen',
+      (picked !== undefined && i === picked) ||
+      (pendingPhase !== null && i === pendingPhase && i !== held));
+    c.classList.toggle('manualOk', Boolean(f.awaiting) || f.controller.kind === 'manual');
   });
+  const pinned = (f.manual || {})[INTER_ID];
+  document.getElementById('manualTag').style.display = pinned === undefined ? 'none' : 'inline-block';
+  document.getElementById('releaseBtn').style.display = pinned === undefined ? 'none' : 'inline-block';
 }
 function yellowPairs() { return YELLOW_DICT; }
 
@@ -447,8 +482,19 @@ function fmtHistory(f) {
     if (h.event) { li.innerHTML = `<em>t=${h.t.toFixed(0)}s</em><span>${h.event}</span>`; }
     else {
       const src = h.source === 'manual' ? '<span class="srcManual">人工</span>' : `<span>${h.source}</span>`;
-      li.innerHTML = `<em>t=${h.t.toFixed(0)}s #${h.decision}</em><span>P${h.action} ${src}${h.error ? ' <b class="err">!</b>' : ''}</span>`;
-      if (h.note) li.title = h.note;
+      const errMark = h.errors ? ' <b class="err">!</b>' : '';
+      if (h.actions) {
+        // Per-junction vector decision; right column shows the focused one.
+        const mine = h.actions[INTER_ID];
+        li.innerHTML = `<em>t=${h.t.toFixed(0)}s #${h.decision}</em><span>P${mine ?? '-'} ${src}${errMark}</span>`;
+        li.title = Object.entries(h.actions).map(([k, v]) => `${k}: P${v}`).join('  ') +
+          (h.note ? `\n${h.note}` : '') +
+          (h.errors ? `\n${Object.entries(h.errors).map(([k, v]) => `${k}: ${v}`).join('  ')}` : '');
+      } else {
+        const j = h.junction ? `${h.junction} ` : '';
+        li.innerHTML = `<em>t=${h.t.toFixed(0)}s</em><span>${j}P${h.action} ${src}${errMark}</span>`;
+        if (h.note) li.title = h.note;
+      }
     }
     ul.appendChild(li);
   });
@@ -457,9 +503,12 @@ function updateSidebar(f) {
   updatePhaseCards(f);
   document.getElementById('simTime').textContent = f.t.toFixed(0) + 's';
   document.getElementById('nextIn').textContent = f.awaiting ? '暂停等待' : f.next_decision_in.toFixed(0);
-  const last = (f.history || []).filter(h => h.action !== undefined).slice(-1)[0];
+  const last = (f.history || []).filter(h => h.action !== undefined || h.actions).slice(-1)[0];
   document.getElementById('lastDecision').textContent = last
-    ? `t=${last.t.toFixed(0)}s → P${last.action}（${last.source}）` : '-';
+    ? (last.actions
+      ? `t=${last.t.toFixed(0)}s → ${Object.keys(last.actions).length} 路口（${last.source}）`
+      : `t=${last.t.toFixed(0)}s → ${last.junction ? last.junction + ' ' : ''}P${last.action}（${last.source}）`)
+    : '-';
   const meta = (window.CTLMETA || {})[f.controller.id] || {};
   const ident = (meta.detail && meta.detail.identity) || {};
   const src = meta.path ? meta.path.split('/').slice(-1)[0] : '';
@@ -469,10 +518,12 @@ function updateSidebar(f) {
   const box = document.getElementById('awaitBar');
   if (f.awaiting === 'confirm') {
     box.classList.add('show');
-    document.getElementById('awaitText').textContent = `控制器 ${f.controller.label} 建议 P${f.proposed_action}，确认后生效`;
-  } else if (f.awaiting === 'manual') {
-    box.classList.add('show');
-    document.getElementById('awaitText').textContent = '等待人工选择相位…';
+    const props = f.proposed_actions || {};
+    const n = Object.keys(props).length;
+    const mine = props[INTER_ID];
+    document.getElementById('awaitText').textContent = n > 1
+      ? `控制器 ${f.controller.label} 已建议 ${n} 个路口（当前路口 P${mine ?? '-'}）；点击相位卡可单独改选，应用并继续后生效`
+      : `控制器 ${f.controller.label} 建议 P${mine ?? '-'}，确认后生效`;
   } else box.classList.remove('show');
   const m = document.getElementById('metrics');
   m.innerHTML = [['排队车辆', f.queue.toFixed(0)], ['累计通过', f.throughput],
@@ -596,14 +647,39 @@ map.addEventListener('wheel', e => {
   const k = e.deltaY < 0 ? 1.15 : 0.87;
   view.zoom = Math.min(12, Math.max(0.4, view.zoom * k));
 });
-map.addEventListener('pointerdown', e => { view.drag = true; view.lx = e.clientX; view.ly = e.clientY; map.setPointerCapture(e.pointerId); });
+let downPos = null;
+map.addEventListener('pointerdown', e => { view.drag = true; view.lx = e.clientX; view.ly = e.clientY; downPos = [e.clientX, e.clientY]; map.setPointerCapture(e.pointerId); });
 map.addEventListener('pointermove', e => { if (!view.drag) return; view.panX += e.clientX - view.lx; view.panY += e.clientY - view.ly; view.lx = e.clientX; view.ly = e.clientY; });
-map.addEventListener('pointerup', () => view.drag = false);
+map.addEventListener('pointerup', e => {
+  view.drag = false;
+  // A click (no real drag) on a junction dot focuses its phase panel.
+  if (downPos && Math.hypot(e.clientX - downPos[0], e.clientY - downPos[1]) < 5)
+    pickJunction(e);
+  downPos = null;
+});
+function pickJunction(e) {
+  if (!CATALOG || !BOUNDS) return;
+  const rect = map.getBoundingClientRect();
+  const dpr = devicePixelRatio || 1;
+  const px = (e.clientX - rect.left) * dpr, py = (e.clientY - rect.top) * dpr;
+  let best = null, bd = Infinity;
+  for (const id of Object.keys(CATALOG)) {
+    const item = CATALOG[id];
+    const q = mapPt(item.x, item.y);
+    const sx = (q[0] - map.width / 2) * view.zoom + map.width / 2 + view.panX;
+    const sy = (q[1] - map.height / 2) * view.zoom + map.height / 2 + view.panY;
+    const d = Math.hypot(sx - px, sy - py);
+    if (d < bd) { bd = d; best = id; }
+  }
+  if (best && bd < 36 * dpr * Math.max(0.6, view.zoom)) setFocus(best);
+}
 document.getElementById('pauseBtn').onclick = () => post(lastFrame && lastFrame.paused ? 'resume' : 'pause');
 document.getElementById('speedSel').onchange = e => post('speed', {value: Number(e.target.value)});
 document.getElementById('waitChk').onchange = e => post('wait', {value: e.target.checked});
 document.getElementById('resetBtn').onclick = () => { if (confirm('重置仿真？')) post('reset'); };
 document.getElementById('controllerSelect').onchange = e => post('switch', {controller: e.target.value});
+document.getElementById('interSel').onchange = e => setFocus(e.target.value);
+document.getElementById('releaseBtn').onclick = () => post('release', {junction: INTER_ID});
 document.getElementById('applyBtn').onclick = () => post('resolve', {});
 window.addEventListener('resize', fitCanvas);
 
@@ -634,14 +710,21 @@ function applyInit(init) {
   sel.value = init.default_controller;
   document.getElementById('speedSel').value = String(init.speed);
   // World-dependent payload only exists once a session is built.
-  if (!init.network || !init.intersection) return;
+  if (!init.network || !init.panels) return;
   CATALOG = init.intersections; LANES = init.network.lanes;
   laneById = Object.fromEntries(LANES.map(l => [l.id, l]));
   BOUNDS = init.network.bounds;
-  INTER_ID = init.intersection.id;
-  PHASES = init.intersection.phases; PHASE_COUNT = init.intersection.phase_count;
-  YELLOW_DICT = init.intersection.yellow_dict || {};
-  buildPhaseCards();
+  PANELS = init.panels;
+  CONTROLLED = init.controlled || Object.keys(PANELS);
+  const interSel = document.getElementById('interSel');
+  interSel.innerHTML = '';
+  CONTROLLED.forEach((tl, i) => {
+    const o = document.createElement('option'); o.value = tl;
+    o.textContent = CONTROLLED.length > 1 ? `${i} · ${tl}` : tl;
+    interSel.appendChild(o);
+  });
+  document.getElementById('interSel').style.display = '';
+  setFocus(init.focus || CONTROLLED[0]);
 }
 function reInit() {
   prevFrame = null; lastFrame = null;

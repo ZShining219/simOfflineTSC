@@ -15,15 +15,20 @@ from tools.sumo_live_broadcast.controllers import (
 from tools.sumo_live_broadcast.page import build_page
 
 
-def _fake_world(virtual_phase=2, phase_count=4):
-    inter = SimpleNamespace(
-        id='J0', virtual_phase=virtual_phase,
-        phases=list(range(phase_count)),
-        green_phases=[], yellow_dict={}, yellow_phase_time=5,
-    )
+def _fake_world(virtual_phase=2, phase_count=4, junction_count=1):
+    inters = [
+        SimpleNamespace(
+            id=f'J{i}', virtual_phase=virtual_phase,
+            phases=list(range(phase_count)),
+            green_phases=[], yellow_dict={}, yellow_phase_time=5,
+        )
+        for i in range(junction_count)
+    ]
+    ids = [inter.id for inter in inters]
     return SimpleNamespace(
-        intersection_ids=['J0'], id2intersection={'J0': inter},
-        intersections=[inter],
+        intersection_ids=ids,
+        id2intersection=dict(zip(ids, inters)),
+        intersections=inters,
     )
 
 
@@ -36,9 +41,26 @@ class SumoLiveBroadcastTest(unittest.TestCase):
 
     def test_manual_controller_holds_phase_without_request(self):
         controller = ManualController().bind(_fake_world(virtual_phase=3))
-        self.assertEqual(controller.decide(), 3)
-        controller.request_phase(1)
-        self.assertEqual(controller.decide(), 1)
+        self.assertEqual(controller.decide(0), 3)
+        controller.request_phase(0, 1)
+        self.assertEqual(controller.decide(0), 1)
+
+    def test_manual_controller_requests_are_per_junction(self):
+        controller = ManualController().bind(
+            _fake_world(virtual_phase=2, junction_count=3),
+            ranks=[0, 1, 2],
+        )
+        controller.request_phase(1, 4)
+        self.assertEqual(controller.decide(0), 2)
+        self.assertEqual(controller.decide(1), 4)
+        self.assertEqual(controller.decide(2), 2)
+        controller.release(1)
+        self.assertEqual(controller.decide(1), 2)
+        controller.request_phase(0, 5)
+        controller.request_phase(2, 6)
+        controller.release()
+        self.assertEqual(controller.decide(0), 2)
+        self.assertEqual(controller.decide(2), 2)
 
     def test_parse_model_arg_requires_name_equals_path(self):
         name, path = _parse_model_arg('dhoa=/tmp/x.pt')

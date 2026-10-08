@@ -4,7 +4,8 @@ Endpoints:
     GET  /              single-page frontend
     GET  /api/init      static payload (network geometry, phases, controllers)
     GET  /api/stream    Server-Sent Events; one JSON frame per sim step
-    POST /api/control   JSON commands (pause/speed/wait/switch/phase/reset)
+    POST /api/control   JSON commands (pause/speed/wait/switch/phase/
+                        release/reset)
 
 No third-party web dependencies are used: SSE is a long-lived chunked
 response and control commands arrive as plain POSTs, which keeps the whole
@@ -86,9 +87,16 @@ class _Handler(BaseHTTPRequestHandler):
             elif op == 'scene':
                 self.engine.set_scene(payload['scene'])
             elif op == 'phase':
-                self.engine.manual_phase(payload['phase'])
+                self.engine.manual_phase(
+                    payload['phase'], payload.get('junction'),
+                )
+            elif op == 'release':
+                self.engine.release_manual(payload.get('junction'))
             elif op == 'resolve':
-                self.engine.command('resolve_decision', phase=payload.get('phase'))
+                self.engine.command(
+                    'resolve_decision', phase=payload.get('phase'),
+                    junction=payload.get('junction'),
+                )
             elif op == 'reset':
                 self.engine.reset()
             else:

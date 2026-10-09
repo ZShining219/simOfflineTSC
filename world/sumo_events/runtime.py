@@ -89,6 +89,18 @@ class SumoEventRuntime:
         # message past the physical event.  Physics is always on true `now`.
         # Unset -> bit-identical behavior.
         self._announce_lead = float(os.environ.get('TARL_ANNOUNCE_LEAD_S', '0'))
+        # lag-utility rerouting probe hook: TARL_REROUTE_P=p makes vehicles
+        # whose remaining route still passes a currently-closed edge recompute
+        # their route (which automatically avoids the disallowed lanes) with
+        # probability p, re-checked every TARL_REROUTE_INTERVAL_S sim-seconds.
+        # This lifts the "no driver rerouting" assumption ONLY when the env var
+        # is set — unset -> bit-identical behavior.  Decisions are a
+        # deterministic crc32(vid|slot) draw, so reruns stay reproducible.
+        self._reroute_p = float(os.environ.get('TARL_REROUTE_P', '0'))
+        self._reroute_interval = float(
+            os.environ.get('TARL_REROUTE_INTERVAL_S', '60'))
+        self._reroute_next = 0.0
+        self._reroute_stats = {'scanned': 0, 'eligible': 0, 'applied': 0}
 
     def _validate_targets(self):
         if any(e.kind == 'global_rain' for e in self.schedule.events) and not self._rain_lanes:
@@ -144,8 +156,12 @@ class SumoEventRuntime:
         self._step = step
         self._failed = None
         self._time = None
+        if self._reroute_p > 0 and self._reroute_stats['scanned']:
+            print(f'[reroute] previous-episode stats: {self._reroute_stats}')
         self._states = {e.event_id: 'pending' for e in self.schedule.events}
         self._reports = {}
+        self._reroute_next = 0.0
+        self._reroute_stats = {'scanned': 0, 'eligible': 0, 'applied': 0}
         self._positions = {}
         self._obstacles = {}
         self._transitions = []
@@ -215,6 +231,13 @@ class SumoEventRuntime:
                         raise RuntimeError(f'Rain speed change not applied: {lane}')
                 self._factor = factor
             self._verify_obstacles()
+            # Optional rerouting probe: vehicles still routed through a closed
+            # edge get a chance to recompute their route.  The disallowed
+            # lanes are unroutable, so rerouteTraveltime naturally avoids them.
+            if (self._reroute_p > 0.0 and self._closed
+                    and now >= self._reroute_next):
+                self._reroute_next = now + self._reroute_interval
+                self._reroute_pass(now)
             # Publish only after the entire batch is confirmed in SUMO.
             # The report clock may be shifted by _report_shift (P3 probe): the
             # message lifecycle slides as a whole while physics stays on `now`.
@@ -234,6 +257,32 @@ class SumoEventRuntime:
         except Exception as error:
             self._failed = f'{type(error).__name__}: {error}'
             raise
+
+    def _reroute_pass(self, now):
+        import zlib
+        eng = self._engine
+        closed_edges = {self._lanes[l]['edge_id'] for l in self._closed}
+        slot = int(now // self._reroute_interval)
+        for vid in eng.vehicle.getIDList():
+            if vid.startswith(trex_blockage.PREFIX):
+                continue
+            self._reroute_stats['scanned'] += 1
+            try:
+                route = eng.vehicle.getRoute(vid)
+                idx = eng.vehicle.getRouteIndex(vid)
+            except Exception:
+                continue
+            if not any(e in closed_edges for e in route[max(0, idx):]):
+                continue
+            self._reroute_stats['eligible'] += 1
+            u = zlib.crc32(f'{vid}|{slot}'.encode()) / 2**32
+            if u >= self._reroute_p:
+                continue
+            try:
+                eng.vehicle.rerouteTraveltime(vid)
+                self._reroute_stats['applied'] += 1
+            except Exception:
+                pass
 
     def _verify_obstacles(self):
         for event in self.schedule.events:
@@ -319,9 +368,13 @@ class SumoEventRuntime:
             'actual_positions': dict(self._positions), 'obstacle_ids': dict(self._obstacles),
             'closed_lanes': sorted(self._closed), 'rain_factor': self._factor,
             'rain_lane_count': len(self._rain_lanes), 'transitions': [dict(r) for r in self._transitions],
+            'reroute_p': self._reroute_p, 'reroute_stats': dict(self._reroute_stats),
             'operators': {
                 'lane_blockage': 'T-REX Deployment.triggering adaptation; a91a3d8c4ac27982c75553b932eabb27acd63ca7',
-                'road_closure': 'SUMO TraCI lane.setDisallowed(all); directed edge; no forced rerouting',
+                'road_closure': ('SUMO TraCI lane.setDisallowed(all); directed edge; '
+                                 'no forced rerouting' if self._reroute_p <= 0 else
+                                 f'SUMO TraCI lane.setDisallowed(all) + periodic '
+                                 f'rerouteTraveltime p={self._reroute_p}'),
                 'global_rain': 'SUMO TraCI lane.setMaxSpeed; network-wide speed-limit proxy; overlap=min',
             },
         }

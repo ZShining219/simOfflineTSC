@@ -72,7 +72,10 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
   首发散时刻 / 死需求份额 / foreign 特异性，消费 eval_v2 dump+probe）、
   `run_oracle_deadlane.py`（closure 激活期馈入节点死车道观测遮蔽 oracle，
   判决文本通道可兑现上界）、`probe_junction_block.py`（libsumo 微探针：
-  封闭边需求车辆的滞留位置/车道/箱内阻塞核验）。探索期实现，产物落
+  封闭边需求车辆的滞留位置/车道/箱内阻塞核验）、
+  `run_oracle_corridor.py`（corridor-throttle oracle：closure 窗内在馈入
+  节点+上游节点强制选"走廊方向服务最少"相位，判决节流 headroom；
+  `--lead` 可把窗延伸到预告段测预置收益）。探索期实现，产物落
   `data/output_data/analysis/att_entity_004/lag_utility/`。
 - `dev/govern_1007/`：本治理任务的授权暂存位（当前为空）。
 - `dev/scene_semantics/`：轨迹场景语义标注探索件（P0 窗口恢复/统计 → P2 事实描述+冻结编码 →

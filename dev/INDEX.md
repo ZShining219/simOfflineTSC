@@ -64,6 +64,25 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
   README），2026-10-07 裁决收仓长期维护；源自治理工作区 govern_1007/scratch/。
 - `dev/govern_1007/`：本治理任务的授权暂存位（当前为空）。
 - `dev/_legacy/20261007/`：见 `dev/_legacy/20261007/README.md`。
+- `dev/takeover_probe/`：控制器接管与调度器探针族（探索件）。
+  `probe.py` 为接管分叉探针：复用 tools/sumo_live_broadcast 控制器适配器 +
+  world 构建；前缀到指定决策步后切换接管控制器，逐决策记录车道级排队，
+  分叉点状态指纹校验确定性；支持 `--inject` 突发车流注入
+  （注入实现已收编 `tools/sumo_live_broadcast/injects.py`，与转播服务共用）。
+  `dispatch_state.py`（车道/全局/事件文本特征化+播报延迟）、
+  `dispatch_model.py`（Scene-Guided Attention / SelfAttention /
+  Concat 三变体 DispatchRouter——对应任务书三方对比：场景引导注意力 /
+  自注意力Transformer / 无注意力基线）、
+  `router_runtime.py`（窗口化接管运行循环）、`train_router.py`（SMDP Double-DQN
+  训练，支持目标条件化 reward + 配对课程 + aux 对齐衰减 + 多事件干扰注入）、
+  `eval_router.py`（冻结评测 A/B/C/D+文本消融，`--extra NAME=CKPT` 扩臂）、
+  `scan_pairs.py`（反事实胜者矩阵扫描：固定臂在不同
+  事件参数下的最优翻转）、`eval_objective.py`（目标条件化配对评测：
+  同物理事件仅声明目标不同；单事件格为 global/focus 成员对，
+  `edgeA+edgeB` 多事件格为 focus@A/focus@B 绑定翻转对）为场景引导注意力调度
+  Pilot 配套件。产物在
+  `output_data/dev_takeover_probe/`（不入库）；
+  转播侧 `DispatchController` 适配器在 `tools/sumo_live_broadcast/controllers.py`。
 
 ## 已裁决归档（2026-10-07 Z 裁）
 

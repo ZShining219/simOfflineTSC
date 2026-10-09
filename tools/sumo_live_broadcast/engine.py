@@ -88,7 +88,7 @@ class BroadcastEngine:
     def __init__(self, scene, source_config, controllers,
                  default_controller_id=None, action_interval=10, speed=1.0,
                  sumo_seed=None, runtime_dir=None, ranks=None,
-                 model_params=None, scene_configs=None):
+                 model_params=None, scene_configs=None, injects=None):
         self.scene = scene
         self.scene_key = str(scene)
         self.source_config = Path(source_config).expanduser().resolve()
@@ -115,6 +115,10 @@ class BroadcastEngine:
         self._rank_tl = {}
         self._tl_rank = {}
         self.model_params = {**DEFAULT_MODEL_PARAMS, **(model_params or {})}
+        # raw spec strings; re-parsed per session so flags reset on restart
+        self.inject_specs = list(injects or [])
+        self.injects = []
+        self._last_dispatch_child = None
         self.runtime_dir = Path(
             runtime_dir or (Path(tempfile.gettempdir()) / 'sumo_live_broadcast')
         ).resolve()
@@ -335,7 +339,9 @@ class BroadcastEngine:
             world = world_class(str(world_config), interface='libsumo')
             self._check_build_cancel()
             self._progress('订阅指标并初始化仿真')
-            world.subscribe(['lane_count', 'lane_waiting_count'])
+            world.subscribe(
+                ['lane_count', 'lane_waiting_count',
+                 'lane_waiting_time_count'])
             world.reset()
             self._check_build_cancel()
             self._progress('解析路口几何与相位')
@@ -361,6 +367,9 @@ class BroadcastEngine:
             self.network = load_network_geometry(new_config)
             self._prepare_static_payload()
             self._reset_session_state()
+            from tools.sumo_live_broadcast.injects import parse_injects
+            self.injects = parse_injects(self.inject_specs)
+            self._last_dispatch_child = None
             self._check_build_cancel()
             self._progress(f'绑定控制器 {self.controller_id}')
             try:
@@ -445,6 +454,9 @@ class BroadcastEngine:
                     continue
             # Every junction steps toward its held target; junctions the
             # controller does not drive keep their own virtual_phase (frozen).
+            if self.injects:
+                from tools.sumo_live_broadcast.injects import apply_injects
+                apply_injects(self.world, self.injects, now)
             actions = [
                 self.held_actions.get(rank, int(inter.virtual_phase))
                 for rank, inter in enumerate(self.world.intersections)
@@ -500,6 +512,11 @@ class BroadcastEngine:
         self._proposed_actions = proposals
         self._pending_choices = {}
         self._next_decision_t += self.action_interval
+        child = getattr(controller, 'child_label', None)
+        if child is not None and child != self._last_dispatch_child:
+            self._record_event(
+                f'{controller.label} 调度 → {child} @t={now:.0f}s')
+            self._last_dispatch_child = child
         if self.wait_enabled:
             self.awaiting = 'confirm'
             self._publish(self._sample_frame())
@@ -747,7 +764,9 @@ class BroadcastEngine:
             'vehicles_total': len(vehicles),
             'halting': sum(1 for v in vehicles if v['speed'] < 0.1),
             'controller': {'id': controller.id, 'label': controller.label,
-                           'kind': controller.kind},
+                           'kind': controller.kind,
+                           'dispatch': getattr(
+                               controller, 'child_label', None)},
             'held_actions': {
                 tl: int(self.held_actions.get(rank, 0))
                 for rank, tl in self._rank_tl.items()

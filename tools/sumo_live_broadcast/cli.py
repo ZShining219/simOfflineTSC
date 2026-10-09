@@ -19,8 +19,8 @@ if str(_REPO_ROOT) not in sys.path:
 from tools.sumo_html_comparison import canonical_scene  # noqa: E402
 
 from .controllers import (  # noqa: E402
-    build_builtin_controllers, build_snapshot_controller,
-    load_qnet_payload,
+    build_builtin_controllers, build_dispatch_controller,
+    build_snapshot_controller, load_qnet_payload,
 )
 from .engine import BroadcastEngine  # noqa: E402
 from .page import build_page  # noqa: E402
@@ -124,7 +124,7 @@ def _snapshot_label(path, detail):
     return f'{path.stem} 快照'
 
 
-def build_controllers(args, scene):
+def build_controllers(args, scene, inject_specs=None):
     controllers = {}
     for controller in build_builtin_controllers():
         controllers[controller.id] = controller
@@ -153,6 +153,11 @@ def build_controllers(args, scene):
         detail = _snapshot_detail(path)
         controllers[name] = build_snapshot_controller(
             name, name, path, detail=detail,
+        )
+
+    for name, path in (getattr(args, 'dispatch', None) or []):
+        controllers[name] = build_dispatch_controller(
+            name, name, path, inject_specs=inject_specs,
         )
 
     # Keep the manual entry last in the menu regardless of insertion order.
@@ -217,6 +222,17 @@ def build_parser():
         help='Directory scanned for scene-matched snapshot .pt files',
     )
     parser.add_argument(
+        '--dispatch', action='append', type=_parse_model_arg, default=[],
+        metavar='NAME=PATH',
+        help='Register a dispatch router checkpoint under NAME; repeatable',
+    )
+    parser.add_argument(
+        '--inject', action='append', default=[],
+        metavar='SPEC',
+        help='Traffic perturbation, e.g. surge:FROM:TO:START:DUR:PERIOD '
+             'or lane_close:LANE:START:DUR; repeatable',
+    )
+    parser.add_argument(
         '--t-fixed', type=int, default=None,
         help='FixedTime t_fixed override (default: 30)',
     )
@@ -238,7 +254,8 @@ def build_parser():
 def main(argv=None):
     args = build_parser().parse_args(argv)
     sim_config = _resolve_sim_config(args.scene, args.sim_config)
-    controllers = build_controllers(args, args.scene)
+    controllers = build_controllers(
+        args, args.scene, inject_specs=list(args.inject))
 
     model_params = {}
     for cli_key, param_key in (
@@ -261,6 +278,7 @@ def main(argv=None):
         sumo_seed=args.sumo_seed,
         model_params=model_params,
         scene_configs=scene_configs,
+        injects=list(args.inject),
     )
     scene_key = str(args.scene).upper()
     if scene_key in scene_configs:

@@ -232,6 +232,99 @@ class SnapshotController:
         pass
 
 
+class DispatchController:
+    """Scene-guided router as a broadcast controller.
+
+    Holds a frozen DispatchRouter plus child controllers (builtins +
+    snapshot weights).  The router re-picks the active child every
+    ``window_decisions`` decision ticks using the live lane state plus
+    the event report derived from the shared inject schedule — the same
+    evaluation semantics as the offline takeover probe.
+
+    Exposes ``active_child``/``child_label`` so the engine can surface
+    which underlying controller is currently driving.
+    """
+
+    def __init__(self, controller_id, label, router_ckpt,
+                 inject_specs=None, window_decisions=12, report_delay=30.0):
+        self.id = controller_id
+        self.label = label
+        self.kind = 'dispatch'
+        self.router_ckpt = str(router_ckpt)
+        self.inject_specs = list(inject_specs or [])
+        self.window_decisions = int(window_decisions)
+        self.report_delay = float(report_delay)
+        self._router = None
+        self._fb = None
+        self._children = {}
+        self._active = None
+        self._window_open = False
+        self._decision_count = 0
+        self._last_router_t = None
+
+    @property
+    def active_child(self):
+        return self._active
+
+    @property
+    def child_label(self):
+        child = self._children.get(self._active)
+        return child.label if child is not None else None
+
+    def bind(self, world, ranks=None):
+        # lazy imports keep this module loadable without torch/dev paths
+        from dev.takeover_probe.dispatch_model import DispatchRouter
+        from dev.takeover_probe.dispatch_state import FeatureBuilder
+        from tools.sumo_live_broadcast.injects import parse_injects
+
+        self._router, payload = DispatchRouter.load(self.router_ckpt)
+        meta = payload.get('meta') or {}
+        children = {
+            c.id: c for c in build_builtin_controllers()
+            if c.id != 'manual'
+        }
+        dqn_path = meta.get('dqn_s1')
+        if dqn_path:
+            children['dqn_s1'] = build_snapshot_controller(
+                'dqn_s1', 'DQN-S1 ep400', dqn_path,
+                detail={'path': str(dqn_path)})
+        self._children = {
+            cid: children[cid].bind(world, ranks=ranks)
+            for cid in self._router.controller_ids
+            if cid in children
+        }
+        self._fb = FeatureBuilder(
+            world, parse_injects(self.inject_specs),
+            report_delay=self.report_delay)
+        self._decision_count = 0
+        self._last_router_t = None
+        self._active = self._router.controller_ids[0]
+        return self
+
+    def decide(self, rank=0):
+        now = float(self._fb.world.get_current_time())
+        if self._last_router_t is None or now > self._last_router_t + 1e-6:
+            # first call for this decision tick: re-route on window bounds
+            if self._decision_count % self.window_decisions == 0:
+                self._route(now)
+            self._decision_count += 1
+            self._last_router_t = now
+        return self._children[self._active].decide(rank)
+
+    def _route(self, now):
+        from dev.takeover_probe.dispatch_model import collate
+        snap = self._fb.snapshot(now)
+        batch = collate([snap])
+        idx, _, _ = self._router.act(batch, epsilon=0.0)
+        self._active = self._router.controller_ids[idx]
+
+    def reset(self):
+        self._decision_count = 0
+        self._last_router_t = None
+        self._active = (
+            self._router.controller_ids[0] if self._router else None)
+
+
 class ManualController:
     """Human operator: per-junction hold of the last requested green phase.
 
@@ -406,3 +499,10 @@ def build_snapshot_controller(controller_id, label, weights_path,
                               detail=None):
     return SnapshotController(controller_id, label, weights_path,
                               detail=detail)
+
+
+def build_dispatch_controller(controller_id, label, router_ckpt,
+                              inject_specs=None, **kwargs):
+    return DispatchController(
+        controller_id, label, router_ckpt, inject_specs=inject_specs,
+        **kwargs)

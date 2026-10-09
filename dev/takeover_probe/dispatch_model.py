@@ -97,6 +97,22 @@ class SceneAttention(nn.Module):
         ctx = (w @ vh).transpose(1, 2).reshape(B, D)
         return self.o_proj(ctx), w.mean(dim=1).squeeze(1)
 
+    def _raw_res(self, lanes, glob):
+        """Raw-traffic residual branch output (pre-fusion)."""
+        if self.residual_pool == 'mms':
+            phys = (lanes[:, :, :self.geom['phys_dim']]
+                    if self.geom else lanes[:, :, :-1])
+            pooled = torch.cat([phys.mean(dim=1), phys.amax(dim=1),
+                                phys.std(dim=1)], dim=-1)
+        else:
+            pooled = lanes.mean(dim=1)                # (B,F)
+        return self.residual(torch.cat([glob, pooled], dim=-1))
+
+    def _fuse_ctx(self, ctx, lanes, glob):
+        """Fuse attention context with the raw-traffic residual -> z."""
+        return self.fuse(torch.cat([ctx, self._raw_res(lanes, glob)],
+                                  dim=-1))
+
     def forward(self, lanes, text, glob):
         """lanes (B,L,F), text (B,T), glob (B,G) -> z (B,d), attn_w (B,L)."""
         kv = self.lane_proj(lanes)                    # (B,L,d)
@@ -106,15 +122,49 @@ class SceneAttention(nn.Module):
             ctx, w = ctx.squeeze(1), w.squeeze(1)
         else:
             ctx, w = self._bound_attention(q, kv, lanes, text)
-        if self.residual_pool == 'mms':
-            phys = (lanes[:, :, :self.geom['phys_dim']]
-                    if self.geom else lanes[:, :, :-1])
-            pooled = torch.cat([phys.mean(dim=1), phys.amax(dim=1),
-                                phys.std(dim=1)], dim=-1)
+        return self._fuse_ctx(ctx, lanes, glob), w
+
+
+class CompositeSceneEncoder(SceneAttention):
+    """Full scene-guided module (variant 'sga'): lane self-attention
+    feeding the scene-text cross-attention with identity binding.
+
+    The task-book module is a composition, not a single operator —
+    it structurally contains everything the comparison arms have
+    (intra-scene self-attention, MLP fusion of the traffic summary)
+    plus the scene-guidance parts they lack (text-as-query and the
+    identity-match binding).  If the condensed z differs from the
+    baselines', the difference is attributable to scene guidance,
+    not to capacity or information asymmetry.
+    """
+
+    def __init__(self, *args, heads=4, **kwargs):
+        super().__init__(*args, heads=heads, **kwargs)
+        self.self_attn = nn.MultiheadAttention(
+            self.d_model, heads, batch_first=True)
+        # scene-content channel into z: the report's semantics (entity,
+        # objective, severity) must survive in the condensed feature,
+        # not only steer the query — the baselines all pass their text
+        # input through to z, so the composite module does too, ON TOP
+        # of the structural binding only it has.
+        self.fuse3 = nn.Sequential(
+            nn.Linear(self.d_model * 3, self.d_model), nn.ReLU(),
+            nn.Linear(self.d_model, self.d_model), nn.ReLU(),
+        )
+
+    def forward(self, lanes, text, glob):
+        kv0 = self.lane_proj(lanes)                   # (B,L,d)
+        sa, _ = self.self_attn(kv0, kv0, kv0, need_weights=False)
+        kv = kv0 + sa
+        q = self.text_proj(text).unsqueeze(1)         # (B,1,d)
+        if self.geom is None:
+            ctx, w = self.attn(q, kv, kv, need_weights=True)
+            ctx, w = ctx.squeeze(1), w.squeeze(1)
         else:
-            pooled = lanes.mean(dim=1)                # (B,F)
-        raw = self.residual(torch.cat([glob, pooled], dim=-1))
-        z = self.fuse(torch.cat([ctx, raw], dim=-1))
+            ctx, w = self._bound_attention(q, kv, lanes, text)
+        z = self.fuse3(torch.cat(
+            [ctx, self._raw_res(lanes, glob),
+             self.text_proj(text)], dim=-1))
         return z, w
 
 
@@ -179,6 +229,10 @@ class DispatchRouter(nn.Module):
         self.controller_ids = list(controller_ids)
         if variant == 'attn':
             self.encoder = SceneAttention(
+                lane_dim, text_dim, global_dim, d_model,
+                residual_pool=residual_pool, geom=geom)
+        elif variant == 'sga':
+            self.encoder = CompositeSceneEncoder(
                 lane_dim, text_dim, global_dim, d_model,
                 residual_pool=residual_pool, geom=geom)
         elif variant == 'selfattn':

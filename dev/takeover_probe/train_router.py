@@ -139,7 +139,7 @@ def train(args):
         lane_dim=fb0.lane_tokens(0.0).shape[1],
         text_dim=fb0.text_dim, global_dim=fb0.global_dim,
         geom=fb0.model_geom())
-    if args.variant == 'attn':
+    if args.variant in ('attn', 'sga'):
         print(f'layout={fb0.layout} flag={fb0.include_event_flag} '
               f'lane_dim={dims["lane_dim"]} geom={dims["geom"]}')
     if args.init_ckpt:
@@ -291,7 +291,7 @@ def update(router, target, opt, replay, args, rng, aux_weight=None):
         loss = torch.nn.functional.smooth_l1_loss(
             q.gather(1, a.unsqueeze(1)).squeeze(1), td)
         aux = torch.zeros(())
-        if router.variant == 'attn':
+        if router.variant in ('attn', 'sga'):
             terms = []
             for i, t in enumerate(batch_tr):
                 tgt = t['s'].get('event_lane_idx') or []
@@ -318,8 +318,8 @@ def update(router, target, opt, replay, args, rng, aux_weight=None):
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--scene', default='S2')
-    p.add_argument('--variant', choices=['attn', 'selfattn', 'concat'],
-                   default='attn')
+    p.add_argument('--variant', choices=['attn', 'sga', 'selfattn',
+                                          'concat'], default='attn')
     p.add_argument('--residual-pool', choices=['mean', 'mms'],
                    default='mean',
                    help='attn encoder only: residual traffic summary = '

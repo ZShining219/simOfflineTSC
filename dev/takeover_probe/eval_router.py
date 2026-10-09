@@ -95,6 +95,10 @@ def main():
     p.add_argument('--extra', action='append', default=[],
                    help='extra router arm as NAME=CKPT (repeatable)')
     p.add_argument('--dqn-s1', default=str(DEFAULT_DQN_S1))
+    p.add_argument('--extra-model', action='append', default=[],
+                   help='register snapshot controller NAME=CKPT_PATH '
+                        '(repeatable; needed when a router arm references '
+                        'a non-builtin controller)')
     p.add_argument('--test-seed-base', type=int, default=5000)
     p.add_argument('--n-seeds', type=int, default=3)
     p.add_argument('--interval', type=int, default=10)
@@ -136,10 +140,15 @@ def main():
                     world.close()
                 world = build_world(
                     args.scene, sumo_seed, runtime, out / 'logger',
-                    {'t_fixed': 30, 't_min': 10})
+                    {'t_fixed': 30, 't_min': 10,
+                     'min_green_vehicle': 3, 'max_red_vehicle': 6})
                 ranks = list(range(len(world.intersection_ids)))
+                extra_models = []
+                for mspec in args.extra_model:
+                    mname, mpath = mspec.split('=', 1)
+                    extra_models.append((mname, mpath))
                 controllers = build_controllers(
-                    dqn_s1_path=args.dqn_s1, extra_models=())
+                    dqn_s1_path=args.dqn_s1, extra_models=extra_models)
                 edges_all = sorted(
                     {l.rsplit('_', 1)[0]
                      for l in (world.get_info('lane_waiting_count')
@@ -200,6 +209,8 @@ def main():
                                 'text': w['text'],
                                 'q_values': w.get('q_values'),
                                 'attn_top_lane': w.get('attn_top_lane'),
+                                'attn_weights': w.get('attn_weights'),
+                                'lane_names': w.get('lane_names'),
                             }, ensure_ascii=False) for w in windows)
                             + '\n', encoding='utf-8')
     finally:

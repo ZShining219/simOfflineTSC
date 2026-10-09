@@ -79,7 +79,13 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
   `scan_pairs.py`（反事实胜者矩阵扫描：固定臂在不同
   事件参数下的最优翻转）、`eval_objective.py`（目标条件化配对评测：
   同物理事件仅声明目标不同；单事件格为 global/focus 成员对，
-  `edgeA+edgeB` 多事件格为 focus@A/focus@B 绑定翻转对）为场景引导注意力调度
+  `edgeA+edgeB` 多事件格为 focus@A/focus@B 绑定翻转对）、
+  `make_figs.py`（机制类扩展出图：配对 regret、消融阶梯、绑定一致性、
+  训练曲线、排队轨迹、注意力热力图，以及 held-out 逐时间对比曲线
+  （queue/throughput/事件车道/控制器时间线 fig8–fig11），PNG 单出）、
+  `collect_attn_trace.py`（冻结 checkpoint 注意力权重轨迹采集，
+  供 fig7 热力图；windows 日志含 `attn_weights`+`lane_names`）
+  为场景引导注意力调度
   Pilot 配套件。产物在
   `output_data/dev_takeover_probe/`（不入库）；
   转播侧 `DispatchController` 适配器在 `tools/sumo_live_broadcast/controllers.py`。

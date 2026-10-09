@@ -106,6 +106,10 @@ def run_router_episode(world, controllers, fb, router, ranks,
                         fb.lanes[int(np.argmax(
                             attn_w.detach().cpu().numpy()))]
                         if attn_w is not None else None),
+                    'attn_weights': (
+                        attn_w.detach().cpu().numpy().ravel().tolist()
+                        if attn_w is not None else None),
+                    'lane_names': list(fb.lanes),
                 }
                 active = new_active
                 prev_arm = new_active

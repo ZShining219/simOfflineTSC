@@ -149,6 +149,36 @@ class DispatchRouter(nn.Module):
             idx = int(q.argmax(dim=-1).item())
         return idx, q.detach().cpu().numpy()[0].tolist(), w
 
+    def add_controller(self, cid, init='clone'):
+        """Extend the registry by one arm without touching the encoder.
+
+        The shared head consumes ``[z, e_k, z*e_k]`` and is
+        controller-count agnostic; only ``ctrl_emb`` gains a row.
+        init: 'clone' copies the most-similar existing row (starts as a
+        duplicate -> score parity, learns to differentiate); 'zero'
+        starts neutral.
+        """
+        if cid in self.controller_ids:
+            raise ValueError(f'{cid} already registered')
+        k, d = self.ctrl_emb.weight.shape
+        emb = nn.Embedding(k + 1, d)
+        with torch.no_grad():
+            emb.weight[:k] = self.ctrl_emb.weight
+            if init == 'clone':
+                emb.weight[k] = self.ctrl_emb.weight.mean(dim=0)
+            else:
+                emb.weight[k].zero_()
+        self.ctrl_emb = emb
+        self.controller_ids.append(cid)
+        return self
+
+    def freeze_rows_except_last(self):
+        """Mask embedding grads so only the newest row trains."""
+        k = self.ctrl_emb.weight.shape[0] - 1
+        mask = torch.zeros_like(self.ctrl_emb.weight)
+        mask[k] = 1.0
+        self.ctrl_emb.weight.register_hook(lambda g: g * mask)
+
     def save(self, path, meta=None):
         payload = {
             'variant': self.variant,

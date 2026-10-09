@@ -101,10 +101,17 @@ def train(args):
     out = Path(args.out).resolve()
     out.mkdir(parents=True, exist_ok=True)
 
+    extra_models = []
+    for spec in args.extra_model:
+        name, path = spec.split('=', 1)
+        extra_models.append((name, path))
     controllers = build_controllers(
-        dqn_s1_path=args.dqn_s1, extra_models=())
+        dqn_s1_path=args.dqn_s1, extra_models=extra_models)
     ctrl_ids = [c for c in args.controllers.split(',') if c]
     controllers = {k: v for k, v in controllers.items() if k in ctrl_ids}
+    missing = set(ctrl_ids) - set(controllers)
+    if missing:
+        raise ValueError(f'controllers not registered: {sorted(missing)}')
 
     # probe world first for feature dims (lanes differ per scene)
     world = build_world(args.scene, args.traffic_seed_base, Path(
@@ -116,15 +123,35 @@ def train(args):
         lane_dim=fb0.lane_tokens(0.0).shape[1],
         text_dim=fb0.text_dim, global_dim=fb0.global_dim,
     )
-    router = DispatchRouter(
-        **dims, controller_ids=ctrl_ids, d_model=args.d_model,
-        variant=args.variant)
+    if args.init_ckpt:
+        router, payload = DispatchRouter.load(args.init_ckpt)
+        for cid in ctrl_ids:
+            if cid not in router.controller_ids:
+                router.add_controller(cid, init=args.new_arm_init)
+                print(f'added controller {cid} (init={args.new_arm_init})')
+        if args.freeze_encoder:
+            for p in router.encoder.parameters():
+                p.requires_grad_(False)
+        if args.freeze_head:
+            for p in router.head.parameters():
+                p.requires_grad_(False)
+        if args.freeze_old_emb:
+            router.freeze_rows_except_last()
+        print('finetune: encoder_frozen=%s head_frozen=%s '
+              'old_emb_frozen=%s arms=%s'
+              % (args.freeze_encoder, args.freeze_head,
+                 args.freeze_old_emb, router.controller_ids))
+    else:
+        router = DispatchRouter(
+            **dims, controller_ids=ctrl_ids, d_model=args.d_model,
+            variant=args.variant)
     target = DispatchRouter(
-        **dims, controller_ids=ctrl_ids, d_model=args.d_model,
-        variant=args.variant)
+        **dims, controller_ids=list(router.controller_ids),
+        d_model=args.d_model, variant=args.variant)
     target.load_state_dict(router.state_dict())
     target.eval()
-    opt = torch.optim.Adam(router.parameters(), lr=args.lr)
+    opt = torch.optim.Adam(
+        [p for p in router.parameters() if p.requires_grad], lr=args.lr)
     replay = deque(maxlen=20000)
 
     log_path = out / 'train_log.jsonl'
@@ -154,7 +181,8 @@ def train(args):
             world = build_world(args.scene, sumo_seed, Path(
                 args.runtime_dir or '/tmp/takeover_probe'),
                 out / 'logger',
-                {'t_fixed': args.t_fixed, 't_min': args.t_min})
+                {'t_fixed': args.t_fixed, 't_min': args.t_min,
+                 'min_green_vehicle': 3, 'max_red_vehicle': 6})
             ranks = list(range(len(world.intersection_ids)))
             _bind_all(world, controllers, ranks, needed=set(ctrl_ids))
             fb = FeatureBuilder(
@@ -265,7 +293,20 @@ def main():
                    default='attn')
     p.add_argument('--episodes', type=int, default=40)
     p.add_argument('--controllers', default='dqn_s1,maxpressure')
+    p.add_argument('--init-ckpt', default=None,
+                   help='load pretrained router; ids in --controllers not '
+                        'present are appended via add_controller')
+    p.add_argument('--new-arm-init', choices=['clone', 'zero'],
+                   default='clone')
+    p.add_argument('--freeze-encoder', action='store_true',
+                   help='finetune: keep the scene encoder (attention) fixed')
+    p.add_argument('--freeze-head', action='store_true')
+    p.add_argument('--freeze-old-emb', action='store_true',
+                   help='finetune: only the newest ctrl_emb row trains')
     p.add_argument('--dqn-s1', default=None)
+    p.add_argument('--extra-model', action='append', default=[],
+                   help='register snapshot controller NAME=CKPT_PATH '
+                        '(repeatable; also list the name in --controllers)')
     p.add_argument('--d-model', type=int, default=64)
     p.add_argument('--lr', type=float, default=1e-3)
     p.add_argument('--gamma', type=float, default=0.95)

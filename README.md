@@ -137,6 +137,14 @@ data/output_data/ha_sodqn/               # HA-SODQN engineering / 正式运行 /
   辅助实现 `tools/sumo_gui_comparison.py`（SUMO-GUI/TraCI 截图或 GIF 回放）；页面产物输出到 `/tmp` 等产物目录，不提交 Git。
 - **`tools/sumo_live_broadcast/`**：浏览器实时转播服务（libsumo 实时步进，SSE 收帧 + HTTP POST 控制）。支持运行时切换 FixedTime/MaxPressure/SOTL/DQN 快照/人工接管、相位卡片点击接管、变速与决策点等待确认；多路口场景（如 S5=sumohz4x4）下控制器逐路口决策，相位面板可通过下拉或点击地图路口切换。地图渲染可插拔：默认 deck.gl WebGL 渲染（`static/vendor/deck.min.js`，MIT），`?renderer=canvas` 可切回无依赖 Canvas 实现，两者实现同一契约（`static/js/renderer.js`）。最小示例 `python -m tools.sumo_live_broadcast --scene S2 --port 8010`；常驻托管脚本 `supervise.sh` 遵循仓库 `*.sh` 约定不入 Git。回归测试 `tests/test_sumo_live_broadcast.py`。
 
+  转播层另注册了场景引导调度控制器 `dsp` / `dspconcat` / `dspself`（`tools/sumo_live_broadcast/controllers.py` 的 `DispatchController`）：内部按 120 s 窗口在候选控制器间选接管臂，调度轨迹通过事件流透出。
+
+## 研究线：场景引导注意力调度（dev/takeover_probe）
+
+`dev/` 下的探针线（登记见 `dev/INDEX.md`）：事件播报文本编码为场景 query，引导对车道状态 token 的交叉注意力，产出浓缩场景表征后由窗口级 SMDP Router（Double-DQN）在候选控制器间做接管决策。对照任务书三方比较口径实现了场景引导注意力 / 自注意力 Transformer / 无注意力 concat 三变体，同输入同容量同训练配方；配套配对目标翻转评测、文本消融与注意力-标注一致性度量，均已接入上述转播服务可在线演示。
+
+控制器注册表与场景编码器解耦：新增控制器 = `DispatchRouter.add_controller()` 追加一行 embedding，场景编码器可整体冻结，仅微调打分头与新 embedding 行即可完成接管校准（`train_router.py --init-ckpt --freeze-encoder --freeze-old-emb --extra-model`）。
+
 ## 在其他服务器复现
 
 Git 只同步代码、配置与场景；trajectory、checkpoint、dataset index 与正式结果需另行迁移。完整资产清单、路径重定位、哈希验证与门禁顺序见 [复现指南·服务器迁移](docs/semi_offline_cross_algorithm_reproduction.md#8-新服务器迁移清单)。

@@ -30,12 +30,13 @@ IMPLS = ('legacy', 'paper')
 class _QWrapper(nn.Module):
     def __init__(self, traffic_dim, actions, method, adjacency, lane_dim,
                  impl='legacy', text_width=768, text_input='bert',
-                 semantic_aux=False, fusion_gate=False):
+                 semantic_aux=False, fusion_gate=False, type_vocab=None):
         super().__init__()
         if impl == 'paper':
             self.policy = PaperTARLPolicy(
                 traffic_dim, actions, method=method, text_input=text_input,
-                semantic_aux=semantic_aux, fusion_gate=fusion_gate)
+                semantic_aux=semantic_aux, fusion_gate=fusion_gate,
+                type_vocab=type_vocab)
             self.text_methods = PaperTARLPolicy.TEXT_METHODS
         else:
             self.policy = TARLPolicy(traffic_dim, actions, method=method)
@@ -96,6 +97,10 @@ def make_tarl_agent(method):
             self.huber_beta = float(model_param.get('huber_beta', 10.0))
             self.text_dropout = float(model_param.get('text_dropout', 0.0))
             self.fusion_gate = bool(model_param.get('fusion_gate', False))
+            # demand_surge arms need type code 4 -> widen the z_task type
+            # embedding + semantic-aux head (default None = ZTASK_VOCABS[1]=4,
+            # keeps all pre-surge checkpoints loadable).
+            self.ztask_type_vocab = model_param.get('ztask_type_vocab')
             self.starvation_guard = dict(model_param.get('starvation_guard') or {})
             self._guard_on = bool(self.starvation_guard.get('enabled'))
             self._guard_stats = {'fired_steps': 0, 'fired_nodes': 0}
@@ -247,7 +252,8 @@ def make_tarl_agent(method):
                              impl=self.impl, text_width=self.text_width,
                              text_input=self.event_input,
                              semantic_aux=bool(self.semantic_aux.get('enabled')),
-                             fusion_gate=self.fusion_gate)
+                             fusion_gate=self.fusion_gate,
+                             type_vocab=self.ztask_type_vocab)
 
         def reset(self):
             self._generator_objects = tuple(self.world.intersections)
@@ -291,7 +297,8 @@ def make_tarl_agent(method):
         # Per-node raw slot: [present, type, scope, direction, movement, sev].
         # produced by ReportGrounder over runtime.reports() then localized by
         # TextEntityBinder's node_report_mask; Normal rows stay all-zero.
-        _ZTASK_TYPE = {'lane_blockage': 1, 'road_closure': 2, 'global_rain': 3}
+        _ZTASK_TYPE = {'lane_blockage': 1, 'road_closure': 2, 'global_rain': 3,
+                       'demand_surge': 4}
         _ZTASK_SCOPE = {'lane': 1, 'edge': 2, 'network': 3}
         _ZTASK_DIR = {'eastbound': 1, 'westbound': 2, 'northbound': 3,
                       'southbound': 4}

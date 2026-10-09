@@ -76,7 +76,10 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
   `run_oracle_corridor.py`（corridor oracle：closure/ blockage 窗内在目标
   节点强制选"走廊方向服务最少/最多"相位，判决双向 headroom；
   `--kind` 选事件族、`--mode min|max`、`--window active|recovery`、
-  `--lead` 可把窗延伸到预告段测预置收益）。探索期实现，产物落
+  `--lead` 可把窗延伸到预告段测预置收益）、
+  `probe_surge_inject.py`（libsumo 微探针：不走 trainer 直绑
+  SumoEventRuntime，验证 demand_surge 的路由绑定/确定性注入/报告渲染/
+  严格 grounding 全链路）。探索期实现，产物落
   `data/output_data/analysis/att_entity_004/lag_utility/`。
 - `dev/pairaux/`：配对课程 + 事件语义辅助奖励线（73 侧思路本地化）——
   `build_pair_plan.py` 把源 plan 的每条 episode 复制成

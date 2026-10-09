@@ -12,7 +12,7 @@ from typing import Optional, Tuple
 import yaml
 
 
-KINDS = ('lane_blockage', 'road_closure', 'global_rain')
+KINDS = ('lane_blockage', 'road_closure', 'global_rain', 'demand_surge')
 
 
 @dataclass(frozen=True)
@@ -26,6 +26,8 @@ class Event:
     position: Optional[float] = None
     position_tolerance: float = 0.0
     speed_factor: Optional[float] = None
+    to_edge_id: Optional[str] = None
+    rate_vph: Optional[float] = None
 
     def __post_init__(self):
         if not isinstance(self.event_id, str) or not re.fullmatch(r'[A-Za-z0-9_-]+', self.event_id):
@@ -50,14 +52,26 @@ class Event:
                 raise ValueError('position must be a finite front-bumper position >= 5 metres')
         elif self.kind == 'road_closure':
             if (not self.edge_id or self.lane_id is not None or self.position is not None
-                    or self.speed_factor is not None or self.position_tolerance):
+                    or self.speed_factor is not None or self.position_tolerance
+                    or self.to_edge_id is not None or self.rate_vph is not None):
                 raise ValueError('road_closure requires one directed edge_id, with no lane/rain parameters')
+        elif self.kind == 'demand_surge':
+            if (not self.edge_id or not self.to_edge_id or self.lane_id is not None
+                    or self.position is not None or self.speed_factor is not None
+                    or self.position_tolerance):
+                raise ValueError('demand_surge requires edge_id + to_edge_id + rate_vph only')
+            if (isinstance(self.rate_vph, bool) or not isinstance(self.rate_vph, (int, float))
+                    or not math.isfinite(self.rate_vph) or self.rate_vph <= 0):
+                raise ValueError('demand_surge rate_vph must be positive (vehicles/hour)')
         else:
             if self.lane_id is not None or self.edge_id is not None or self.position is not None or self.position_tolerance:
                 raise ValueError('global_rain has network-wide scope, not a local target')
             if (isinstance(self.speed_factor, bool) or not isinstance(self.speed_factor, (int, float))
                     or not math.isfinite(self.speed_factor) or not 0 < self.speed_factor < 1):
                 raise ValueError('Rain speed_factor must be in (0, 1)')
+        if self.kind != 'demand_surge' and (
+                self.to_edge_id is not None or self.rate_vph is not None):
+            raise ValueError('to_edge_id/rate_vph are only valid for demand_surge')
 
 
 @dataclass(frozen=True)

@@ -101,6 +101,10 @@ class SumoEventRuntime:
             os.environ.get('TARL_REROUTE_INTERVAL_S', '60'))
         self._reroute_next = 0.0
         self._reroute_stats = {'scanned': 0, 'eligible': 0, 'applied': 0}
+        # demand_surge runtime state (built at bind): event_id -> route_id /
+        # next insertion time / injected count
+        self._surge = {}
+        self._surge_stats = {}
 
     def _validate_targets(self):
         if any(e.kind == 'global_rain' for e in self.schedule.events) and not self._rain_lanes:
@@ -115,6 +119,10 @@ class SumoEventRuntime:
             elif event.kind == 'road_closure':
                 if event.edge_id not in self._edges or event.edge_id.startswith(':'):
                     raise ValueError(f'Invalid directed road: {event.edge_id}')
+            elif event.kind == 'demand_surge':
+                for eid in (event.edge_id, event.to_edge_id):
+                    if eid not in self._edges or eid.startswith(':'):
+                        raise ValueError(f'Invalid directed road: {eid}')
 
     def network_catalog(self):
         """Static road/lane facts usable by downstream text grounding; no events."""
@@ -166,6 +174,28 @@ class SumoEventRuntime:
         self._obstacles = {}
         self._transitions = []
         self._closed = set()
+        # demand_surge: one persistent SUMO route per event (origin edge ->
+        # destination edge); vehicles injected deterministically at
+        # begin + k * (3600 / rate_vph) for k = 0,1,...
+        self._surge = {}
+        self._surge_stats = {}
+        for event in self.schedule.events:
+            if event.kind != 'demand_surge':
+                continue
+            found = engine.simulation.findRoute(event.edge_id, event.to_edge_id)
+            edges = tuple(found.edges)
+            if len(edges) < 2 or edges[0] != event.edge_id or edges[-1] != event.to_edge_id:
+                raise ValueError(
+                    f'No route for demand_surge {event.event_id}: '
+                    f'{event.edge_id} -> {event.to_edge_id}')
+            route_id = f'__tsc_surge_route_{event.event_id}'
+            if route_id not in engine.route.getIDList():
+                engine.route.add(route_id, list(edges))
+            self._surge[event.event_id] = {
+                'route_id': route_id,
+                'period': 3600.0 / event.rate_vph,
+                'next_t': event.begin}
+            self._surge_stats[event.event_id] = {'inserted': 0, 'failed': 0}
         self._factor = 1.0
         speed_lanes = self._rain_lanes if any(e.kind == 'global_rain' for e in self.schedule.events) else ()
         self._base_speed = {lane: float(engine.lane.getMaxSpeed(lane)) for lane in speed_lanes}
@@ -230,6 +260,24 @@ class SumoEventRuntime:
                     if not math.isclose(self._engine.lane.getMaxSpeed(lane), expected, abs_tol=1e-7):
                         raise RuntimeError(f'Rain speed change not applied: {lane}')
                 self._factor = factor
+            # demand_surge: deterministic injection at begin + k*period.
+            # A vehicle that cannot enter now is dropped (recorded), not
+            # queued — surge strength is the offered rate, not the realised one.
+            for event in active:
+                if event.kind != 'demand_surge':
+                    continue
+                st = self._surge[event.event_id]
+                stat = self._surge_stats[event.event_id]
+                while st['next_t'] <= now and st['next_t'] < event.end:
+                    vid = f"__tsc_surge_{event.event_id}_{stat['inserted']}"
+                    try:
+                        self._engine.vehicle.add(
+                            vid, st['route_id'], depart='now',
+                            departLane='best', departSpeed='max')
+                        stat['inserted'] += 1
+                    except Exception:
+                        stat['failed'] += 1
+                    st['next_t'] += st['period']
             self._verify_obstacles()
             # Optional rerouting probe: vehicles still routed through a closed
             # edge get a chance to recompute their route.  The disallowed
@@ -314,6 +362,14 @@ class SumoEventRuntime:
             if status == 'active':
                 return prefix + f'All lanes of {where} are closed to vehicle entry.'
             return prefix + f'The entry restriction imposed by this event on {where} has been removed.'
+        if event.kind == 'demand_surge':
+            lane = self._lanes[self._edges[event.edge_id][0]]
+            where = (f"directed road {event.edge_id}, from junction {lane['from_junction']} "
+                     f"to junction {lane['to_junction']}")
+            if status == 'active':
+                return prefix + (f'A demand surge injects {event.rate_vph:g} additional '
+                                 f'vehicles per hour entering on {where}.')
+            return prefix + f'The demand surge entering on {where} has ended.'
         if status == 'active':
             return prefix + (f'Rain affects the whole network. This event limits motor-vehicle lane speeds '
                              f'to {100 * event.speed_factor:g}% of their normal limits.')
@@ -369,12 +425,16 @@ class SumoEventRuntime:
             'closed_lanes': sorted(self._closed), 'rain_factor': self._factor,
             'rain_lane_count': len(self._rain_lanes), 'transitions': [dict(r) for r in self._transitions],
             'reroute_p': self._reroute_p, 'reroute_stats': dict(self._reroute_stats),
+            'surge_stats': {k: dict(v) for k, v in self._surge_stats.items()},
             'operators': {
                 'lane_blockage': 'T-REX Deployment.triggering adaptation; a91a3d8c4ac27982c75553b932eabb27acd63ca7',
                 'road_closure': ('SUMO TraCI lane.setDisallowed(all); directed edge; '
                                  'no forced rerouting' if self._reroute_p <= 0 else
                                  f'SUMO TraCI lane.setDisallowed(all) + periodic '
                                  f'rerouteTraveltime p={self._reroute_p}'),
+                'demand_surge': ('SUMO TraCI vehicle.add on a precomputed '
+                                 'origin->destination route; deterministic '
+                                 'interval 3600/rate_vph'),
                 'global_rain': 'SUMO TraCI lane.setMaxSpeed; network-wide speed-limit proxy; overlap=min',
             },
         }

@@ -35,6 +35,11 @@ _TEMPLATES = (
      rf'to (?P<percent>{_NUMBER})% of their normal limits\.'),
     ('global_rain', 'cleared', 'network',
      r'This network-wide rain event has ended and its speed restriction has been removed\.'),
+    ('demand_surge', 'active', 'edge',
+     rf'A demand surge injects (?P<rate>{_NUMBER}) additional vehicles per hour '
+     rf'entering on {_ROAD}\.'),
+    ('demand_surge', 'cleared', 'edge',
+     rf'The demand surge entering on {_ROAD} has ended\.'),
 )
 # Match whitespace without normalizing input, so character offsets remain valid.
 _PATTERNS = tuple((kind, status, scope, re.compile(

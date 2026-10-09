@@ -106,6 +106,22 @@ def make_tarl_agent(method):
             self.closure_binding = model_param.get('closure_binding')
             self._closure_bind_hops = int(
                 model_param.get('closure_bind_max_hops', 4))
+            # Event-semantic auxiliary reward (pairaux line): a localised
+            # shaping term added to the REPLAYED reward only — metrics keep the
+            # native reward.  aux_i = -lambda * 12 * mean(lane_waiting_count)
+            # over the lanes feeding the event-affected corridor at actionable
+            # nodes (closure feeder + optional 2-hop upstream; blockage's
+            # bound lane).  It amplifies the event-caused share of the true
+            # cost so credit assignment can tie text->action->local outcome.
+            self.reward_aux = dict(model_param.get('reward_aux') or {})
+            self._aux_on = bool(self.reward_aux.get('enabled'))
+            self._aux_lambda = float(self.reward_aux.get('lambda', 0.2))
+            self._aux_upstream = bool(self.reward_aux.get('include_upstream', True))
+            self._aux_window = self.reward_aux.get('window', 'active')
+            self._aux_recovery_s = float(self.reward_aux.get('recovery_s', 300.0))
+            self._aux_lane_cache = {}
+            self._aux_net = None
+            self._aux_stats = {'applied_steps': 0, 'total': 0.0}
             if self.event_input not in ('bert', 'structured'):
                 raise ValueError(f'Invalid event_input {self.event_input!r}')
             self.text_width = (768 if self.event_input == 'bert'
@@ -236,6 +252,11 @@ def make_tarl_agent(method):
         def reset(self):
             self._generator_objects = tuple(self.world.intersections)
             self._guard_stats = {'fired_steps': 0, 'fired_nodes': 0}
+            # event ids repeat across episode schedules; lane caches are
+            # per-episode (the world/runtime objects are rebuilt on reset).
+            self._aux_lane_cache = {}
+            self._aux_stats = {'applied_steps': 0, 'total': 0.0}
+            self._aux_last = 0.0
             self.obs_generators = [LaneVehicleGenerator(self.world, i, ['lane_count'], in_only=True) for i in self.world.intersections]
             self.phase_generators = [IntersectionPhaseGenerator(self.world, i, ['phase'], targets=['cur_phase'], negative=False) for i in self.world.intersections]
             self.reward_generators = [LaneVehicleGenerator(self.world, i, ['lane_waiting_count'], in_only=True, average='all', negative=True) for i in self.world.intersections]
@@ -262,7 +283,9 @@ def make_tarl_agent(method):
                 # Text is audit-logging only in structured mode; utility
                 # conditions are applied on the grounded feature matrix.
                 return raw
-            return apply_condition(raw, self.text_condition)
+            c = getattr(self.world, '_episode_text_condition', None) \
+                or self.text_condition
+            return apply_condition(raw, c)
 
         # ---- structured event input (event_input='structured') ------------
         # Per-node raw slot: [present, type, scope, direction, movement, sev].
@@ -350,8 +373,17 @@ def make_tarl_agent(method):
             except Exception:
                 pass
 
+        def _effective_text_condition(self):
+            """Text condition that actually gates this episode's inputs:
+            paired-curriculum plan rows override the process-level
+            TARL_TEXT_CONDITION; eval-role resets never set the override."""
+            if self.event_input != 'structured' and self.text_encoder is None:
+                return 'none'
+            return getattr(self.world, '_episode_text_condition', None) \
+                or self.text_condition
+
         def _apply_ztask_condition(self, feat):
-            c = self.text_condition
+            c = self._effective_text_condition()
             if c == 'canonical':
                 return feat
             if c == 'empty':
@@ -463,7 +495,7 @@ def make_tarl_agent(method):
                           self.world, '_sumo_event_runtime', None) is not None
                           else self.condition),
                       'texts': self.policy_texts() if self.text_encoder is not None else [],
-                      'text_condition': self.text_condition if self.text_encoder is not None else 'none',
+                      'text_condition': self._effective_text_condition(),
                       'fusion_weight_mean': None if weights is None else weights.mean().item(),
                       'fusion_weight_min': None if weights is None else weights.min().item(),
                       'fusion_weight_max': None if weights is None else weights.max().item()}
@@ -473,11 +505,100 @@ def make_tarl_agent(method):
             record['guard_fired_nodes'] = fired
             alpha = getattr(self.model.policy, 'fusion_alpha', None)
             record['fusion_alpha'] = None if alpha is None else float(alpha.detach())
+            record['reward_aux_last'] = getattr(self, '_aux_last', 0.0)
             with (self.output_dir / 'tarl_inputs.jsonl').open('a') as f:
                 f.write(json.dumps(record) + '\n')
             return actions
 
+        def _in_lanes_to(self, node_id, to_lanes):
+            node = self.world.id2intersection.get(node_id)
+            if node is None or not to_lanes:
+                return ()
+            return tuple(sorted({fr for links in node.phase_available_lanelinks
+                                 for fr, to in links if to in to_lanes}))
+
+        def _aux_lanes_for(self, ev):
+            """Event -> {node_id: [lane_ids]} of corridor lanes whose waiting
+            the aux reward amplifies.  Cached per event id; lane sets are
+            static for the whole event."""
+            if ev.event_id in self._aux_lane_cache:
+                return self._aux_lane_cache[ev.event_id]
+            runtime = self.world._sumo_event_runtime
+            lanes_by_node = {}
+            if ev.kind == 'road_closure' and ev.edge_id:
+                closed = set(runtime._edges.get(ev.edge_id, ()))
+                feeder = runtime._lanes.get(next(iter(closed), ''),
+                                            {}).get('from_junction')
+                hit = self._in_lanes_to(feeder, closed)
+                if hit:
+                    lanes_by_node.setdefault(feeder, set()).update(hit)
+                if self._aux_upstream:
+                    for lane in hit:
+                        info = runtime._lanes.get(lane) or {}
+                        j0 = info.get('from_junction')
+                        e0 = info.get('edge_id')
+                        if j0 and e0:
+                            lanes_by_node.setdefault(j0, set()).update(
+                                self._in_lanes_to(
+                                    j0, set(runtime._edges.get(e0, ()))))
+            elif ev.kind == 'lane_blockage' and ev.lane_id:
+                info = runtime._lanes.get(ev.lane_id) or {}
+                j = info.get('to_junction')
+                if j:
+                    lanes_by_node.setdefault(j, set()).add(ev.lane_id)
+            lanes_by_node = {k: sorted(v) for k, v in lanes_by_node.items()
+                             if k in self.world.id2intersection}
+            self._aux_lane_cache[ev.event_id] = lanes_by_node
+            return lanes_by_node
+
+        def _event_aux_vector(self):
+            """Per-node aux reward vector for currently ACTIVE events, or None."""
+            if not self._aux_on:
+                return None
+            runtime = getattr(self.world, '_sumo_event_runtime', None)
+            if runtime is None or runtime.schedule is None:
+                return None
+            now = float(self.world.get_current_time())
+            vec = np.zeros(len(self.node_ids), dtype=np.float32)
+            fired = False
+            idx_of = {nid: i for i, nid in enumerate(self.node_ids)}
+            for ev in runtime.schedule.events:
+                if self._aux_window == 'active':
+                    in_win = ev.begin <= now < ev.end
+                elif self._aux_window == 'recovery':
+                    in_win = ev.end <= now < ev.end + self._aux_recovery_s
+                else:  # 'both'
+                    in_win = ev.begin <= now < ev.end + self._aux_recovery_s
+                if not in_win:
+                    continue
+                for nid, lanes in self._aux_lanes_for(ev).items():
+                    if nid not in idx_of:
+                        continue
+                    inter = self.world.id2intersection[nid]
+                    obs = inter.full_observation or {}
+                    qs = [obs[l]['lane_waiting_count'] for l in lanes
+                          if l in obs]
+                    if not qs:
+                        continue
+                    # scale by the corridor lanes' share of the node's observed
+                    # incoming lanes so lambda reads as "extra weight on the
+                    # corridor's native reward contribution"
+                    n_in = max(1, len(inter.full_observation or {}))
+                    vec[idx_of[nid]] -= (self._aux_lambda * 12.0
+                                         * float(np.mean(qs))
+                                         * len(qs) / n_in)
+                    fired = True
+            return vec if fired else None
+
         def remember(self, last_obs, last_phase, actions, actions_prob, rewards, obs, cur_phase, done, key):
+            aux = self._event_aux_vector()
+            if aux is not None:
+                rewards = np.asarray(rewards, dtype=np.float32) + aux
+                self._aux_stats['applied_steps'] += 1
+                self._aux_stats['total'] += float(aux.sum())
+                self._aux_last = float(aux.sum())
+            else:
+                self._aux_last = 0.0
             # Reuse the parent's replay accounting and retention rules.
             super().remember(last_obs, last_phase, actions, actions_prob, rewards, obs, cur_phase, done, key)
             _, values = self.replay_buffer[-1]

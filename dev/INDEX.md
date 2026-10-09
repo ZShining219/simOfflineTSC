@@ -73,10 +73,21 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
   `run_oracle_deadlane.py`（closure 激活期馈入节点死车道观测遮蔽 oracle，
   判决文本通道可兑现上界）、`probe_junction_block.py`（libsumo 微探针：
   封闭边需求车辆的滞留位置/车道/箱内阻塞核验）、
-  `run_oracle_corridor.py`（corridor-throttle oracle：closure 窗内在馈入
-  节点+上游节点强制选"走廊方向服务最少"相位，判决节流 headroom；
+  `run_oracle_corridor.py`（corridor oracle：closure/ blockage 窗内在目标
+  节点强制选"走廊方向服务最少/最多"相位，判决双向 headroom；
+  `--kind` 选事件族、`--mode min|max`、`--window active|recovery`、
   `--lead` 可把窗延伸到预告段测预置收益）。探索期实现，产物落
   `data/output_data/analysis/att_entity_004/lag_utility/`。
+- `dev/pairaux/`：配对课程 + 事件语义辅助奖励线（73 侧思路本地化）——
+  `build_pair_plan.py` 把源 plan 的每条 episode 复制成
+  `{canonical, empty}` 对（同 schedule/同 SUMO seed，仅文本有无不同），
+  产出 `configs/events/plans/hz4x4_pair_v1.yml`（200 行=100 对）；
+  配套机制在 `world/sumo_events/plans.py`（行级 `sumo_seed`/
+  `text_condition` 覆盖）与 `reproduction/tarl_tsc/parent_adapter.py`
+  （`_effective_text_condition` 逐集生效 + `model.reward_aux` 辅助奖励，
+  仅注入 replay、不动评估 metric，window 支持 active|recovery|both）。
+  训练臂配置 `att004_paircurr_{smoke,200}.yml` /
+  `att004_paircurr_aux_smoke.yml`。
 - `dev/govern_1007/`：本治理任务的授权暂存位（当前为空）。
 - `dev/scene_semantics/`：轨迹场景语义标注探索件（P0 窗口恢复/统计 → P2 事实描述+冻结编码 →
   P3 三层匹配验证），探索期实现；执行依据 `docs/plan_trajectory_scene_semantics.md`，

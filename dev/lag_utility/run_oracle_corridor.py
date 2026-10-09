@@ -169,6 +169,23 @@ def run(args):
         return [(node_idx_of[nid], nid, role, lanes)
                 for nid, (role, lanes) in targets.items()]
 
+    def _corridor_for_blockage(self, ev):
+        """Blockage on lane L of edge e0: the throttle set is node j =
+        e0.to_junction (which observes L) with corridor lanes = all lanes of
+        e0 (the approach's service is partially wasted on the dead lane)."""
+        runtime = getattr(self.world, '_sumo_event_runtime', None)
+        info = (runtime._lanes.get(ev.lane_id) if runtime is not None else None)
+        if not info:
+            return []
+        j = info['to_junction']
+        e0 = info['edge_id']
+        if j not in node_idx_of:
+            return []
+        lanes = set(edges.get(e0, {}).get('lanes', ()))
+        if not lanes:
+            return []
+        return [(node_idx_of[j], j, 'blocked_edge', lanes)]
+
     def patched_get_action(self, ob, phase, test=False):
         with torch.no_grad():
             feats = torch.as_tensor(self._features(ob, phase), dtype=torch.float32)
@@ -181,17 +198,26 @@ def run(args):
             closures = []
             if runtime is not None:
                 for ev in runtime.schedule.events:
-                    if ev.kind != 'road_closure':
+                    if ev.kind != args.kind:
                         continue
-                    if not (ev.begin - args.lead <= now < ev.end):
+                    if args.window == 'active':
+                        in_window = ev.begin - args.lead <= now < ev.end
+                    else:
+                        in_window = ev.end <= now < ev.end + args.recovery_s
+                    if not in_window:
                         continue
-                    e = edges.get(ev.edge_id)
-                    if e is None:
-                        continue
+                    if args.kind == 'road_closure':
+                        ev_targets = _corridor_for_closure(self, ev)
+                        e = edges.get(ev.edge_id)
+                        if e is None:
+                            continue
+                    else:
+                        ev_targets = _corridor_for_blockage(self, ev)
+                        e = {'edge_id': getattr(ev, 'lane_id', '')}
                     touched = []
-                    for ni, nid, role, lanes in _corridor_for_closure(self, ev):
+                    for ni, nid, role, lanes in ev_targets:
                         scores = _phase_scores(self, nid, lanes)
-                        best = min(scores)
+                        best = min(scores) if args.mode == 'min' else max(scores)
                         if int(base[ni]) < len(scores) and scores[int(base[ni])] == best:
                             oracle_a = int(base[ni])
                         else:
@@ -203,7 +229,9 @@ def run(args):
                                         'score_oracle': best,
                                         'score_argmax': scores[int(base[ni])]
                                         if int(base[ni]) < len(scores) else None})
-                    closures.append({'event_id': ev.event_id, 'edge': ev.edge_id,
+                    closures.append({'event_id': ev.event_id,
+                                     'edge': getattr(ev, 'edge_id', None)
+                                             or getattr(ev, 'lane_id', None),
                                      'touched': touched})
             if getattr(self, '_guard_on', False):
                 guarded, _ = self._starvation_guard(base.numpy())
@@ -287,7 +315,9 @@ def run(args):
                 'config': str(args.config), 'seed': args.seed,
                 'sumo_seed': args.sumo_seed, 'prefix': args.prefix,
                 'eval_protocol': args.eval_protocol, 'probe': 'oracle_corridor',
-                'lead_s': args.lead, 'upstream': not args.no_upstream}
+                'lead_s': args.lead, 'upstream': not args.no_upstream,
+                'mode': args.mode, 'window': args.window,
+                'recovery_s': args.recovery_s}
         (dump_dir / 'manifest.json').write_text(json.dumps(meta, indent=1))
 
 
@@ -303,6 +333,18 @@ def main():
                         default='dev/lag_utility/hz4x4_phase_map.json')
     parser.add_argument('--lead', type=float, default=0.0,
                         help='extend the throttle window to [begin-lead, end)')
+    parser.add_argument('--mode', choices=('min', 'max'), default='min',
+                        help="min = least corridor service (throttle); "
+                             "max = most corridor service (boost/flush)")
+    parser.add_argument('--kind', choices=('road_closure', 'lane_blockage'),
+                        default='road_closure',
+                        help='event family to target; blockage throttles the '
+                             'blocked edge at its downstream junction')
+    parser.add_argument('--window', choices=('active', 'recovery'),
+                        default='active',
+                        help='active: [begin-lead, end); '
+                             'recovery: [end, end+recovery_s)')
+    parser.add_argument('--recovery_s', type=float, default=120.0)
     parser.add_argument('--no-upstream', action='store_true',
                         help='throttle only the feeder junction')
     parser.add_argument('--seed', type=int, default=7)

@@ -115,10 +115,11 @@ def run(args):
             out.append((l0[0], l0[1]))
         return out
 
-    def _phase_scores(self, node_id, corridor_to_lanes):
-        """Per-phase service weight onto lanes whose to-lane is in
-        corridor_to_lanes."""
-        key = (node_id, tuple(sorted(corridor_to_lanes)))
+    def _phase_scores(self, node_id, corridor_lanes, match='to'):
+        """Per-phase service weight.  match='to': links discharging INTO
+        corridor_lanes (closure corridor); match='from': links ORIGINATING on
+        corridor_lanes (blocked approach edge)."""
+        key = (node_id, tuple(sorted(corridor_lanes)), match)
         if key in self._phase_score_cache:
             return self._phase_score_cache[key]
         states = phase_map['nodes'][node_id]['phase_states']
@@ -126,6 +127,7 @@ def run(args):
         if len(links) != len(states[0]):
             raise RuntimeError(
                 f'{node_id}: link order mismatch {len(links)} vs {len(states[0])}')
+        slot = 1 if match == 'to' else 0
         scores = []
         for st in states:
             s = 0.0
@@ -133,7 +135,7 @@ def run(args):
                 lk = links[i]
                 if lk is None:
                     continue
-                if lk[1] in corridor_to_lanes:
+                if lk[slot] in corridor_lanes:
                     s += STATE_W.get(ch, 0.0)
             scores.append(s)
         self._phase_score_cache[key] = scores
@@ -211,12 +213,14 @@ def run(args):
                         e = edges.get(ev.edge_id)
                         if e is None:
                             continue
+                        match = 'to'
                     else:
                         ev_targets = _corridor_for_blockage(self, ev)
                         e = {'edge_id': getattr(ev, 'lane_id', '')}
+                        match = 'from'
                     touched = []
                     for ni, nid, role, lanes in ev_targets:
-                        scores = _phase_scores(self, nid, lanes)
+                        scores = _phase_scores(self, nid, lanes, match)
                         best = min(scores) if args.mode == 'min' else max(scores)
                         if int(base[ni]) < len(scores) and scores[int(base[ni])] == best:
                             oracle_a = int(base[ni])

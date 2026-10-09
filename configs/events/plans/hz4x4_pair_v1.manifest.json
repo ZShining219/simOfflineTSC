@@ -1,8 +1,8 @@
 {
  "plan_id": "hz4x4_random_v1_pair100",
- "plan_sha256": "598fe6d4f1b87f080783d6cef19610a0046f4c51dfcde66502788af7186bc01f",
+ "plan_sha256": "6efd8c5a7ffbfa0756cb71b1e87ab9c105d1c81649376606d5540885d6bd5329",
  "source_plan": "configs/events/plans/hz4x4_random_v1.yml",
  "pairs": 100,
- "per_episode_seeds": null,
+ "per_episode_seeds": 9000,
  "episodes": 200
 }

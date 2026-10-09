@@ -38,7 +38,7 @@ def _report_status(report: Any) -> str:
     value = getattr(report, 'report_status', None)
     if value is None:
         value = getattr(report, 'status', None)
-    if value not in {'active', 'cleared'}:
+    if value not in {'active', 'announced', 'cleared'}:
         raise SceneContextError(
             f'report {_report_id(report)!r} has unsupported current status {value!r}')
     return value
@@ -88,8 +88,8 @@ class SceneContext:
         if set(event_ids) & set(cleared_ids):
             raise SceneContextError('one report cannot be active and cleared in one snapshot')
         for item in events:
-            if _report_status(item) != 'active':
-                raise SceneContextError('SceneContext.events may contain active reports only')
+            if _report_status(item) not in {'active', 'announced'}:
+                raise SceneContextError('SceneContext.events may contain live reports only')
             if _report_time(item) > observed_at + 1e-8:
                 raise SceneContextError('active report is from the future of observed_at')
         for item in cleared:
@@ -201,7 +201,7 @@ def scene_context_at(observed_at: float, reports: Iterable[Any]) -> SceneContext
         if mapping_status is not None and mapping_status != 'mapped':
             raise SceneContextError(
                 f'report {report_id!r} is not mapped: {mapping_status!r}')
-        (active if status == 'active' else cleared).append(report)
+        (active if status in ('active', 'announced') else cleared).append(report)
 
     # Runtime reports are normally sorted already, but scene identity must not
     # depend on a caller's container order.

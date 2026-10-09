@@ -35,18 +35,24 @@ _TEMPLATES = (
      rf'to (?P<percent>{_NUMBER})% of their normal limits\.'),
     ('global_rain', 'cleared', 'network',
      r'This network-wide rain event has ended and its speed restriction has been removed\.'),
+    ('demand_surge', 'announced', 'edge',
+     rf'A demand surge of (?P<rate>{_NUMBER}) additional vehicles per hour '
+     rf'is expected on {_ROAD}, bound for junction (?P<bound>{_ID}), '
+     rf'starting at (?P<start>{_NUMBER}) seconds\.'),
     ('demand_surge', 'active', 'edge',
      rf'A demand surge injects (?P<rate>{_NUMBER}) additional vehicles per hour '
-     rf'entering on {_ROAD}\.'),
+     rf'entering on {_ROAD}, bound for junction (?P<bound>{_ID})\.'),
     ('demand_surge', 'cleared', 'edge',
-     rf'The demand surge entering on {_ROAD} has ended\.'),
+     rf'The demand surge entering on {_ROAD}, bound for junction '
+     rf'(?P<bound>{_ID}), has ended\.'),
 )
 # Match whitespace without normalizing input, so character offsets remain valid.
 _PATTERNS = tuple((kind, status, scope, re.compile(
     (r'\s*Event (?P<report_id>[A-Za-z0-9_-]+)\. ' + body + r'\s*').replace(' ', r'\s+')))
     for kind, status, scope, body in _TEMPLATES)
 _ROLES = {'target_lane': 'lane', 'road': 'edge', 'approaching': 'junction',
-          'target_edge': 'edge', 'from': 'junction', 'to': 'junction'}
+          'target_edge': 'edge', 'from': 'junction', 'to': 'junction',
+          'bound': 'junction'}
 _MOVEMENTS = {'left-turn', 'through', 'right-turn', 'U-turn'}
 
 
@@ -95,7 +101,8 @@ class ReportGrounder:
             result = replace(result, event_kind=kind, report_status=status, scope=scope,
                              mentions=mentions, direction=fields.get('direction'), movements=movements,
                              position_m=float(fields['position']) if 'position' in fields else None,
-                             speed_percent=percent)
+                             speed_percent=percent,
+                             rate_vph=float(fields['rate']) if 'rate' in fields else None)
             return self.catalog.link(result)
         except GroundingError as error:
             if self.strict:

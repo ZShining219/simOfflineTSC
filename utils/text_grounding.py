@@ -145,6 +145,7 @@ class GroundedReport:
     movements: Tuple[str, ...] = ()
     position_m: Optional[float] = None
     speed_percent: Optional[float] = None
+    rate_vph: Optional[float] = None
     target_lane_ids: Tuple[str, ...] = ()
     mapping_status: str = 'parsed'
     diagnostics: Tuple[str, ...] = ()
@@ -233,6 +234,8 @@ class EntityCatalog:
             relations.extend(Relation(i, 'part_of', edge_id) for i in targets)
             relations.extend((Relation(edge_id, 'from_junction', first['from_junction']),
                               Relation(edge_id, 'to_junction', first['to_junction'])))
+            if by_role.get('bound'):
+                relations.append(Relation(edge_id, 'bound_for', by_role['bound']))
         elif report.scope == 'network':
             targets = tuple(i for i in self.lane_ids if self._lanes[i]['motor_vehicle_lane'])
             if not targets:

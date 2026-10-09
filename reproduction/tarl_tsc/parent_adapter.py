@@ -30,13 +30,13 @@ IMPLS = ('legacy', 'paper')
 class _QWrapper(nn.Module):
     def __init__(self, traffic_dim, actions, method, adjacency, lane_dim,
                  impl='legacy', text_width=768, text_input='bert',
-                 semantic_aux=False, fusion_gate=False, type_vocab=None):
+                 semantic_aux=False, fusion_gate=False, ztask_vocabs=None):
         super().__init__()
         if impl == 'paper':
             self.policy = PaperTARLPolicy(
                 traffic_dim, actions, method=method, text_input=text_input,
                 semantic_aux=semantic_aux, fusion_gate=fusion_gate,
-                type_vocab=type_vocab)
+                ztask_vocabs=ztask_vocabs)
             self.text_methods = PaperTARLPolicy.TEXT_METHODS
         else:
             self.policy = TARLPolicy(traffic_dim, actions, method=method)
@@ -97,10 +97,17 @@ def make_tarl_agent(method):
             self.huber_beta = float(model_param.get('huber_beta', 10.0))
             self.text_dropout = float(model_param.get('text_dropout', 0.0))
             self.fusion_gate = bool(model_param.get('fusion_gate', False))
-            # demand_surge arms need type code 4 -> widen the z_task type
-            # embedding + semantic-aux head (default None = ZTASK_VOCABS[1]=4,
-            # keeps all pre-surge checkpoints loadable).
-            self.ztask_type_vocab = model_param.get('ztask_type_vocab')
+            # demand_surge arms widen the z_task field vocabularies
+            # (lifecycle 0/1/2 + type code 4): model.ztask_vocabs supplies the
+            # full tuple, e.g. [3,5,4,5,6]; model.ztask_type_vocab remains a
+            # shorthand that only widens the type column.  Default None keeps
+            # all pre-surge checkpoints loadable.
+            vocabs = model_param.get('ztask_vocabs')
+            if vocabs is None and model_param.get('ztask_type_vocab') is not None:
+                from reproduction.tarl_tsc.models.paper_tarl import ZTASK_VOCABS
+                vocabs = list(ZTASK_VOCABS)
+                vocabs[1] = int(model_param['ztask_type_vocab'])
+            self.ztask_vocabs = vocabs
             self.starvation_guard = dict(model_param.get('starvation_guard') or {})
             self._guard_on = bool(self.starvation_guard.get('enabled'))
             self._guard_stats = {'fired_steps': 0, 'fired_nodes': 0}
@@ -253,7 +260,7 @@ def make_tarl_agent(method):
                              text_input=self.event_input,
                              semantic_aux=bool(self.semantic_aux.get('enabled')),
                              fusion_gate=self.fusion_gate,
-                             type_vocab=self.ztask_type_vocab)
+                             ztask_vocabs=self.ztask_vocabs)
 
         def reset(self):
             self._generator_objects = tuple(self.world.intersections)
@@ -328,30 +335,48 @@ def make_tarl_agent(method):
                             dtype=np.float32)
             grounded = [g for g in grounder.map_reports(runtime.reports())
                         if g.mapping_status == 'mapped']
-            active = sorted(
-                (g for g in grounded if g.report_status == 'active'),
+            # Live reports: announced (surge advance notice) + active.  Field 0
+            # is the lifecycle code 0/1/2 — a present-gate distinguishes
+            # bound-ness, the code value itself is semantic.
+            _LIFECYCLE = {'announced': 1.0, 'active': 2.0}
+            live = sorted(
+                (g for g in grounded if g.report_status in _LIFECYCLE),
                 key=lambda g: g.report_id)
-            if active:
+            if live:
                 batch = binder.bind(grounded)
                 g = batch.to_gnode(active_only=True)
-                mask = g.node_report_mask          # [N, M_active]
+                mask = g.node_report_mask          # [N, M_live]
                 fallback_mask = getattr(g, 'node_fallback_mask', None)
                 if fallback_mask is not None and fallback_mask.any():
-                    self._audit_closure_bind(active, fallback_mask)
-                for j, rep in enumerate(active):
+                    self._audit_closure_bind(live, fallback_mask)
+                node_rank = {n: i for i, n in enumerate(self.node_ids)}
+                for j, rep in enumerate(live):
                     movements = rep.movements or ()
                     mov = (movements[0] if len(movements) == 1
                            else ('multiple' if movements else 'none'))
-                    sev = (1.0 - rep.speed_percent / 100.0
-                           if rep.speed_percent is not None else 1.0)
+                    if rep.rate_vph is not None:
+                        sev = rep.rate_vph / 3600.0
+                    else:
+                        sev = (1.0 - rep.speed_percent / 100.0
+                               if rep.speed_percent is not None else 1.0)
                     row = np.array(
-                        [1.0, self._ZTASK_TYPE.get(rep.event_kind, 0),
+                        [_LIFECYCLE[rep.report_status],
+                         self._ZTASK_TYPE.get(rep.event_kind, 0),
                          self._ZTASK_SCOPE.get(rep.scope, 0),
                          self._ZTASK_DIR.get(rep.direction, 0),
                          self._ZTASK_MOV.get(mov, 0), sev],
                         dtype=np.float32)
-                    for i in np.where(mask[:, j])[0]:
-                        # First active report wins on multi-event nodes (rare;
+                    nodes = list(np.where(mask[:, j])[0])
+                    # demand_surge reports name a public destination junction
+                    # ('bound for junction J'): the surge row lands on that
+                    # controlled node too, so the corridor endpoint is visible
+                    # without leaking the privileged route.
+                    if rep.event_kind == 'demand_surge':
+                        for m in rep.mentions:
+                            if m.role == 'bound' and m.entity_id in node_rank:
+                                nodes.append(node_rank[m.entity_id])
+                    for i in nodes:
+                        # First live report wins on multi-event nodes (rare;
                         # deterministic by sorted report_id).
                         if feat[i, 0] == 0:
                             feat[i] = row
@@ -670,7 +695,9 @@ def make_tarl_agent(method):
                 if aux is not None:
                     lane = self.ob_generator.ob_length
                     zslot = before[..., lane:lane + ZTASK_FIELDS]
-                    present_t = zslot[..., 0]
+                    # field 0 is a lifecycle code (0/1/2); the aux present head
+                    # is binary bound-ness, so binarize the target.
+                    present_t = (zslot[..., 0] > 0).float()
                     mask = present_t > 0.5
                     pred = aux['present'] > 0
                     l_present = F.binary_cross_entropy_with_logits(

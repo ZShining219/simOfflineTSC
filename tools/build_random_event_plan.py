@@ -38,7 +38,25 @@ def catalog(net_file):
     return runtime, lanes, edges
 
 
-def sample_event(rng, kind, index, episode, args, lanes, edges):
+def sample_surge(rng, event_id, begin, end, args, edges,
+                 net_edges, shortest_path):
+    """Pick a connected origin/destination pair with >=2 edges on the route."""
+    for _ in range(64):
+        origin = rng.choice(sorted(edges))
+        dest = rng.choice(sorted(edges))
+        if dest == origin:
+            continue
+        path, _ = shortest_path(net_edges[origin], net_edges[dest])
+        if path is not None and len(path) >= 2:
+            return {'event_id': event_id,
+                    'kind': 'demand_surge', 'begin': begin, 'end': end,
+                    'edge_id': origin, 'to_edge_id': dest,
+                    'rate_vph': round(rng.uniform(args.rate_min, args.rate_max), 1)}
+    raise RuntimeError('No connected surge pair found')
+
+
+def sample_event(rng, kind, index, episode, args, lanes, edges,
+                 net_edges=None, shortest_path=None):
     event_id = f'ep{episode:04d}_e{index}'
     begin = rng.randint(args.begin_min, args.begin_max)
     duration = rng.randint(args.dur_min, args.dur_max)
@@ -49,6 +67,9 @@ def sample_event(rng, kind, index, episode, args, lanes, edges):
     if kind == 'road_closure':
         return {'event_id': event_id, 'kind': kind, 'begin': begin, 'end': end,
                 'edge_id': rng.choice(sorted(edges))}
+    if kind == 'demand_surge':
+        return sample_surge(rng, event_id, begin, end, args, edges,
+                            net_edges, shortest_path)
     lane_id = rng.choice(sorted(lanes))
     length = lanes[lane_id]['length']
     lower = max(5.0, args.position_min_ratio * length)
@@ -61,6 +82,18 @@ def sample_event(rng, kind, index, episode, args, lanes, edges):
 
 def conflicts(a, b, lanes):
     """Within one episode keep events on distinct physical targets."""
+    if 'demand_surge' in (a['kind'], b['kind']):
+        surge = a if a['kind'] == 'demand_surge' else b
+        other = b if a['kind'] == 'demand_surge' else a
+        if other['kind'] == 'demand_surge':
+            # one injection point per episode keeps surge semantics readable
+            return surge['edge_id'] == other['edge_id']
+        surge_ends = {surge['edge_id'], surge['to_edge_id']}
+        if other['kind'] == 'road_closure':
+            return other['edge_id'] in surge_ends
+        if other['kind'] == 'lane_blockage':
+            return lanes[other['lane_id']]['edge_id'] == surge['edge_id']
+        return False
     if a['kind'] == 'lane_blockage' and b['kind'] == 'lane_blockage':
         if a['lane_id'] == b['lane_id']:
             return True
@@ -78,6 +111,14 @@ def conflicts(a, b, lanes):
 def build_plan(args):
     rng = random.Random(args.seed)
     _, lanes, edges = catalog(args.net)
+    kinds_pool = tuple(k.strip() for k in args.kinds.split(',') if k.strip())
+    net_edges = shortest_path = None
+    if 'demand_surge' in kinds_pool:
+        import sumolib
+        net = sumolib.net.readNet(args.net)
+        net_edges = {e.getID(): e for e in net.getEdges()
+                     if e.getID() in edges}
+        shortest_path = net.getShortestPath
     rows = []
     counts = {'normal': 0, 'single': 0, 'multi': 0}
     for episode in range(args.episodes):
@@ -86,12 +127,14 @@ def build_plan(args):
             rows.append({'episode': episode, 'label': 'normal', 'events': []})
             counts['normal'] += 1
             continue
-        kinds = [rng.choice(KINDS)] if draw < args.normal + args.single else \
-            rng.sample(KINDS, 2)
+        kinds = [rng.choice(kinds_pool)] if draw < args.normal + args.single else \
+            rng.sample(kinds_pool, 2)
         events = []
         for index, kind in enumerate(kinds):
             for _ in range(64):
-                candidate = sample_event(rng, kind, index, episode, args, lanes, edges)
+                candidate = sample_event(rng, kind, index, episode, args,
+                                         lanes, edges, net_edges,
+                                         shortest_path)
                 if all(not conflicts(candidate, existing, lanes) for existing in events):
                     events.append(candidate)
                     break
@@ -126,6 +169,12 @@ def main():
     parser.add_argument('--rain-max', type=float, default=0.9)
     parser.add_argument('--position-min-ratio', type=float, default=0.25)
     parser.add_argument('--position-tolerance', type=float, default=20.0)
+    parser.add_argument('--kinds', default=','.join(KINDS),
+                        help='comma-separated event kinds to sample from')
+    parser.add_argument('--rate-min', type=float, default=300.0,
+                        help='demand_surge minimum injected rate (veh/h)')
+    parser.add_argument('--rate-max', type=float, default=1200.0,
+                        help='demand_surge maximum injected rate (veh/h)')
     parser.add_argument('--out', required=True)
     args = parser.parse_args()
     if not (0.0 <= args.normal <= 1.0) or not (0.0 <= args.single <= 1.0) \

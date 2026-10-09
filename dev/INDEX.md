@@ -78,13 +78,17 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
   `--kind` 选事件族、`--mode min|max`、`--window active|recovery`、
   `--lead` 可把窗延伸到预告段测预置收益）、
   `probe_surge_inject.py`（libsumo 微探针：不走 trainer 直绑
-  SumoEventRuntime，验证 demand_surge 的路由绑定/确定性注入/报告渲染/
-  严格 grounding 全链路）。探索期实现，产物落
-  `data/output_data/analysis/att_entity_004/lag_utility/`。
+  SumoEventRuntime，验证 demand_surge 的路由绑定/确定性注入/announced→
+  active→cleared 三态报告渲染/严格 grounding 全链路）。探索期实现，
+  产物落 `data/output_data/analysis/att_entity_004/lag_utility/`。
 - `dev/pairaux/`：配对课程 + 事件语义辅助奖励线（73 侧思路本地化）——
   `build_pair_plan.py` 把源 plan 的每条 episode 复制成
   `{canonical, empty}` 对（同 schedule/同 SUMO seed，仅文本有无不同），
   产出 `configs/events/plans/hz4x4_pair_v1.yml`（200 行=100 对）；
+  surge 线源 plan 由 `tools/build_random_event_plan.py --kinds demand_surge`
+  生成（连通 OD 对经 sumolib getShortestPath 验证），配对版
+  `hz4x4_surge_pair_v1.yml`（200 行=100 对，eval=三走廊 surge schedule
+  `configs/events/hz4x4_surge_eval_v1.yml`）；
   配套机制在 `world/sumo_events/plans.py`（行级 `sumo_seed`/
   `text_condition` 覆盖）与 `reproduction/tarl_tsc/parent_adapter.py`
   （`_effective_text_condition` 逐集生效 + `model.reward_aux` 辅助奖励，

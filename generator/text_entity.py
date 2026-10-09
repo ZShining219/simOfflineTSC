@@ -77,7 +77,8 @@ class GroundingBatch:
         """
         selected_with_indices = sorted(
             ((index, item) for index, item in enumerate(self.reports)
-             if not active_only or item.report.report_status == 'active'),
+             if not active_only or item.report.report_status
+             in ('active', 'announced')),
             key=lambda pair: pair[1].report.report_id)
         report_indices = tuple(index for index, _ in selected_with_indices)
         selected = tuple(item for _, item in selected_with_indices)

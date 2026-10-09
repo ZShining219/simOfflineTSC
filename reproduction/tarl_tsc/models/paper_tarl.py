@@ -51,9 +51,12 @@ FUSION_DROPOUT = 0.1
 # Structured task-related event input (replaces the 768-dim frozen BERT slot).
 # Raw per-node fields, all produced by ReportGrounder + TextEntityBinder:
 #   [present, event_type, scope, direction, movement, severity]
+# field 0 is a lifecycle code: 0 none, 1 announced, 2 active (arms without
+# announcement only ever emit 0/2; under the default 2-entry embedding index 2
+# clamps to "present", preserving pre-surge behaviour exactly).
 # event_type codes: 0 none, 1 lane_blockage, 2 road_closure, 3 global_rain,
-# 4 demand_surge (pairaux line).  Arms containing demand_surge events must set
-# model.ztask_type_vocab=5 (embedding + semantic-aux head widen); default 4
+# 4 demand_surge (pairaux line).  demand_surge arms set
+# model.ztask_vocabs=[3,5,4,5,6] (lifecycle+type widen); the default tuple
 # keeps all pre-surge checkpoints loadable.
 ZTASK_FIELDS = 6
 ZTASK_VOCABS = (2, 4, 4, 5, 6)   # present/type/scope/direction/movement
@@ -68,12 +71,11 @@ class TaskEventEncoder(nn.Module):
     text pathway contributes nothing on Normal steps.
     """
 
-    def __init__(self, out_dim=LATENT_DIM, emb_dim=ZTASK_EMB, type_vocab=None):
+    def __init__(self, out_dim=LATENT_DIM, emb_dim=ZTASK_EMB, vocabs=None):
         super().__init__()
-        vocabs = list(ZTASK_VOCABS)
-        if type_vocab is not None:
-            vocabs[1] = int(type_vocab)
-        self.vocabs = tuple(vocabs)
+        self.vocabs = tuple(ZTASK_VOCABS if vocabs is None else vocabs)
+        if len(self.vocabs) != len(ZTASK_VOCABS):
+            raise ValueError('ztask vocabs must have one entry per categorical field')
         self.embeddings = nn.ModuleList(
             nn.Embedding(n, emb_dim) for n in self.vocabs)
         self.encoder = nn.Sequential(
@@ -90,7 +92,9 @@ class TaskEventEncoder(nn.Module):
                  for i, (emb, v) in enumerate(zip(self.embeddings, self.vocabs))]
         parts.append(cols[-1].unsqueeze(-1))
         z = self.encoder(torch.cat(parts, dim=-1))
-        return z * cols[0].unsqueeze(-1)          # present gate
+        # field 0 is a lifecycle code (0 none / 1 announced / 2 active), not a
+        # magnitude: gate on bound-ness, never scale by the code value.
+        return z * (cols[0] > 0).float().unsqueeze(-1)
 
 
 class SemanticAuxHead(nn.Module):
@@ -101,14 +105,13 @@ class SemanticAuxHead(nn.Module):
     type/movement: per-node CE, computed only on present nodes by the caller.
     """
 
-    def __init__(self, in_dim=FUSED_DIM, hidden=64, type_vocab=None):
+    def __init__(self, in_dim=FUSED_DIM, hidden=64, vocabs=None):
         super().__init__()
+        vocabs = ZTASK_VOCABS if vocabs is None else tuple(vocabs)
         self.trunk = nn.Sequential(nn.Linear(in_dim, hidden), nn.ReLU())
         self.present = nn.Linear(hidden, 1)
-        self.event_type = nn.Linear(
-            hidden, int(type_vocab) if type_vocab is not None
-            else ZTASK_VOCABS[1])
-        self.movement = nn.Linear(hidden, ZTASK_VOCABS[4])
+        self.event_type = nn.Linear(hidden, vocabs[1])
+        self.movement = nn.Linear(hidden, vocabs[4])
 
     def forward(self, h):
         z = self.trunk(h)
@@ -179,7 +182,7 @@ class PaperTARLPolicy(nn.Module):
 
     def __init__(self, traffic_dim, action_dim, method='gating',
                  text_input='bert', semantic_aux=False, fusion_gate=False,
-                 type_vocab=None):
+                 ztask_vocabs=None):
         super().__init__()
         if method not in self.METHODS:
             raise ValueError(method)
@@ -211,7 +214,7 @@ class PaperTARLPolicy(nn.Module):
             # task-event encoder over grounded categorical fields.
             if text_input == 'structured':
                 self.task_encoder = TaskEventEncoder(
-                    LATENT_DIM, type_vocab=type_vocab)
+                    LATENT_DIM, vocabs=ztask_vocabs)
             else:
                 self.text_projection = nn.Linear(TEXT_DIM, LATENT_DIM)   # W_e
             self.state_projection = nn.Linear(TRAFFIC_EMB_DIM, LATENT_DIM)  # W_s
@@ -271,7 +274,7 @@ class PaperTARLPolicy(nn.Module):
             # the loss backpropagates through both attention blocks and the
             # task encoder — the full text-conditioned decision pathway.
             self.semantic_head = SemanticAuxHead(
-                FUSED_DIM, type_vocab=type_vocab)
+                FUSED_DIM, vocabs=ztask_vocabs)
         # Eq. 18: lightweight two-layer shared Q-network
         self.q_head = nn.Sequential(
             nn.Linear(gat_out_dim, 64), nn.ReLU(), nn.Linear(64, action_dim))

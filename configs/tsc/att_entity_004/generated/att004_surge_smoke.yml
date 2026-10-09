@@ -19,7 +19,7 @@ model:
   starvation_guard: {enabled: true, t_max_s: 180.0, theta: 30.0}
   tarl_impl: paper
   td_loss_fn: huber
-  ztask_type_vocab: 5
+  ztask_vocabs: [3, 5, 4, 5, 6]
   train_model: true
 trainer:
   action_interval: 10

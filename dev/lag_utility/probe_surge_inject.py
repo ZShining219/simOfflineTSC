@@ -58,13 +58,20 @@ def main():
           runtime._surge['hz_surge_01'])
 
     grounder = ReportGrounder(runtime.network_catalog())
-    seen_active = seen_cleared = False
+    seen_announced = seen_active = seen_cleared = False
     expected = int((args.end - args.begin) / (3600.0 / args.rate))
     for _ in range(int(args.end) + 400):
         libsumo.simulationStep()
         runtime.synchronize()
         now = libsumo.simulation.getTime()
         for report in runtime.reports():
+            if report.status == 'announced' and not seen_announced:
+                seen_announced = True
+                g = grounder.map_report(report)
+                print(f'[t={now:.0f} announced] {report.text}')
+                print(f'         grounded kind={g.event_kind} scope={g.scope} '
+                      f'status={g.report_status} rate={g.rate_vph} '
+                      f'mentions={[(m.role, m.entity_id) for m in g.mentions]}')
             if report.status == 'active' and not seen_active:
                 seen_active = True
                 g = grounder.map_report(report)

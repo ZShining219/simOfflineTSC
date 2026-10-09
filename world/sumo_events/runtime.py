@@ -294,8 +294,16 @@ class SumoEventRuntime:
             report_now = now - self._report_shift
             for event in self.schedule.events:
                 active_at = event.begin - self._announce_lead
-                status = ('active' if active_at <= report_now < event.end
-                          else ('cleared' if report_now >= event.end else 'pending'))
+                if event.kind == 'demand_surge' and self._announce_lead > 0:
+                    # surge carries a real lifecycle: the public text can
+                    # announce future demand without the physics being live.
+                    status = ('announced' if active_at <= report_now < event.begin
+                              else 'active' if event.begin <= report_now < event.end
+                              else ('cleared' if report_now >= event.end
+                                    else 'pending'))
+                else:
+                    status = ('active' if active_at <= report_now < event.end
+                              else ('cleared' if report_now >= event.end else 'pending'))
                 if status != self._states[event.event_id]:
                     self._states[event.event_id] = status
                     report = Report(event.event_id, status, now, self._render(event, status))
@@ -364,12 +372,19 @@ class SumoEventRuntime:
             return prefix + f'The entry restriction imposed by this event on {where} has been removed.'
         if event.kind == 'demand_surge':
             lane = self._lanes[self._edges[event.edge_id][0]]
+            dest = self._lanes[self._edges[event.to_edge_id][0]]['to_junction']
             where = (f"directed road {event.edge_id}, from junction {lane['from_junction']} "
                      f"to junction {lane['to_junction']}")
+            if status == 'announced':
+                return prefix + (f'A demand surge of {event.rate_vph:g} additional '
+                                 f'vehicles per hour is expected on {where}, bound for '
+                                 f'junction {dest}, starting at {event.begin:g} seconds.')
             if status == 'active':
                 return prefix + (f'A demand surge injects {event.rate_vph:g} additional '
-                                 f'vehicles per hour entering on {where}.')
-            return prefix + f'The demand surge entering on {where} has ended.'
+                                 f'vehicles per hour entering on {where}, bound for '
+                                 f'junction {dest}.')
+            return prefix + (f'The demand surge entering on {where}, bound for '
+                             f'junction {dest}, has ended.')
         if status == 'active':
             return prefix + (f'Rain affects the whole network. This event limits motor-vehicle lane speeds '
                              f'to {100 * event.speed_factor:g}% of their normal limits.')

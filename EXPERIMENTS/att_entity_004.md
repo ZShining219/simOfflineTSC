@@ -255,12 +255,25 @@
   边 + rate_vph 注入，`findRoute` 绑定时一次算路、active 窗按
   3600/rate 周期确定性 `vehicle.add`（失败丢弃计数，offered-rate 语义）；
   文本报告 + 严格 grounding（origin 边，destination 暂不入文）；
-  z_task type 码 4（surge 臂需 `model.ztask_type_vocab: 5` 拓宽嵌入+
-  语义辅助头，默认 4 保持旧 ckpt 可加载）。冒烟：
+  z_task type 码 4（surge 臂需 `model.ztask_vocabs: [3,5,4,5,6]` 拓宽
+  生命周期+类型嵌入与语义辅助头，默认保持旧 ckpt 可加载）。冒烟：
   `dev/lag_utility/probe_surge_inject.py` libsumo 直跑验证
   （600vph/300s → inserted=50/failed=0，active/cleared 报告渲染+grounding 通过）；
   `att004_surge_smoke.yml` 3 集训练+eval 全绿。**设计动机**：唯一
   pre-symptom 可兑现的事件族——"预告→提前多服务"在相位粒度下方向可分
   （与 closure 的"避免"需求相反）。未决：announced/active 状态位、
   destination 编码、surge 配对评估计划。
+- **surge 表征深化（同日 r2）**：报告生命周期扩三态——surge 专属
+  `announced` 状态在 `TARL_ANNOUNCE_LEAD_S` 窗内发未来时态文本
+  （"is expected... starting at B seconds"），begin 处转 active、end 处
+  转 cleared，非 surge 族逐位不变；文本新增 "bound for junction J"
+  （目的边 to_junction），grounding 增 `bound` junction 角色 + rate_vph
+  提取；`scene_context`/`to_gnode` 把 announced 视为 live 报告。
+  **z_task field0 从二值变生命周期码**（0 无 / 1 announced / 2 active），
+  编码器 present 门改 `(>0)` 位判定，surge 行同时落在 origin 馈入节点与
+  bound 目的节点（走廊两端可见，不泄露特权路由），severity←rate/3600；
+  `model.ztask_vocabs` 全元组覆盖（surge 臂 [3,5,4,5,6]，默认保持旧
+  ckpt 可加载）。配对计划 `hz4x4_surge_pair_v1.yml`（100 surge 对 +
+  20% normal，逐对 sumo_seed=9000+p）生成并冒烟 4ep 全绿
+  （libsumo 探针三态 + trainer 配对/生命周期端到端）。
 <!-- EXTRA-END -->

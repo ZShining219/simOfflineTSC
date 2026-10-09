@@ -110,6 +110,16 @@ def paired_deltas(rows, metric, dpe):
         early_val = seed_early[seed][1]
         for ep in range(1, min(pts)):
             pts.setdefault(ep, early_val)
+    # Same-snapshot interior aliasing: e.g. ep2 checkpoints are still
+    # bit-identical to ep1 (learning_start gates updates until ep3), so
+    # the evaluator aliases the request to the ep1 attempt and no ep2
+    # request exists.  Forward-fill interior gaps with the run's own
+    # most recent evaluated value.
+    for (cond, seed), pts in series.items():
+        for ep in range(min(pts) + 1, max(pts) + 1):
+            if ep not in pts:
+                prev = max(e for e in pts if e < ep)
+                pts[ep] = pts[prev]
     per_seed = {}
     for (cond, seed), pts in series.items():
         per_seed.setdefault(cond, {})[seed] = {

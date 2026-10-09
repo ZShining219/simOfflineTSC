@@ -119,6 +119,12 @@ def collect(root, plan_path=None):
             early_val = seed_early[seed][1]
             for ep in range(1, min(pts)):
                 pts.setdefault(ep, early_val)
+        # interior same-snapshot aliases (e.g. ep2 == ep1 weights before
+        # learning_start) — forward-fill with last evaluated value
+        for ep in range(min(pts) + 1, max(pts) + 1):
+            if ep not in pts:
+                prev = max(e for e in pts if e < ep)
+                pts[ep] = pts[prev]
         for ep, summary in pts.items():
             rows.append({
                 'arm': arm,

@@ -158,8 +158,9 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
   （差异仅 `expert_pool_manifest`/`expert_ratio`）；产物用
   `sequential_run.py run-child` 逐臂执行（探索性 pilot，不入台账）。
 - `dev/hitl_live/curve_figs.py`：训练期佐证图——自主冻结 eval 学习曲线
-  （vs 决策数）、AULC、对 C0 逐点 delta、专家腿消耗量（sampling_windows
-  账本）。
+  （vs 决策数，多 seed mean±std 带）、AULC、对 C0 同 seed 配对 delta、
+  专家腿消耗量（sampling_windows 账本）；eval 快照 digest 去重的
+  前导/内段别名按"同快照同估值"语义补齐（与 paired_bootstrap 同口径）。
 - `dev/hitl_live/dump_lane_topology.py`：场景车道拓扑转储（in_lanes 顺序、
   车道长度→容量、相位→服务车道映射），B 通道特征/教师分的 ctx 来源。
 - `dev/hitl_live/segments.py`：B 通道片段切割 + 确定性教师分

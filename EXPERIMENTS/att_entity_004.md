@@ -239,4 +239,28 @@
   （仍逊 empty、逊 maxpressure ~2s）。
 - **T3 preview 臂设计注记**：REPORT_w34_3.md §T3（announce_lead_time + announced
   状态族，仅设计不实现；对照合法性已论证）。
+
+## w34_4 批次（2026-10-09，feat/w34-eval-v2-closure）
+
+- **lag_utility 探针线收官**（判读 `analysis/att_entity_004/lag_utility/LAG_VERDICT.md`）：
+  hz4x4 + 相位级动作下 closure/blockage 双向皆无可兑现 headroom——
+  corridor-throttle +1.40/+1.48s、lead120 更坏、recovery-boost +1.77/+1.55s、
+  blockage-throttle +1.19s、deadlane 遮蔽 ≈0、reroute(TARL_REROUTE_P) 下
+  节流仍 +1.32s。机理：困死需求与活需求共享进口道与相位，方向性服务不可分离。
+- **pairaux 线**：plan 行级 `sumo_seed/text_condition` 覆盖 + `hz4x4_pair_v1.yml`
+  配对生成器（同 schedule/同 seed 仅文本有无）+ `model.reward_aux`
+  （事件语义辅助奖励，仅注 replay 不动评估，window active|recovery|both）。
+  训练臂 `att004_paircurr_s7` 200ep RUNNING。
+- **demand_surge 事件原型**（commit 5d31b9a）：第四事件族——origin/destination
+  边 + rate_vph 注入，`findRoute` 绑定时一次算路、active 窗按
+  3600/rate 周期确定性 `vehicle.add`（失败丢弃计数，offered-rate 语义）；
+  文本报告 + 严格 grounding（origin 边，destination 暂不入文）；
+  z_task type 码 4（surge 臂需 `model.ztask_type_vocab: 5` 拓宽嵌入+
+  语义辅助头，默认 4 保持旧 ckpt 可加载）。冒烟：
+  `dev/lag_utility/probe_surge_inject.py` libsumo 直跑验证
+  （600vph/300s → inserted=50/failed=0，active/cleared 报告渲染+grounding 通过）；
+  `att004_surge_smoke.yml` 3 集训练+eval 全绿。**设计动机**：唯一
+  pre-symptom 可兑现的事件族——"预告→提前多服务"在相位粒度下方向可分
+  （与 closure 的"避免"需求相反）。未决：announced/active 状态位、
+  destination 编码、surge 配对评估计划。
 <!-- EXTRA-END -->

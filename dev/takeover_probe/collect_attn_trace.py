@@ -21,7 +21,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from dev.takeover_probe.probe import (  # noqa: E402
     build_world, build_controllers, _bind_all, DEFAULT_DQN_S1)
-from dev.takeover_probe.dispatch_state import FeatureBuilder  # noqa: E402
+from dev.takeover_probe.dispatch_state import (  # noqa: E402
+    FeatureBuilder, fb_kwargs_from_meta)
 from dev.takeover_probe.router_runtime import run_router_episode  # noqa: E402
 from tools.sumo_live_broadcast.injects import parse_injects  # noqa: E402
 
@@ -42,7 +43,8 @@ def main():
 
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
-    router, _ = DispatchRouter.load(args.ckpt)
+    router, payload = DispatchRouter.load(args.ckpt)
+    fb_kw = fb_kwargs_from_meta(payload.get('meta'))
     injects = parse_injects([args.event])
     true_edge = args.event.split(':')[1]
 
@@ -66,7 +68,7 @@ def main():
             _bind_all(world, controllers, ranks,
                       needed=set(router.controller_ids))
             fb = FeatureBuilder(world, injects,
-                                report_delay=args.report_delay)
+                                report_delay=args.report_delay, **fb_kw)
             ctrl = {k: controllers[k] for k in router.controller_ids}
             _, _, windows = run_router_episode(
                 world, ctrl, fb, router, ranks,

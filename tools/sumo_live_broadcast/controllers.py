@@ -274,7 +274,8 @@ class DispatchController:
     def bind(self, world, ranks=None):
         # lazy imports keep this module loadable without torch/dev paths
         from dev.takeover_probe.dispatch_model import DispatchRouter
-        from dev.takeover_probe.dispatch_state import FeatureBuilder
+        from dev.takeover_probe.dispatch_state import (
+            FeatureBuilder, fb_kwargs_from_meta)
         from tools.sumo_live_broadcast.injects import parse_injects
 
         self._router, payload = DispatchRouter.load(self.router_ckpt)
@@ -295,7 +296,8 @@ class DispatchController:
         }
         self._fb = FeatureBuilder(
             world, parse_injects(self.inject_specs),
-            report_delay=self.report_delay)
+            report_delay=self.report_delay,
+            **fb_kwargs_from_meta(meta))
         self._decision_count = 0
         self._last_router_t = None
         self._active = self._router.controller_ids[0]

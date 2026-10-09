@@ -19,6 +19,8 @@ severity / estimated duration); lane tokens carry live traffic state.
 
 from __future__ import annotations
 
+import math
+
 import numpy as np
 import torch
 import torch.nn as nn
@@ -28,23 +30,44 @@ import torch.nn.functional as F
 class SceneAttention(nn.Module):
     """scene text (query) attends over lane tokens (key/value).
 
+    With ``geom`` (identity layout) the report's edge field and the lane
+    tokens' edge identity share one index space; a learnable scalar adds
+    ``bind_gain * (lane_id . text_edge)`` to every head's attention
+    logits.  "Which lanes the report names" is then a structural binding
+    channel — the text is the only source of event location, and the
+    match holds even before the named edge shows traffic anomalies.
+
+    Without ``geom`` the encoder is the legacy plain cross-attention
+    (kept so pre-identity checkpoints still load; its state_dict keys
+    differ from the manual q/k/v/o projections below).
+
     residual_pool='mms' widens the raw-traffic bypass from a lane-mean
     to mean+max+std over the physical features only (queue, count,
-    wait) — the report-derived event flag is not a traffic statistic
-    and stays out of the global summary.
+    wait) — identity/flag dims are not traffic statistics and stay out
+    of the global summary.
     """
 
     def __init__(self, lane_dim, text_dim, global_dim, d_model=64,
-                 heads=4, residual_pool='mean'):
+                 heads=4, residual_pool='mean', geom=None):
         super().__init__()
         self.lane_proj = nn.Linear(lane_dim, d_model)
         self.text_proj = nn.Linear(text_dim, d_model)
-        self.attn = nn.MultiheadAttention(
-            d_model, heads, batch_first=True)
+        self.geom = geom
+        self.heads = heads
+        if geom is None:
+            self.attn = nn.MultiheadAttention(
+                d_model, heads, batch_first=True)
+        else:
+            self.q_proj = nn.Linear(d_model, d_model)
+            self.k_proj = nn.Linear(d_model, d_model)
+            self.v_proj = nn.Linear(d_model, d_model)
+            self.o_proj = nn.Linear(d_model, d_model)
+            # learned, head-shared gain on the identity-match logit bias
+            self.bind_gain = nn.Parameter(torch.tensor(2.0))
         # residual path: raw traffic summary bypasses attention
         self.residual_pool = residual_pool
-        n_pool = (3 * (lane_dim - 1) if residual_pool == 'mms'
-                  else lane_dim)
+        phys_dim = geom['phys_dim'] if geom else lane_dim - 1
+        n_pool = (3 * phys_dim if residual_pool == 'mms' else lane_dim)
         self.residual = nn.Linear(global_dim + n_pool, d_model)
         self.fuse = nn.Sequential(
             nn.Linear(d_model * 2, d_model), nn.ReLU(),
@@ -52,21 +75,47 @@ class SceneAttention(nn.Module):
         )
         self.d_model = d_model
 
+    def _bound_attention(self, q, kv, lanes, text):
+        """MH cross-attention with an identity-match logit bias.
+
+        q (B,1,d), kv (B,L,d) -> ctx (B,d), w (B,L) head-mean.
+        idm[b,l] = lane_id(l) . text_edge(b) — 1.0 on lanes whose edge
+        identity equals the edge named by the report, 0.0 elsewhere
+        (and everywhere when the report carries no edge).
+        """
+        B, L, D = kv.shape
+        h, dh = self.heads, D // self.heads
+        qh = self.q_proj(q).view(B, 1, h, dh).transpose(1, 2)
+        kh = self.k_proj(kv).view(B, L, h, dh).transpose(1, 2)
+        vh = self.v_proj(kv).view(B, L, h, dh).transpose(1, 2)
+        logits = qh @ kh.transpose(-1, -2) / math.sqrt(dh)  # (B,h,1,L)
+        lid, tid = self.geom['lane_id'], self.geom['text_id']
+        idm = (lanes[..., lid[0]:lid[1]]
+               @ text[..., tid[0]:tid[1]].unsqueeze(-1)).squeeze(-1)
+        logits = logits + self.bind_gain * idm.view(B, 1, 1, L)
+        w = logits.softmax(dim=-1)                        # (B,h,1,L)
+        ctx = (w @ vh).transpose(1, 2).reshape(B, D)
+        return self.o_proj(ctx), w.mean(dim=1).squeeze(1)
+
     def forward(self, lanes, text, glob):
         """lanes (B,L,F), text (B,T), glob (B,G) -> z (B,d), attn_w (B,L)."""
         kv = self.lane_proj(lanes)                    # (B,L,d)
         q = self.text_proj(text).unsqueeze(1)         # (B,1,d)
-        ctx, w = self.attn(q, kv, kv, need_weights=True)
-        ctx = ctx.squeeze(1)                          # (B,d)
+        if self.geom is None:
+            ctx, w = self.attn(q, kv, kv, need_weights=True)
+            ctx, w = ctx.squeeze(1), w.squeeze(1)
+        else:
+            ctx, w = self._bound_attention(q, kv, lanes, text)
         if self.residual_pool == 'mms':
-            phys = lanes[:, :, :-1]                   # drop event_flag
+            phys = (lanes[:, :, :self.geom['phys_dim']]
+                    if self.geom else lanes[:, :, :-1])
             pooled = torch.cat([phys.mean(dim=1), phys.amax(dim=1),
                                 phys.std(dim=1)], dim=-1)
         else:
             pooled = lanes.mean(dim=1)                # (B,F)
         raw = self.residual(torch.cat([glob, pooled], dim=-1))
         z = self.fuse(torch.cat([ctx, raw], dim=-1))
-        return z, w.squeeze(1)
+        return z, w
 
 
 class SelfAttentionEncoder(nn.Module):
@@ -123,14 +172,15 @@ class DispatchRouter(nn.Module):
     """Scene encoder + per-controller Q heads (SMDP action = controller)."""
 
     def __init__(self, lane_dim, text_dim, global_dim, controller_ids,
-                 d_model=64, variant='attn', residual_pool='mean'):
+                 d_model=64, variant='attn', residual_pool='mean',
+                 geom=None):
         super().__init__()
         self.variant = variant
         self.controller_ids = list(controller_ids)
         if variant == 'attn':
             self.encoder = SceneAttention(
                 lane_dim, text_dim, global_dim, d_model,
-                residual_pool=residual_pool)
+                residual_pool=residual_pool, geom=geom)
         elif variant == 'selfattn':
             self.encoder = SelfAttentionEncoder(
                 lane_dim, text_dim, global_dim, d_model)
@@ -213,6 +263,7 @@ class DispatchRouter(nn.Module):
             payload['controller_ids'], d_model=meta.get('d_model', 64),
             variant=payload['variant'],
             residual_pool=meta.get('residual_pool', 'mean'),
+            geom=meta.get('geom'),
         )
         router.load_state_dict(payload['state_dict'])
         router.eval()

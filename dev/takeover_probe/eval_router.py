@@ -34,7 +34,9 @@ if str(_REPO_ROOT) not in sys.path:
 from dev.takeover_probe.probe import (  # noqa: E402
     build_controllers, build_world, _bind_all, DEFAULT_DQN_S1,
 )
-from dev.takeover_probe.dispatch_state import FeatureBuilder  # noqa: E402
+from dev.takeover_probe.dispatch_state import (  # noqa: E402
+    FeatureBuilder, fb_kwargs_from_meta,
+)
 from dev.takeover_probe.router_runtime import (  # noqa: E402
     run_router_episode,
 )
@@ -110,6 +112,10 @@ def main():
     p.add_argument('--report-delay', type=float, default=30.0)
     p.add_argument('--p3', action='store_true',
                    help='also run no_text / wrong_location ablations')
+    p.add_argument('--p4', action='store_true',
+                   help='also run kind-channel ablations: loc_only '
+                        '(kind onehot zeroed) and wrong_kind '
+                        '(surge<->lane_close label swapped)')
     p.add_argument('--runtime-dir', default=None)
     p.add_argument('--out', required=True)
     args = p.parse_args()
@@ -119,27 +125,40 @@ def main():
     out = Path(args.out).resolve()
     out.mkdir(parents=True, exist_ok=True)
     routers = {}
+    metas = {}
     for name, ck in [('router_attn', args.attn_ckpt),
                      ('router_concat', args.concat_ckpt)]:
         if ck:
-            routers[name], _ = DispatchRouter.load(ck)
+            routers[name], payload = DispatchRouter.load(ck)
+            metas[name] = payload.get('meta')
     for spec_kv in args.extra:
         name, ck = spec_kv.split('=', 1)
-        routers[name], _ = DispatchRouter.load(ck)
+        routers[name], payload = DispatchRouter.load(ck)
+        metas[name] = payload.get('meta')
 
     rows = []
     world = None
     runtime = Path(args.runtime_dir or '/tmp/takeover_probe')
-    test_events = list(TEST_EVENTS)
+    test_events = [None if e is None else
+                   f'surge:{e}:{t}:{o}:{d}:{p}'
+                   for e, t, p, d, o in TEST_EVENTS]
     for spec in args.events:
-        fr, to, per, dur, on = spec.split(':')
-        test_events.append((fr, to, float(per), float(dur), float(on)))
+        if spec.startswith('close:'):
+            _, lane, on, dur = spec.split(':')
+            test_events.append(f'lane_close:{lane}:{on}:{dur}')
+        elif spec.startswith('thr:'):
+            _, edge, on, dur, spd = spec.split(':')
+            test_events.append(
+                f'throttle:{edge}:{on}:{dur}:{spd}')
+        else:
+            fr, to, per, dur, on = spec.split(':')
+            test_events.append(f'surge:{fr}:{to}:{on}:{dur}:{per}')
     try:
-        for ev_idx, (edge, to_edge, per, dur, onset) in enumerate(
-                test_events):
-            spec = (
-                f'surge:{edge}:{to_edge}:{onset}:{dur}:{per}'
-                if edge else None)
+        for ev_idx, spec in enumerate(test_events):
+            injects0 = parse_injects([spec]) if spec else []
+            edge = (injects0[0].get('edge') or injects0[0].get('edge_from')
+                    ) if injects0 else None
+            ev_kind = injects0[0]['kind'] if injects0 else None
             for seed_i in range(args.n_seeds):
                 sumo_seed = args.test_seed_base + ev_idx * 100 + seed_i
                 injects = parse_injects([spec]) if spec else []
@@ -174,6 +193,14 @@ def main():
                         arms.append((
                             'attn_wrong_loc', routers['router_attn'],
                             None, {'edge': wrong_edge}))
+                if args.p4 and 'router_attn' in routers and ev_kind:
+                    arms.append((
+                        'attn_loc_only', routers['router_attn'], None,
+                        {'kind': 'unknown'}))
+                    arms.append((
+                        'attn_wrong_kind', routers['router_attn'], None,
+                        {'kind': ('lane_close' if ev_kind == 'surge'
+                                  else 'surge')}))
                 for arm_name, router, fixed, t_over in arms:
                     world.reset()
                     bind_ids = (
@@ -181,9 +208,16 @@ def main():
                         else {fixed})
                     _bind_all(world, controllers, ranks, needed=bind_ids)
                     injects_i = parse_injects([spec]) if spec else []
+                    # ablation arms share a router object (attn_no_text
+                    # etc. reuse routers['router_attn']); match by
+                    # identity so their fb uses the same layout
+                    arm_meta = next(
+                        (metas[n] for n, r in routers.items()
+                         if r is router), None)
                     fb = FeatureBuilder(
                         world, injects_i,
-                        report_delay=args.report_delay)
+                        report_delay=args.report_delay,
+                        **fb_kwargs_from_meta(arm_meta))
                     ctrl = (
                         {k: controllers[k] for k in router.controller_ids}
                         if router is not None else controllers)

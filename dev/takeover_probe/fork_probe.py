@@ -31,7 +31,9 @@ if str(_REPO_ROOT) not in sys.path:
 from dev.takeover_probe.probe import (  # noqa: E402
     build_controllers, build_world, _bind_all, DEFAULT_DQN_S1,
 )
-from dev.takeover_probe.dispatch_state import FeatureBuilder  # noqa: E402
+from dev.takeover_probe.dispatch_state import (  # noqa: E402
+    FeatureBuilder, fb_kwargs_from_meta,
+)
 from dev.takeover_probe.dispatch_model import DispatchRouter  # noqa: E402
 from dev.takeover_probe.router_runtime import (  # noqa: E402
     run_router_episode,
@@ -51,11 +53,13 @@ def run_one(args, fork_map):
         extra = [tuple(m.split('=', 1)) for m in args.extra_model]
         controllers = build_controllers(
             dqn_s1_path=args.dqn_s1, extra_models=extra)
-        router, _ = DispatchRouter.load(args.router)
+        router, payload = DispatchRouter.load(args.router)
         _bind_all(world, controllers, ranks,
                   needed=set(router.controller_ids))
         injects = parse_injects([args.event]) if args.event else []
-        fb = FeatureBuilder(world, injects, report_delay=args.report_delay)
+        fb = FeatureBuilder(
+            world, injects, report_delay=args.report_delay,
+            **fb_kwargs_from_meta(payload.get('meta')))
         ctrl = {k: controllers[k] for k in router.controller_ids}
         _, records, windows = run_router_episode(
             world, ctrl, fb, router, ranks,

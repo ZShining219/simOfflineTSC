@@ -44,7 +44,9 @@ if str(_REPO_ROOT) not in sys.path:
 from dev.takeover_probe.probe import (  # noqa: E402
     build_controllers, build_world, _bind_all, DEFAULT_DQN_S1,
 )
-from dev.takeover_probe.dispatch_state import FeatureBuilder  # noqa: E402
+from dev.takeover_probe.dispatch_state import (  # noqa: E402
+    FeatureBuilder, fb_kwargs_from_meta,
+)
 from dev.takeover_probe.router_runtime import (  # noqa: E402
     run_router_episode,
 )
@@ -79,7 +81,8 @@ def main():
 
     out = Path(args.out).resolve()
     out.mkdir(parents=True, exist_ok=True)
-    router, _ = DispatchRouter.load(args.router)
+    router, payload = DispatchRouter.load(args.router)
+    fb_kw = fb_kwargs_from_meta(payload.get('meta'))
 
     cells = []
     for tok in args.cells.split(','):
@@ -129,7 +132,8 @@ def main():
                     _bind_all(world, controllers, ranks, needed=bind_ids)
                     injects = parse_injects(specs)
                     fb = FeatureBuilder(
-                        world, injects, report_delay=args.report_delay)
+                        world, injects, report_delay=args.report_delay,
+                        **fb_kw)
                     pri = priority_lanes_for(fb, injects)
                     ctrl = (
                         {k: controllers[k] for k in rt.controller_ids}

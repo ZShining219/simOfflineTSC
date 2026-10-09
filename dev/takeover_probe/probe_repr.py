@@ -42,7 +42,9 @@ if str(_REPO_ROOT) not in sys.path:
 from dev.takeover_probe.probe import (  # noqa: E402
     build_controllers, build_world, _bind_all, DEFAULT_DQN_S1,
 )
-from dev.takeover_probe.dispatch_state import FeatureBuilder  # noqa: E402
+from dev.takeover_probe.dispatch_state import (  # noqa: E402
+    FeatureBuilder, fb_kwargs_from_meta,
+)
 from dev.takeover_probe.dispatch_model import (  # noqa: E402
     DispatchRouter, collate,
 )
@@ -90,13 +92,14 @@ def encode_snap(routers, snap):
     return out
 
 
-def collect_rollouts(args, routers):
+def collect_rollouts(args, routers, fb_kwargs):
     """Run the P2 cell grid under the attn policy; keep window snaps."""
     runtime = Path(args.runtime_dir or '/tmp/takeover_probe')
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
     world = None
     samples = []
+    dump_meta = {}
     try:
         for ev_idx, (edge, to_edge, per, dur, onset) in enumerate(
                 TEST_EVENTS):
@@ -120,7 +123,17 @@ def collect_rollouts(args, routers):
                 _bind_all(world, controllers, ranks,
                           needed=set(router.controller_ids))
                 fb = FeatureBuilder(
-                    world, injects, report_delay=args.report_delay)
+                    world, injects, report_delay=args.report_delay,
+                    **fb_kwargs)
+                if not dump_meta:
+                    dump_meta = {
+                        'feature_layout': fb.layout,
+                        'event_flag': fb.include_event_flag,
+                        'n_lanes': fb.n_lanes, 'n_edges': fb.n_edges,
+                        'lane_dim': fb.lane_dim, 'text_dim': fb.text_dim,
+                        'global_dim': fb.global_dim,
+                        'lanes': fb.lanes,
+                    }
                 ctrl = {k: controllers[k] for k in router.controller_ids}
                 _t, _r, windows = run_router_episode(
                     world, ctrl, fb, router, ranks,
@@ -154,7 +167,7 @@ def collect_rollouts(args, routers):
     finally:
         if world is not None:
             world.close()
-    return samples
+    return samples, dump_meta
 
 
 def probe_fit(X, y, groups, kind):
@@ -283,12 +296,19 @@ def main():
         qs = np.quantile(cong, [0.25, 0.5, 0.75])
         if extra_routers:
             from dev.takeover_probe.channel_ablate import (
-                unpack, N_KINDS, SCALARS)
-            n_lanes = (X_raw.shape[1] - N_KINDS - SCALARS - 11) // 5
+                dump_spec, unpack, N_KINDS, SCALARS)
+            if 'meta' in d.files:
+                spec = dump_spec(d)
+            else:   # legacy dump: flag layout, lane_dim=4 + lane indicator
+                n_lanes = (X_raw.shape[1] - N_KINDS - SCALARS - 11) // 5
+                spec = dict(layout='flag', n_lanes=n_lanes,
+                            n_edges=None, event_flag=True, lane_dim=4,
+                            text_dim=N_KINDS + n_lanes + SCALARS,
+                            global_dim=11)
             for nm, r in extra_routers.items():
                 zs = []
                 for row in X_raw:
-                    lns, txt, gl = unpack(row, n_lanes)
+                    lns, txt, gl = unpack(row, spec)
                     zs.append(encode_snap({nm: r}, {
                         'lanes': lns, 'text': txt, 'global': gl,
                         'event_lane_idx': []})[nm])
@@ -297,13 +317,16 @@ def main():
             print('re-encoded extras:', list(extra_routers))
     else:
         routers = {}
+        metas = {}
         for name, ck in [('attn', args.attn_ckpt),
                          ('selfattn', args.selfattn_ckpt),
                          ('concat', args.concat_ckpt)]:
-            routers[name], _ = DispatchRouter.load(ck)
+            routers[name], payload = DispatchRouter.load(ck)
+            metas[name] = payload.get('meta')
         routers.update(extra_routers)
 
-        samples = collect_rollouts(args, routers)
+        samples, dump_meta = collect_rollouts(
+            args, routers, fb_kwargs_from_meta(metas.get('attn')))
 
         stats = model_stats(routers, samples[0]['raw_snap'])
         print(json.dumps({'model_stats': stats}, indent=2))
@@ -327,7 +350,8 @@ def main():
             **{f'z_{n}': X_by[n] for n in X_by},
             raw=X_raw, y_cls=y_cls, y_impact=y_imp,
             ev_mask=ev_mask,
-            episodes=np.array(groups), cong=cong)
+            episodes=np.array(groups), cong=cong,
+            meta=json.dumps(dump_meta))
 
     g_imp = [g for i, g in enumerate(groups) if ev_mask[i]]
     metrics = {'n_samples': int(n_samples),

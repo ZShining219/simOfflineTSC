@@ -48,7 +48,8 @@ TRAIN_ONSETS = [300, 600, 900, 1200]
 
 
 def sample_injects(rng, allow_none_p=0.25, p_multi=0.0,
-                   periods=None, durs=None, onsets=None):
+                   periods=None, durs=None, onsets=None,
+                   p_throttle=0.0, throttle_speeds=(2.0, 5.0)):
     """Random surge schedule from the training grid; ~25% no-event.
 
     When an event exists the declared governance objective is drawn
@@ -67,6 +68,14 @@ def sample_injects(rng, allow_none_p=0.25, p_multi=0.0,
     obj = 'focus' if rng.random() < 0.5 else 'global'
     onset = int(onsets[rng.integers(len(onsets))])
     dur = int(durs[rng.integers(len(durs))])
+    if rng.random() < p_throttle:
+        # capacity-cut event (demand-side dual of surge): speed-cap the
+        # whole edge, connectivity preserved — a different physical
+        # mechanism, so 'kind' is a real semantic channel
+        spd = float(throttle_speeds[rng.integers(len(throttle_speeds))])
+        inj = parse_injects(
+            [f'throttle:{edge}:{onset}:{dur}:{spd}:{obj}'])[0]
+        return [inj]
     specs = [(f"surge:{edge}:{EDGE_TARGETS[edge]}:{onset}:{dur}:"
               f"{int(periods[rng.integers(len(periods))])}:"
               f"{obj}")]
@@ -90,7 +99,8 @@ def priority_lanes_for(fb, injects):
         return None
     idx = []
     for inj in focus:
-        idx += fb.edge_to_laneidx.get(inj['edge_from'], [])
+        edge = inj.get('edge_from') or inj.get('edge') or ''
+        idx += fb.edge_to_laneidx.get(edge, [])
     return [fb.lanes[i] for i in sorted(set(idx))] or None
 
 
@@ -122,11 +132,16 @@ def train(args):
         args.runtime_dir or '/tmp/takeover_probe'), out / 'logger',
         {'t_fixed': args.t_fixed, 't_min': args.t_min})
     ranks = list(range(len(world.intersection_ids)))
-    fb0 = FeatureBuilder(world, [], report_delay=args.report_delay)
+    fb0 = FeatureBuilder(
+        world, [], report_delay=args.report_delay, layout=args.layout,
+        include_event_flag=True if args.event_flag else None)
     dims = dict(
         lane_dim=fb0.lane_tokens(0.0).shape[1],
         text_dim=fb0.text_dim, global_dim=fb0.global_dim,
-    )
+        geom=fb0.model_geom())
+    if args.variant == 'attn':
+        print(f'layout={fb0.layout} flag={fb0.include_event_flag} '
+              f'lane_dim={dims["lane_dim"]} geom={dims["geom"]}')
     if args.init_ckpt:
         router, payload = DispatchRouter.load(args.init_ckpt)
         for cid in ctrl_ids:
@@ -170,7 +185,8 @@ def train(args):
                 injects = sample_injects(
                     rng, allow_none_p=args.p_none, p_multi=args.p_multi,
                     periods=args.periods, durs=args.durs,
-                    onsets=args.onsets)
+                    onsets=args.onsets, p_throttle=args.p_throttle,
+                    throttle_speeds=args.throttle_speeds)
                 sumo_seed = args.traffic_seed_base + ep
                 # objective contrast: replay the same seed+event under
                 # the *opposite* declared objective — identical physics,
@@ -193,7 +209,9 @@ def train(args):
             ranks = list(range(len(world.intersection_ids)))
             _bind_all(world, controllers, ranks, needed=set(ctrl_ids))
             fb = FeatureBuilder(
-                world, injects, report_delay=args.report_delay)
+                world, injects, report_delay=args.report_delay,
+                layout=args.layout,
+                include_event_flag=True if args.event_flag else None)
             eps = max(args.eps_end,
                       args.eps_start
                       - ep * (args.eps_start - args.eps_end)
@@ -220,7 +238,8 @@ def train(args):
             for w in windows:
                 sel[w['controller']] = sel.get(w['controller'], 0) + 1
             ev = {'episode': ep, 'sumo_seed': sumo_seed,
-                  'inject': (injects[0]['edge_from']
+                  'inject': ((injects[0].get('edge_from')
+                              or injects[0].get('edge'))
                              if injects else 'none'),
                   'objective': (injects[0].get('objective', 'global')
                                 if injects else 'none'),
@@ -236,6 +255,8 @@ def train(args):
     meta = dict(dims, d_model=args.d_model, scene=args.scene,
                 episodes=args.episodes,
                 residual_pool=args.residual_pool,
+                feature_layout=fb0.layout,
+                event_flag=fb0.include_event_flag,
                 dqn_s1=str(args.dqn_s1))
     router.save(out / f'router_{args.variant}.pt', meta=meta)
     print(f'saved {out}/router_{args.variant}.pt')
@@ -303,7 +324,18 @@ def main():
                    default='mean',
                    help='attn encoder only: residual traffic summary = '
                         'lane mean, or mean+max+std over physical '
-                        'features (queue/count/wait, no event flag)')
+                        'features (queue/count/wait)')
+    p.add_argument('--layout', choices=['identity', 'flag'],
+                   default='identity',
+                   help="featurization layout: 'identity' gives lane "
+                        "tokens an edge-id one-hot and encodes the "
+                        "report edge in the same space (structural "
+                        "binding, text is the only location source); "
+                        "'flag' reproduces the legacy event_flag layout")
+    p.add_argument('--event-flag', action='store_true',
+                   help='identity layout only: append the report-derived '
+                        'event flag after the lane identity dims '
+                        '(redundant-channel ablation arm)')
     p.add_argument('--episodes', type=int, default=40)
     p.add_argument('--controllers', default='dqn_s1,maxpressure')
     p.add_argument('--init-ckpt', default=None,
@@ -339,6 +371,14 @@ def main():
                    default=None, help='override TRAIN_DURS grid')
     p.add_argument('--onsets', type=lambda s: [int(x) for x in s.split(',')],
                    default=None, help='override TRAIN_ONSETS grid')
+    p.add_argument('--p-throttle', type=float, default=0.0,
+                   help='prob. the episode event is a throttle '
+                        '(capacity cut, connectivity preserved) instead '
+                        'of a surge (demand spike); mixed-kind training')
+    p.add_argument('--throttle-speeds',
+                   type=lambda s: [float(x) for x in s.split(',')],
+                   default=[2.0, 5.0],
+                   help='throttle max-speed grid (m/s)')
     p.add_argument('--p-none', type=float, default=0.25)
     p.add_argument('--p-multi', type=float, default=0.0,
                    help='prob. of adding a second concurrent surge event '

@@ -56,8 +56,32 @@ from dev.takeover_probe.dispatch_model import (  # noqa: E402
     ConcatEncoder,
 )
 
-ARMS = ['sga', 'attn', 'selfattn', 'concat']
+ARMS = ['sga', 'attn', 'selfattn', 'concat', 'mlp']
 ATN_ARMS = {'sga', 'attn'}        # arms whose w is a cross-attn map
+
+
+class FlatMLPEncoder(nn.Module):
+    """Strongest no-attention arm: full flat input -> MLP -> z.
+
+    Unlike concat (mean-pooled lanes), nothing is summarised before the
+    MLP sees it — the benchmark-local 'everything, no attention' arm.
+    """
+
+    def __init__(self, n_lanes, lane_dim, text_dim, global_dim,
+                 d_model=64):
+        super().__init__()
+        in_dim = n_lanes * lane_dim + text_dim + global_dim
+        self.mlp = nn.Sequential(
+            nn.Linear(in_dim, 4 * d_model), nn.ReLU(),
+            nn.Linear(4 * d_model, 2 * d_model), nn.ReLU(),
+            nn.Linear(2 * d_model, d_model), nn.ReLU())
+
+    def forward(self, lanes, text, glob):
+        z = self.mlp(torch.cat(
+            [lanes.flatten(1), text, glob], dim=-1))
+        w = torch.zeros(lanes.shape[0], lanes.shape[1],
+                        device=lanes.device)
+        return z, w
 
 
 def build_encoder(name, dims, geom):
@@ -73,6 +97,10 @@ def build_encoder(name, dims, geom):
     if name == 'selfattn':
         return SelfAttentionEncoder(
             dims['lane'], dims['text'], dims['glob'], d)
+    if name == 'mlp':
+        return FlatMLPEncoder(
+            dims['n_lanes'], dims['lane'], dims['text'],
+            dims['glob'], d)
     return ConcatEncoder(dims['lane'], dims['text'], dims['glob'], d)
 
 

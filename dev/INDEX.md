@@ -72,7 +72,8 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
   `dispatch_state.py`（车道/全局/事件文本特征化+播报延迟）、
   `dispatch_model.py`（Scene-Guided Attention / SelfAttention /
   Concat 三变体 DispatchRouter——对应任务书三方对比：场景引导注意力 /
-  自注意力Transformer / 无注意力基线）、
+  自注意力Transformer / 无注意力基线；attn 变体可选
+  `--residual-pool mms` 残差增强：mean+max+std 仅统计物理特征）、
   `router_runtime.py`（窗口化接管运行循环）、`train_router.py`（SMDP Double-DQN
   训练，支持目标条件化 reward + 配对课程 + aux 对齐衰减 + 多事件干扰注入）、
   `eval_router.py`（冻结评测 A/B/C/D+文本消融，`--extra NAME=CKPT` 扩臂）、
@@ -92,13 +93,46 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
   event_flag 与文本信道独立扰动，测绑定/Δz/决策翻转；
   免 SUMO 免重训）、`fork_probe.py`（诊断性分叉：同 seed 重放 +
   指定窗口强制控制器，测关键窗臂选的反事实代价；
-  `run_router_episode` 加 `force_choices` 钩子）。训练课程支持
+  `run_router_episode` 加 `force_choices` 钩子）。
+  `collect_scene_dump.py`（场景蒸馏数据集采集：A 自然匹配 /
+  B 失配播报 / C 纯播报 / D 无播报四相，全 8 边覆盖，
+  每窗存 lanes/text/global + 场景标签）、`scene_distill.py`
+  （表征层蒸馏基准：各编码臂同输入同 z 维同场景目标训练产 z，
+  场景保真探针 + 冻结 z 线性探针 + episode 级切分 +
+  未见播报边 held-out 泛化，与调度性能解耦的第一级评测；
+  编码臂含 sga 复合模块 / attn / selfattn / concat / flat-mlp）。
+  训练课程支持
   `--periods/--durs/--onsets` 网格覆盖（重度偏向校准用），
   评测支持 `--events` 追加未见事件格
   为场景引导注意力调度
   Pilot 配套件。产物在
   `output_data/dev_takeover_probe/`（不入库）；
   转播侧 `DispatchController` 适配器在 `tools/sumo_live_broadcast/controllers.py`。
+- `dev/hitl_live/`：HITL 拓展实验件（设计依据 `docs/plan_hitl_live.md`）。
+  `package.py` 为会话打包器：把转播录制会话（`--record` 产出的
+  transitions/proposals/interventions JSONL）打包成 Plan 1 兼容
+  `trajectory/` 分片（复用 `EpisodeTrajectoryWriter`）+ Plan 2 风格
+  `source_shards.jsonl` + `datasets/<network>/<stage>/manifest.json`，
+  语义哈希复用 `dataset._scene_semantics` 同口径计算；产物可被
+  `OfflineTrajectoryDataset`/`validate_offline_dataset` 直接消费
+  （自检内嵌于打包流程）。变长 episode、HITL 溯源进
+  `behavior_mode`/`hitl/labels.jsonl` 副产物，不伪造正式 run 元数据。
+  用法：`python dev/hitl_live/package.py --session <session_dir>
+  [--session <session_dir>...] --out <archive_dir> --network <name>
+  [--seed N] [--strict]`（多会话合并：episode 全局重编号、global_step
+  连续化、归属记 labels/source_shards；另发 `expert_pool_manifest.json`
+  供 sequential 专家腿消费）。产物 `output_data/hitl_archives/`（不入库）。
+- `dev/hitl_live/paired_probe.py`：三臂（student/hitl/expert）同 seed 配对
+  运行时探针——第 0 层"专家资格体检"工具。
+- `dev/hitl_live/make_figs.py`：probe 佐证图（排队轨迹+gate 标记/终端三指标/
+  事件窗放大/成本-效果）。
+- `dev/hitl_live/build_pilot_plan.py`：C 通道训练臂对照 plan 生成器——
+  同一 ep0 checkpoint/seed 出 HITL_C0/HITL_EXP/HITL_CTRL/HITL_DEMO 四臂
+  （差异仅 `expert_pool_manifest`/`expert_ratio`）；产物用
+  `sequential_run.py run-child` 逐臂执行（探索性 pilot，不入台账）。
+- `dev/hitl_live/curve_figs.py`：训练期佐证图——自主冻结 eval 学习曲线
+  （vs 决策数）、AULC、对 C0 逐点 delta、专家腿消耗量（sampling_windows
+  账本）。
 
 ## 已裁决归档（2026-10-07 Z 裁）
 

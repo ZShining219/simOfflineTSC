@@ -1,0 +1,8 @@
+{
+ "plan_id": "hz4x4_surge_pair_v1",
+ "plan_sha256": "fcb0b1ff0097fede418be2511e04aee9585ad531f029b873451b3f2a537e6133",
+ "source_plan": "configs/events/plans/hz4x4_surge_src_v1.yml",
+ "pairs": 100,
+ "per_episode_seeds": 9000,
+ "episodes": 200
+}

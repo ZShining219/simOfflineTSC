@@ -45,7 +45,8 @@ def run_router_episode(world, controllers, fb, router, ranks,
                        injects=None, interval=10, window_decisions=12,
                        episode_seconds=3600, epsilon=0.0, rng=None,
                        fixed_controller=None, text_override=None,
-                       priority_lanes=None, collect=True):
+                       priority_lanes=None, collect=True,
+                       force_choices=None):
     """Run one episode under router (or fixed) control.
 
     Returns (transitions, records, windows):
@@ -94,6 +95,12 @@ def run_router_episode(world, controllers, fb, router, ranks,
                     arm_idx, qvals, attn_w = router.act(
                         batch, epsilon=epsilon, rng=rng)
                 new_active = ctrl_ids[arm_idx]
+                if force_choices and now in force_choices:
+                    # diagnostic fork: override the applied controller for
+                    # this window while keeping the router's logged
+                    # q_values for comparison
+                    new_active = force_choices[now]
+                    arm_idx = ctrl_ids.index(new_active)
                 switched = prev_arm is not None and new_active != prev_arm
                 _, sentence = fb.event_fields(now)
                 window_open = {

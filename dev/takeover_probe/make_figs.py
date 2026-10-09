@@ -14,6 +14,9 @@ and emits PNGs into ``output_data/dev_takeover_probe/figs/``:
     fig9_throughput_curves.png  cumulative throughput vs time, 4 cells
     fig10_eventlane_curves.png  event-edge max lane queue vs time, surge cells
     fig11_controller_timeline.png  per-window controller choice, 3 router arms
+    fig12_repr_probes.png      representation probes per held-out episode:
+                               congestion-class acc + event-impact MAE,
+                               3 encoders + raw-input baseline
 
 Curves are seed-mean +- sample SD over the 3 held-out seeds; fig11 shows
 seed s0 rows with mean switches annotated.
@@ -35,13 +38,16 @@ ARM_LABEL = {'attn': 'Scene-guided', 'selfattn': 'Self-attn',
              'concat': 'Concat', 'fixed_dqn_s1': 'Fixed DQN',
              'fixed_mp': 'Fixed MP', 'attn_no_text': 'No text',
              'attn_wrong_loc': 'Wrong loc',
+             'attn_mms': 'SGA-mms',
              'router_attn': 'Scene-guided',
-             'router_selfattn': 'Self-attn', 'router_concat': 'Concat'}
+             'router_selfattn': 'Self-attn', 'router_concat': 'Concat',
+             'router_attn_mms': 'SGA-mms'}
 COLORS = {'attn': '#d62728', 'selfattn': '#1f77b4', 'concat': '#7f7f7f',
           'fixed_dqn_s1': '#2ca02c', 'fixed_mp': '#9467bd',
           'attn_no_text': '#8c564b', 'attn_wrong_loc': '#e377c2',
+          'attn_mms': '#ff7f0e',
           'router_attn': '#d62728', 'router_selfattn': '#1f77b4',
-          'router_concat': '#7f7f7f'}
+          'router_concat': '#7f7f7f', 'router_attn_mms': '#ff7f0e'}
 
 
 def _mpl():
@@ -350,6 +356,63 @@ def fig11(root, out, plt):
     plt.close(fig)
 
 
+def fig12(root, out, plt):
+    """Representation probes (probe_repr/metrics.json): per-held-out-
+    episode paired lines — congestion-class accuracy and event-impact
+    MAE of linear probes fit on each encoder's frozen z."""
+    p = root / 'probe_repr' / 'metrics.json'
+    if not p.exists():
+        return
+    m = json.loads(p.read_text())
+    fig, axes = plt.subplots(1, 2, figsize=(11, 3.8))
+    arm_names = list(m['arms'])
+    series = [(a, ARM_LABEL.get(a, a), COLORS.get(a, '#17becf'))
+              for a in arm_names]
+    raw = m.get('raw_baseline') or {}
+    for ax, key, lab, yl in (
+            (axes[0], 'congestion_clf', 'acc',
+             'congestion-level probe acc (higher better)'),
+            (axes[1], 'impact_reg', 'mae',
+             'event-impact probe MAE (lower better)')):
+        all_groups = []
+        for a in arm_names:
+            folds = m['arms'][a][key].get('folds') or []
+            for f in folds:
+                if f['group'] not in all_groups:
+                    all_groups.append(f['group'])
+        x = np.arange(len(all_groups))
+        for a, lbl, c in series:
+            vals = {f['group']: f[lab] if lab in f else f.get('acc')
+                    for f in m['arms'][a][key].get('folds', [])}
+            ys = [vals.get(g, np.nan) for g in all_groups]
+            ax.plot(x, ys, 'o-', color=c, lw=1.6, ms=4,
+                    label=lbl, alpha=0.9)
+            ax.axhline(m['arms'][a][key][lab if lab in
+                       m['arms'][a][key] else 'acc'],
+                       color=c, ls=':', lw=1, alpha=0.5)
+        rv = raw.get(key, {})
+        rfolds = {f['group']: f.get(lab, f.get('acc'))
+                  for f in rv.get('folds', [])}
+        if rfolds:
+            ax.plot(x, [rfolds.get(g, np.nan) for g in all_groups],
+                    's--', color='#222222', lw=1.2, ms=3.5,
+                    label='raw input', alpha=0.7)
+        ax.set_xticks(x)
+        ax.set_xticklabels(all_groups, rotation=45, ha='right',
+                           fontsize=7)
+        ax.set_ylabel(yl.split('(')[0].strip(), fontsize=8)
+        ax.set_title(yl, fontsize=9)
+        ax.grid(alpha=0.25)
+    axes[0].legend(fontsize=8, loc='lower left')
+    fig.suptitle('Frozen-representation probes, leave-one-episode-out '
+                 '(each point = that episode held out; dotted = pooled '
+                 'score)', y=1.02)
+    fig.tight_layout()
+    fig.savefig(out / 'fig12_repr_probes.png', dpi=160,
+                bbox_inches='tight')
+    plt.close(fig)
+
+
 def _lane_edge(lane):
     return lane.rsplit('_', 1)[0]
 
@@ -560,6 +623,7 @@ def main():
     fig9(root, out, plt)
     fig10(root, out, plt)
     fig11(root, out, plt)
+    fig12(root, out, plt)
     print('wrote', out)
     print('binding stats:', json.dumps(stats))
 

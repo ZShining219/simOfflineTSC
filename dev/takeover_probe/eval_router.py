@@ -99,6 +99,9 @@ def main():
                    help='register snapshot controller NAME=CKPT_PATH '
                         '(repeatable; needed when a router arm references '
                         'a non-builtin controller)')
+    p.add_argument('--events', action='append', default=[],
+                   help='extra surge cell FROM:TO:PERIOD:DUR:ONSET '
+                        '(appended after built-in TEST_EVENTS)')
     p.add_argument('--test-seed-base', type=int, default=5000)
     p.add_argument('--n-seeds', type=int, default=3)
     p.add_argument('--interval', type=int, default=10)
@@ -127,9 +130,13 @@ def main():
     rows = []
     world = None
     runtime = Path(args.runtime_dir or '/tmp/takeover_probe')
+    test_events = list(TEST_EVENTS)
+    for spec in args.events:
+        fr, to, per, dur, on = spec.split(':')
+        test_events.append((fr, to, float(per), float(dur), float(on)))
     try:
         for ev_idx, (edge, to_edge, per, dur, onset) in enumerate(
-                TEST_EVENTS):
+                test_events):
             spec = (
                 f'surge:{edge}:{to_edge}:{onset}:{dur}:{per}'
                 if edge else None)

@@ -84,7 +84,17 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
   训练曲线、排队轨迹、注意力热力图，以及 held-out 逐时间对比曲线
   （queue/throughput/事件车道/控制器时间线 fig8–fig11），PNG 单出）、
   `collect_attn_trace.py`（冻结 checkpoint 注意力权重轨迹采集，
-  供 fig7 热力图；windows 日志含 `attn_weights`+`lane_names`）
+  供 fig7 热力图；windows 日志含 `attn_weights`+`lane_names`）、
+  `probe_repr.py`（表征层探针：同 rollout 下三冻结编码器配对取 z，
+  测任务书主指标——事件影响预测 / 拥堵等级分类 / 压缩保持 /
+  参数量与延迟，留一 episode CV）、
+  `channel_ablate.py`（信道归因：基于 z_dump 重建 snap，
+  event_flag 与文本信道独立扰动，测绑定/Δz/决策翻转；
+  免 SUMO 免重训）、`fork_probe.py`（诊断性分叉：同 seed 重放 +
+  指定窗口强制控制器，测关键窗臂选的反事实代价；
+  `run_router_episode` 加 `force_choices` 钩子）。训练课程支持
+  `--periods/--durs/--onsets` 网格覆盖（重度偏向校准用），
+  评测支持 `--events` 追加未见事件格
   为场景引导注意力调度
   Pilot 配套件。产物在
   `output_data/dev_takeover_probe/`（不入库）；

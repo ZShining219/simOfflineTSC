@@ -47,7 +47,8 @@ TRAIN_DURS = [300, 600, 900]
 TRAIN_ONSETS = [300, 600, 900, 1200]
 
 
-def sample_injects(rng, allow_none_p=0.25, p_multi=0.0):
+def sample_injects(rng, allow_none_p=0.25, p_multi=0.0,
+                   periods=None, durs=None, onsets=None):
     """Random surge schedule from the training grid; ~25% no-event.
 
     When an event exists the declared governance objective is drawn
@@ -57,14 +58,17 @@ def sample_injects(rng, allow_none_p=0.25, p_multi=0.0):
     The objective is invisible to the traffic state — the router can
     only read it off the broadcast text.
     """
+    periods = periods or TRAIN_PERIODS
+    durs = durs or TRAIN_DURS
+    onsets = onsets or TRAIN_ONSETS
     if rng.random() < allow_none_p:
         return []
     edge = TRAIN_EDGES[int(rng.integers(len(TRAIN_EDGES)))]
     obj = 'focus' if rng.random() < 0.5 else 'global'
-    onset = int(TRAIN_ONSETS[rng.integers(len(TRAIN_ONSETS))])
-    dur = int(TRAIN_DURS[rng.integers(len(TRAIN_DURS))])
+    onset = int(onsets[rng.integers(len(onsets))])
+    dur = int(durs[rng.integers(len(durs))])
     specs = [(f"surge:{edge}:{EDGE_TARGETS[edge]}:{onset}:{dur}:"
-              f"{int(TRAIN_PERIODS[rng.integers(len(TRAIN_PERIODS))])}:"
+              f"{int(periods[rng.integers(len(periods))])}:"
               f"{obj}")]
     if rng.random() < p_multi:
         others = [e for e in TRAIN_EDGES if e != edge]
@@ -74,7 +78,7 @@ def sample_injects(rng, allow_none_p=0.25, p_multi=0.0):
                 else ('focus' if rng.random() < 0.3 else 'global'))
         specs.append(
             f"surge:{edge2}:{EDGE_TARGETS[edge2]}:{onset2}:{dur}:"
-            f"{int(TRAIN_PERIODS[rng.integers(len(TRAIN_PERIODS))])}:"
+            f"{int(periods[rng.integers(len(periods))])}:"
             f"{obj2}")
     return parse_injects(specs)
 
@@ -144,10 +148,11 @@ def train(args):
     else:
         router = DispatchRouter(
             **dims, controller_ids=ctrl_ids, d_model=args.d_model,
-            variant=args.variant)
+            variant=args.variant, residual_pool=args.residual_pool)
     target = DispatchRouter(
         **dims, controller_ids=list(router.controller_ids),
-        d_model=args.d_model, variant=args.variant)
+        d_model=args.d_model, variant=args.variant,
+        residual_pool=args.residual_pool)
     target.load_state_dict(router.state_dict())
     target.eval()
     opt = torch.optim.Adam(
@@ -163,7 +168,9 @@ def train(args):
                 pending_pair = None
             else:
                 injects = sample_injects(
-                    rng, allow_none_p=args.p_none, p_multi=args.p_multi)
+                    rng, allow_none_p=args.p_none, p_multi=args.p_multi,
+                    periods=args.periods, durs=args.durs,
+                    onsets=args.onsets)
                 sumo_seed = args.traffic_seed_base + ep
                 # objective contrast: replay the same seed+event under
                 # the *opposite* declared objective — identical physics,
@@ -228,6 +235,7 @@ def train(args):
             print(json.dumps(ev, ensure_ascii=False))
     meta = dict(dims, d_model=args.d_model, scene=args.scene,
                 episodes=args.episodes,
+                residual_pool=args.residual_pool,
                 dqn_s1=str(args.dqn_s1))
     router.save(out / f'router_{args.variant}.pt', meta=meta)
     print(f'saved {out}/router_{args.variant}.pt')
@@ -291,6 +299,11 @@ def main():
     p.add_argument('--scene', default='S2')
     p.add_argument('--variant', choices=['attn', 'selfattn', 'concat'],
                    default='attn')
+    p.add_argument('--residual-pool', choices=['mean', 'mms'],
+                   default='mean',
+                   help='attn encoder only: residual traffic summary = '
+                        'lane mean, or mean+max+std over physical '
+                        'features (queue/count/wait, no event flag)')
     p.add_argument('--episodes', type=int, default=40)
     p.add_argument('--controllers', default='dqn_s1,maxpressure')
     p.add_argument('--init-ckpt', default=None,
@@ -318,6 +331,14 @@ def main():
     p.add_argument('--aux-decay-frac', type=float, default=0.0,
                    help='if >0, linearly decay aux weight to zero over the '
                         'first this-fraction of episodes')
+    p.add_argument('--periods', type=lambda s: [int(x) for x in s.split(',')],
+                   default=None,
+                   help='override TRAIN_PERIODS grid, e.g. "2" biases '
+                        'sampling toward severe surges (calibration runs)')
+    p.add_argument('--durs', type=lambda s: [int(x) for x in s.split(',')],
+                   default=None, help='override TRAIN_DURS grid')
+    p.add_argument('--onsets', type=lambda s: [int(x) for x in s.split(',')],
+                   default=None, help='override TRAIN_ONSETS grid')
     p.add_argument('--p-none', type=float, default=0.25)
     p.add_argument('--p-multi', type=float, default=0.0,
                    help='prob. of adding a second concurrent surge event '

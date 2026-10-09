@@ -26,17 +26,26 @@ import torch.nn.functional as F
 
 
 class SceneAttention(nn.Module):
-    """scene text (query) attends over lane tokens (key/value)."""
+    """scene text (query) attends over lane tokens (key/value).
 
-    def __init__(self, lane_dim, text_dim, global_dim, d_model=64, heads=4):
+    residual_pool='mms' widens the raw-traffic bypass from a lane-mean
+    to mean+max+std over the physical features only (queue, count,
+    wait) — the report-derived event flag is not a traffic statistic
+    and stays out of the global summary.
+    """
+
+    def __init__(self, lane_dim, text_dim, global_dim, d_model=64,
+                 heads=4, residual_pool='mean'):
         super().__init__()
         self.lane_proj = nn.Linear(lane_dim, d_model)
         self.text_proj = nn.Linear(text_dim, d_model)
         self.attn = nn.MultiheadAttention(
             d_model, heads, batch_first=True)
         # residual path: raw traffic summary bypasses attention
-        self.residual = nn.Linear(lane_dim * 0 + global_dim + lane_dim,
-                                  d_model)
+        self.residual_pool = residual_pool
+        n_pool = (3 * (lane_dim - 1) if residual_pool == 'mms'
+                  else lane_dim)
+        self.residual = nn.Linear(global_dim + n_pool, d_model)
         self.fuse = nn.Sequential(
             nn.Linear(d_model * 2, d_model), nn.ReLU(),
             nn.Linear(d_model, d_model), nn.ReLU(),
@@ -49,7 +58,12 @@ class SceneAttention(nn.Module):
         q = self.text_proj(text).unsqueeze(1)         # (B,1,d)
         ctx, w = self.attn(q, kv, kv, need_weights=True)
         ctx = ctx.squeeze(1)                          # (B,d)
-        pooled = lanes.mean(dim=1)                    # (B,F)
+        if self.residual_pool == 'mms':
+            phys = lanes[:, :, :-1]                   # drop event_flag
+            pooled = torch.cat([phys.mean(dim=1), phys.amax(dim=1),
+                                phys.std(dim=1)], dim=-1)
+        else:
+            pooled = lanes.mean(dim=1)                # (B,F)
         raw = self.residual(torch.cat([glob, pooled], dim=-1))
         z = self.fuse(torch.cat([ctx, raw], dim=-1))
         return z, w.squeeze(1)
@@ -109,13 +123,14 @@ class DispatchRouter(nn.Module):
     """Scene encoder + per-controller Q heads (SMDP action = controller)."""
 
     def __init__(self, lane_dim, text_dim, global_dim, controller_ids,
-                 d_model=64, variant='attn'):
+                 d_model=64, variant='attn', residual_pool='mean'):
         super().__init__()
         self.variant = variant
         self.controller_ids = list(controller_ids)
         if variant == 'attn':
             self.encoder = SceneAttention(
-                lane_dim, text_dim, global_dim, d_model)
+                lane_dim, text_dim, global_dim, d_model,
+                residual_pool=residual_pool)
         elif variant == 'selfattn':
             self.encoder = SelfAttentionEncoder(
                 lane_dim, text_dim, global_dim, d_model)
@@ -197,6 +212,7 @@ class DispatchRouter(nn.Module):
             meta['lane_dim'], meta['text_dim'], meta['global_dim'],
             payload['controller_ids'], d_model=meta.get('d_model', 64),
             variant=payload['variant'],
+            residual_pool=meta.get('residual_pool', 'mean'),
         )
         router.load_state_dict(payload['state_dict'])
         router.eval()

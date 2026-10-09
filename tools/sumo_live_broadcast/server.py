@@ -126,6 +126,7 @@ class _Handler(BaseHTTPRequestHandler):
                 self.engine.command(
                     'resolve_decision', phase=payload.get('phase'),
                     junction=payload.get('junction'),
+                    choices=payload.get('choices'),
                 )
             elif op == 'reset':
                 self.engine.reset()

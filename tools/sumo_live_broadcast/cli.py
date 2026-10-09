@@ -239,6 +239,44 @@ def build_parser():
              'DIR/<session_id>/',
     )
     parser.add_argument(
+        '--expert', default=None, metavar='NAME',
+        help='Controller id for the HITL expert seat (e.g. maxpressure); '
+             'answers only when the query gate fires. '
+             "'human' seats the operator: gate hits raise an awaiting "
+             'banner answered (or timed-out) by a real person',
+    )
+    parser.add_argument(
+        '--hitl-human-timeout', type=float, default=30.0,
+        help='Human expert seat: seconds the sim waits for an answer before '
+             'resolving to silence (query stays billed; default 30)',
+    )
+    parser.add_argument(
+        '--hitl-gate', default='off',
+        choices=['off', 'periodic', 'on_demand'],
+        help='Expert-query trigger mode (default: off)',
+    )
+    parser.add_argument(
+        '--hitl-period', type=int, default=10,
+        help='periodic gate: query every N eligible decisions (default 10)',
+    )
+    parser.add_argument(
+        '--hitl-queue-threshold', type=float, default=None,
+        help='on_demand gate: fire when junction incoming queue >= X',
+    )
+    parser.add_argument(
+        '--hitl-queue-growth', type=float, default=None,
+        help='on_demand gate: fire when queue grows by X vs last decision',
+    )
+    parser.add_argument(
+        '--hitl-budget', type=int, default=36,
+        help='Expert queries per episode; spec formula B=floor(0.1*N) with '
+             'N=horizon/action_interval (36 for T=3600, 12 for T=1200)',
+    )
+    parser.add_argument(
+        '--hitl-cooldown', type=int, default=3,
+        help='Min decision ticks between queries (default 3)',
+    )
+    parser.add_argument(
         '--t-fixed', type=int, default=None,
         help='FixedTime t_fixed override (default: 30)',
     )
@@ -274,6 +312,18 @@ def main(argv=None):
             model_params[param_key] = value
 
     scene_configs = _build_scene_configs(args)
+    gate = None
+    if args.hitl_gate != 'off':
+        from .gate import HitlGate
+        gate = HitlGate(
+            mode=args.hitl_gate, period=args.hitl_period,
+            queue_threshold=args.hitl_queue_threshold,
+            queue_growth=args.hitl_queue_growth,
+            budget=args.hitl_budget, cooldown=args.hitl_cooldown,
+        )
+        if not args.expert:
+            print('警告: --hitl-gate 已开启但未指定 --expert，'
+                  '专家席为空，触发不会产生答案')
     recorder = None
     if args.record:
         from .recorder import HitlRecorder
@@ -288,6 +338,12 @@ def main(argv=None):
                 'sumo_seed': args.sumo_seed,
                 'controllers': sorted(controllers),
                 'inject_specs': list(args.inject),
+                'expert_id': (
+                    'human' if args.expert == 'human' else args.expert),
+                'gate': gate.config() if gate else None,
+                'human_timeout': (
+                    float(args.hitl_human_timeout)
+                    if args.expert == 'human' else None),
             },
         )
     engine = BroadcastEngine(
@@ -302,6 +358,9 @@ def main(argv=None):
         scene_configs=scene_configs,
         injects=list(args.inject),
         recorder=recorder,
+        expert_id=('manual' if args.expert == 'human' else args.expert),
+        gate=gate,
+        human_timeout=args.hitl_human_timeout,
     )
     scene_key = str(args.scene).upper()
     if scene_key in scene_configs:

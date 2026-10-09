@@ -292,6 +292,7 @@ function updateSidebar(f) {
       ? `控制器 ${f.controller.label} 已建议 ${n} 个路口（当前路口 P${mine ?? '-'}）；点击相位卡可单独改选，应用并继续后生效`
       : `控制器 ${f.controller.label} 建议 P${mine ?? '-'}，确认后生效`;
   } else box.classList.remove('show');
+  updateExpertBar(f);
   const m = document.getElementById('metrics');
   m.innerHTML = [['排队车辆', f.queue.toFixed(0)], ['累计通过', f.throughput],
                  ['在网车辆', f.vehicles_total], ['停车(<0.1m/s)', f.halting]]
@@ -307,6 +308,48 @@ function updateSidebar(f) {
   if (document.getElementById('waitChk').checked !== f.wait_enabled)
     document.getElementById('waitChk').checked = f.wait_enabled;
   fmtHistory(f);
+}
+
+// ---------- human expert banner ----------
+// Local answers keyed by rank, reset whenever a new request opens.
+let expertChoices = {}, expertReqKey = null;
+const REASON_CN = {periodic: '周期触发', threshold: '排队超限',
+                   growth: '排队激增', cooldown_hold: '冷却中'};
+function updateExpertBar(f) {
+  const bar = document.getElementById('expertBar');
+  const req = f.expert_request;
+  if (!req) { bar.classList.remove('show'); expertReqKey = null; return; }
+  const key = f.decision_index;
+  if (expertReqKey !== key) { expertReqKey = key; expertChoices = {}; }
+  bar.classList.add('show');
+  document.getElementById('expertTimer').textContent =
+    ` ${req.deadline_in.toFixed(0)}s`;
+  const rows = document.getElementById('expertRows');
+  rows.innerHTML = '';
+  req.ranks.forEach(r => {
+    const row = document.createElement('div'); row.className = 'expertRow';
+    const why = REASON_CN[r.reason] || r.reason;
+    const prop = r.student === null || r.student === undefined
+      ? '—' : `P${r.student}`;
+    row.innerHTML = `<span class="jname">${r.junction}</span>` +
+      `<span class="why">${why} · 排队 ${r.queue.toFixed(0)}</span>` +
+      `<span class="propP">学生建议 ${prop}</span>`;
+    const holder = document.createElement('span');
+    (PANELS[r.junction] && PANELS[r.junction].phases || []).forEach(p => {
+      const b = document.createElement('button');
+      b.className = 'phaseBtn' +
+        (expertChoices[r.rank] === p.index ? ' sel' : '');
+      b.textContent = 'P' + p.index;
+      b.onclick = () => {
+        if (expertChoices[r.rank] === p.index) delete expertChoices[r.rank];
+        else expertChoices[r.rank] = p.index;
+        updateExpertBar(lastFrame);
+      };
+      holder.appendChild(b);
+    });
+    row.appendChild(holder);
+    rows.appendChild(row);
+  });
 }
 
 // ---------- session lifecycle UI ----------
@@ -413,6 +456,10 @@ document.getElementById('controllerSelect').onchange = e => post('switch', {cont
 document.getElementById('interSel').onchange = e => setFocus(e.target.value);
 document.getElementById('releaseBtn').onclick = () => post('release', {junction: INTER_ID});
 document.getElementById('applyBtn').onclick = () => post('resolve', {});
+document.getElementById('expertApply').onclick = () =>
+  post('resolve', {choices: expertChoices});
+document.getElementById('expertSkip').onclick = () =>
+  post('resolve', {choices: {}});
 window.addEventListener('resize', () => { if (renderer) renderer.resize(); });
 
 // ---------- boot ----------

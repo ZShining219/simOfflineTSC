@@ -21,6 +21,13 @@ class ReplayDiagnostics:
         self.sampling_windows = []
         self.offline_samples_by_behavior_seed = {}
         self.offline_samples_by_episode = {}
+        self.expert_samples_by_episode = {}
+        self.reward_aux_stats = {
+            'count': 0, 'fallback_count': 0,
+            'z_sum': 0.0, 'h_sum': 0.0, 'f_hat_sum': 0.0,
+            'f_hat_count': 0, 'r_base_sum': 0.0,
+            'z_min': None, 'z_max': None,
+        }
 
     @staticmethod
     def _increment(mapping, key, amount=1):
@@ -30,6 +37,21 @@ class ReplayDiagnostics:
         self._increment(
             self.transitions_written_by_scene, metadata.source_network
         )
+        aux = getattr(metadata, 'reward_aux', None)
+        if aux:
+            s = self.reward_aux_stats
+            s['count'] += 1
+            s['r_base_sum'] += float(aux.get('r_base', 0.0))
+            s['h_sum'] += float(aux.get('h', 0.0))
+            z = float(aux.get('z', 0.0))
+            s['z_sum'] += z
+            s['z_min'] = z if s['z_min'] is None else min(s['z_min'], z)
+            s['z_max'] = z if s['z_max'] is None else max(s['z_max'], z)
+            if aux.get('f_hat') is not None:
+                s['f_hat_sum'] += float(aux['f_hat'])
+                s['f_hat_count'] += 1
+            if aux.get('fallback'):
+                s['fallback_count'] += 1
 
     def record_update(self, update, gradient_updates, replay_composition=None):
         for source in update['sample_sources']:
@@ -40,17 +62,22 @@ class ReplayDiagnostics:
             self._increment(self.offline_samples_by_behavior_seed, str(int(seed)))
         for episode in update.get('offline_episode_ids', []):
             self._increment(self.offline_samples_by_episode, str(int(episode)))
+        for episode in update.get('expert_episode_ids', []):
+            self._increment(self.expert_samples_by_episode, str(int(episode)))
         self.sample_ages.extend(int(age) for age in update['sample_ages'])
         if replay_composition is not None:
             sample_counts = {}
             for source in update['sample_sources']:
                 self._increment(sample_counts, source)
             offline_counts = {}
+            expert_counts = {}
             for source, kind in zip(
                 update['sample_sources'], update.get('sample_source_kinds', ()),
             ):
                 if kind == 'offline':
                     self._increment(offline_counts, source)
+                elif kind == 'expert':
+                    self._increment(expert_counts, source)
             self.sampling_windows.append({
                 'gradient_updates': int(gradient_updates),
                 'replay_size': int(replay_composition['size']),
@@ -61,20 +88,42 @@ class ReplayDiagnostics:
                 'sample_size': len(update['sample_sources']),
                 'online_count': int(update.get('online_count', len(update['sample_sources']))),
                 'offline_count': int(update.get('offline_count', 0)),
+                'expert_count': int(update.get('expert_count', 0)),
                 'requested_offline_ratio': update.get('requested_offline_ratio'),
                 'actual_offline_ratio': update.get('actual_offline_ratio', 0.0),
+                'requested_expert_ratio': update.get('requested_expert_ratio'),
+                'actual_expert_ratio': update.get('actual_expert_ratio', 0.0),
                 'offline_sample_count_by_scene': offline_counts,
+                'expert_sample_count_by_scene': expert_counts,
                 'loss_online': update.get('loss_online'),
                 'loss_offline': update.get('loss_offline'),
+                'loss_expert': update.get('loss_expert'),
                 'loss_total': update.get('loss'),
                 'online_stability': update.get('online_stability'),
                 'offline_stability': update.get('offline_stability'),
+                'expert_stability': update.get('expert_stability'),
             })
         if self.trace_samples or gradient_updates % self.sparse_interval == 0:
             self.full_batches.append({
                 'gradient_updates': int(gradient_updates),
                 'transition_ids': list(update['sample_transition_ids']),
             })
+
+    def _reward_aux_summary(self):
+        s = self.reward_aux_stats
+        if not s['count']:
+            return None
+        return {
+            'count': s['count'],
+            'fallback_count': s['fallback_count'],
+            'r_base_mean': s['r_base_sum'] / s['count'],
+            'h_mean': s['h_sum'] / s['count'],
+            'f_hat_mean': (
+                None if not s['f_hat_count']
+                else s['f_hat_sum'] / s['f_hat_count']),
+            'z_mean': s['z_sum'] / s['count'],
+            'z_min': s['z_min'], 'z_max': s['z_max'],
+        }
 
     def _record_replacement_thresholds(self, composition, current_network,
                                        global_step, global_episode):
@@ -121,6 +170,7 @@ class ReplayDiagnostics:
                 self.offline_samples_by_behavior_seed
             ),
             'offline_samples_by_episode': dict(self.offline_samples_by_episode),
+            'expert_samples_by_episode': dict(self.expert_samples_by_episode),
             'current_sample_fraction': (
                 0.0 if not total_samples else current_samples / total_samples
             ),
@@ -138,6 +188,7 @@ class ReplayDiagnostics:
             'sample_age_p95': None if not len(ages) else float(np.percentile(ages, 95)),
             'oldest_written_global_step': min(written_steps) if written_steps else None,
             'newest_written_global_step': max(written_steps) if written_steps else None,
+            'reward_aux': self._reward_aux_summary(),
             'gradient_updates': agent.counters.gradient_updates,
             'target_updates': agent.counters.target_updates,
             'replacement_thresholds': dict(self.thresholds),
@@ -167,6 +218,19 @@ class ReplayDiagnostics:
                 'historical_unique_samples_used': (
                     0 if agent.historical_sampler is None
                     else len(agent.historical_sampler.reuse_counts)
+                ),
+                'requested_expert_ratio': getattr(agent, 'expert_ratio', 0.0),
+                'expert_pool_manifest': (
+                    None if getattr(agent, 'expert_sampler', None) is None
+                    else agent.expert_sampler.manifest
+                ),
+                'expert_sampler_sample_count': (
+                    0 if getattr(agent, 'expert_sampler', None) is None
+                    else agent.expert_sampler.sample_count
+                ),
+                'expert_unique_samples_used': (
+                    0 if getattr(agent, 'expert_sampler', None) is None
+                    else len(agent.expert_sampler.reuse_counts)
                 ),
             })
             archive_dir = os.path.join(os.path.dirname(self.output_dir), 'archive')
@@ -204,6 +268,8 @@ class ReplayDiagnostics:
                 self.offline_samples_by_behavior_seed
             ),
             'offline_samples_by_episode': dict(self.offline_samples_by_episode),
+            'expert_samples_by_episode': dict(self.expert_samples_by_episode),
+            'reward_aux_stats': dict(self.reward_aux_stats),
             'sample_ages': list(self.sample_ages),
             'thresholds': dict(self.thresholds),
             'previous_historical_ratio': self.previous_historical_ratio,
@@ -223,6 +289,12 @@ class ReplayDiagnostics:
         self.offline_samples_by_episode = dict(
             state.get('offline_samples_by_episode', {})
         )
+        self.expert_samples_by_episode = dict(
+            state.get('expert_samples_by_episode', {})
+        )
+        saved_aux = state.get('reward_aux_stats')
+        if saved_aux:
+            self.reward_aux_stats.update(saved_aux)
         self.sample_ages = list(state['sample_ages'])
         self.thresholds = dict(state['thresholds'])
         self.previous_historical_ratio = state['previous_historical_ratio']

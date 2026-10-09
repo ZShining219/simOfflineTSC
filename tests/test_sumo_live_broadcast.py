@@ -13,6 +13,7 @@ from tools.sumo_live_broadcast.controllers import (
     ManualController, _state_dict_dims, build_builtin_controllers,
     build_snapshot_controller,
 )
+from tools.sumo_live_broadcast.gate import HitlGate
 from tools.sumo_live_broadcast.page import build_page
 from tools.sumo_live_broadcast.recorder import HitlRecorder
 
@@ -279,6 +280,173 @@ class SumoLiveBroadcastTest(unittest.TestCase):
             rec = HitlRecorder(tmp, generator_factory=_fake_gens)
             rec.close()  # nothing bound, nothing recorded
             self.assertFalse((Path(tmp) / rec.session_id).exists())
+
+    def test_gate_periodic_respects_budget_and_cooldown(self):
+        gate = HitlGate(mode='periodic', period=2, budget=2, cooldown=0)
+        fired = [gate.check(0, 0.0, i)[0] for i in range(1, 7)]
+        # eligible decisions 2 and 4 fire; the 6th would fire but the
+        # episode budget (2) is already spent
+        self.assertEqual(
+            fired, [False, True, False, True, False, False])
+        self.assertEqual(gate.total_spent(), 2)
+
+    def test_gate_on_demand_threshold_growth_and_cooldown(self):
+        gate = HitlGate(
+            mode='on_demand', queue_threshold=10.0, queue_growth=5.0,
+            budget=10, cooldown=3)
+        self.assertEqual(gate.check(0, 3.0, 1), (False, None))
+        # queue grew 3 -> 9 (delta 6 >= 5): growth trigger
+        fired, reason = gate.check(0, 9.0, 2)
+        self.assertTrue(fired)
+        self.assertEqual(reason, 'queue_growth')
+        # above threshold but inside cooldown (3 - 2 < 3)
+        fired, reason = gate.check(0, 20.0, 3)
+        self.assertFalse(fired)
+        self.assertEqual(reason, 'cooldown')
+        # threshold fires once cooldown elapsed (6 - 2 >= 3)
+        fired, reason = gate.check(0, 20.0, 6)
+        self.assertTrue(fired)
+        self.assertEqual(reason, 'queue_threshold')
+
+    def test_gate_off_never_fires(self):
+        gate = HitlGate(mode='off')
+        fired = [gate.check(0, 99.0, i)[0] for i in range(5)]
+        self.assertEqual(fired, [False] * 5)
+        self.assertEqual(gate.total_spent(), 0)
+
+    def test_recorder_records_expert_query(self):
+        world = _FakeWorld()
+        with tempfile.TemporaryDirectory() as tmp:
+            rec = HitlRecorder(tmp, meta={}, generator_factory=_fake_gens)
+            rec.bind(world, [0]).begin_episode()
+            rec.on_decision(0.0, {0: 2}, source='snap_x',
+                            proposals={0: 2})
+            for _ in range(10):
+                world.step()
+                rec.on_step()
+            # gate fired: student said 2, expert said 5, expert wins
+            rec.on_decision(
+                10.0, {0: 5}, source='snap_x', proposals={0: 2},
+                expert={
+                    'id': 'maxpressure',
+                    'actions': {0: 5},
+                    'queries': {0: 'periodic'},
+                })
+            for _ in range(10):
+                world.step()
+                rec.on_step()
+            # gate fired but expert agreed with the student
+            rec.on_decision(
+                20.0, {0: 4}, source='snap_x', proposals={0: 4},
+                expert={
+                    'id': 'maxpressure',
+                    'actions': {0: 4},
+                    'queries': {0: 'periodic'},
+                })
+            rec.close()
+
+            session = Path(tmp) / rec.session_id
+            rows = _read_jsonl(session / 'transitions.jsonl')
+            self.assertEqual(len(rows), 3)
+            hitl = rows[1]['hitl']
+            self.assertTrue(hitl['queried'])
+            self.assertEqual(hitl['query_reason'], 'periodic')
+            self.assertEqual(hitl['expert_id'], 'maxpressure')
+            self.assertEqual(hitl['expert_action'], 5)
+            self.assertEqual(hitl['accepted_action'], 5)
+            self.assertTrue(hitl['intervened'])
+            # expert agreed -> queried but not intervened
+            hitl2 = rows[2]['hitl']
+            self.assertTrue(hitl2['queried'])
+            self.assertFalse(hitl2['intervened'])
+
+            events = _read_jsonl(session / 'interventions.jsonl')
+            self.assertEqual([e['kind'] for e in events],
+                             ['gate_query', 'gate_query'])
+            self.assertEqual(events[0]['detail']['reason'], 'periodic')
+            self.assertEqual(events[0]['detail']['expert_action'], 5)
+            self.assertTrue(events[0]['detail']['intervened'])
+            self.assertFalse(events[1]['detail']['intervened'])
+
+            proposals = _read_jsonl(session / 'proposals.jsonl')
+            self.assertEqual(proposals[1]['expert_actions'], {'J0': 5})
+            self.assertEqual(proposals[1]['queries'], {'J0': 'periodic'})
+            self.assertEqual(proposals[1]['expert_id'], 'maxpressure')
+
+    def _human_seat_engine(self):
+        """Bare BroadcastEngine wired for the human banner path."""
+        from tools.sumo_live_broadcast.engine import BroadcastEngine
+        eng = BroadcastEngine.__new__(BroadcastEngine)
+        eng.world = _FakeWorld()
+        eng.recorder = None
+        eng._recorder_errors = 0
+        eng.expert_id = 'manual'
+        eng.gate = HitlGate(mode='periodic', period=1, budget=3, cooldown=0)
+        eng.human_timeout = 30.0
+        eng._expert_ctx = None
+        eng._expert_deadline = None
+        eng._last_query = None
+        eng._budget_logged = False
+        eng.controller_id = 'snap_x'
+        eng.controllers = {'snap_x': SimpleNamespace(id='snap_x')}
+        eng.controlled_ranks = [0]
+        eng.manual_overrides = {}
+        eng.held_actions = {}
+        eng._rank_tl = {0: 'J0'}
+        eng._tl_rank = {'J0': 0}
+        eng._decision_index = 0
+        eng._proposed_actions = {0: 2}
+        eng._pending_choices = {}
+        eng.awaiting = None
+        eng._history = []
+        eng.paused = False
+        eng._publish = lambda frame: None
+        eng._publish_status = lambda: None
+        eng._sample_frame = lambda: {'type': 'frame'}  # needs real world.eng
+        return eng
+
+    def test_human_seat_gate_hit_raises_expert_request(self):
+        eng = self._human_seat_engine()
+        eng._junction_queues = lambda: {0: 9.0}
+        eng._expert_consult(10.0, {0: 2})
+        self.assertEqual(eng.awaiting, 'expert_request')
+        self.assertEqual(eng._expert_ctx['id'], 'human')
+        self.assertEqual(eng._expert_ctx['queries'], {0: 'periodic'})
+        self.assertEqual(eng.gate.total_spent(), 1)
+
+    def test_human_answer_overlays_as_expert_action(self):
+        eng = self._human_seat_engine()
+        eng._junction_queues = lambda: {0: 9.0}
+        eng._expert_consult(10.0, {0: 2})
+        eng._resolve_awaiting({'choices': {'0': 5}})
+        self.assertIsNone(eng.awaiting)
+        self.assertEqual(eng.held_actions[0], 5)          # human wins
+        self.assertTrue(eng._last_query['intervened'])
+        kinds = [h['event'] for h in eng._history if 'event' in h]
+        self.assertTrue(any('人工接管' in k for k in kinds))
+
+    def test_human_timeout_silence_keeps_student_action(self):
+        eng = self._human_seat_engine()
+        eng._junction_queues = lambda: {0: 9.0}
+        eng._expert_consult(10.0, {0: 2})
+        eng._resolve_awaiting({'timeout': True})
+        self.assertEqual(eng.held_actions[0], 2)          # student stands
+        self.assertEqual(eng.gate.total_spent(), 1)       # billed anyway
+        kinds = [h['event'] for h in eng._history if 'event' in h]
+        self.assertTrue(any('超时沉默' in k for k in kinds))
+        self.assertTrue(any('人工沉默' in k for k in kinds))
+
+    def test_expert_request_payload_lists_queried_ranks(self):
+        eng = self._human_seat_engine()
+        eng._junction_queues = lambda: {0: 9.0}
+        eng._expert_consult(10.0, {0: 2})
+        payload = eng._expert_request_payload()
+        self.assertEqual(payload['ranks'][0]['junction'], 'J0')
+        self.assertEqual(payload['ranks'][0]['reason'], 'periodic')
+        self.assertEqual(payload['ranks'][0]['student'], 2)
+        self.assertFalse(payload['ranks'][0]['answered'])
+        eng.awaiting = None
+        self.assertIsNone(eng._expert_request_payload())
 
 
 if __name__ == '__main__':

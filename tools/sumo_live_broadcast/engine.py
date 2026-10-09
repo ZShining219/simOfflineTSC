@@ -89,7 +89,8 @@ class BroadcastEngine:
                  default_controller_id=None, action_interval=10, speed=1.0,
                  sumo_seed=None, runtime_dir=None, ranks=None,
                  model_params=None, scene_configs=None, injects=None,
-                 recorder=None):
+                 recorder=None, expert_id=None, gate=None,
+                 human_timeout=30.0):
         self.scene = scene
         self.scene_key = str(scene)
         self.source_config = Path(source_config).expanduser().resolve()
@@ -123,6 +124,16 @@ class BroadcastEngine:
         # Optional per-decision transition recorder (HITL data plane);
         # default None keeps the session completely unrecorded.
         self.recorder = recorder
+        # HITL expert seat: ``expert_id`` names a controller that answers
+        # only when ``gate`` fires (spec: no expert lookup without a
+        # trigger, no queries when the seat is empty).
+        self.expert_id = expert_id
+        self.gate = gate
+        self.human_timeout = float(human_timeout)
+        self._expert_ctx = None     # expert answers for the open boundary
+        self._expert_deadline = None  # wall-clock deadline for a human answer
+        self._last_query = None     # {'t','junction','reason','intervened'}
+        self._budget_logged = False
         self.runtime_dir = Path(
             runtime_dir or (Path(tempfile.gettempdir()) / 'sumo_live_broadcast')
         ).resolve()
@@ -338,6 +349,7 @@ class BroadcastEngine:
 
     def _recorder_begin(self):
         if self.recorder is None:
+            self._expert_begin()
             return
         try:
             self.recorder.bind(self.world, self.controlled_ranks)
@@ -346,9 +358,32 @@ class BroadcastEngine:
             self._recorder_errors += 1
             self._record_event(
                 f'recorder 绑定失败: {type(exc).__name__}: {exc}')
+        self._expert_begin()
 
     def _recorder_end(self, reason):
         self._recorder_call('end_episode', reason)
+
+    def _expert_begin(self):
+        """Episode-start for the expert seat: bind the expert controller
+        and reset the query gate's episode budget."""
+        self._expert_ctx = None
+        self._last_query = None
+        self._budget_logged = False
+        if self.gate is not None:
+            self.gate.reset()
+        if not self.expert_id:
+            return
+        if self.expert_id not in self.controllers:
+            self._record_event(f'无效专家席: {self.expert_id}')
+            return
+        if self.expert_id == 'manual':
+            self._record_event('专家席不接受 manual（人工接管走相位卡）')
+            return
+        try:
+            self._bind_controller(self.expert_id)
+        except Exception as exc:
+            self._record_event(
+                f'专家 {self.expert_id} 绑定失败: {type(exc).__name__}: {exc}')
 
     def _start_session(self, scene_key=None):
         """Build the SUMO world in stages; runs on the manager thread so
@@ -489,6 +524,17 @@ class BroadcastEngine:
                 time.sleep(0.05)
                 continue
             if self.paused or self.awaiting is not None:
+                if (self.awaiting == 'expert_request' and not self.paused
+                        and self._expert_deadline is not None
+                        and time.monotonic() >= self._expert_deadline):
+                    self._resolve_awaiting({'timeout': True})
+                    continue
+                # Republish ~1/s while the banner is open so the human
+                # sees the countdown tick down toward timeout.
+                if (self.awaiting == 'expert_request'
+                        and time.monotonic() - self._last_heartbeat >= 1.0):
+                    self._last_heartbeat = time.monotonic()
+                    self._publish(self._sample_frame())
                 time.sleep(0.05)
                 continue
             now = float(self.world.get_current_time())
@@ -540,6 +586,121 @@ class BroadcastEngine:
                     self._next_wall = time.monotonic()
                     return
 
+    def _junction_queues(self):
+        """Incoming-lane waiting count per controlled rank — the gate's
+        trigger signal."""
+        queues = {}
+        try:
+            lane_waiting = self.world.get_lane_waiting_vehicle_count()
+        except Exception:
+            return queues
+        for rank in self.controlled_ranks:
+            inter = self.world.id2intersection[self._rank_tl[rank]]
+            lanes = [
+                lane for road in getattr(inter, 'in_roads', [])
+                for lane in inter.road_lane_mapping.get(road, [])
+            ]
+            queues[rank] = float(
+                sum(lane_waiting.get(lane, 0.0) for lane in lanes))
+        return queues
+
+    def _expert_consult(self, now, proposals):
+        """Ask the expert seat where the gate fired; sets _expert_ctx."""
+        self._expert_ctx = None
+        self._expert_deadline = None
+        if self.gate is None or not self.expert_id:
+            return
+        if self.expert_id == self.controller_id:
+            return
+        queues = self._junction_queues()
+        if self.expert_id == 'manual':
+            # Human banner seat: every gate-fired rank becomes an
+            # ``expert_request`` shown to the operator; the query is billed
+            # at gate.check time even if the human stays silent (timeout
+            # resolves to the student's proposal — silence ≠ free).
+            queries = {}
+            for rank in self.controlled_ranks:
+                if rank in self.manual_overrides or rank not in proposals:
+                    continue
+                fired, reason = self.gate.check(
+                    rank, queues.get(rank, 0.0), self._decision_index)
+                if not fired:
+                    if (reason == 'budget_exhausted'
+                            and not self._budget_logged):
+                        self._record_event('人工干预预算耗尽')
+                        self._budget_logged = True
+                    continue
+                queries[rank] = reason
+            if not queries:
+                return
+            self._expert_ctx = {
+                'id': 'human', 'actions': {}, 'queries': queries,
+            }
+            self._expert_deadline = time.monotonic() + self.human_timeout
+            self.awaiting = 'expert_request'
+            for rank, reason in queries.items():
+                self._last_query = {
+                    't': now, 'junction': self._rank_tl[rank],
+                    'reason': reason, 'expert': 'human',
+                    'intervened': False,
+                }
+                self._record_event(
+                    f'人工请求 {self._rank_tl[rank]}'
+                    f'（{reason}）@t={now:.0f}s')
+            self._publish(self._sample_frame())
+            return
+        expert = self.controllers.get(self.expert_id)
+        if expert is None or self.expert_id not in self._bound:
+            return
+        actions, queries = {}, {}
+        for rank in self.controlled_ranks:
+            if rank in self.manual_overrides:
+                continue                      # already human-controlled
+            if rank not in proposals:
+                continue
+            fired, reason = self.gate.check(
+                rank, queues.get(rank, 0.0), self._decision_index)
+            if not fired:
+                if reason == 'budget_exhausted' and not self._budget_logged:
+                    self._record_event('专家干预预算耗尽')
+                    self._budget_logged = True
+                continue
+            queries[rank] = reason
+            try:
+                actions[rank] = int(expert.decide(rank))
+            except Exception as exc:
+                actions[rank] = None
+                self._record_event(
+                    f'专家 {expert.label} 答题失败: {exc}')
+        if not queries:
+            return
+        self._expert_ctx = {
+            'id': expert.id, 'actions': actions, 'queries': queries,
+        }
+        for rank, reason in queries.items():
+            changed = (
+                actions.get(rank) is not None
+                and actions[rank] != proposals.get(rank)
+            )
+            self._last_query = {
+                't': now, 'junction': self._rank_tl[rank],
+                'reason': reason, 'expert': expert.id,
+                'intervened': bool(changed),
+            }
+            mark = '接管' if changed else '同判'
+            self._record_event(
+                f'专家 {expert.label} {mark} {self._rank_tl[rank]}'
+                f'（{reason}）@t={now:.0f}s')
+
+    def _accepted_actions(self, proposals):
+        """Student proposals overlaid with expert answers (when queried)."""
+        merged = dict(proposals)
+        for rank, action in (self._expert_ctx or {}).get(
+                'actions', {}).items():
+            if action is not None:
+                merged[rank] = action
+        return merged
+
     def _handle_decision(self, now):
         self._decision_index += 1
         controller = self.controllers[self.controller_id]
@@ -557,16 +718,21 @@ class BroadcastEngine:
         self._proposed_actions = proposals
         self._pending_choices = {}
         self._next_decision_t += self.action_interval
+        self._expert_consult(now, proposals)
         child = getattr(controller, 'child_label', None)
         if child is not None and child != self._last_dispatch_child:
             self._record_event(
                 f'{controller.label} 调度 → {child} @t={now:.0f}s')
             self._last_dispatch_child = child
+        if self.awaiting == 'expert_request':
+            return                          # banner published in consult
         if self.wait_enabled:
             self.awaiting = 'confirm'
             self._publish(self._sample_frame())
             return
-        self._commit_actions(proposals, controller.id, errors=errors)
+        self._commit_actions(
+            self._accepted_actions(proposals), controller.id,
+            errors=errors)
 
     def _drain_commands(self):
         while True:
@@ -624,7 +790,8 @@ class BroadcastEngine:
             'on_decision', self._sim_time(), actions, source=source,
             proposals=self._proposed_actions,
             pending=self._pending_choices,
-            manual=self.manual_overrides, note=note, errors=errors,
+            manual=self.manual_overrides,
+            expert=self._expert_ctx, note=note, errors=errors,
         )
         self._record_decision(
             actions, source, note=note, errors=errors,
@@ -632,10 +799,15 @@ class BroadcastEngine:
         self.awaiting = None
         self._proposed_actions = None
         self._pending_choices = {}
+        self._expert_ctx = None
 
     def _resolve_awaiting(self, kwargs):
+        if self.awaiting == 'expert_request':
+            self._resolve_expert_request(kwargs)
+            return
         controller = self.controllers[self.controller_id]
-        merged = dict(self._proposed_actions or {})
+        # Order matters: proposals < expert answers < operator choices.
+        merged = self._accepted_actions(self._proposed_actions or {})
         for rank, phase in self._pending_choices.items():
             merged[rank] = phase
         # Optional single-junction override carried on the resolve call.
@@ -665,6 +837,47 @@ class BroadcastEngine:
                 rank=rank, phase=merged.get(rank),
                 detail={'via': 'resolve'}, mark_interval=False,
             )
+        self._publish_status()
+
+    def _resolve_expert_request(self, kwargs):
+        """Close an ``expert_request`` banner: human answers (``choices``
+        {rank-or-tl: phase}, or a single ``junction``/``phase`` pair) overlay
+        the proposals as expert answers.  Timeout resolves to silence — the
+        query stays billed (gate already spent it) and the student's
+        proposal stands."""
+        controller = self.controllers[self.controller_id]
+        ctx = self._expert_ctx or {'id': 'human', 'actions': {}, 'queries': {}}
+        timed_out = bool(kwargs.get('timeout'))
+        answered = {}
+        if not timed_out:
+            for key, phase in (kwargs.get('choices') or {}).items():
+                rank = self._resolve_rank(key)
+                if rank in ctx['queries']:
+                    answered[rank] = int(phase)
+            if kwargs.get('phase') is not None:
+                rank = self._resolve_rank(kwargs.get('junction'))
+                if rank in ctx['queries']:
+                    answered[rank] = int(kwargs['phase'])
+        ctx['actions'] = dict(answered)
+        self._expert_ctx = ctx
+        proposals = self._proposed_actions or {}
+        for rank, phase in answered.items():
+            intervened = phase != proposals.get(rank)
+            self._last_query = {
+                't': self._sim_time(), 'junction': self._rank_tl[rank],
+                'reason': ctx['queries'].get(rank), 'expert': 'human',
+                'intervened': bool(intervened),
+            }
+            mark = '接管' if intervened else '同判'
+            self._record_event(
+                f'人工{mark} {self._rank_tl[rank]}')
+        silent = [rank for rank in ctx['queries'] if rank not in answered]
+        if timed_out:
+            self._record_event('人工请求超时沉默（查询已计费）')
+        for rank in silent:
+            self._record_event(f'人工沉默 {self._rank_tl[rank]}（沿用学生方案）')
+        merged = self._accepted_actions(proposals)
+        self._commit_actions(merged, controller.id)
         self._publish_status()
 
     def _resolve_rank(self, target):
@@ -859,11 +1072,46 @@ class BroadcastEngine:
                 for rank, phase in self._pending_choices.items()
             },
             'awaiting': self.awaiting,
+            'expert_request': self._expert_request_payload(),
             'paused': bool(self.paused),
             'wait_enabled': bool(self.wait_enabled),
+            'hitl': {
+                'expert': self.expert_id if self.gate else None,
+                'gate': self.gate.config() if self.gate else None,
+                'queries_spent': (
+                    self.gate.total_spent() if self.gate else 0),
+                'last_query': self._last_query,
+            },
             'speed': float(self.speed),
             'status': self._status_message,
             'history': self._history[-25:],
+        }
+
+    def _expert_request_payload(self):
+        """Banner payload for the human seat; only built while an
+        ``expert_request`` is open (per-rank queues are expensive)."""
+        if self.awaiting != 'expert_request' or not self._expert_ctx:
+            return None
+        queries = self._expert_ctx.get('queries') or {}
+        if not queries:
+            return None
+        queues = self._junction_queues()
+        proposals = self._proposed_actions or {}
+        answers = self._expert_ctx.get('actions') or {}
+        return {
+            'deadline_in': max(
+                0.0, (self._expert_deadline or 0.0) - time.monotonic()),
+            'ranks': [
+                {
+                    'rank': rank,
+                    'junction': self._rank_tl[rank],
+                    'reason': queries[rank],
+                    'queue': queues.get(rank, 0.0),
+                    'student': proposals.get(rank),
+                    'answered': rank in answers,
+                }
+                for rank in sorted(queries)
+            ],
         }
 
     def _publish(self, frame):

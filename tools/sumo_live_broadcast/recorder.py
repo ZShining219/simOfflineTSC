@@ -69,6 +69,14 @@ def _rank_generators(world, rank):
             world, inter, ['lane_waiting_count'],
             in_only=True, average='all', negative=True,
         ),
+        'queue': LaneVehicleGenerator(
+            world, inter, ['lane_waiting_count'],
+            in_only=True, average=None, negative=False,
+        ),
+        'delay': LaneVehicleGenerator(
+            world, inter, ['lane_delay'],
+            in_only=True, average='all', negative=False,
+        ),
     }
 
 
@@ -163,6 +171,45 @@ class HitlRecorder:
         return float(np.squeeze(np.asarray(
             self._gens[rank]['reward'].generate()))) * 12.0
 
+    def _metrics(self):
+        """Point-in-time network/junction metrics at interval close.
+
+        Mirrors what ``tsc_trainer`` writes into Plan 1 trajectory rows at
+        a decision boundary: queue/approximate_delay from per-intersection
+        generators, real_delay/throughput/waiting_time from the world.
+        Every field is independently guarded — a torn-down world yields
+        ``None`` instead of killing the recording.
+        """
+        world = self._world
+
+        def _sample(callable_):
+            try:
+                return callable_()
+            except Exception:
+                return None
+
+        junction_metrics = {}
+        for rank, gens in self._gens.items():
+            junction_metrics[gens['junction']] = {
+                'queue': _sample(
+                    lambda: float(np.sum(gens['queue'].generate()))),
+                'queue_by_lane': _sample(
+                    lambda: np.asarray(
+                        gens['queue'].generate()).reshape(-1).tolist()),
+                'approximate_delay': _sample(
+                    lambda: float(np.mean(gens['delay'].generate()))),
+            }
+        return {
+            'junctions': junction_metrics,
+            'real_delay': _sample(
+                lambda: float(world.get_real_delay()) if world else None),
+            'throughput': _sample(
+                lambda: float(world.get_cur_throughput()) if world else None),
+            'waiting_time': _sample(
+                lambda: float(world.get_average_waiting_time())
+                if world else None),
+        }
+
     def _flush_manifest(self):
         if not self._dir_ready:
             return
@@ -221,12 +268,16 @@ class HitlRecorder:
         })
 
     def on_decision(self, now, actions, source=None, proposals=None,
-                    pending=None, manual=None, note=None, errors=None):
+                    pending=None, manual=None, expert=None, note=None,
+                    errors=None):
         """Commit-time hook.
 
         ``now`` is sim time at the decision boundary; ``actions`` is the
         committed {rank: phase} vector.  ``proposals``/``pending``/
         ``manual`` mirror the engine's decision state for provenance.
+        ``expert`` carries the expert seat outcome for this boundary:
+        ``{'id': ..., 'actions': {rank: phase}, 'queries': {rank:
+        reason}}`` — present only when the gate is armed and fired.
         """
         if self._closed or not self._gens:
             return
@@ -239,6 +290,10 @@ class HitlRecorder:
         proposals = dict(proposals or {})
         pending = dict(pending or {})
         manual = dict(manual or {})
+        expert = dict(expert or {})
+        expert_id = expert.get('id')
+        expert_actions = dict(expert.get('actions') or {})
+        expert_queries = dict(expert.get('queries') or {})
 
         # Close the previously open interval: the observation right now is
         # its next_state (episode state-chain stays contiguous).
@@ -267,6 +322,7 @@ class HitlRecorder:
                 'truncated': False,
                 'mid_interval_override': interval['mid_override'],
                 'hitl': interval['hitl'],
+                'metrics': self._metrics(),
             }
             self._write_row('transitions', row)
             episode['transitions'] += 1
@@ -280,6 +336,7 @@ class HitlRecorder:
             'global_step': self._global_step,
             't': now,
             'source': source,
+            'expert_id': expert_id,
             'proposals': {
                 junction_of.get(r, str(r)): int(p)
                 for r, p in proposals.items()
@@ -292,6 +349,14 @@ class HitlRecorder:
                 junction_of.get(r, str(r)): int(p)
                 for r, p in manual.items()
             },
+            'expert_actions': {
+                junction_of.get(r, str(r)): int(p)
+                for r, p in expert_actions.items()
+            },
+            'queries': {
+                junction_of.get(r, str(r)): str(q)
+                for r, q in expert_queries.items()
+            },
             'accepted': {
                 junction_of.get(r, str(r)): int(p)
                 for r, p in actions.items()
@@ -300,6 +365,44 @@ class HitlRecorder:
             'errors': dict(errors) if errors else None,
         })
 
+        # Each gate-fired query is an intervention-ledger event — even
+        # when the expert's answer equals the student's proposal (the
+        # budget was spent either way).
+        for rank, reason in expert_queries.items():
+            self._write_row('interventions', {
+                'episode_id': self.episode_id,
+                'decision_step': self._decision_step,
+                'global_step': self._global_step,
+                't': now,
+                'kind': 'gate_query',
+                'rank': rank,
+                'junction': junction_of.get(rank, str(rank)),
+                'phase': None,
+                'detail': {
+                    'reason': reason,
+                    'expert_id': expert_id,
+                    'expert_action': (
+                        int(expert_actions[rank])
+                        if expert_actions.get(rank) is not None else None
+                    ),
+                    'student_action': (
+                        int(proposals[rank])
+                        if proposals.get(rank) is not None
+                        and rank not in manual
+                        else None
+                    ),
+                    'accepted_action': (
+                        int(actions[rank]) if rank in actions else None
+                    ),
+                    'intervened': bool(
+                        rank in actions and (
+                            rank in manual
+                            or proposals.get(rank) != actions[rank]
+                        )
+                    ),
+                },
+            })
+
         # Open the new interval for every rank that got a committed action.
         for rank, action in actions.items():
             if rank not in self._gens:
@@ -307,6 +410,8 @@ class HitlRecorder:
             accepted = int(action)
             proposed = proposals.get(rank)
             pinned = manual.get(rank)
+            queried = rank in expert_queries
+            expert_action = expert_actions.get(rank)
             self._open[rank] = {
                 't0': now,
                 'state': self._ob(rank),
@@ -324,12 +429,19 @@ class HitlRecorder:
                         if proposed is not None and rank not in manual
                         else None
                     ),
-                    'expert_id': 'operator' if rank in manual else None,
+                    'queried': bool(queried),
+                    'query_reason': expert_queries.get(rank),
+                    'expert_id': (
+                        expert_id
+                        if queried or expert_action is not None
+                        else 'operator' if rank in manual else None
+                    ),
                     'expert_action': (
-                        int(pinned) if pinned is not None else None
+                        int(expert_action)
+                        if expert_action is not None
+                        else int(pinned) if pinned is not None else None
                     ),
                     'accepted_action': accepted,
-                    'queried': False,
                     'intervened': bool(
                         rank in manual
                         or (proposed is not None and proposed != accepted)
@@ -422,6 +534,7 @@ class HitlRecorder:
                 'truncated': True,
                 'mid_interval_override': interval['mid_override'],
                 'hitl': interval['hitl'],
+                'metrics': self._metrics(),
             }
             self._write_row('transitions', row)
             if self._episodes:

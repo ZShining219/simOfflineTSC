@@ -9,6 +9,7 @@ from torch.nn.utils import clip_grad_norm_
 
 from .agent import SequentialCounters, SequentialDQNAgent, normalize_algorithm_id
 from .core import SequentialReplay, TargetUpdateScheduler
+from .expert_pool import ExpertPoolArchive
 from .historical_archive import HistoricalArchive, derive_rng_seed
 from .owp import build_historical_sampler, restore_rand_historical_sampler
 
@@ -19,7 +20,9 @@ class HASODQNAgent(SequentialDQNAgent):
                  ordered_networks=(), training_seed=0, archive_mode='none',
                  method='CONT', offline_ratio=0.0, owp_capacity=5000,
                  alignment_warmup_episodes=10, verify_archive_hashes=True,
-                 algorithm_id='independent_dqn'):
+                 algorithm_id='independent_dqn',
+                 expert_pool_manifest=None, expert_ratio=0.0,
+                 expert_capacity=5000):
         super().__init__(
             world, rank, model_config, trainer_config,
             binding_factory=binding_factory,
@@ -34,12 +37,25 @@ class HASODQNAgent(SequentialDQNAgent):
         self.alignment_warmup_episodes = int(alignment_warmup_episodes)
         self.archive_manifest = archive_manifest
         self.verify_archive_hashes = bool(verify_archive_hashes)
+        self.expert_pool_manifest = expert_pool_manifest
+        self.expert_ratio = float(expert_ratio)
+        self.expert_capacity = int(expert_capacity)
         self._validate_ha_config()
         self.online_rng = random.Random(derive_rng_seed(training_seed, 'online_replay_sampler'))
         self.hoa_rng = random.Random(derive_rng_seed(training_seed, 'hoa_owp_sampler'))
+        self.expert_rng = random.Random(
+            derive_rng_seed(training_seed, 'hitl_expert_sampler'))
         self.archive = None if self.archive_mode == 'NONE' else HistoricalArchive(
             archive_manifest, training_seed, verify_hashes=verify_archive_hashes,
         )
+        self.expert_archive = None if expert_pool_manifest is None else (
+            ExpertPoolArchive(
+                expert_pool_manifest, training_seed,
+                verify_hashes=verify_archive_hashes,
+            )
+        )
+        self.expert_view = None
+        self.expert_sampler = None
         self.visible_archive = None
         self.historical_sampler = None
         self.alignment_observations = []
@@ -61,6 +77,25 @@ class HASODQNAgent(SequentialDQNAgent):
                 raise ValueError('HA-SODQN requires an archive root manifest')
         if self.owp_capacity <= 0 or self.alignment_warmup_episodes < 0:
             raise ValueError('Invalid HA-SODQN working-pool configuration')
+        if (self.expert_pool_manifest is None) != (self.expert_ratio <= 0.0):
+            raise ValueError(
+                'expert_pool_manifest and expert_ratio must be set together')
+        if not 0.0 <= self.expert_ratio < 1.0:
+            raise ValueError('expert_ratio must be in [0, 1)')
+        if self.offline_ratio + self.expert_ratio >= 1.0:
+            raise ValueError(
+                'offline_ratio + expert_ratio must leave an online share')
+        if self.expert_capacity <= 0:
+            raise ValueError('expert_capacity must be positive')
+        # B/C channels are separate experimental axes: reward shaping only
+        # rewrites the ONLINE leg's reward, so combining it with expert-leg
+        # data would silently produce inconsistent reward scales.
+        reward_mode = str(
+            self.trainer_config.get('reward_mode', 'none')).lower()
+        if self.expert_ratio > 0.0 and reward_mode not in ('none', 'b0'):
+            raise ValueError(
+                'reward shaping (B) and expert pool (C) must not be mixed '
+                'in one arm; run them as separate axes')
         if len(set(self.ordered_networks)) != len(self.ordered_networks):
             raise ValueError('HA-SODQN ordered networks contain duplicates')
 
@@ -158,6 +193,15 @@ class HASODQNAgent(SequentialDQNAgent):
             self.historical_sampler = None
             if self.method != 'CQA':
                 self._build_sampler()
+        # The expert pool is a precollected session archive: it exists before
+        # training starts, so it is causally visible from stage 1 and does not
+        # depend on the alignment warm-up that guards the historical archive.
+        if self.expert_archive is not None and self.expert_view is None:
+            self.expert_view = self.expert_archive.view()
+            self.expert_sampler = build_historical_sampler(
+                self.expert_view, 'RAND', self.expert_capacity,
+                self.expert_rng,
+            )
         return {
             'policy': policy,
             'orb_size': len(self.replay.records),
@@ -165,6 +209,10 @@ class HASODQNAgent(SequentialDQNAgent):
             'owp_manifest': (
                 None if self.historical_sampler is None
                 else self.historical_sampler.manifest
+            ),
+            'expert_owp_manifest': (
+                None if self.expert_sampler is None
+                else self.expert_sampler.manifest
             ),
         }
 
@@ -235,22 +283,34 @@ class HASODQNAgent(SequentialDQNAgent):
             int(round(self.batch_size * self.offline_ratio))
             if offline_enabled and self.historical_sampler is not None else 0
         )
-        online_count = self.batch_size - offline_count
+        expert_count = (
+            int(round(self.batch_size * self.expert_ratio))
+            if self.expert_sampler is not None and self.expert_ratio > 0
+            else 0
+        )
+        online_count = self.batch_size - offline_count - expert_count
         online_records = self.online_rng.sample(list(self.replay.records), online_count)
         online_tensors = self._batchwise(online_records)
         loss_online, online_stability = self._branch_loss(*online_tensors)
         offline_batch = None
         loss_offline = None
         offline_stability = None
+        expert_batch = None
+        loss_expert = None
+        expert_stability = None
+        loss = loss_online * (online_count / self.batch_size)
         if offline_count:
             offline_batch = self.historical_sampler.sample(offline_count)
             loss_offline, offline_stability = self._branch_loss(
                 *self._offline_tensors(offline_batch)
             )
-            loss = ((1.0 - self.offline_ratio) * loss_online
-                    + self.offline_ratio * loss_offline)
-        else:
-            loss = loss_online
+            loss = loss + loss_offline * (offline_count / self.batch_size)
+        if expert_count:
+            expert_batch = self.expert_sampler.sample(expert_count)
+            loss_expert, expert_stability = self._branch_loss(
+                *self._offline_tensors(expert_batch)
+            )
+            loss = loss + loss_expert * (expert_count / self.batch_size)
         if not torch.isfinite(loss):
             raise FloatingPointError('HA-SODQN loss is NaN/Inf')
         self.optimizer.zero_grad()
@@ -273,26 +333,43 @@ class HASODQNAgent(SequentialDQNAgent):
         offline_sources = [] if offline_batch is None else [
             str(value) for value in offline_batch.source_networks
         ]
+        expert_ids = [] if expert_batch is None else [
+            str(value) for value in expert_batch.transition_ids
+        ]
         return {
             'loss': float(loss.detach().cpu()),
             'loss_online': float(loss_online.detach().cpu()),
             'loss_offline': (
                 None if loss_offline is None else float(loss_offline.detach().cpu())
             ),
+            'loss_expert': (
+                None if loss_expert is None else float(loss_expert.detach().cpu())
+            ),
             'requested_offline_ratio': self.offline_ratio,
             'actual_offline_ratio': offline_count / self.batch_size,
+            'requested_expert_ratio': self.expert_ratio,
+            'actual_expert_ratio': expert_count / self.batch_size,
             'online_count': online_count, 'offline_count': offline_count,
-            'sample_transition_ids': online_ids + offline_ids,
+            'expert_count': expert_count,
+            'sample_transition_ids': online_ids + offline_ids + expert_ids,
             'online_transition_ids': online_ids,
             'offline_transition_ids': offline_ids,
+            'expert_transition_ids': expert_ids,
             'sample_sources': [
                 record.metadata.source_network for record in online_records
-            ] + offline_sources,
-            'sample_source_kinds': ['online'] * online_count + ['offline'] * offline_count,
+            ] + offline_sources + [
+                str(value) for value in (
+                    [] if expert_batch is None else expert_batch.source_networks
+                )
+            ],
+            'sample_source_kinds': (
+                ['online'] * online_count + ['offline'] * offline_count
+                + ['expert'] * expert_count
+            ),
             'sample_ages': [
                 self.counters.global_decision_step - record.metadata.written_global_step
                 for record in online_records
-            ] + [0] * offline_count,
+            ] + [0] * (offline_count + expert_count),
             'offline_behavior_training_seeds': (
                 [] if offline_batch is None else
                 [int(value) for value in offline_batch.behavior_training_seeds]
@@ -301,8 +378,13 @@ class HASODQNAgent(SequentialDQNAgent):
                 [] if offline_batch is None else
                 [int(value) for value in offline_batch.episode_ids]
             ),
+            'expert_episode_ids': (
+                [] if expert_batch is None else
+                [int(value) for value in expert_batch.episode_ids]
+            ),
             'online_stability': online_stability,
             'offline_stability': offline_stability,
+            'expert_stability': expert_stability,
             'target_synced': target_synced,
         }
 
@@ -328,6 +410,16 @@ class HASODQNAgent(SequentialDQNAgent):
             ),
             'alignment_observations': list(self.alignment_observations),
             'last_local_episode': self.last_local_episode,
+            'expert': None if self.expert_archive is None else {
+                'expert_ratio': self.expert_ratio,
+                'expert_capacity': self.expert_capacity,
+                'pool_digest': self.expert_archive.pool_digest,
+                'expert_rng_state': self.expert_rng.getstate(),
+                'expert_sampler_state': (
+                    None if self.expert_sampler is None
+                    else self.expert_sampler.state_dict()
+                ),
+            },
         }
         return state
 
@@ -372,4 +464,29 @@ class HASODQNAgent(SequentialDQNAgent):
                 else:
                     self._build_sampler()
                     self.historical_sampler.load_state_dict(sampler_state)
+        expert_state = ha.get('expert')
+        if expert_state is None:
+            if self.expert_ratio > 0 or self.expert_pool_manifest is not None:
+                raise ValueError(
+                    'HA-SODQN configuration changed on resume: '
+                    'checkpoint predates the expert leg')
+        else:
+            if self.expert_archive is None:
+                raise ValueError(
+                    'HA-SODQN configuration changed on resume: '
+                    'checkpoint expects an expert pool')
+            if expert_state['expert_ratio'] != self.expert_ratio:
+                raise ValueError('expert_ratio changed on resume')
+            if expert_state['expert_capacity'] != self.expert_capacity:
+                raise ValueError('expert_capacity changed on resume')
+            if expert_state['pool_digest'] != self.expert_archive.pool_digest:
+                raise ValueError('Expert pool changed on resume')
+            self.expert_rng.setstate(expert_state['expert_rng_state'])
+            self.expert_view = self.expert_archive.view()
+            sampler_state = expert_state.get('expert_sampler_state')
+            if sampler_state is not None:
+                self.expert_sampler = restore_rand_historical_sampler(
+                    self.expert_view, self.expert_capacity, sampler_state,
+                    self.expert_rng,
+                )
         return self

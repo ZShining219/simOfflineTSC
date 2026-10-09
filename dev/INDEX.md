@@ -122,6 +122,9 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
   `output_data/dev_takeover_probe/`（不入库）；
   转播侧 `DispatchController` 适配器在 `tools/sumo_live_broadcast/controllers.py`。
 - `dev/hitl_live/`：HITL 拓展实验件（设计依据 `docs/plan_hitl_live.md`）。
+  采集端 `tools/sumo_live_broadcast` 已有真人专家席：`--expert human`
+  + gate 命中冻结仿真弹横幅（相位按钮+倒计时），`--hitl-human-timeout`
+  超时沉默仍计费，答案落 hitl.expert_id='human'（详见设计文档专家席行）。
   `package.py` 为会话打包器：把转播录制会话（`--record` 产出的
   transitions/proposals/interventions JSONL）打包成 Plan 1 兼容
   `trajectory/` 分片（复用 `EpisodeTrajectoryWriter`）+ Plan 2 风格
@@ -164,9 +167,22 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
   （128→128→1，温度 0.25，BCE 含平局 y=0.5）。
 - `sequential/reward_shaping.py`：B 通道奖励塑形——r=r0+λ·z（B1 规则
   教师分 / B2 冻结模型分；z=clip((f-μ)/σ,-3,3)；崩溃回退 r0；仅作用
-  在线腿，aux 存 r_base/h/z 供审计）。经 plan child
-  `trainer_overrides` 接入（reward_mode/reward_lambda/
-  reward_calibration_path/reward_model_path）。
+  在线腿）。塑形器在首个转移处惰性构建（SUMO 连接在 reset 前未载路
+  网）；轨迹 npz 保留环境真值 r_base，塑形审计（z/h/f_hat/r_base 均
+  值、回退计数）经 ReplayMetadata.reward_aux 汇总进每集
+  replay_diagnostics JSON。经 plan child `trainer_overrides` 接入
+  （reward_mode/reward_lambda/reward_calibration_path/
+  reward_model_path）。
+- `sequential/demo_ac.py`：A 通道 DemoLight 机制——actor/critic 各为
+  DQNNet(d→20→20→P)；预训练 = actor Gumbel-NLL（独立均匀流）+
+  critic PER（α0.6/β0.4→1，n-step≤10 后缀 + margin 0.8 + L2 1e-5，
+  目标网每 50 步同步）；在线逐决策更新（critic 0.5TD + actor 优势
+  -logπ·A）；在线起点重置优化器+目标网拷贝 critic（spec 边界）。
+  plan child `policy='demo_ac'` + `demo_pretrain` 块接入；快照复用
+  online_only 通道（actor logits argmax = argmax π，evaluator 无分叉）。
+- `dev/hitl_live/build_demos.py`：示范集构建——打包档案→扁平
+  (obs,aE,r,obs',done,episode_id) npz，episode 序保持（n-step 后缀
+  按 episode_id 分组推导）。
 
 ## 已裁决归档（2026-10-07 Z 裁）
 

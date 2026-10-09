@@ -202,6 +202,93 @@ class SequentialDQNAgent:
         self.ob_length = state_dim + action_dim if self.phase and self.one_hot else (
             state_dim + 1 if self.phase else state_dim
         )
+        # Built lazily on the first transition: lane lengths come from the
+        # live SUMO connection, which is not loaded until the first reset.
+        self._reward_shaper = None
+        self._reward_shaper_pending = (
+            str(self.trainer_config.get('reward_mode', 'none')).lower()
+            not in ('none', 'b0'))
+        self._shaper_episode = None
+
+    def _build_reward_shaper(self):
+        """Build the optional HITL reward shaper (spec §6.2 B channel).
+
+        trainer_config keys (all optional; default keeps r0-only behavior):
+          reward_mode: 'none'|'b0'|'b1'|'b2'
+          reward_lambda: shaping amplitude (spec default 0.1)
+          reward_calibration_path: JSON with frozen mu/sigma for 'h'/'f_hat'
+          reward_model_path: frozen PreferenceRewardNet checkpoint (B2 only)
+          reward_ctx: optional explicit {'lane_capacities': [...],
+                      'phase_served_lanes': [[...]]} overriding the live
+                      world derivation (used by tests and worlds lacking
+                      lane-length APIs).
+        """
+        mode = str(self.trainer_config.get('reward_mode', 'none')).lower()
+        if mode in ('none', 'b0'):
+            return None
+        from .reward_shaping import (
+            RewardShaper, lane_capacities_from_lengths, load_calibration)
+        ctx = self.trainer_config.get('reward_ctx')
+        if ctx is not None:
+            capacities = list(ctx['lane_capacities'])
+            served = [list(s) for s in ctx['phase_served_lanes']]
+        else:
+            lane_ids = list(self.environment_signature['incoming_lane_mapping'])
+            lane_lengths = [
+                float(self.world.eng.lane.getLength(l)) for l in lane_ids
+            ]
+            capacities = lane_capacities_from_lengths(lane_lengths)
+            lane_index = {l: i for i, l in enumerate(lane_ids)}
+            served = [
+                [lane_index[l] for l in self.inter.phase_available_startlanes[a]
+                 if l in lane_index]
+                for a in range(self.action_space.n)
+            ]
+        calib_path = self.trainer_config.get('reward_calibration_path')
+        calibration = load_calibration(calib_path) if calib_path else {}
+        return RewardShaper(
+            mode, capacities, served,
+            float(self.trainer_config.get('action_interval', 10.0)),
+            self.action_space.n,
+            lam=float(self.trainer_config.get('reward_lambda', 0.1)),
+            calibration=calibration,
+            model_path=self.trainer_config.get('reward_model_path'),
+        )
+
+    def _shaped_reward(self, state, phase, action, reward, next_state,
+                       next_phase, local_episode):
+        if local_episode != self._shaper_episode:
+            self._reward_shaper.tracker.reset()
+            self._shaper_episode = local_episode
+        lane_counts = np.asarray(next_state, dtype=np.float64).reshape(-1)
+        n_lanes = self._reward_shaper.tracker.n_lanes
+        occupancy = lane_counts[:n_lanes]
+        try:
+            queue_l = np.asarray(
+                self.queue.generate(), dtype=np.float64).reshape(-1)
+            if queue_l.size != n_lanes:
+                queue_l = occupancy
+        except Exception:
+            queue_l = occupancy
+        obs = np.asarray(state, dtype=np.float64).reshape(-1)
+        if self.phase and self.one_hot:
+            obs = np.concatenate([
+                obs, agent_utils.idx2onehot(
+                    np.asarray(phase).reshape(-1), self.action_space.n)[0],
+            ])
+            next_obs = np.concatenate([
+                lane_counts, agent_utils.idx2onehot(
+                    np.asarray(next_phase).reshape(-1),
+                    self.action_space.n)[0],
+            ])
+        else:
+            next_obs = lane_counts
+        r_train, aux = self._reward_shaper.shape(
+            float(np.asarray(reward).reshape(-1)[0]), obs,
+            int(np.asarray(action).reshape(-1)[0]), next_obs,
+            queue_l, occupancy, int(np.asarray(action).reshape(-1)[0]),
+        )
+        return r_train, aux
 
     @classmethod
     def from_parent(cls, world, rank, model_config, trainer_config,
@@ -407,11 +494,20 @@ class SequentialDQNAgent:
     def remember(self, state, phase, action, reward, next_state, next_phase,
                  local_episode, decision_index, terminated=False, truncated=False):
         next_global = self.counters.global_decision_step + 1
+        aux = None
+        if self._reward_shaper is None and self._reward_shaper_pending:
+            self._reward_shaper = self._build_reward_shaper()
+            self._reward_shaper_pending = False
+        if self._reward_shaper is not None:
+            reward, aux = self._shaped_reward(
+                state, phase, action, reward, next_state, next_phase,
+                local_episode,
+            )
         payload = TrainingPayload(
             _readonly_array(state), _readonly_array(phase),
             _readonly_array(action), _readonly_array(reward),
             _readonly_array(next_state), _readonly_array(next_phase),
-            bool(terminated), bool(truncated),
+            bool(terminated), bool(truncated), aux,
         )
         metadata = ReplayMetadata(
             transition_id=(
@@ -423,6 +519,7 @@ class SequentialDQNAgent:
             local_episode=int(local_episode),
             decision_index=int(decision_index),
             written_global_step=next_global,
+            reward_aux=aux,
         )
         self.replay.append(ReplayRecord(payload, metadata))
         self.counters.global_decision_step = next_global

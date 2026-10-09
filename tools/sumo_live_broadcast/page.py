@@ -65,6 +65,22 @@ PAGE_HTML = r"""<!doctype html>
   #decisionBox .prop { font-size:13px; margin:4px 0; }
   #awaitBar { display:none; background:#fff8e1; border:1px solid #e0a100; border-radius:6px; padding:8px; margin-top:6px; }
   #awaitBar.show { display:block; }
+  #expertBar { display:none; background:#ede7f6; border:2px solid #7b1fa2; border-radius:6px; padding:10px; margin-top:6px; }
+  #expertBar.show { display:block; }
+  #expertBar .expertTitle { font-weight:700; color:#4a148c; font-size:14px; margin-bottom:4px; }
+  #expertBar .expertRow { display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding:6px 0; border-top:1px solid #d1c4e9; font-size:13px; }
+  #expertBar .expertRow .jname { font-weight:600; min-width:90px; }
+  #expertBar .expertRow .why { color:#6a51a3; font-size:12px; }
+  #expertBar .expertRow .propP { color:#e65100; font-weight:600; }
+  #expertBar .phaseBtn { border:1px solid #7b1fa2; background:#fff; color:#4a148c; border-radius:4px; padding:3px 10px; cursor:pointer; font-size:13px; }
+  #expertBar .phaseBtn.sel { background:#7b1fa2; color:#fff; }
+  #expertBar .phaseBtn:hover { background:#f3e5f5; }
+  #expertBar .phaseBtn.sel:hover { background:#6a1b9a; }
+  #expertBar .countdown { float:right; font-weight:700; color:#b71c1c; }
+  #expertBar .barBtns { margin-top:8px; display:flex; gap:8px; }
+  #expertBar .barBtns button { border:none; border-radius:4px; padding:6px 14px; cursor:pointer; font-size:13px; }
+  #expertBar #expertApply { background:#7b1fa2; color:#fff; }
+  #expertBar #expertSkip { background:#e0e0e0; color:#333; }
   #metrics { display:grid; grid-template-columns:1fr 1fr; gap:4px 10px; font-size:13px; }
   #metrics strong { float:right; }
   #history { flex:1; overflow-y:auto; min-height:80px; }
@@ -142,6 +158,14 @@ PAGE_HTML = r"""<!doctype html>
       <div id="awaitBar">
         <div id="awaitText">等待决策…</div>
         <button id="applyBtn">应用并继续</button>
+      </div>
+      <div id="expertBar">
+        <div class="expertTitle">人工干预请求<span class="countdown" id="expertTimer"></span></div>
+        <div id="expertRows"></div>
+        <div class="barBtns">
+          <button id="expertApply">提交答案</button>
+          <button id="expertSkip">保持学生方案</button>
+        </div>
       </div>
     </section>
     <section>

@@ -52,21 +52,68 @@
 
 新增 `tools/sumo_live_broadcast/` 内（工具层能力，非实验逻辑）：
 
-| 模块 | 职责 |
-|---|---|
-| `recorder.py` | 会话级录制：`transitions.jsonl` + `proposals.jsonl` + `interventions.jsonl` + `manifest.json`，落在 `runtime_dir/hitl/<session_id>/` |
-| `gate.py`（二期） | 触发器 periodic/on_demand + 预算/冷却/eligible；虚拟专家当场答，真人走 awaiting 横幅 |
-| 专家席适配 | 复用 controllers.py 统一面（bind/decide）；virtual=控制器实例，human=UI 应答；同接口 |
+| 模块 | 状态 | 职责 |
+|---|---|---|
+| `recorder.py` | 已落地 | 会话级录制：`transitions.jsonl` + `proposals.jsonl` + `interventions.jsonl` + `manifest.json`，落在 `--record DIR/<session_id>/` |
+| `gate.py` | 已落地 | 触发器 periodic/on_demand + 预算/冷却/eligible；预算默认 spec 公式 B=⌊0.1×N⌋ |
+| 专家席 | 已落地（virtual+human） | `--expert NAME` 虚拟专家当场答；`--expert human` 真人席：gate 命中→`awaiting='expert_request'` 横幅冻结仿真（每路口列排队/触发原因/学生建议+相位按钮+倒计时），`--hitl-human-timeout`（默认30s）到期沉默仍计费（查询在 gate.check 时已消耗）；答案经 `resolve choices={rank:phase}` 作为专家动作执行，hitl.expert_id='human'；仲裁序 学生提案 < 专家答 < 人工 pending |
+| `sequential/expert_pool.py` + HA 第三腿 | 已落地 | `ExpertPoolArchive` 读打包档案的 `expert_pool_manifest.json` → `VisibleArchiveView` → RAND 采样器；`HASODQNAgent` 加 `expert_pool_manifest/expert_ratio/expert_capacity` 三参，`loss = Σ(count_i/64)·loss_i`（online/offline/expert 三腿），账本记 `expert_transition_ids/expert_episode_ids/expert_stability`；checkpoint `ha_sodqn.expert` 块前后兼容（旧档无此块要求 expert_ratio=0）；plan 侧 child 键 `expert_pool_manifest/expert_ratio/expert_capacity`（runtime `.get()` 兼容旧 plan）。不配参数 = 逐位等价现状 |
+
+CLI：`--record DIR` 开录制；`--expert maxpressure --hitl-gate periodic|on_demand [--hitl-period N | --hitl-queue-threshold X | --hitl-queue-growth X] [--hitl-budget B] [--hitl-cooldown C]` 开虚拟专家干预。全部 opt-in，不配 = 不存在。
 
 实验侧（打包/对照/出图）归 `dev/hitl_live/`，登记 `dev/INDEX.md`。
 
-### recorder 契约（已实现侧的核心）
+训练臂 pilot 管线（已落地）：`build_pilot_plan.py` 从同一 ep0 checkpoint + 同 seed
+生成 HITL_C0 / HITL_EXP(纠偏池) / HITL_CTRL(等量机器数据) / HITL_DEMO(纯示范池)
+四臂 plan；逐臂 `sequential_run.py run-child`（注意 `CUDA_VISIBLE_DEVICES=""`——
+checkpoint 的 rng_state_digest 按 CPU-only 语义钉死，GPU 可见时 digest 不匹配）；
+`curve_figs.py` 从 `_shared_evaluation` + `replay_diagnostics` 抽自主冻结 eval
+学习曲线/AULC/对基线 delta/专家腿消耗账本。`ReplayDiagnostics` 已补
+`expert_samples_by_episode`/`expert_sample_count_by_scene`/`loss_expert` 字段。
+
+B 通道管线（已落地 pilot 档，spec §6.2/§6.3/§9.1）：
+`segments.py` 片段切割+确定性教师分（h=-0.5Q-0.5U，q_l/c_l 逐车道 +
+相位服务史重建 u_l）→ `build_pairs.py` 偏好对（平局保留，episode 内
+两两配对）→ `train_reward.py` 128→128→1 奖励网络（温度 0.25 BCE，
+episode 级留出+早停）→ `calibrate_reward.py` 冻结 μ/σ → 训练器
+`reward_shaping.py`：r=r0+λ·z（B1 规则分/B2 模型分；仅作用在线腿，
+aux 存 r_base/h/z；崩溃回退 r0）。child `trainer_overrides` 携带
+reward_mode 等键（runtime 并入 trainer_config）；B×C 互斥校验在
+`_validate_ha_config`。B0≡C0 同配置复用 C0 run 结果，不重复计。
+
+**评估器修正（2026-10-09）**：`world.close()` 原插在 metric 读取之前
+导致 `FatalTraCIError: network not yet constructed`（eval 全灭）；
+已改为全部指标先取（live engine）→ close 刷 tripinfo → RRT 解析。
+RRT 口径：(1/N_due)Σ[min(arrival,T)−planned_depart]，未到达计 T。
+
+A 通道管线（pilot 档，spec §8）：`sequential/demo_ac.py` 的
+`DemoACAgent`——actor/critic 共用 DQNNet(d→20→20→P) 躯干，同一 ep0
+checkpoint 逐位初始化；`demo_pretrain` 块控制 A0/Aπ/AQ/AπQ 开关；
+示范集 `build_demos.py` 从打包档案产扁平 npz（episode 序保持）。
+偏差声明：示范来源为 MP 控盘池（expert_ep50，244 转移）而非 spec 的
+5×SOTL×360=1800；SOTL 专家本体未移植；合法动作 mask 恒等（S2 全相
+位合法）。
+
+### recorder 契约（已落地）
 
 - 观测/奖励复用学生骨架同款生成器（`LaneVehicleGenerator(lane_count, in_only=True, average=None)` 得 state；`IntersectionPhaseGenerator(cur_phase)` 得 phase；`lane_waiting_count` 负值 ×12 得每秒 reward），与 `sequential` 训练/推理路径逐位一致
 - 每受控 rank 一条转移：决策边界 T 采 `(state, phase)`，区间 [T, T+Δt) 内每秒累 reward，下一决策边界关闭为 `(next_state, next_phase)`——严格保序保证 episode 内 state 链不断（数据集校验硬性要求）
-- 审计字段：`student_id/student_action/expert_id/expert_action/accepted_action/queried/intervened/manual_mid_interval/source/answer_latency_s`
-- episode 边界 = reset/会话结束；终止一律 `truncated=True`（转播无自然终止）
+- `hitl` 审计块：`student_id/student_action/queried/query_reason/expert_id/expert_action/accepted_action/intervened`；区间级 `mid_interval_override`、`reward_steps/reward_error`；区间关闭时采 `metrics`（queue/approximate_delay/real_delay/throughput/waiting_time，对齐 Plan 1 分片辅助字段）
+- episode 边界 = reset/会话结束；悬空区间以 `truncated=True` 封存（转播无自然终止）
 - JSONL 落盘；NPZ 分片 + manifest 由 dev 侧打包器后做
+
+### packager 契约（已落地，`dev/hitl_live/package.py`）
+
+- 输入：录制会话目录（`manifest.json` + `transitions.jsonl` + 可选 proposals/interventions）；`source_config` 从会话 manifest 取，亦可 `--config` 覆盖
+- 输出 `<out>/`：`trajectory/`（Plan 1 同构分片，复用 `EpisodeTrajectoryWriter` 保证逐位同格式）+ `source_shards.jsonl` + `datasets/<network>/<stage>/manifest.json` + `hitl/` 审计副产物（session_manifest/proposals/interventions 副本 + `labels.jsonl` 逐转移归属表 + index）+ `manifest.json` 根清单 + `packaging_report.json`
+- 直接可消费：`OfflineTrajectoryDataset(<stage>/manifest.json, seed)` 与 `validate_offline_dataset` 内嵌自检；`observations = state + one_hot(phase)`，obs_dim 与学生网络输入一致（S2=16）
+- 语义哈希五元组复用 `dataset._scene_semantics` 计算（`config/simulator_resolved.cfg` 落绝对路径 dir）；`green_action_count` 与录制 action_dim 不符即报错
+- 变长 episode：不伪装等长，`expected_decisions_per_episode` 记最大单集数；逐集校验由打包器自带校验器完成（`trajectory/validation.json`，`validator: hitl_packager`）
+- 归属标签：转移 `behavior_mode` ∈ {hitl_autonomous, hitl_expert_agreed, hitl_expert_took_over, hitl_operator}；逐转移明细（queried/双方动作/执行动作/reward_steps）在 `hitl/labels.jsonl`，键对齐 `transition_unique_key=(run_id, shard_sha256, episode_id, decision_step)` 供混合池加权
+- 隔离语义：非法/断链/缺字段 episode 打包前剔除并记 `packaging_report.json`（state/phase 链断、action/phase 越界——含黄灯程序索引、reward 采样失败、rank 集漂移、未正常 truncated 收尾）；`--strict` 遇隔离即中止。labels.jsonl 保留全部被剔除行及原因
+- 不伪造正式 run 元数据：档案 `archive_kind='hitl_live_recording'`，`run_id=session_id`；不进 `prepare_plan2_datasets` 的正式矩阵路径
+
+冒烟验证（真实 SUMO，S2 fixedtime 学生 + MP 专家 periodic(3)）：76 仿真秒 → 8 转移 → 打包 valid，obs_dim=16，ds6 MP 接管正确落 `hitl_expert_took_over`；`dataset_load/statistics` 正常。
 
 ## 5. 量化验证体系（四层，便宜→贵）
 
@@ -81,7 +128,10 @@
 ## 6. 未决项与边界
 
 - gate 命中是否冻结仿真等答：虚拟专家不冻结；真人模式冻结（语义贴 spec"一次请求一个区间"），超时沉默=held 继续仍计 query
-- B 偏好标注（RM/PBRS）二期；可先走"示范相似度稠密奖励"轻量替代
+- B 偏好标注（RM/PBRS）pilot 档已落地（见 §4）；B2-U 在线更新奖励
+  版本切换、多专家冲突标注仍为未做项
 - 干预比例随学习阶段动态调整（任务书"初期高频→中期预算→成熟监督"）——gate 阶段感知参数化，对齐 hitl 仓 gap 语义
 - 多路口（S5）：gate 按受控 rank 逐路口请求或合并请求，实现时定
-- 干预预算：B=⌊0.1×N_nominal⌋；S2 N=3600/10=360 → 36
+- 干预预算：B=⌊0.1×N_nominal⌋ 公式已按 spec 落地（N=T/Δt；
+  T=1200/Δt=10 → B=12）；probe 端由 horizon 推导，CLI 开放会话保
+  留显式 `--hitl-budget` 默认并在 manifest 记解析值

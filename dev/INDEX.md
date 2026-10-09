@@ -101,6 +101,19 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
   场景保真探针 + 冻结 z 线性探针 + episode 级切分 +
   未见播报边 held-out 泛化，与调度性能解耦的第一级评测；
   编码臂含 sga 复合模块 / attn / selfattn / concat / flat-mlp）。
+  单层信号控制线（场景注意力直接做信号控制器表征骨干，
+  替代双层路由架构）：`signal_model.py`（SceneSignalAgent =
+  编码器族 + 相位 Q 头；场景信道臂 sga/attn/selfattn/concat +
+  状态独占臂 selfattn_st/concat_st/mlp_st——baseline 只吃常规
+  观测 phys='queue'，场景信道归场景模块）、`signal_runtime.py`
+  （10s 决策粒度 episode 驱动器，agent 直接出相位，builtin
+  控制器同驱动器评测）、`train_signal.py`（相位级 Double-DQN
+  + 绑定 aux 损失）、`eval_signal.py`（事件格评测：排队积分 /
+  被报边排队 / 峰值 / 清堵时间 / 吞吐 / 绑定质量 +
+  sga_notext 盲化消融）。播报词汇改描述性 'congest'
+  （surge 注入报为"道路拥堵"——现象非机制；
+  播报句去预测时长与调度指令；est_remaining 经
+  `--no-forecast`/include_forecast 退出输入，仅作蒸馏标签）。
   训练课程支持
   `--periods/--durs/--onsets` 网格覆盖（重度偏向校准用），
   评测支持 `--events` 追加未见事件格
@@ -133,6 +146,27 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
 - `dev/hitl_live/curve_figs.py`：训练期佐证图——自主冻结 eval 学习曲线
   （vs 决策数）、AULC、对 C0 逐点 delta、专家腿消耗量（sampling_windows
   账本）。
+- `dev/hitl_live/dump_lane_topology.py`：场景车道拓扑转储（in_lanes 顺序、
+  车道长度→容量、相位→服务车道映射），B 通道特征/教师分的 ctx 来源。
+- `dev/hitl_live/segments.py`：B 通道片段切割 + 确定性教师分
+  （h=-0.5Q-0.5U，逐车道 q_l/c_l + 相位服务史重建 u_l）+ spec §6.2
+  奖励模型特征 [obs|one_hot(a)|obs'|q/c|u/T_u]。
+- `dev/hitl_live/build_pairs.py`：档案→片段→偏好对数据集
+  （片段均值特征 + H 标签 + 平局保留）。
+- `dev/hitl_live/train_reward.py`：偏好奖励模型训练（128→128→1，BCE，
+  episode 级留出，早停；产 reward_model.pt + normalization.json +
+  reward_manifest.json）。
+- `dev/hitl_live/calibrate_reward.py`：B 通道归一化统计冻结（校准集上
+  h/f_hat 的 μ/σ，产 reward_calibration.json 供训练器 shaping）。
+- `dev/hitl_live/paired_bootstrap.py`：同 seed 配对 bootstrap（10000
+  重采样；AULC_delta/final_delta + 95% CI，spec §11.4 口径）。
+- `sequential/reward_model.py`：偏好奖励网络 PreferenceRewardNet
+  （128→128→1，温度 0.25，BCE 含平局 y=0.5）。
+- `sequential/reward_shaping.py`：B 通道奖励塑形——r=r0+λ·z（B1 规则
+  教师分 / B2 冻结模型分；z=clip((f-μ)/σ,-3,3)；崩溃回退 r0；仅作用
+  在线腿，aux 存 r_base/h/z 供审计）。经 plan child
+  `trainer_overrides` 接入（reward_mode/reward_lambda/
+  reward_calibration_path/reward_model_path）。
 
 ## 已裁决归档（2026-10-07 Z 裁）
 

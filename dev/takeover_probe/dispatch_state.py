@@ -56,6 +56,8 @@ def fb_kwargs_from_meta(meta):
     kw = {'layout': meta.get('feature_layout', 'flag')}
     if kw['layout'] == 'identity':
         kw['include_event_flag'] = bool(meta.get('event_flag', False))
+    kw['phys'] = meta.get('phys', 'full')
+    kw['include_forecast'] = bool(meta.get('include_forecast', True))
     return kw
 
 
@@ -63,10 +65,21 @@ class FeatureBuilder:
     """World+event -> model inputs.  Lane/edge order fixed at construction."""
 
     def __init__(self, world, injects, report_delay=30.0,
-                 layout='identity', include_event_flag=None):
+                 layout='identity', include_event_flag=None,
+                 phys='full', include_forecast=True):
         self.world = world
         self.events = event_specs(injects)
         self.report_delay = float(report_delay)
+        # 'queue' restricts the lane physical channel to queue counts —
+        # the conventional-observation baseline level (what a plain DQN
+        # sees); 'full' keeps queue+count+wait for the scene module.
+        self.phys = str(phys)
+        if self.phys not in ('full', 'queue'):
+            raise ValueError(f'unknown phys mode {phys!r}')
+        self.n_phys = LANE_PHYS if self.phys == 'full' else 1
+        # forecast fields (est_remaining_s) are supervision targets, not
+        # report content — a reporter cannot know the future
+        self.include_forecast = bool(include_forecast)
         self.lanes = sorted(world.get_info('lane_waiting_count') or {})
         self.edge_to_laneidx = {}
         for idx, lane in enumerate(self.lanes):
@@ -85,14 +98,14 @@ class FeatureBuilder:
         self.text_id_slice = None
         if layout == 'flag':
             self.include_event_flag = True
-            self.lane_dim = LANE_PHYS + 1
+            self.lane_dim = self.n_phys + 1
             self._text_edge_dim = self.n_lanes   # per-lane indicator
         elif layout == 'identity':
             self.include_event_flag = bool(include_event_flag)
-            self.lane_dim = (LANE_PHYS + self.n_edges
+            self.lane_dim = (self.n_phys + self.n_edges
                              + (1 if self.include_event_flag else 0))
-            self.lane_id_slice = slice(LANE_PHYS,
-                                       LANE_PHYS + self.n_edges)
+            self.lane_id_slice = slice(self.n_phys,
+                                       self.n_phys + self.n_edges)
             self.text_id_slice = slice(self.n_kinds,
                                        self.n_kinds + self.n_edges)
             self._text_edge_dim = self.n_edges   # per-edge indicator
@@ -110,7 +123,7 @@ class FeatureBuilder:
         """
         if self.layout != 'identity':
             return None
-        return {'phys_dim': LANE_PHYS,
+        return {'phys_dim': self.n_phys,
                 'lane_id': [self.lane_id_slice.start,
                             self.lane_id_slice.stop],
                 'text_id': [self.text_id_slice.start,
@@ -120,6 +133,8 @@ class FeatureBuilder:
         """Ckpt-meta fragment recording how inputs were featurized."""
         return {'feature_layout': self.layout,
                 'event_flag': self.include_event_flag,
+                'phys': self.phys,
+                'include_forecast': self.include_forecast,
                 'geom': self.model_geom()}
 
     def event_fields(self, now):
@@ -159,15 +174,16 @@ class FeatureBuilder:
         tokens = np.zeros((self.n_lanes, self.lane_dim), dtype=np.float32)
         for idx, lane in enumerate(self.lanes):
             tokens[idx, 0] = queue.get(lane, 0) / 10.0
-            tokens[idx, 1] = count.get(lane, 0) / 10.0
-            tokens[idx, 2] = wait.get(lane, 0) / 100.0
+            if self.n_phys > 1:
+                tokens[idx, 1] = count.get(lane, 0) / 10.0
+                tokens[idx, 2] = wait.get(lane, 0) / 100.0
         if self.layout == 'identity':
             tokens[np.arange(self.n_lanes),
-                   LANE_PHYS + self.lane_edge_idx] = 1.0
+                   self.n_phys + self.lane_edge_idx] = 1.0
             flag_col = self.lane_dim - 1 if self.include_event_flag \
                 else None
         else:
-            flag_col = LANE_PHYS
+            flag_col = self.n_phys
         if flag_col is not None:
             for idx in flagged:
                 tokens[idx, flag_col] = 1.0
@@ -199,7 +215,9 @@ class FeatureBuilder:
         vec[off + 1] = float(fields.get('recovering')) * 1.0
         vec[off + 2] = min(fields.get('onset_age_s', 0.0), 3600) / 3600.0
         vec[off + 3] = fields.get('severity', 0) / 3.0
-        vec[off + 4] = min(fields.get('est_remaining_s', 0.0), 3600) / 3600.0
+        if self.include_forecast:
+            vec[off + 4] = min(fields.get('est_remaining_s', 0.0),
+                               3600) / 3600.0
         vec[off + 5] = 1.0 if fields.get('objective') == 'focus' else 0.0
         return vec
 

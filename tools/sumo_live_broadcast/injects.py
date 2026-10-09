@@ -8,7 +8,14 @@ Supported specs
 ---------------
 ``lane_close:LANE:START:DUR``
     Close LANE to all vehicle classes between START and START+DUR sim
-    seconds (reopened afterwards).
+    seconds (reopened afterwards).  WARNING: hard closure severs the
+    movement served by that lane — in-flight routes through it die with
+    FatalTraCIError under libsumo, so this kind is unsafe for
+    closed-loop probes; prefer ``throttle`` for capacity-cut events.
+``throttle:EDGE:START:DUR:SPEED[:OBJECTIVE]``
+    Between START and START+DUR cap all lanes of EDGE at SPEED m/s
+    (capacity cut, connectivity preserved — the demand-side dual of
+    ``surge``).  Original lane speed limits are restored afterwards.
 ``surge:FROM_EDGE:TO_EDGE:START:DUR:PERIOD[:OBJECTIVE]``
     Inject one extra vehicle every PERIOD sim seconds departing on
     FROM_EDGE routed toward TO_EDGE during [START, START+DUR).
@@ -41,6 +48,25 @@ def parse_injects(specs):
                 'start_t': float(start_s),
                 'end_t': float(start_s) + float(dur_s),
                 'applied': False, 'reverted': False,
+            })
+        elif kind == 'throttle':
+            parts = rest.split(':')
+            if len(parts) not in (4, 5):
+                raise ValueError(
+                    f'throttle needs EDGE:START:DUR:SPEED[:OBJECTIVE], '
+                    f'got: {spec}')
+            objective = parts[4] if len(parts) == 5 else 'global'
+            if objective not in ('global', 'focus'):
+                raise ValueError(f'unknown objective: {objective}')
+            injects.append({
+                'kind': kind,
+                'edge': parts[0],
+                'start_t': float(parts[1]),
+                'end_t': float(parts[1]) + float(parts[2]),
+                'max_speed': float(parts[3]),
+                'objective': objective,
+                'applied': False, 'reverted': False,
+                '_saved_speed': {},
             })
         elif kind == 'surge':
             parts = rest.split(':')
@@ -113,6 +139,17 @@ def apply_injects(world, injects, now):
                     world.eng.lane.setAllowed(inj['lane'], [])
                 except Exception:
                     pass  # lane absent in this scene — skip
+            elif inj['kind'] == 'throttle':
+                lanes = [l for l in world.eng.lane.getIDList()
+                         if str(l).startswith(inj['edge'] + '_')]
+                for lane in lanes:
+                    try:
+                        inj['_saved_speed'][lane] = (
+                            world.eng.lane.getMaxSpeed(lane))
+                        world.eng.lane.setMaxSpeed(
+                            lane, inj['max_speed'])
+                    except Exception:
+                        pass
             inj['applied'] = True
         elif inj['applied'] and not inj['reverted'] and now >= inj['end_t']:
             if inj['kind'] == 'lane_close':
@@ -120,6 +157,12 @@ def apply_injects(world, injects, now):
                     world.eng.lane.setAllowed(inj['lane'], ['all'])
                 except Exception:
                     pass
+            elif inj['kind'] == 'throttle':
+                for lane, spd in inj.get('_saved_speed', {}).items():
+                    try:
+                        world.eng.lane.setMaxSpeed(lane, spd)
+                    except Exception:
+                        pass
             inj['reverted'] = True
 
 
@@ -128,11 +171,20 @@ def apply_injects(world, injects, now):
 # ---------------------------------------------------------------------------
 
 EVENT_KIND_LABEL = {
+    'congest': '道路拥堵',
     'surge': '突发车流',
+    'throttle': '管制限流',
     'lane_close': '占道封闭',
     'none': '正常交通',
 }
-EVENT_KINDS = list(EVENT_KIND_LABEL)
+# text-vec onehot vocabulary — kept 3-wide for checkpoint compatibility.
+# 'throttle' shares the 'lane_close' slot: both are capacity-cut events
+# (the demand-vs-capacity contrast a router must read off the report).
+# 'congest' is the descriptive report vocabulary: a surge injection is
+# reported as "道路拥堵" (vehicles accumulating) — the report names the
+# observed scene state, never the physical mechanism that caused it.
+EVENT_KINDS = ['congest', 'lane_close', 'none']
+EVENT_KIND_ALIAS = {'throttle': 'lane_close', 'surge': 'congest'}
 
 
 def event_specs(injects):
@@ -142,10 +194,17 @@ def event_specs(injects):
         edge = inj.get('edge') or inj.get('edge_from') or ''
         if inj['kind'] == 'surge':
             severity = min(3, max(1, round(4.0 / inj['period'])))
+        elif inj['kind'] == 'throttle':
+            severity = (3 if inj['max_speed'] <= 3.0
+                        else 2 if inj['max_speed'] <= 8.0 else 1)
         else:
             severity = 2
         events.append({
-            'kind': inj['kind'],
+            # report vocabulary: demand-side accumulation is described as
+            # congestion (phenomenon), decoupled from the inject mechanism;
+            # 'throttle' keeps its own report label ('管制限流') and shares
+            # the 'lane_close' text slot only inside the feature vector
+            'kind': 'congest' if inj['kind'] == 'surge' else inj['kind'],
             'edge': edge,
             'start_t': inj['start_t'],
             'end_t': inj['end_t'],
@@ -186,19 +245,16 @@ def active_event(events, now, report_delay=30.0, recovery_tail=120.0):
         if now >= ev['end_t'] + recovery_tail:
             return _normal_report()
         label = EVENT_KIND_LABEL[ev['kind']]
-        obj_hint = (
-            '，调度要求：优先消化该进口积压'
-            if fields['objective'] == 'focus'
-            else '，调度要求：保障全网通行效率')
+        # pure-phenomenon report: location + elapsed time + severity only —
+        # no forecast (duration is the model's to infer), no directive
         if recovering:
             sentence = (
-                f"{label}已结束：{ev['edge']}，残余排队消散中{obj_hint}"
+                f"{label}已结束：{ev['edge']}，残余排队消散中"
             )
         else:
             sentence = (
                 f"{label}：{ev['edge']} 进口，已持续 "
-                f"{fields['onset_age_s']:.0f}s，预计再持续 "
-                f"{remaining:.0f}s，强度等级 {ev['severity']}{obj_hint}"
+                f"{fields['onset_age_s']:.0f}s，强度等级 {ev['severity']}"
             )
         return fields, sentence
     return _normal_report()

@@ -1,0 +1,255 @@
+"""Event-scenario evaluation for scene-guided signal agents.
+
+Compares, under an identical congestion-event grid:
+
+  learned arms   scene-channel agents (sga/attn/selfattn/concat ckpts)
+                 and state-only agents (selfattn_st/concat_st/mlp_st)
+  ablation       the same sga ckpt with the text channel zeroed
+                 ('no_text' — attention module present but blind)
+  conventional   fixedtime / maxpressure / sotl / dqn_s1 controllers
+
+Metrics per episode:
+  queue_int      integral of total queue over the episode (veh·s)
+  ev_queue_int   integral over the report-named edge's lanes
+  peak_queue     max total queue
+  clear_s        seconds from event end until the named edge's queue
+                 returns under ``clear_thresh`` (nan = never cleared)
+  throughput     vehicles completed
+  bind_mass      mean cross-attn mass on the named edge's lanes while
+                 the report is active (agent arms only)
+
+Usage:
+    python -m dev.takeover_probe.eval_signal \
+        --agent sga=out_sga/agent.pt --agent selfattn_st=out_sa/agent.pt \
+        --builtin maxpressure,fixedtime --episodes-per-event 2
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from pathlib import Path
+
+import numpy as np
+
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
+from dev.takeover_probe.probe import (  # noqa: E402
+    DEFAULT_DQN_S1, build_controllers, build_world, _bind_all,
+)
+from dev.takeover_probe.dispatch_state import (  # noqa: E402
+    FeatureBuilder, fb_kwargs_from_meta,
+)
+from dev.takeover_probe.signal_model import SceneSignalAgent  # noqa: E402
+from dev.takeover_probe.signal_runtime import (  # noqa: E402
+    run_signal_episode,
+)
+from dev.takeover_probe.train_router import (  # noqa: E402
+    EDGE_TARGETS, TRAIN_EDGES,
+)
+from tools.sumo_live_broadcast.injects import (  # noqa: E402
+    apply_injects, parse_injects,
+)
+
+
+def eval_episode(world, fb, ranks, injects, agent=None, controller=None,
+                 episode_seconds=3600, interval=10, text_override=None,
+                 clear_thresh=2.0):
+    transitions, records = run_signal_episode(
+        world, fb, ranks, injects=injects, agent=agent,
+        controller=controller, interval=interval,
+        episode_seconds=episode_seconds, text_override=text_override)
+    ev = injects[0] if injects else None
+    ev_edge = (ev.get('edge_from') or ev.get('edge') or '') if ev else ''
+    ev_lanes = set(fb.edge_to_laneidx.get(ev_edge, []))
+    end_t = ev['end_t'] if ev else episode_seconds
+    queues = np.array([r['total_queue'] for r in records],
+                      dtype=np.float64)
+    ev_q = np.array([
+        sum(rec['lane_queue'].get(fb.lanes[i], 0) for i in ev_lanes)
+        for rec in records], dtype=np.float64)
+    ts = np.array([r['t'] for r in records], dtype=np.float64)
+    clear_s = float('nan')
+    if ev is not None:
+        post = [(t, q) for t, q in zip(ts, ev_q) if t >= end_t]
+        for t, q in post:
+            if q <= clear_thresh:
+                clear_s = float(t - end_t)
+                break
+    # binding mass on the named edge while its report is active
+    bind = []
+    if ev is not None and ev_lanes:
+        onset = ev['start_t'] + fb.report_delay
+        idx = sorted(ev_lanes)
+        for rec in records:
+            w = rec.get('attn_weights')
+            if w is not None and onset <= rec['t'] <= end_t:
+                w = np.asarray(w).ravel()
+                bind.append(float(w[idx].sum()))
+    return {
+        'queue_int': float(queues.sum() * interval),
+        'ev_queue_int': float(ev_q.sum() * interval),
+        'peak_queue': float(queues.max() if len(queues) else 0.0),
+        'clear_s': clear_s,
+        'throughput': int(records[-1]['throughput']) if records else 0,
+        'bind_mass': (round(float(np.mean(bind)), 4) if bind else None),
+        'ticks': len(records),
+    }
+
+
+def main():
+    p = argparse.ArgumentParser(description=__doc__)
+    p.add_argument('--scene', default='S2')
+    p.add_argument('--agent', action='append', default=[],
+                   help='NAME=PATH to an agent.pt checkpoint')
+    p.add_argument('--builtin', default='fixedtime,maxpressure',
+                   help='comma-separated builtin controller ids '
+                        '(+dqn_s1 for the S1 snapshot)')
+    p.add_argument('--sga-notext', default=None,
+                   help='PATH of an sga ckpt also run with zeroed text')
+    p.add_argument('--report-delay', type=float, default=0.0)
+    p.add_argument('--onsets', default='300')
+    p.add_argument('--durs', default='600')
+    p.add_argument('--periods', default='4')
+    p.add_argument('--episodes-per-event', type=int, default=2)
+    p.add_argument('--include-none', action='store_true')
+    p.add_argument('--episode-seconds', type=int, default=1800)
+    p.add_argument('--interval', type=int, default=10)
+    p.add_argument('--clear-thresh', type=float, default=2.0)
+    p.add_argument('--traffic-seed-base', type=int, default=9000)
+    p.add_argument('--t-fixed', type=int, default=30)
+    p.add_argument('--t-min', type=int, default=10)
+    p.add_argument('--runtime-dir', default=None)
+    p.add_argument('--dqn-s1', default=str(DEFAULT_DQN_S1))
+    p.add_argument('--out', required=True)
+    args = p.parse_args()
+
+    rng = np.random.default_rng(7)
+    out = Path(args.out).resolve()
+    out.mkdir(parents=True, exist_ok=True)
+    onsets = [int(x) for x in args.onsets.split(',') if x]
+    durs = [int(x) for x in args.durs.split(',') if x]
+    periods = [int(x) for x in args.periods.split(',') if x]
+
+    # event grid: every injectable edge x onset/dur/period combos
+    grids = []
+    for edge in TRAIN_EDGES:
+        for onset in onsets:
+            for dur in durs:
+                for period in periods:
+                    grids.append(
+                        f'surge:{edge}:{EDGE_TARGETS[edge]}:'
+                        f'{onset}:{dur}:{period}')
+    if args.include_none:
+        grids.append(None)
+
+    # load agent arms once; rebuild per-episode fb from their meta
+    agents = {}
+    for spec in args.agent:
+        name, path = spec.split('=', 1)
+        agents[name] = (SceneSignalAgent.load(path), path)
+    builtins = {c: c for c in args.builtin.split(',') if c}
+    results = {name: [] for name in agents}
+    for name in builtins:
+        results[name] = []
+    if args.sga_notext:
+        results['sga_notext'] = []
+
+    ep_counter = 0
+    for spec in grids:
+        injects = parse_injects([spec]) if spec else []
+        for rep in range(args.episodes_per_event):
+            ep_counter += 1
+            seed = args.traffic_seed_base + ep_counter
+            world = build_world(args.scene, seed, Path(
+                args.runtime_dir or '/tmp/takeover_signal_eval'),
+                out / 'logger',
+                {'t_fixed': args.t_fixed, 't_min': args.t_min,
+                 'min_green_vehicle': 3, 'max_red_vehicle': 6})
+            ranks = list(range(len(world.intersection_ids)))
+            for name, ((agent, payload), path) in agents.items():
+                fb = FeatureBuilder(
+                    world, injects, report_delay=args.report_delay,
+                    **fb_kwargs_from_meta(payload.get('meta')))
+                metrics = eval_episode(
+                    world, fb, ranks, injects, agent=agent,
+                    episode_seconds=args.episode_seconds,
+                    interval=args.interval,
+                    clear_thresh=args.clear_thresh)
+                metrics['event'] = spec or 'none'
+                results[name].append(metrics)
+                world.reset()
+            if args.sga_notext:
+                agent, payload = SceneSignalAgent.load(args.sga_notext)
+                fb = FeatureBuilder(
+                    world, injects, report_delay=args.report_delay,
+                    **fb_kwargs_from_meta(payload.get('meta')))
+                metrics = eval_episode(
+                    world, fb, ranks, injects, agent=agent,
+                    episode_seconds=args.episode_seconds,
+                    interval=args.interval,
+                    text_override={'kind': 'none'},
+                    clear_thresh=args.clear_thresh)
+                metrics['event'] = spec or 'none'
+                results['sga_notext'].append(metrics)
+                world.reset()
+            controllers = build_controllers(
+                dqn_s1_path=(args.dqn_s1 if 'dqn_s1' in builtins
+                             else None))
+            needed = set(builtins) - {'dqn_s1'}
+            _bind_all(world, controllers, ranks, needed=needed)
+            if 'dqn_s1' in builtins:
+                controllers['dqn_s1'] = controllers['dqn_s1'].bind(
+                    world, ranks=ranks)
+            fb0 = FeatureBuilder(world, injects,
+                                 report_delay=args.report_delay)
+            for name in builtins:
+                metrics = eval_episode(
+                    world, fb0, ranks, injects,
+                    controller=controllers[name],
+                    episode_seconds=args.episode_seconds,
+                    interval=args.interval,
+                    clear_thresh=args.clear_thresh)
+                metrics['event'] = spec or 'none'
+                results[name].append(metrics)
+                world.reset()
+            world.close()
+            print(f'[{ep_counter}] {spec or "none"} rep{rep} done',
+                  flush=True)
+
+    summary = {}
+    for name, rows in results.items():
+        if not rows:
+            continue
+        clears = [r['clear_s'] for r in rows
+                  if r['clear_s'] == r['clear_s']]
+        summary[name] = {
+            'n': len(rows),
+            'queue_int': round(float(np.mean(
+                [r['queue_int'] for r in rows])), 1),
+            'ev_queue_int': round(float(np.mean(
+                [r['ev_queue_int'] for r in rows])), 1),
+            'peak_queue': round(float(np.mean(
+                [r['peak_queue'] for r in rows])), 1),
+            'clear_s': (round(float(np.mean(clears)), 1)
+                        if clears else None),
+            'clear_n': len(clears),
+            'throughput': round(float(np.mean(
+                [r['throughput'] for r in rows])), 1),
+            'bind_mass': (round(float(np.nanmean(
+                [r['bind_mass'] for r in rows
+                 if r['bind_mass'] is not None])), 4)
+                if any(r['bind_mass'] is not None for r in rows)
+                else None),
+        }
+    (out / 'results.json').write_text(
+        json.dumps({'arms': results, 'summary': summary},
+                   ensure_ascii=False, indent=1))
+    print(json.dumps(summary, ensure_ascii=False, indent=1))
+
+
+if __name__ == '__main__':
+    main()

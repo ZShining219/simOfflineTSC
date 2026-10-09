@@ -88,7 +88,8 @@ class BroadcastEngine:
     def __init__(self, scene, source_config, controllers,
                  default_controller_id=None, action_interval=10, speed=1.0,
                  sumo_seed=None, runtime_dir=None, ranks=None,
-                 model_params=None, scene_configs=None, injects=None):
+                 model_params=None, scene_configs=None, injects=None,
+                 recorder=None):
         self.scene = scene
         self.scene_key = str(scene)
         self.source_config = Path(source_config).expanduser().resolve()
@@ -119,6 +120,9 @@ class BroadcastEngine:
         self.inject_specs = list(injects or [])
         self.injects = []
         self._last_dispatch_child = None
+        # Optional per-decision transition recorder (HITL data plane);
+        # default None keeps the session completely unrecorded.
+        self.recorder = recorder
         self.runtime_dir = Path(
             runtime_dir or (Path(tempfile.gettempdir()) / 'sumo_live_broadcast')
         ).resolve()
@@ -148,6 +152,9 @@ class BroadcastEngine:
         self._bound = set()
         self._next_wall = None
         self.rebuilding = False
+        # recorder helpers keep instrumentation failures from ever
+        # breaking traffic control
+        self._recorder_errors = 0
         self.network = None
         self._init_payload = None
         self._status_message = ''
@@ -279,6 +286,12 @@ class BroadcastEngine:
             self._cond.notify_all()
         if self._thread is not None:
             self._thread.join(timeout=10)
+        if self.recorder is not None:
+            self._recorder_end('shutdown')
+            try:
+                self.recorder.close()
+            except Exception:
+                pass
         if self.world is not None:
             try:
                 self.world.close()
@@ -307,6 +320,35 @@ class BroadcastEngine:
     def _check_build_cancel(self):
         if self._build_cancel:
             raise _BuildCancelled()
+
+    # ------------------------------------------------------ recorder hooks
+    # All hooks are failure-isolated: instrumentation must never break
+    # traffic control.
+
+    def _recorder_call(self, method, *args, **kwargs):
+        if self.recorder is None:
+            return
+        try:
+            getattr(self.recorder, method)(*args, **kwargs)
+        except Exception as exc:
+            self._recorder_errors += 1
+            if self._recorder_errors <= 3:
+                self._record_event(
+                    f'recorder {method} 失败: {type(exc).__name__}: {exc}')
+
+    def _recorder_begin(self):
+        if self.recorder is None:
+            return
+        try:
+            self.recorder.bind(self.world, self.controlled_ranks)
+            self.recorder.begin_episode({'scene_key': self.scene_key})
+        except Exception as exc:
+            self._recorder_errors += 1
+            self._record_event(
+                f'recorder 绑定失败: {type(exc).__name__}: {exc}')
+
+    def _recorder_end(self, reason):
+        self._recorder_call('end_episode', reason)
 
     def _start_session(self, scene_key=None):
         """Build the SUMO world in stages; runs on the manager thread so
@@ -380,19 +422,21 @@ class BroadcastEngine:
                 )
                 self.controller_id = 'fixedtime'
                 self._bind_controller(self.controller_id)
+            self._recorder_begin()
             self._next_wall = time.monotonic()
             self._set_state('live')
             self._record_event(f'session start {scene_key}')
         except _BuildCancelled:
-            self._teardown_world(world)
+            self._teardown_world(world, reason='cancel')
             self._set_state('idle')
             self._status_message = '已取消构建'
             self._publish_status()
         except Exception as exc:
-            self._teardown_world(world)
+            self._teardown_world(world, reason='error')
             self._set_state('error', f'{type(exc).__name__}: {exc}')
 
-    def _teardown_world(self, world):
+    def _teardown_world(self, world, reason='teardown'):
+        self._recorder_end(reason)
         try:
             if world is not None:
                 world.close()
@@ -429,7 +473,7 @@ class BroadcastEngine:
             self._set_state('idle')
             return
         self._set_state('stopping')
-        self._teardown_world(self.world)
+        self._teardown_world(self.world, reason='stop')
         self._set_state('idle')
 
     # -------------------------------------------------------------- main loop
@@ -462,6 +506,7 @@ class BroadcastEngine:
                 for rank, inter in enumerate(self.world.intersections)
             ]
             self.world.step(actions)
+            self._recorder_call('on_step', now)
             self._publish(self._sample_frame())
             self._pace()
         self._publish_status()
@@ -575,6 +620,12 @@ class BroadcastEngine:
     def _commit_actions(self, actions, source, note=None, errors=None):
         for rank, phase in actions.items():
             self.held_actions[rank] = int(phase)
+        self._recorder_call(
+            'on_decision', self._sim_time(), actions, source=source,
+            proposals=self._proposed_actions,
+            pending=self._pending_choices,
+            manual=self.manual_overrides, note=note, errors=errors,
+        )
         self._record_decision(
             actions, source, note=note, errors=errors,
         )
@@ -605,6 +656,15 @@ class BroadcastEngine:
         if adjusted:
             note = '人工调整 ' + ','.join(adjusted)
         self._commit_actions(merged, controller.id, note=note)
+        # Operator adjustments confirmed at a decision boundary are
+        # interventions but did not alter a mid-flight interval.
+        for tl in adjusted:
+            rank = self._tl_rank.get(tl)
+            self._recorder_call(
+                'on_intervention', 'manual_pin', self._sim_time(),
+                rank=rank, phase=merged.get(rank),
+                detail={'via': 'resolve'}, mark_interval=False,
+            )
         self._publish_status()
 
     def _resolve_rank(self, target):
@@ -634,6 +694,10 @@ class BroadcastEngine:
             return
         self.manual_overrides[rank] = int(phase)
         self.held_actions[rank] = int(phase)
+        self._recorder_call(
+            'on_intervention', 'manual_pin', self._sim_time(),
+            rank=rank, phase=int(phase), detail={'via': 'override'},
+        )
         self._record_decision(
             int(phase), 'manual',
             junction=self._rank_tl[rank], note='operator override',
@@ -656,6 +720,10 @@ class BroadcastEngine:
                 self.held_actions[rank] = int(controller.decide(rank))
             except Exception:
                 pass
+            self._recorder_call(
+                'on_intervention', 'manual_release', self._sim_time(),
+                rank=rank, detail={'controller': controller.id},
+            )
             self._record_event(
                 f'{self._rank_tl[rank]} 解除人工接管 → {controller.id}'
             )
@@ -687,14 +755,16 @@ class BroadcastEngine:
             return
         self._record_event(f'scene switch -> {scene_key}')
         self._set_state('stopping')
-        self._teardown_world(self.world)
+        self._teardown_world(self.world, reason='scene_switch')
         self._set_state('idle')
         self._start_session(scene_key)
 
     def _reset_world(self):
+        self._recorder_end('reset')
         self.world.reset()
         self._reset_session_state()
         self._bind_controller(self.controller_id)
+        self._recorder_begin()
         self._record_event('simulation reset')
 
     # ----------------------------------------------------------------- frames

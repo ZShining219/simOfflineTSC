@@ -233,6 +233,12 @@ def build_parser():
              'or lane_close:LANE:START:DUR; repeatable',
     )
     parser.add_argument(
+        '--record', default=None, metavar='DIR',
+        help='Enable session recording (HITL data plane): per-decision '
+             'transitions, proposals and interventions land under '
+             'DIR/<session_id>/',
+    )
+    parser.add_argument(
         '--t-fixed', type=int, default=None,
         help='FixedTime t_fixed override (default: 30)',
     )
@@ -268,6 +274,22 @@ def main(argv=None):
             model_params[param_key] = value
 
     scene_configs = _build_scene_configs(args)
+    recorder = None
+    if args.record:
+        from .recorder import HitlRecorder
+        recorder = HitlRecorder(
+            Path(args.record).expanduser().resolve(),
+            meta={
+                'scene': canonical_scene(args.scene),
+                'scene_key': str(args.scene).upper(),
+                'source_config': str(sim_config),
+                'action_interval': int(args.action_interval),
+                'speed': float(args.speed),
+                'sumo_seed': args.sumo_seed,
+                'controllers': sorted(controllers),
+                'inject_specs': list(args.inject),
+            },
+        )
     engine = BroadcastEngine(
         scene=canonical_scene(args.scene),
         source_config=sim_config,
@@ -279,6 +301,7 @@ def main(argv=None):
         model_params=model_params,
         scene_configs=scene_configs,
         injects=list(args.inject),
+        recorder=recorder,
     )
     scene_key = str(args.scene).upper()
     if scene_key in scene_configs:

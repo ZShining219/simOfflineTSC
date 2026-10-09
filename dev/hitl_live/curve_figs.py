@@ -48,7 +48,20 @@ ARM_STYLE = {
     'HITL_EXPERT': dict(color='#d62728', label='C1 expert pool (HITL)'),
     'HITL_CTRL': dict(color='#1f77b4', label='CTRL equal machine data'),
     'HITL_DEMO': dict(color='#9467bd', label='DEMO pure expert pool'),
+    'HITL_B1': dict(color='#2ca02c', label='B1 rule-teacher shaping'),
+    'HITL_B2': dict(color='#ff7f0e', label='B2 reward-model shaping'),
+    'HITL_A0': dict(color='#8c564b', label='A0 DemoAC no pretrain'),
+    'HITL_API': dict(color='#e377c2', label='Aπ actor pretrain'),
+    'HITL_AQ': dict(color='#17becf', label='AQ critic pretrain'),
+    'HITL_APIQ': dict(color='#bcbd22', label='AπQ actor+critic pretrain'),
 }
+
+
+def _seed_of(run_id):
+    for part in str(run_id).split('-'):
+        if part.startswith('SD'):
+            return int(part[2:])
+    return None
 
 
 def _arm_of(request):
@@ -62,15 +75,22 @@ def _arm_of(request):
 def _condition_of(plan, logical_run_id):
     for child in plan.get('children', []):
         if child.get('logical_run_id') == logical_run_id:
-            return child.get('condition', logical_run_id.split('-')[0])
-    return logical_run_id.split('-')[0]
+            return child.get('condition', logical_run_id.rsplit('-', 1)[0])
+    return logical_run_id.rsplit('-', 1)[0]
 
 
-def collect(root):
-    """Map (condition, episode) -> eval summary metrics."""
-    plan_path = os.path.join(root, 'plan_4arm.json')
+def collect(root, plan_path=None):
+    """Per-run rows: (arm/condition, seed, episode) -> eval summary metrics.
+
+    Snapshot-dedup aliasing: while weights are still identical to the ep0
+    checkpoint the evaluator dedups the shared snapshot to the first
+    requesting run, so other runs legitimately lack early episodes.  Fill
+    leading episodes 1..min-1 with the earliest evaluated value for the
+    same seed (same frozen snapshot), matching paired_bootstrap.py."""
+    if plan_path is None:
+        plan_path = os.path.join(root, 'plan_4arm.json')
     plan = json.load(open(plan_path)) if os.path.isfile(plan_path) else {}
-    rows = []
+    per_run = {}
     pattern = os.path.join(
         root, '_shared_evaluation', 'physical', '*', 'attempt_*')
     for attempt_dir in glob.glob(pattern):
@@ -84,25 +104,45 @@ def collect(root):
         if arm is None:
             continue
         episode = int(request.get('checkpoint_episode', -1))
-        rows.append({
-            'arm': arm,
-            'condition': _condition_of(plan, arm),
-            'episode': episode,
-            'metrics': summary,
-        })
+        per_run.setdefault(arm, {})[episode] = summary
+    # earliest evaluated value per seed (the ep0-identical snapshot)
+    seed_early = {}
+    for arm, pts in per_run.items():
+        seed = _seed_of(arm)
+        early = min(pts)
+        if seed not in seed_early or early < seed_early[seed][0]:
+            seed_early[seed] = (early, pts[early])
+    rows = []
+    for arm, pts in per_run.items():
+        seed = _seed_of(arm)
+        if seed in seed_early:
+            early_val = seed_early[seed][1]
+            for ep in range(1, min(pts)):
+                pts.setdefault(ep, early_val)
+        for ep, summary in pts.items():
+            rows.append({
+                'arm': arm,
+                'condition': _condition_of(plan, arm),
+                'seed': seed,
+                'episode': ep,
+                'metrics': summary,
+            })
     return rows
 
 
 def _curve(rows, condition, metric):
-    pts = sorted(
-        (r['episode'], float(r['metrics'][metric]))
-        for r in rows
-        if r['condition'] == condition and metric in r['metrics']
-    )
-    if not pts:
-        return np.array([]), np.array([])
-    x, y = zip(*pts)
-    return np.asarray(x), np.asarray(y)
+    """Per-episode (mean, std) across runs of the same condition."""
+    by_ep = {}
+    for r in rows:
+        if r['condition'] == condition and metric in r['metrics']:
+            by_ep.setdefault(r['episode'], []).append(
+                float(r['metrics'][metric]))
+    if not by_ep:
+        return np.array([]), np.array([]), np.array([])
+    xs = sorted(by_ep)
+    mean = np.asarray([np.mean(by_ep[e]) for e in xs])
+    std = np.asarray([np.std(by_ep[e]) for e in xs])
+    return np.asarray(xs), mean, std
 
 
 def _load_diagnostics(root, arm):
@@ -119,13 +159,15 @@ def _load_diagnostics(root, arm):
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--root', required=True, help='pilot output root')
+    parser.add_argument('--plan', default=None,
+                        help='plan json for run_id -> condition mapping')
     parser.add_argument('--teacher-tt', type=float, default=None,
                         help='MaxPressure-alone travel time reference')
     parser.add_argument('--decisions-per-episode', type=int, default=120)
     parser.add_argument('--out', required=True)
     args = parser.parse_args(argv)
 
-    rows = collect(args.root)
+    rows = collect(args.root, args.plan)
     if not rows:
         raise SystemExit(f'no evaluations found under {args.root}')
     conditions = [c for c in ARM_STYLE if any(r['condition'] == c for r in rows)]
@@ -142,11 +184,13 @@ def main(argv=None):
     fig, axes = plt.subplots(1, 2, figsize=(13, 4.8))
     ax = axes[0]
     for cond in conditions:
-        x, y = _curve(rows, cond, 'travel_time')
+        x, y, s = _curve(rows, cond, 'travel_time')
         if len(x):
             ax.plot(x * dpe, y, marker='o', ms=3,
                     color=ARM_STYLE[cond]['color'],
                     label=ARM_STYLE[cond]['label'])
+            ax.fill_between(x * dpe, y - s, y + s,
+                            color=ARM_STYLE[cond]['color'], alpha=0.15)
     if args.teacher_tt is not None:
         ax.axhline(args.teacher_tt, color='#d62728', ls='--', lw=1, alpha=0.6)
         ax.text(0.01, args.teacher_tt, f'MP expert alone ({args.teacher_tt:.1f}s)',
@@ -159,10 +203,12 @@ def main(argv=None):
 
     ax = axes[1]
     for cond in conditions:
-        x, y = _curve(rows, cond, 'unfinished_vehicles')
+        x, y, s = _curve(rows, cond, 'unfinished_vehicles')
         if len(x):
             ax.plot(x * dpe, y, marker='o', ms=3,
                     color=ARM_STYLE[cond]['color'], label=cond)
+            ax.fill_between(x * dpe, y - s, y + s,
+                            color=ARM_STYLE[cond]['color'], alpha=0.15)
     ax.set_xlabel('Training decisions (control steps)')
     ax.set_ylabel('Unfinished vehicles')
     ax.set_title('Unfinished vehicles vs decisions')
@@ -174,7 +220,7 @@ def main(argv=None):
     fig, axes = plt.subplots(1, 4, figsize=(16, 4.2))
     aulc = {}
     for cond in conditions:
-        x, y = _curve(rows, cond, 'travel_time')
+        x, y, _ = _curve(rows, cond, 'travel_time')
         if len(x) > 1:
             trapz = getattr(np, 'trapezoid', None) or np.trapz
             aulc[cond] = float(trapz(y, x * dpe) / ((x[-1] - x[0]) * dpe))
@@ -191,7 +237,7 @@ def main(argv=None):
         ax = axes[i + 1]
         vals = {}
         for cond in conditions:
-            x, y = _curve(rows, cond, m)
+            x, y, _ = _curve(rows, cond, m)
             if len(x):
                 vals[cond] = y[-1]
         ax.bar(range(len(vals)), list(vals.values()),
@@ -203,22 +249,37 @@ def main(argv=None):
     fig.tight_layout()
     fig.savefig(os.path.join(args.out, 'fig2_aulc_final.png'), dpi=150)
 
-    # fig3: delta vs C0
+    # fig3: seed-paired delta vs C0 (per-seed difference, then mean±std)
     fig, axes = plt.subplots(1, 3, figsize=(15, 4.2))
     for i, m in enumerate(METRICS):
         ax = axes[i]
-        x0, y0 = _curve(rows, 'HITL_C0', m)
-        c0 = dict(zip(x0, y0))
+        c0_by_seed = {}
+        for r in rows:
+            if r['condition'] == 'HITL_C0' and m in r['metrics']:
+                c0_by_seed.setdefault(r['seed'], {})[r['episode']] = float(
+                    r['metrics'][m])
         for cond in conditions:
             if cond == 'HITL_C0':
                 continue
-            x, y = _curve(rows, cond, m)
-            pairs = [(xx, yy - c0[xx]) for xx, yy in zip(x, y) if xx in c0]
-            if pairs:
-                px, py = zip(*pairs)
-                ax.plot(np.asarray(px) * dpe, py, marker='o', ms=3,
+            paired = {}
+            for r in rows:
+                if (r['condition'] != cond or m not in r['metrics']
+                        or r['seed'] not in c0_by_seed):
+                    continue
+                base = c0_by_seed[r['seed']].get(r['episode'])
+                if base is None:
+                    continue
+                paired.setdefault(r['episode'], []).append(
+                    float(r['metrics'][m]) - base)
+            if paired:
+                px = sorted(paired)
+                pm = np.asarray([np.mean(paired[e]) for e in px])
+                ps = np.asarray([np.std(paired[e]) for e in px])
+                ax.plot(np.asarray(px) * dpe, pm, marker='o', ms=3,
                         color=ARM_STYLE[cond]['color'],
                         label=ARM_STYLE[cond]['label'])
+                ax.fill_between(np.asarray(px) * dpe, pm - ps, pm + ps,
+                                color=ARM_STYLE[cond]['color'], alpha=0.15)
         ax.axhline(0, color='#7f7f7f', lw=1)
         ax.set_xlabel('Training decisions')
         ax.set_ylabel(f'delta {m} vs C0')

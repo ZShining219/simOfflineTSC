@@ -93,6 +93,23 @@ def paired_deltas(rows, metric, dpe):
         if v is None:
             continue
         series.setdefault((r['condition'], r['seed']), {})[r['episode']] = v
+    # Snapshot-dedup aliasing: while weights are still identical to the ep0
+    # checkpoint (no gradient updates yet), the evaluator runs the shared
+    # snapshot once and attributes it to the first requesting run — other
+    # arms legitimately "miss" episodes 1..k even though their checkpoints
+    # are bit-identical.  Fill those leading episodes with the earliest
+    # evaluated value available for the same seed (same frozen snapshot).
+    seed_early = {}
+    for (cond, seed), pts in series.items():
+        early = min(pts)
+        if seed not in seed_early or early < seed_early[seed][0]:
+            seed_early[seed] = (early, pts[early])
+    for (cond, seed), pts in series.items():
+        if seed not in seed_early:
+            continue
+        early_val = seed_early[seed][1]
+        for ep in range(1, min(pts)):
+            pts.setdefault(ep, early_val)
     per_seed = {}
     for (cond, seed), pts in series.items():
         per_seed.setdefault(cond, {})[seed] = {

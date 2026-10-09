@@ -104,7 +104,8 @@ class DemoACAgent(SequentialDQNAgent):
             digests; optimizer digest is skipped (fresh Adam).
         """
         import random as _random
-        from .core import SequentialCounters, SequentialReplay
+        from .agent import SequentialCounters
+        from .core import SequentialReplay
         agent = cls(
             world, rank, model_config, trainer_config, **kwargs)
         checkpoint = torch.load(

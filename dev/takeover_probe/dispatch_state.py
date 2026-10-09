@@ -58,6 +58,7 @@ def fb_kwargs_from_meta(meta):
         kw['include_event_flag'] = bool(meta.get('event_flag', False))
     kw['phys'] = meta.get('phys', 'full')
     kw['include_forecast'] = bool(meta.get('include_forecast', True))
+    kw['phase_age'] = bool(meta.get('phase_age', False))
     return kw
 
 
@@ -66,7 +67,7 @@ class FeatureBuilder:
 
     def __init__(self, world, injects, report_delay=30.0,
                  layout='identity', include_event_flag=None,
-                 phys='full', include_forecast=True):
+                 phys='full', include_forecast=True, phase_age=False):
         self.world = world
         self.events = event_specs(injects)
         self.report_delay = float(report_delay)
@@ -80,6 +81,11 @@ class FeatureBuilder:
         # forecast fields (est_remaining_s) are supervision targets, not
         # report content — a reporter cannot know the future
         self.include_forecast = bool(include_forecast)
+        # current-phase elapsed time: signal controllers (maxpressure et
+        # al.) gate their decisions on it; without it the observation is
+        # partially observable for phase control (can't tell a fresh
+        # switch from a stale hold)
+        self.phase_age = bool(phase_age)
         self.lanes = sorted(world.get_info('lane_waiting_count') or {})
         self.edge_to_laneidx = {}
         for idx, lane in enumerate(self.lanes):
@@ -113,7 +119,7 @@ class FeatureBuilder:
             raise ValueError(f'unknown feature layout {layout!r}')
         # text vec: kind onehot + edge indicator block + scalars
         self.text_dim = self.n_kinds + self._text_edge_dim + SCALARS
-        self.global_dim = 8 + 3     # phase onehot + t_norm + totals
+        self.global_dim = 8 + 3 + (1 if self.phase_age else 0)
         self.active_edge_idx = None
 
     def model_geom(self):
@@ -135,6 +141,7 @@ class FeatureBuilder:
                 'event_flag': self.include_event_flag,
                 'phys': self.phys,
                 'include_forecast': self.include_forecast,
+                'phase_age': self.phase_age,
                 'geom': self.model_geom()}
 
     def event_fields(self, now):
@@ -223,9 +230,11 @@ class FeatureBuilder:
 
     def global_vec(self, now):
         phase = 0
+        phase_time = 0.0
         try:
             inter = self.world.intersections[0]
             phase = int(inter.virtual_phase) % 8
+            phase_time = float(inter.current_phase_time)
         except Exception:
             pass
         queue = self.world.get_info('lane_waiting_count') or {}
@@ -234,6 +243,8 @@ class FeatureBuilder:
         vec[8] = min(now, 3600.0) / 3600.0
         vec[9] = sum(queue.values()) / 50.0
         vec[10] = (max(queue.values()) if queue else 0) / 25.0
+        if self.phase_age:
+            vec[11] = min(phase_time, 120.0) / 120.0
         return vec
 
     def snapshot(self, now, text_override=None):

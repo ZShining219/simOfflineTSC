@@ -29,7 +29,9 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-from dev.takeover_probe.probe import build_world  # noqa: E402
+from dev.takeover_probe.probe import (  # noqa: E402
+    build_controllers, build_world, _bind_all,
+)
 from dev.takeover_probe.dispatch_state import FeatureBuilder  # noqa: E402
 from dev.takeover_probe.signal_model import (  # noqa: E402
     STATE_ONLY, SceneSignalAgent,
@@ -75,7 +77,8 @@ def train(args):
 
     fb0 = FeatureBuilder(
         world, [], report_delay=args.report_delay, layout='identity',
-        phys=args.phys, include_forecast=not args.no_forecast)
+        phys=args.phys, include_forecast=not args.no_forecast,
+        phase_age=True)
     state_only = args.variant in STATE_ONLY
     agent = SceneSignalAgent(
         lane_dim=fb0.lane_tokens(0.0).shape[1],
@@ -101,6 +104,38 @@ def train(args):
         global_dim=fb0.global_dim, n_lanes=fb0.n_lanes,
         d_model=args.d_model, residual_pool=args.residual_pool,
         **fb0.feature_meta())
+
+    # ---- phase 0: teacher demonstrations + BC warm-start ---------------
+    if args.teacher_eps > 0:
+        demos = []
+        for tep in range(args.teacher_eps):
+            injects = sample_injects(rng, allow_none_p=args.allow_none_p)
+            world.close()
+            world = build_world(
+                args.scene, args.traffic_seed_base - 1 - tep,
+                Path(args.runtime_dir or '/tmp/takeover_signal'),
+                out / 'logger',
+                {'t_fixed': args.t_fixed, 't_min': args.t_min,
+                 'min_green_vehicle': 3, 'max_red_vehicle': 6})
+            ctrls = build_controllers()
+            _bind_all(world, ctrls, ranks, needed={args.teacher})
+            fb_t = FeatureBuilder(
+                world, injects, report_delay=args.report_delay,
+                layout='identity', phys=args.phys,
+                include_forecast=not args.no_forecast, phase_age=True)
+            transitions, _ = run_signal_episode(
+                world, fb_t, ranks, injects=injects,
+                controller=ctrls[args.teacher], interval=args.interval,
+                episode_seconds=args.episode_seconds, record_snaps=True,
+                switch_penalty=args.switch_penalty)
+            replay.extend(transitions)
+            demos += [(t['s'], t['a']) for t in transitions]
+        bc_loss = bc_updates(agent, opt, demos, args, rng)
+        target.load_state_dict(agent.state_dict())
+        print(json.dumps({'teacher': args.teacher,
+                          'demo_pairs': len(demos),
+                          'bc_loss': round(bc_loss, 4)}), flush=True)
+
     log = []
     for ep in range(1, args.episodes + 1):
         injects = sample_injects(rng, allow_none_p=args.allow_none_p)
@@ -116,14 +151,14 @@ def train(args):
         fb = FeatureBuilder(
             world, injects, report_delay=args.report_delay,
             layout='identity', phys=args.phys,
-            include_forecast=not args.no_forecast)
+            include_forecast=not args.no_forecast, phase_age=True)
         eps = max(args.eps_final,
                   args.eps_start - (args.eps_start - args.eps_final)
                   * ep / max(1, args.eps_decay_episodes))
         transitions, records = run_signal_episode(
             world, fb, ranks, injects=injects, agent=agent,
             interval=args.interval, episode_seconds=args.episode_seconds,
-            epsilon=eps, rng=rng)
+            epsilon=eps, rng=rng, switch_penalty=args.switch_penalty)
         replay.extend(transitions)
         stats = update(agent, target, opt, replay, args, rng)
         if ep % args.target_sync == 0:
@@ -149,6 +184,29 @@ def train(args):
             agent.save(out / 'agent.pt', meta={**meta, 'episode': ep})
     (out / 'train_log.json').write_text(
         json.dumps(log, ensure_ascii=False, indent=1))
+
+
+def bc_updates(agent, opt, demos, args, rng):
+    """Warm-start: imitate the teacher's phase choices (CE over Q logits)."""
+    import torch
+    from dev.takeover_probe.dispatch_model import collate
+    if not demos:
+        return 0.0
+    losses = []
+    for _ in range(args.bc_updates):
+        idx = rng.integers(0, len(demos), size=args.batch)
+        s = collate([demos[i][0] for i in idx])
+        a = torch.as_tensor([demos[i][1] for i in idx])
+        q, _ = agent.q_values(s)
+        loss = torch.nn.functional.cross_entropy(q, a)
+        loss.backward()
+        if args.grad_clip > 0:
+            torch.nn.utils.clip_grad_norm_(agent.parameters(),
+                                           args.grad_clip)
+        opt.step()
+        opt.zero_grad()
+        losses.append(loss.item())
+    return float(np.mean(losses))
 
 
 def update(agent, target, opt, replay, args, rng):
@@ -188,6 +246,9 @@ def update(agent, target, opt, replay, args, rng):
             if terms:
                 aux = torch.stack(terms).mean() * args.aux_weight
         (loss + aux).backward()
+        if args.grad_clip > 0:
+            torch.nn.utils.clip_grad_norm_(agent.parameters(),
+                                           args.grad_clip)
         opt.step()
         opt.zero_grad()
         losses.append(loss.item())
@@ -216,6 +277,15 @@ def main():
     p.add_argument('--episode-seconds', type=int, default=3600)
     p.add_argument('--interval', type=int, default=10)
     p.add_argument('--allow-none-p', type=float, default=0.25)
+    p.add_argument('--teacher', default='maxpressure',
+                   help='teacher controller for demonstration episodes '
+                        '(0 episodes = BC off)')
+    p.add_argument('--teacher-eps', type=int, default=0)
+    p.add_argument('--bc-updates', type=int, default=500)
+    p.add_argument('--switch-penalty', type=float, default=0.0,
+                   help='reward cost per commanded phase change — the '
+                        'yellow/all-red transition is real capacity loss; '
+                        'without it greedy policies collapse to toggling')
     p.add_argument('--eps-start', type=float, default=1.0)
     p.add_argument('--eps-final', type=float, default=0.05)
     p.add_argument('--eps-decay-episodes', type=int, default=60)
@@ -223,9 +293,10 @@ def main():
     p.add_argument('--buffer', type=int, default=50000)
     p.add_argument('--updates-per-ep', type=int, default=60)
     p.add_argument('--gamma', type=float, default=0.95)
-    p.add_argument('--lr', type=float, default=1e-3)
+    p.add_argument('--lr', type=float, default=3e-4)
+    p.add_argument('--grad-clip', type=float, default=10.0)
     p.add_argument('--aux-weight', type=float, default=0.05)
-    p.add_argument('--target-sync', type=int, default=2)
+    p.add_argument('--target-sync', type=int, default=5)
     p.add_argument('--ckpt-every', type=int, default=25)
     p.add_argument('--rng-seed', type=int, default=0)
     p.add_argument('--traffic-seed-base', type=int, default=100)

@@ -26,7 +26,13 @@ from tools.sumo_live_broadcast.injects import apply_injects
 def run_signal_episode(world, fb, ranks, injects=None, agent=None,
                        controller=None, interval=10, episode_seconds=3600,
                        epsilon=0.0, rng=None, text_override=None,
-                       reward_scale=50.0):
+                       reward_scale=50.0, record_snaps=False,
+                       switch_penalty=0.0):
+    """``record_snaps``: take snapshots + emit transitions even when a
+    builtin ``controller`` drives — used to collect teacher
+    demonstrations for BC warm-start.  ``switch_penalty``: per phase-change
+    reward cost (yellow/all-red time is real capacity loss — without it a
+    learned policy can collapse into every-tick toggling)."""
     injects = injects or []
     held = {
         rank: int(inter.virtual_phase)
@@ -36,6 +42,7 @@ def run_signal_episode(world, fb, ranks, injects=None, agent=None,
     next_decision_t = float(world.get_current_time())
     open_tick = None          # {'snap','a','q','w','t'}
     interval_queue = 0.0
+    interval_switches = 0.0
     while True:
         now = float(world.get_current_time())
         if episode_seconds and now >= episode_seconds:
@@ -43,11 +50,11 @@ def run_signal_episode(world, fb, ranks, injects=None, agent=None,
         if now + 1e-6 >= next_decision_t:
             # close the previous tick: r over its interval, s' = now
             snap = fb.snapshot(now, text_override=text_override) \
-                if agent is not None else None
+                if (agent is not None or record_snaps) else None
             if open_tick is not None:
                 r = -(interval_queue / max(1.0, now - open_tick['t'])) \
-                    / reward_scale
-                if agent is not None:
+                    / reward_scale - interval_switches
+                if agent is not None or record_snaps:
                     transitions.append({
                         's': open_tick['snap'], 'a': open_tick['a'],
                         'r': r, 'sp': snap, 'done': False,
@@ -55,6 +62,7 @@ def run_signal_episode(world, fb, ranks, injects=None, agent=None,
                 open_tick['r'] = r
             # decide for the new tick
             qvals, attn_w, sentence = None, None, None
+            prev_held = held[ranks[0]] if ranks else 0
             if agent is not None:
                 from dev.takeover_probe.dispatch_model import collate
                 batch = collate([snap])
@@ -67,6 +75,7 @@ def run_signal_episode(world, fb, ranks, injects=None, agent=None,
                 a = int(controller.decide(0))
                 for rank in ranks:
                     held[rank] = a
+            interval_switches = switch_penalty if a != prev_held else 0.0
             lane_queue = world.get_info('lane_waiting_count') or {}
             records.append({
                 't': now,
@@ -91,8 +100,9 @@ def run_signal_episode(world, fb, ranks, injects=None, agent=None,
             held.get(rank, int(inter.virtual_phase))
             for rank, inter in enumerate(world.intersections)
         ])
-    if open_tick is not None and open_tick['snap'] is not None:
-        r = -(interval_queue / max(1.0, interval)) / reward_scale
+    if open_tick is not None and (agent is not None or record_snaps):
+        r = -(interval_queue / max(1.0, interval)) / reward_scale \
+            - interval_switches
         transitions.append({
             's': open_tick['snap'], 'a': open_tick['a'], 'r': r,
             'sp': open_tick['snap'], 'done': True,

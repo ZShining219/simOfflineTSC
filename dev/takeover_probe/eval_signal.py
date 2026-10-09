@@ -44,6 +44,7 @@ from dev.takeover_probe.dispatch_state import (  # noqa: E402
     FeatureBuilder, fb_kwargs_from_meta,
 )
 from dev.takeover_probe.signal_model import SceneSignalAgent  # noqa: E402
+from dev.takeover_probe.scene_mp import SceneGuidedMP  # noqa: E402
 from dev.takeover_probe.signal_runtime import (  # noqa: E402
     run_signal_episode,
 )
@@ -105,6 +106,27 @@ def main():
     p.add_argument('--scene', default='S2')
     p.add_argument('--agent', action='append', default=[],
                    help='NAME=PATH to an agent.pt checkpoint')
+    p.add_argument('--scenemp', action='append', default=[],
+                   help='NAME=PATH — SceneGuidedMP arm: encoder attention '
+                        'reweights maxpressure (encoder from agent.pt, '
+                        'Q head unused)')
+    p.add_argument('--scenemp-beta', type=float, default=40.0)
+    p.add_argument('--scenemp-gate', type=float, default=8.0,
+                   help='queue scale for the attention-bonus fade')
+    p.add_argument('--scenemp-fade', choices=['out', 'in', 'band'], default='in',
+                   help='out = bonus fades as queue appears (anticipatory '
+                        'gating, beta<0); in = bonus ramps with queue '
+                        '(preferential service at wave arrival)')
+    p.add_argument('--scenemp-direction',
+                   choices=['auto', 'queue', 'count', 'qmix', 'attn', 'binding'],
+                   default='auto')
+    p.add_argument('--scenemp-bind-tau', type=float, default=0.4,
+                   help='edge-mass threshold for the binding gate '
+                        '(scene arms only)')
+    p.add_argument('--scenemp-t-min', type=float, default=10.0)
+    p.add_argument('--scenemp-notext', default=None,
+                   help='PATH to agent.pt — scenemp arm with the report '
+                        'channel blinded (kind=none), ablation control')
     p.add_argument('--builtin', default='fixedtime,maxpressure',
                    help='comma-separated builtin controller ids '
                         '(+dqn_s1 for the S1 snapshot)')
@@ -151,16 +173,23 @@ def main():
     for spec in args.agent:
         name, path = spec.split('=', 1)
         agents[name] = (SceneSignalAgent.load(path), path)
+    scenemps = {}
+    for spec in args.scenemp:
+        name, path = spec.split('=', 1)
+        scenemps[name] = (SceneSignalAgent.load(path), path)
     builtins = {c: c for c in args.builtin.split(',') if c}
     results = {name: [] for name in agents}
+    for name in scenemps:
+        results[f'scenemp_{name}'] = []
     for name in builtins:
         results[name] = []
     if args.sga_notext:
         results['sga_notext'] = []
+    if args.scenemp_notext:
+        results['scenemp_notext'] = []
 
     ep_counter = 0
     for spec in grids:
-        injects = parse_injects([spec]) if spec else []
         for rep in range(args.episodes_per_event):
             ep_counter += 1
             seed = args.traffic_seed_base + ep_counter
@@ -170,7 +199,11 @@ def main():
                 {'t_fixed': args.t_fixed, 't_min': args.t_min,
                  'min_green_vehicle': 3, 'max_red_vehicle': 6})
             ranks = list(range(len(world.intersection_ids)))
+            # apply_injects MUTATES inject dicts (count/next_depart/
+            # applied) — every arm must get a fresh parse or later arms
+            # silently run event-free episodes
             for name, ((agent, payload), path) in agents.items():
+                injects = parse_injects([spec]) if spec else []
                 fb = FeatureBuilder(
                     world, injects, report_delay=args.report_delay,
                     **fb_kwargs_from_meta(payload.get('meta')))
@@ -182,7 +215,50 @@ def main():
                 metrics['event'] = spec or 'none'
                 results[name].append(metrics)
                 world.reset()
+            for name, ((agent, payload), path) in scenemps.items():
+                injects = parse_injects([spec]) if spec else []
+                fb = FeatureBuilder(
+                    world, injects, report_delay=args.report_delay,
+                    **fb_kwargs_from_meta(payload.get('meta')))
+                mp = SceneGuidedMP(agent, fb, world,
+                                   beta=args.scenemp_beta,
+                                   t_min=args.scenemp_t_min,
+                                   gate=args.scenemp_gate,
+                                   fade=args.scenemp_fade,
+                                   direction=args.scenemp_direction,
+                                   bind_tau=args.scenemp_bind_tau)
+                metrics = eval_episode(
+                    world, fb, ranks, injects, agent=mp,
+                    episode_seconds=args.episode_seconds,
+                    interval=args.interval,
+                    clear_thresh=args.clear_thresh)
+                metrics['event'] = spec or 'none'
+                results[f'scenemp_{name}'].append(metrics)
+                world.reset()
+            if args.scenemp_notext:
+                injects = parse_injects([spec]) if spec else []
+                agent, payload = SceneSignalAgent.load(args.scenemp_notext)
+                fb = FeatureBuilder(
+                    world, injects, report_delay=args.report_delay,
+                    **fb_kwargs_from_meta(payload.get('meta')))
+                mp = SceneGuidedMP(agent, fb, world,
+                                   beta=args.scenemp_beta,
+                                   t_min=args.scenemp_t_min,
+                                   gate=args.scenemp_gate,
+                                   fade=args.scenemp_fade,
+                                   direction=args.scenemp_direction,
+                                   bind_tau=args.scenemp_bind_tau)
+                metrics = eval_episode(
+                    world, fb, ranks, injects, agent=mp,
+                    episode_seconds=args.episode_seconds,
+                    interval=args.interval,
+                    text_override={'kind': 'none'},
+                    clear_thresh=args.clear_thresh)
+                metrics['event'] = spec or 'none'
+                results['scenemp_notext'].append(metrics)
+                world.reset()
             if args.sga_notext:
+                injects = parse_injects([spec]) if spec else []
                 agent, payload = SceneSignalAgent.load(args.sga_notext)
                 fb = FeatureBuilder(
                     world, injects, report_delay=args.report_delay,
@@ -204,9 +280,10 @@ def main():
             if 'dqn_s1' in builtins:
                 controllers['dqn_s1'] = controllers['dqn_s1'].bind(
                     world, ranks=ranks)
-            fb0 = FeatureBuilder(world, injects,
-                                 report_delay=args.report_delay)
             for name in builtins:
+                injects = parse_injects([spec]) if spec else []
+                fb0 = FeatureBuilder(world, injects,
+                                     report_delay=args.report_delay)
                 metrics = eval_episode(
                     world, fb0, ranks, injects,
                     controller=controllers[name],

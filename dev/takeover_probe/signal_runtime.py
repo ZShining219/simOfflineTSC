@@ -27,7 +27,8 @@ def run_signal_episode(world, fb, ranks, injects=None, agent=None,
                        controller=None, interval=10, episode_seconds=3600,
                        epsilon=0.0, rng=None, text_override=None,
                        reward_scale=50.0, record_snaps=False,
-                       switch_penalty=0.0, q_base_fn=None):
+                       switch_penalty=0.0, q_base_fn=None,
+                       orig_reward=False):
     """``record_snaps``: take snapshots + emit transitions even when a
     builtin ``controller`` drives — used to collect teacher
     demonstrations for BC warm-start.  ``switch_penalty``: per phase-change
@@ -36,7 +37,13 @@ def run_signal_episode(world, fb, ranks, injects=None, agent=None,
     ``q_base_fn``: callable -> per-phase values of a frozen base
     controller at the current tick (residual policies ride on it);
     sampled once per decision tick and stored as ``qb``/``qbp`` inside
-    each transition."""
+    each transition.
+    ``orig_reward``: replace the probe shaping with the deployed DQN's
+    own objective — -12 x mean lane_waiting_count over the intersection's
+    incoming lanes, sampled at the tick boundary (LaneVehicleGenerator
+    in_only=True, average='all', negative=True, x12).  Keeps the TD
+    target identical to what the base converged on, so fine-tuning does
+    not rewrite its Q calibration."""
     injects = injects or []
     held = {
         rank: int(inter.virtual_phase)
@@ -47,6 +54,19 @@ def run_signal_episode(world, fb, ranks, injects=None, agent=None,
     open_tick = None          # {'snap','a','q','w','t'}
     interval_queue = 0.0
     interval_switches = 0.0
+    in_lanes = []
+    if orig_reward and ranks:
+        inter = world.intersections[ranks[0]]
+        in_lanes = [l for r in inter.in_roads
+                    for l in inter.road_lane_mapping.get(r, [])]
+
+    def _reward(now):
+        if orig_reward:
+            lwc = world.get_info('lane_waiting_count') or {}
+            vals = [float(lwc.get(l, 0.0)) for l in in_lanes]
+            return -12.0 * float(np.mean(vals)) if vals else 0.0
+        return -(interval_queue / max(1.0, now - open_tick['t'])) \
+            / reward_scale - interval_switches
     while True:
         now = float(world.get_current_time())
         if episode_seconds and now >= episode_seconds:
@@ -57,8 +77,7 @@ def run_signal_episode(world, fb, ranks, injects=None, agent=None,
                 if (agent is not None or record_snaps) else None
             qb = q_base_fn() if q_base_fn is not None else None
             if open_tick is not None:
-                r = -(interval_queue / max(1.0, now - open_tick['t'])) \
-                    / reward_scale - interval_switches
+                r = _reward(now)
                 if agent is not None or record_snaps:
                     transitions.append({
                         's': open_tick['snap'], 'a': open_tick['a'],
@@ -107,8 +126,7 @@ def run_signal_episode(world, fb, ranks, injects=None, agent=None,
             for rank, inter in enumerate(world.intersections)
         ])
     if open_tick is not None and (agent is not None or record_snaps):
-        r = -(interval_queue / max(1.0, interval)) / reward_scale \
-            - interval_switches
+        r = _reward(now)
         transitions.append({
             's': open_tick['snap'], 'a': open_tick['a'], 'r': r,
             'sp': open_tick['snap'], 'done': True,

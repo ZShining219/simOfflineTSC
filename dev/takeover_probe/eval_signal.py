@@ -44,7 +44,9 @@ from dev.takeover_probe.dispatch_state import (  # noqa: E402
     FeatureBuilder, fb_kwargs_from_meta,
 )
 from dev.takeover_probe.signal_model import SceneSignalAgent  # noqa: E402
-from dev.takeover_probe.scene_mp import SceneGuidedMP  # noqa: E402
+from dev.takeover_probe.scene_mp import (  # noqa: E402
+    SceneGuidedDQN, SceneGuidedMP, bound_dqn_agent,
+)
 from dev.takeover_probe.signal_runtime import (  # noqa: E402
     run_signal_episode,
 )
@@ -127,6 +129,16 @@ def main():
     p.add_argument('--scenemp-notext', default=None,
                    help='PATH to agent.pt — scenemp arm with the report '
                         'channel blinded (kind=none), ablation control')
+    p.add_argument('--scenemp-dose-frac', type=float, default=0.35)
+    p.add_argument('--scenedqn', action='append', default=[],
+                   help='NAME=PATH — SceneGuidedDQN arm: same attention '
+                        'bias on the frozen DQN base (--scenedqn-dqn)')
+    p.add_argument('--scenedqn-dqn', default=None,
+                   help='DQN weights for scenedqn arms '
+                        '(default: --dqn-s1)')
+    p.add_argument('--scenedqn-notext', default=None,
+                   help='PATH to agent.pt — scenedqn arm with the report '
+                        'channel blinded (kind=none), ablation control')
     p.add_argument('--builtin', default='fixedtime,maxpressure',
                    help='comma-separated builtin controller ids '
                         '(+dqn_s1 for the S1 snapshot)')
@@ -177,16 +189,25 @@ def main():
     for spec in args.scenemp:
         name, path = spec.split('=', 1)
         scenemps[name] = (SceneSignalAgent.load(path), path)
+    scenedqns = {}
+    for spec in args.scenedqn:
+        name, path = spec.split('=', 1)
+        scenedqns[name] = (SceneSignalAgent.load(path), path)
+    scenedqn_weights = args.scenedqn_dqn or args.dqn_s1
     builtins = {c: c for c in args.builtin.split(',') if c}
     results = {name: [] for name in agents}
     for name in scenemps:
         results[f'scenemp_{name}'] = []
+    for name in scenedqns:
+        results[f'scenedqn_{name}'] = []
     for name in builtins:
         results[name] = []
     if args.sga_notext:
         results['sga_notext'] = []
     if args.scenemp_notext:
         results['scenemp_notext'] = []
+    if args.scenedqn_notext:
+        results['scenedqn_notext'] = []
 
     ep_counter = 0
     for spec in grids:
@@ -226,7 +247,8 @@ def main():
                                    gate=args.scenemp_gate,
                                    fade=args.scenemp_fade,
                                    direction=args.scenemp_direction,
-                                   bind_tau=args.scenemp_bind_tau)
+                                   bind_tau=args.scenemp_bind_tau,
+                                   dose_frac=args.scenemp_dose_frac)
                 metrics = eval_episode(
                     world, fb, ranks, injects, agent=mp,
                     episode_seconds=args.episode_seconds,
@@ -234,6 +256,55 @@ def main():
                     clear_thresh=args.clear_thresh)
                 metrics['event'] = spec or 'none'
                 results[f'scenemp_{name}'].append(metrics)
+                world.reset()
+            for name, ((agent, payload), path) in scenedqns.items():
+                injects = parse_injects([spec]) if spec else []
+                fb = FeatureBuilder(
+                    world, injects, report_delay=args.report_delay,
+                    **fb_kwargs_from_meta(payload.get('meta')))
+                dqn = bound_dqn_agent(world, scenedqn_weights,
+                                      rank=ranks[0])
+                mp = SceneGuidedDQN(agent, fb, world, dqn,
+                                    beta=args.scenemp_beta,
+                                    t_min=args.scenemp_t_min,
+                                    gate=args.scenemp_gate,
+                                    fade=args.scenemp_fade,
+                                    direction=args.scenemp_direction,
+                                    bind_tau=args.scenemp_bind_tau,
+                                    dose_frac=args.scenemp_dose_frac)
+                metrics = eval_episode(
+                    world, fb, ranks, injects, agent=mp,
+                    episode_seconds=args.episode_seconds,
+                    interval=args.interval,
+                    clear_thresh=args.clear_thresh)
+                metrics['event'] = spec or 'none'
+                results[f'scenedqn_{name}'].append(metrics)
+                world.reset()
+            if args.scenedqn_notext:
+                injects = parse_injects([spec]) if spec else []
+                agent, payload = SceneSignalAgent.load(
+                    args.scenedqn_notext)
+                fb = FeatureBuilder(
+                    world, injects, report_delay=args.report_delay,
+                    **fb_kwargs_from_meta(payload.get('meta')))
+                dqn = bound_dqn_agent(world, scenedqn_weights,
+                                      rank=ranks[0])
+                mp = SceneGuidedDQN(agent, fb, world, dqn,
+                                    beta=args.scenemp_beta,
+                                    t_min=args.scenemp_t_min,
+                                    gate=args.scenemp_gate,
+                                    fade=args.scenemp_fade,
+                                    direction=args.scenemp_direction,
+                                    bind_tau=args.scenemp_bind_tau,
+                                    dose_frac=args.scenemp_dose_frac)
+                metrics = eval_episode(
+                    world, fb, ranks, injects, agent=mp,
+                    episode_seconds=args.episode_seconds,
+                    interval=args.interval,
+                    text_override={'kind': 'none'},
+                    clear_thresh=args.clear_thresh)
+                metrics['event'] = spec or 'none'
+                results['scenedqn_notext'].append(metrics)
                 world.reset()
             if args.scenemp_notext:
                 injects = parse_injects([spec]) if spec else []
@@ -247,7 +318,8 @@ def main():
                                    gate=args.scenemp_gate,
                                    fade=args.scenemp_fade,
                                    direction=args.scenemp_direction,
-                                   bind_tau=args.scenemp_bind_tau)
+                                   bind_tau=args.scenemp_bind_tau,
+                                   dose_frac=args.scenemp_dose_frac)
                 metrics = eval_episode(
                     world, fb, ranks, injects, agent=mp,
                     episode_seconds=args.episode_seconds,

@@ -396,13 +396,9 @@ def _build_inference_agent(world, payload, rank=0, model=None):
     return agent
 
 
-def _inference_action(agent):
-    """``InferenceOnlyDQN.get_action`` without assuming ``dense_*`` layers.
-
-    The stock implementation reads ``model.dense_3.out_features`` for the
-    phase one-hot width, which breaks dueling heads; the shared model's real
-    output width is recovered via ``_output_dim`` instead.
-    """
+def inference_q_values(agent):
+    """Raw per-phase Q values of a bound inference agent — the bias
+    surface for scene-guided intervention on a frozen DQN base."""
     import torch
     from agent import utils as agent_utils
 
@@ -419,7 +415,17 @@ def _inference_action(agent):
         feature = observation
     with torch.no_grad():
         values = agent.model(torch.as_tensor(feature, dtype=torch.float32))
-    return int(np.argmax(values.cpu().numpy(), axis=1)[0])
+    return values.cpu().numpy().reshape(-1)
+
+
+def _inference_action(agent):
+    """``InferenceOnlyDQN.get_action`` without assuming ``dense_*`` layers.
+
+    The stock implementation reads ``model.dense_3.out_features`` for the
+    phase one-hot width, which breaks dueling heads; the shared model's real
+    output width is recovered via ``_output_dim`` instead.
+    """
+    return int(np.argmax(inference_q_values(agent)))
 
 
 def _bind_generators(agent, world):

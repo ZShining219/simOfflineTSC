@@ -1,16 +1,21 @@
-"""Scene-guided MaxPressure: scene attention weights reweight the
-pressure computation of the classic maxpressure rule.
+"""Scene-guided base-controller intervention: scene attention weights
+add a bounded, gated bias to a frozen base controller's per-phase
+values — the classic maxpressure rule (``SceneGuidedMP``) or a
+deployed DQN's Q values (``SceneGuidedDQN``).
 
 Single-layer intervention structure, no RL loop::
 
     lane/text/global -> encoder -> (z, w per-lane attention)
     gate   = 1 if max_edge bind_mass(w_cross) >= tau else 0
     fade_l = min(queue_l / gate_q, 1)             # incipient-queue shape
-    pressure_p = sum_{(up,down) in phase_p.lanelinks}
-                     (count_up - count_down)
+    value_p  = base_p                            # MP pressure / DQN Q
                  + beta * gate * sum_{(up,down) in phase_p.lanelinks}
                        w_dir[up] * fade_up
-    phase = argmax_p pressure_p            (hold if phase_time < t_min)
+    phase = argmax_p value_p              (hold if phase_time < t_min)
+
+The bonus is capped at ``dose_frac`` of the base controller's live
+value scale (max |pressure| for MP, max Q - min Q for DQN), so the same
+beta never hijacks the base — it can only tilt near-ties.
 
 Two products of the scene module do different jobs, matching what the
 mechanism is empirically good at:
@@ -111,6 +116,17 @@ class SceneGuidedMP:
             return w_cross
         return None          # 'queue' / 'binding' handled in act()
 
+    def _base_and_dose(self, inter, counts):
+        """Per-phase base values of the underlying controller plus the
+        reference scale the attention bonus is allowed to tilt (dose
+        cap).  MaxPressure: vehicle-count pressure, scale = max
+        |pressure|."""
+        base = [
+            sum(counts.get(s, 0.0) - counts.get(e, 0.0)
+                for s, e in inter.phase_available_lanelinks[p])
+            for p in range(len(inter.phases))]
+        return base, max(abs(v) for v in base) or 1.0
+
     def act(self, batch, epsilon=0.0, rng=None):
         inter = self.world.intersections[0]
         z, w = self.agent.encode(batch)         # (1,d), (1,L)
@@ -132,14 +148,12 @@ class SceneGuidedMP:
         queues = self.world.get_info('lane_waiting_count') or {}
         q_mean = (sum(queues.values()) / max(1, len(queues))) or 1.0
         lidx = {name: i for i, name in enumerate(self.fb.lanes)}
-        pressures = []
+        base, dose_scale = self._base_and_dose(inter, counts)
         bonuses = []
         for p in range(len(inter.phases)):
-            pr = 0.0
             bonus = 0.0
             n_b = 0
             for s, e in inter.phase_available_lanelinks[p]:
-                pr += counts.get(s, 0.0) - counts.get(e, 0.0)
                 if s in lidx:
                     q_s = (counts.get(s, 0.0) if self.direction == 'count'
                            else queues.get(s, 0.0))
@@ -164,13 +178,49 @@ class SceneGuidedMP:
             # win the bonus merely by having more lanelinks
             if self.direction in ('queue', 'count') and n_b:
                 bonus /= n_b
-            pressures.append(pr)
             bonuses.append(beta_eff * bonus)
-        max_pr = max(abs(v) for v in pressures) or 1.0
         max_bo = max(abs(v) for v in bonuses) or 0.0
-        if max_bo > self.dose_frac * max_pr:
-            scale = self.dose_frac * max_pr / max_bo
+        if max_bo > self.dose_frac * dose_scale:
+            scale = self.dose_frac * dose_scale / max_bo
             bonuses = [v * scale for v in bonuses]
-        pressures = [float(p_ + b_) for p_, b_ in zip(pressures, bonuses)]
-        a = int(np.argmax(pressures))
-        return a, pressures, torch.as_tensor(w).unsqueeze(0)
+        values = [float(b_ + bo_) for b_, bo_ in zip(base, bonuses)]
+        a = int(np.argmax(values))
+        return a, values, torch.as_tensor(w).unsqueeze(0)
+
+
+class SceneGuidedDQN(SceneGuidedMP):
+    """Same attention bias applied to a frozen DQN's per-phase Q values
+    instead of the maxpressure rule.
+
+    Q values live on a learned, checkpoint-specific scale, so the dose
+    cap is measured against the LIVE Q spread (max Q - min Q): the bias
+    tilts the argmax hardest exactly where the base policy is
+    indifferent between phases, and barely registers where it is
+    confident — a fixed beta means the same fractional tilt regardless
+    of the checkpoint's value scale.
+    """
+
+    def __init__(self, agent, fb, world, dqn_agent, **kw):
+        super().__init__(agent, fb, world, **kw)
+        self.dqn = dqn_agent        # bound inference agent (rank 0)
+
+    def _base_and_dose(self, inter, counts):
+        from tools.sumo_live_broadcast.controllers import \
+            inference_q_values
+        q = inference_q_values(self.dqn)
+        if len(q) != len(inter.phases):
+            raise ValueError(
+                f'DQN action dim {len(q)} != live phase count '
+                f'{len(inter.phases)}')
+        spread = float(q.max() - q.min()) or 1.0
+        return list(map(float, q)), spread
+
+
+def bound_dqn_agent(world, weights_path, rank=0):
+    """Load a deployed Q-network and bind an inference-only agent to
+    ``world`` at ``rank`` — the frozen base for ``SceneGuidedDQN``."""
+    from tools.sumo_live_broadcast.controllers import (
+        _build_inference_agent, load_qnet_payload,
+    )
+    payload = load_qnet_payload(weights_path)
+    return _build_inference_agent(world, payload, rank=rank)

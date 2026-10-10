@@ -114,12 +114,14 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
   （surge 注入报为"道路拥堵"——现象非机制；
   播报句去预测时长与调度指令；est_remaining 经
   `--no-forecast`/include_forecast 退出输入，仅作蒸馏标签）。
-  `scene_mp.py`（SceneGuidedMP：编码器注意力权重注入
-  MaxPressure 压力计算的适配器——交叉注意力绑定质量作
-  介入门控 bind_tau，车道显著度/queue/qmix 作 bonus 方向，
+  `scene_mp.py`（SceneGuidedMP/SceneGuidedDQN：编码器注意力
+  权重注入冻结底座控制器逐相位取值的适配器——底座可插拔
+  （MP 压力 / dqn_s1 冻结 Q 值，经 `_base_and_dose` 切换，
+  DQN 剂量参照为活 Q 展布），交叉注意力绑定质量作介入门控
+  bind_tau，车道显著度/queue/qmix 作 bonus 方向，
   fade in/out/band 与 dose_frac 剂量封顶；无 RL 环，
-  `--scenemp` 臂接入 eval_signal，notext 消融验证绑不上
-  时逐位复现 vanilla MP）、`stage1_event_physics.py`
+  `--scenemp`/`--scenedqn` 臂接入 eval_signal，notext 消融
+  验证绑不上时逐位复现 vanilla 底座）、`stage1_event_physics.py`
   （stage-1 事件物理探针：同 seed 上 close1/close2/surge/none
   × fixed/dqn_s1/mp 对照，判事件是否构成可控问题）。
   注：eval_signal 的 injects 每臂重解析

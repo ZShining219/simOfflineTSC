@@ -209,6 +209,22 @@ class SequentialDQNAgent:
             str(self.trainer_config.get('reward_mode', 'none')).lower()
             not in ('none', 'b0'))
         self._shaper_episode = None
+        # Adjudication layer (B'): records store raw r0 + scoring features;
+        # the effective reward is computed per sampled batch, identically
+        # across online/offline/expert legs.  Mutually exclusive with the
+        # legacy remember()-time shaping modes b1/b2.
+        from .adjudication import build_adjudicator
+        self.adjudicator = build_adjudicator(
+            self.trainer_config, self.action_space.n)
+        if (self.adjudicator is not None
+                and self._reward_shaper_pending):
+            raise ValueError(
+                'adjudication and legacy reward_mode (b1/b2) are mutually '
+                'exclusive shaping schemes')
+        self._adjudication_spec = self.trainer_config.get('adjudication')
+        self._adj_ctx = None
+        self._adj_tracker = None
+        self._adj_episode = None
 
     def _build_reward_shaper(self):
         """Build the optional HITL reward shaper (spec §6.2 B channel).
@@ -289,6 +305,131 @@ class SequentialDQNAgent:
             queue_l, occupancy, int(np.asarray(action).reshape(-1)[0]),
         )
         return r_train, aux
+
+    def _build_adj_ctx(self):
+        """Lane capacities + phase-served map for adjudication.
+
+        Explicit override via trainer_config['adjudication_ctx'] =
+        {'lane_capacities': [...], 'phase_served_lanes': [[...]]}
+        (tests / worlds lacking lane-length APIs); otherwise derived
+        from the live world like the reward shaper."""
+        from .adjudication import build_ctx_from_world
+        ctx = self.trainer_config.get('adjudication_ctx')
+        if ctx is not None:
+            return {
+                'lane_capacities': list(ctx['lane_capacities']),
+                'phase_served_lanes': [
+                    list(v) for v in ctx['phase_served_lanes']],
+                'action_interval': float(
+                    self.trainer_config.get('action_interval', 10.0)),
+                'T_u': float(ctx.get('T_u', 60.0)),
+            }
+        topo_path = self.trainer_config.get('adjudication_ctx_path')
+        if topo_path:
+            from .adjudication import load_topology_ctx
+            ctx = load_topology_ctx(
+                topo_path, float(
+                    self.trainer_config.get('action_interval', 10.0)))
+            ctx['action_interval'] = float(
+                self.trainer_config.get('action_interval', 10.0))
+            return ctx
+        ctx = build_ctx_from_world(
+            self.world, self.inter, self.environment_signature,
+            self.action_space.n)
+        ctx['action_interval'] = float(
+            self.trainer_config.get('action_interval', 10.0))
+        ctx['T_u'] = 60.0
+        return ctx
+
+    def _adj_features(self, action, next_state, local_episode):
+        """Advance the service-gap tracker and return this transition's
+        adjudication feature dict {q_ratio, gap_norm}."""
+        from .reward_shaping import ServiceGapTracker
+        if self._adj_ctx is None:
+            self._adj_ctx = self._build_adj_ctx()
+            self._adj_tracker = ServiceGapTracker(
+                self._adj_ctx['phase_served_lanes'],
+                len(self._adj_ctx['lane_capacities']),
+                self._adj_ctx['action_interval'])
+        episode_key = (self.current_stage_index, local_episode)
+        if episode_key != self._adj_episode:
+            self._adj_tracker.reset()
+            self._adj_episode = episode_key
+        lane_counts = np.asarray(next_state, dtype=np.float64).reshape(-1)
+        n_lanes = self._adj_tracker.n_lanes
+        occupancy = lane_counts[:n_lanes]
+        gaps = self._adj_tracker.advance(
+            int(np.asarray(action).reshape(-1)[0]), occupancy)
+        return {
+            'q_ratio': (
+                occupancy / np.asarray(
+                    self._adj_ctx['lane_capacities'], dtype=np.float64)
+            ).tolist(),
+            'gap_norm': np.minimum(
+                gaps / self._adj_ctx['T_u'], 2.0).tolist(),
+        }
+
+    def _apply_adjudication(self, records, rewards):
+        """r_eff = r_base + lam*z for a list of online ReplayRecords.
+
+        Reads each record's stored adjudication features (written by
+        remember() under adjudication mode); records missing features
+        contribute z=0 and are counted for the audit."""
+        adjudicator = getattr(self, 'adjudicator', None)
+        if adjudicator is None:
+            return rewards, None
+        adjusted = np.asarray(rewards, dtype=np.float64).copy()
+        zs = np.zeros(len(records), dtype=np.float64)
+        missing = 0
+        judge_sums = {}
+        judge_counts = {}
+        fallback_count = 0
+        for i, record in enumerate(records):
+            aux = getattr(record.metadata, 'reward_aux', None) or {}
+            feat = aux.get('adjudication')
+            if not feat:
+                missing += 1
+                continue
+            obs = np.asarray(
+                record.payload.state, dtype=np.float64).reshape(-1)
+            next_state = np.asarray(
+                record.payload.next_state, dtype=np.float64).reshape(-1)
+            if self.phase:
+                if self.one_hot:
+                    obs = np.concatenate([
+                        obs, agent_utils.idx2onehot(
+                            np.asarray(record.payload.phase).reshape(-1),
+                            self.action_space.n)[0]])
+                    next_obs = np.concatenate([
+                        next_state, agent_utils.idx2onehot(
+                            np.asarray(record.payload.next_phase).reshape(-1),
+                            self.action_space.n)[0]])
+                else:
+                    obs = np.concatenate([
+                        obs, np.asarray(record.payload.phase).reshape(-1)])
+                    next_obs = np.concatenate([
+                        next_state,
+                        np.asarray(record.payload.next_phase).reshape(-1)])
+            else:
+                next_obs = next_state
+            z, detail = adjudicator.z(
+                obs, int(np.asarray(record.payload.action).reshape(-1)[0]),
+                next_obs, feat['q_ratio'], feat['gap_norm'])
+            zs[i] = z
+            adjusted[i] = adjudicator.effective_reward(
+                float(rewards[i]), z)
+            fallback_count += len(detail['fallback'])
+            for name, entry in detail['judges'].items():
+                judge_sums[name] = judge_sums.get(name, 0.0) + entry['z']
+                judge_counts[name] = judge_counts.get(name, 0) + 1
+        stats = {
+            'z_mean': float(np.mean(zs)), 'z_std': float(np.std(zs)),
+            'missing_features': int(missing),
+            'judge_fallbacks': int(fallback_count),
+            'judge_z_mean': {
+                k: judge_sums[k] / judge_counts[k] for k in judge_sums},
+        }
+        return torch.as_tensor(adjusted, dtype=torch.float32), stats
 
     @classmethod
     def from_parent(cls, world, rank, model_config, trainer_config,
@@ -503,6 +644,11 @@ class SequentialDQNAgent:
                 state, phase, action, reward, next_state, next_phase,
                 local_episode,
             )
+        if getattr(self, 'adjudicator', None) is not None:
+            aux = dict(aux or {})
+            aux['adjudication'] = self._adj_features(
+                action, next_state, local_episode)
+            aux['r_base'] = float(np.asarray(reward).reshape(-1)[0])
         payload = TrainingPayload(
             _readonly_array(state), _readonly_array(phase),
             _readonly_array(action), _readonly_array(reward),
@@ -562,6 +708,7 @@ class SequentialDQNAgent:
             return None
         records = self.replay.sample(self.batch_size, random)
         state, next_state, rewards, actions = self._batchwise(records)
+        rewards, _adj_stats = self._apply_adjudication(records, rewards)
         with torch.no_grad():
             target = rewards + self.gamma * self._bootstrap_values(next_state)
             target_full = self.model(state).detach().clone()
@@ -589,6 +736,9 @@ class SequentialDQNAgent:
                 self.counters.global_decision_step - r.metadata.written_global_step
                 for r in records
             ],
+            'adjudication': (
+                {'manifest_digest': self.adjudicator.digest, 'online': _adj_stats}
+                if _adj_stats else None),
             'target_synced': target_synced,
         }
 
@@ -633,6 +783,13 @@ class SequentialDQNAgent:
             'policy': self.policy,
             'current_stage_index': self.current_stage_index,
             'current_network': self.current_network,
+            'adjudication': (
+                {
+                    'manifest_digest': self.adjudicator.digest,
+                    'spec': getattr(self, '_adjudication_spec', None),
+                }
+                if getattr(self, 'adjudicator', None) is not None else None
+            ),
             'rng_state': capture_rng_state(),
         }
 
@@ -667,6 +824,25 @@ class SequentialDQNAgent:
         self.policy = state['policy']
         self.current_stage_index = int(state['current_stage_index'])
         self.current_network = state['current_network']
+        saved_adj = state.get('adjudication')
+        adjudicator = getattr(self, 'adjudicator', None)
+        if saved_adj is not None:
+            if adjudicator is None:
+                raise ValueError(
+                    'Checkpoint was trained under an adjudication manifest '
+                    'but this run configures none — the reward '
+                    'interpretation would silently change')
+            if adjudicator.digest != saved_adj.get('manifest_digest'):
+                raise ValueError(
+                    'Adjudication manifest changed since checkpoint: '
+                    f'{saved_adj.get("manifest_digest")} != '
+                    f'{adjudicator.digest}; judge changes require a new '
+                    'stage, not a silent resume')
+        elif adjudicator is not None:
+            raise ValueError(
+                'This run configures adjudication but the checkpoint was '
+                'trained without it — the reward interpretation would '
+                'silently change')
         rng = state['rng_state']
         random.setstate(rng['python_random_state'])
         np.random.set_state(rng['numpy_random_state'])

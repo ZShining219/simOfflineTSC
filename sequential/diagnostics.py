@@ -102,6 +102,7 @@ class ReplayDiagnostics:
                 'online_stability': update.get('online_stability'),
                 'offline_stability': update.get('offline_stability'),
                 'expert_stability': update.get('expert_stability'),
+                'adjudication': update.get('adjudication'),
             })
         if self.trace_samples or gradient_updates % self.sparse_interval == 0:
             self.full_batches.append({

@@ -87,15 +87,19 @@ class HASODQNAgent(SequentialDQNAgent):
                 'offline_ratio + expert_ratio must leave an online share')
         if self.expert_capacity <= 0:
             raise ValueError('expert_capacity must be positive')
-        # B/C channels are separate experimental axes: reward shaping only
-        # rewrites the ONLINE leg's reward, so combining it with expert-leg
-        # data would silently produce inconsistent reward scales.
+        # Legacy B1/B2 shaping rewrites only the ONLINE leg's reward at
+        # remember()-time, so mixing it with expert-leg data would produce
+        # inconsistent reward conventions.  The adjudication layer (B')
+        # scores every leg at sample time and is explicitly allowed with
+        # expert pools — that combination is the point of the redesign.
         reward_mode = str(
             self.trainer_config.get('reward_mode', 'none')).lower()
-        if self.expert_ratio > 0.0 and reward_mode not in ('none', 'b0'):
+        if (self.expert_ratio > 0.0 and reward_mode not in ('none', 'b0')
+                and getattr(self, 'adjudicator', None) is None):
             raise ValueError(
-                'reward shaping (B) and expert pool (C) must not be mixed '
-                'in one arm; run them as separate axes')
+                'legacy reward shaping (b1/b2) and expert pool (C) must '
+                'not be mixed; use the adjudication layer for unified '
+                'sample-time scoring')
         if len(set(self.ordered_networks)) != len(self.ordered_networks):
             raise ValueError('HA-SODQN ordered networks contain duplicates')
 
@@ -269,6 +273,67 @@ class HASODQNAgent(SequentialDQNAgent):
             torch.as_tensor(batch.actions, dtype=torch.long),
         )
 
+    def _leg_features(self, kind):
+        """Lazily reconstruct adjudication features for a leg view.
+
+        'offline' -> self.visible_archive, 'expert' -> self.expert_view.
+        Features are replayed per episode at first use (the live world
+        ctx is needed for lane capacities)."""
+        from .adjudication import leg_features_from_view
+        cache = getattr(self, '_leg_feature_cache', None)
+        if cache is None:
+            cache = self._leg_feature_cache = {}
+        if kind in cache:
+            return cache[kind]
+        view = (self.visible_archive if kind == 'offline'
+                else self.expert_view)
+        if view is None:
+            cache[kind] = {}
+            return cache[kind]
+        if self._adj_ctx is None:
+            self._adj_ctx = self._build_adj_ctx()
+        cache[kind] = leg_features_from_view(view, self._adj_ctx)
+        return cache[kind]
+
+    def _apply_adjudication_leg(self, rewards, batch, kind):
+        """r_eff = r_base + lam*z for one sampled leg batch, looked up
+        by transition_id from the precomputed leg feature table."""
+        adjudicator = getattr(self, 'adjudicator', None)
+        if adjudicator is None:
+            return rewards, None
+        features = self._leg_features(kind)
+        adjusted = np.asarray(rewards, dtype=np.float64).copy()
+        zs = np.zeros(len(batch.transition_ids), dtype=np.float64)
+        missing = 0
+        judge_sums = {}
+        judge_counts = {}
+        fallback_count = 0
+        for i, tid in enumerate(batch.transition_ids):
+            feat = features.get(str(tid))
+            if not feat:
+                missing += 1
+                continue
+            z, detail = adjudicator.z(
+                np.asarray(batch.observations[i], dtype=np.float64),
+                int(batch.actions[i]),
+                np.asarray(batch.next_observations[i], dtype=np.float64),
+                feat['q_ratio'], feat['gap_norm'])
+            zs[i] = z
+            adjusted[i] = adjudicator.effective_reward(
+                float(rewards[i]), z)
+            fallback_count += len(detail['fallback'])
+            for name, entry in detail['judges'].items():
+                judge_sums[name] = judge_sums.get(name, 0.0) + entry['z']
+                judge_counts[name] = judge_counts.get(name, 0) + 1
+        stats = {
+            'z_mean': float(np.mean(zs)), 'z_std': float(np.std(zs)),
+            'missing_features': int(missing),
+            'judge_fallbacks': int(fallback_count),
+            'judge_z_mean': {
+                k: judge_sums[k] / judge_counts[k] for k in judge_sums},
+        }
+        return torch.as_tensor(adjusted, dtype=torch.float32), stats
+
     def successful_gradient_update(self):
         if not self.is_update_ready():
             return None
@@ -291,7 +356,14 @@ class HASODQNAgent(SequentialDQNAgent):
         online_count = self.batch_size - offline_count - expert_count
         online_records = self.online_rng.sample(list(self.replay.records), online_count)
         online_tensors = self._batchwise(online_records)
-        loss_online, online_stability = self._branch_loss(*online_tensors)
+        adj_stats = {}
+        on_rewards, st = self._apply_adjudication(
+            online_records, online_tensors[2])
+        if st:
+            adj_stats['online'] = st
+        loss_online, online_stability = self._branch_loss(
+            online_tensors[0], online_tensors[1], on_rewards,
+            online_tensors[3])
         offline_batch = None
         loss_offline = None
         offline_stability = None
@@ -301,15 +373,23 @@ class HASODQNAgent(SequentialDQNAgent):
         loss = loss_online * (online_count / self.batch_size)
         if offline_count:
             offline_batch = self.historical_sampler.sample(offline_count)
+            off_t = self._offline_tensors(offline_batch)
+            off_rewards, st = self._apply_adjudication_leg(
+                off_t[2], offline_batch, 'offline')
+            if st:
+                adj_stats['offline'] = st
             loss_offline, offline_stability = self._branch_loss(
-                *self._offline_tensors(offline_batch)
-            )
+                off_t[0], off_t[1], off_rewards, off_t[3])
             loss = loss + loss_offline * (offline_count / self.batch_size)
         if expert_count:
             expert_batch = self.expert_sampler.sample(expert_count)
+            exp_t = self._offline_tensors(expert_batch)
+            exp_rewards, st = self._apply_adjudication_leg(
+                exp_t[2], expert_batch, 'expert')
+            if st:
+                adj_stats['expert'] = st
             loss_expert, expert_stability = self._branch_loss(
-                *self._offline_tensors(expert_batch)
-            )
+                exp_t[0], exp_t[1], exp_rewards, exp_t[3])
             loss = loss + loss_expert * (expert_count / self.batch_size)
         if not torch.isfinite(loss):
             raise FloatingPointError('HA-SODQN loss is NaN/Inf')
@@ -385,6 +465,9 @@ class HASODQNAgent(SequentialDQNAgent):
             'online_stability': online_stability,
             'offline_stability': offline_stability,
             'expert_stability': expert_stability,
+            'adjudication': (
+                {'manifest_digest': self.adjudicator.digest,
+                 **adj_stats} if adj_stats else None),
             'target_synced': target_synced,
         }
 

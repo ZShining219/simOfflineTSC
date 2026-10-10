@@ -356,6 +356,9 @@ class DemoACAgent(SequentialDQNAgent):
             ], axis=1).astype(np.float32))
         action = int(np.asarray(payload.action).reshape(-1)[0])
         reward = float(np.asarray(payload.reward).reshape(-1)[0])
+        adj_rewards, _ = self._apply_adjudication(
+            [record], torch.as_tensor([reward]))
+        reward = float(adj_rewards[0])
         done = float(bool(payload.terminated) or bool(payload.truncated))
         # --- critic: 0.5*(Q(s,a) - y)^2, a' ~ pi(s')
         with torch.no_grad():

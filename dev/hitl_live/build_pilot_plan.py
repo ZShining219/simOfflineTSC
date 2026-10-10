@@ -179,6 +179,22 @@ def main(argv=None):
                         help='reward_calibration.json (required by B1/B2)')
     parser.add_argument('--reward-model', default=None,
                         help='reward_model.pt checkpoint (required by B2)')
+    # --- B' channel (sample-time adjudication) arms ------------------
+    parser.add_argument('--bprime-arms', action='store_true',
+                        help='add HITL_BP children per seed scoring ALL legs '
+                             'at sample time via an adjudication manifest')
+    parser.add_argument('--bpc-arms', action='store_true',
+                        help='add HITL_BPC children per seed: adjudication '
+                             '+ expert leg (the combination legacy B could '
+                             'not express)')
+    parser.add_argument('--adjudication-manifest', default=None,
+                        help='JSON file with the frozen judge spec: '
+                             '{lambda, clip, judges: [{type, weight, mu, '
+                             'sigma, ...}]} (required by --bprime-arms/'
+                             '--bpc-arms)')
+    parser.add_argument('--adjudication-ctx', default=None,
+                        help='dump_lane_topology JSON for adjudication '
+                             'features (required by --bprime-arms/--bpc-arms)')
     # --- A channel (DemoLight pretraining) arms ----------------------
     parser.add_argument('--a-arms', action='store_true',
                         help='add A0/Aπ/AQ/AπQ children per seed')
@@ -239,6 +255,35 @@ def main(argv=None):
                     **b_shared, 'reward_mode': 'b2',
                     'reward_model_path': os.path.abspath(args.reward_model),
                 }))
+        if args.bprime_arms or args.bpc_arms:
+            if not args.adjudication_manifest:
+                raise SystemExit(
+                    '--bprime-arms/--bpc-arms require '
+                    '--adjudication-manifest')
+            if not args.adjudication_ctx:
+                raise SystemExit(
+                    '--bprime-arms/--bpc-arms require --adjudication-ctx')
+            adj_spec = json.load(open(args.adjudication_manifest))
+            adj_overrides = {
+                'adjudication': adj_spec,
+                'adjudication_ctx_path': os.path.abspath(
+                    args.adjudication_ctx),
+            }
+        if args.bprime_arms:
+            children.append(_child(
+                f'HITL_BP-SD{seed}', 'HITL_BP', seed,
+                args.network, args.episodes, initial, file_sha,
+                trainer_overrides=dict(adj_overrides)))
+        if args.bpc_arms:
+            if not args.expert_pool:
+                raise SystemExit('--bpc-arms requires --expert-pool')
+            children.append(_child(
+                f'HITL_BPC-SD{seed}', 'HITL_BPC', seed,
+                args.network, args.episodes, initial, file_sha,
+                expert_pool=args.expert_pool,
+                expert_ratio=args.expert_ratio,
+                expert_capacity=args.expert_capacity,
+                trainer_overrides=dict(adj_overrides)))
         if args.a_arms:
             if not args.demo_data:
                 raise SystemExit('--a-arms requires --demo-data')

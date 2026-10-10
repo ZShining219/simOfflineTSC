@@ -130,6 +130,64 @@ reward_mode 等键（runtime 并入 trainer_config）；B×C 互斥校验在
    指标 CI 仍跨零（final RRT d=-23.5 CI[-77,+11]）——正向结论目
    前只在 AULC（学习速度）层面显著，终点优势未证。
 
+**B′ 通道：采样时统一裁定层（2026-10-10 落地，spec v0.5 扩展）**
+
+设计动因：B1/B2 在 `remember()` 入池前塑形，只作用在线腿——离线
+腿/专家腿保留原生 r0，两腿奖励口径混杂，B×C 因此被硬互斥。B′ 把
+评分挪到消费侧：**转移只存 `r_base` + 裁定特征 `{q_ratio, gap_norm}`
+（payload.aux/metadata.reward_aux），塑形值永不落盘**；`sample`
+抽出后三腿（online/offline/expert）过同一判官面板出同一口径
+`r_eff = r_base + λ·z` 再进 TD loss。
+
+`sequential/adjudication.py` 判官面板：
+- `terms`——带参治理词条 `raw=Σw_k·φ_k`（现词表：
+  queue_per_capacity/queue_max/unserved_max/unserved_mean，词表即
+  配置可扩），B1 公式即 `{queue_per_capacity:-0.5, unserved_max:-0.5}`
+  特例；
+- `reward_model`——冻结 PreferenceRewardNet（B2 同件）；
+- `qgap`——**收敛后 DQN 快照**（`Q(s,a_taken)−max_a Q` 认可度分）；
+  硬资格门槛 `episode>=min_episode(默认20) 且 gradient_updates>0`，
+  ep0/未训档一律拒载（`allow_unconverged` 仅测试逃生口，旗记入
+  manifest）。判官网络初始化包 `fork_rng`——不污染
+  `rng_state_digest`（rebind 审计约束）。
+- 合成：`z=clip(Σw_j·z_j/Σ|w_j|, ±clip)`，逐判官先 `(raw−μ_j)/σ_j`
+  归一再加权和——异构判官共 z 量纲；单判官崩溃该判官 z=0 且权重
+  归一剔除，面板降级不回退 r0。
+- 投票聚合为后续扩展（现 detail 已暴露逐判官 z/raw 可接投票层）。
+
+目标漂移防护（Z 关切的"动态奖励"问题的工程答案）：
+- **run 内冻结**：判官面板 spec = 版本化 manifest，digest 进
+  checkpoint `adjudication` 块；`load_full_state_dict` 对
+  manifest_digest 强校验——换判官=新 stage，静默 resume 直接拒
+  （4 项单测锁定）；
+- **幅值预算**：λ=0.1、z 截 ±3 → 塑形上限 ±0.3，对 r_base≈-80/93
+  量级 ~0.3%，判官再错也晃不动目标；
+- **真值兜底**：eval/指标只看环境 r_base 世界，塑形是脚手架。
+
+腿侧特征重建：`leg_features_from_view` 按 `(run_id, episode_id)`
+分组 + `decision_step` 排序，逐 episode 回放 `ServiceGapTracker`
+重建 u_l/q_ratio——与在线 `_adj_features` 同一机制；懒构建+按
+view 缓存，resume 后确定性重放。在线 `(stage_index, local_episode)`
+为 episode 键防跨 stage 污染。
+
+冒烟验证（sumohz1x1，2ep，三判官面板 terms+RM+qgap(ep400 档)）：
+- `HITL_BP-SD0` 在线腿：120/120 update 窗带 adjudication 块，
+  `missing_features=0`、`judge_fallbacks=0`，三判官 z 分布可分
+  （terms −0.94 / RM −1.83 / qgap −2.09）；
+- `HITL_BPC-SD0`（expert_ratio=0.25，hitl_ep50 池）：**expert 腿
+  全部转移吃到同一 manifest 的裁定**（missing=0），expert
+  z_mean=−0.06 vs online z_mean=−1.62——判官语义正确（纠偏数据
+  被评得更接近专家期望），这正是 B+C 在旧方案里无法表达的组合；
+- `tests/test_adjudication.py` 23 例锁不变量：同转移两腿同 r_eff、
+  缺特征→z=0、判官崩溃只降权、digest 稳定/敏感、qgap 资格门槛、
+  (run_id,episode_id) 分组防串、checkpoint manifest 绑定。
+
+plan 侧：`build_pilot_plan.py --bprime-arms/--bpc-arms` +
+`--adjudication-manifest spec.json --adjudication-ctx topo.json`
+生成 HITL_BP / HITL_BPC 臂（BPC 走 expert_pool_* 既有键）。
+未做：判官质量离线评估（分歧矩阵/预测效度）、qgap μ/σ 正式校准、
+B′/BPC 的 5-seed 配对证据、投票聚合、词条权重寻优。
+
 **评估器修正（2026-10-09）**：`world.close()` 原插在 metric 读取之前
 导致 `FatalTraCIError: network not yet constructed`（eval 全灭）；
 已改为全部指标先取（live engine）→ close 刷 tripinfo → RRT 解析。

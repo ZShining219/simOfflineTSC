@@ -90,6 +90,10 @@ def train(args):
             f'(sga/attn), got {args.variant!r}')
     if residual_mode and joint_mode:
         raise ValueError('--residual-dqn and --joint-dqn are exclusive')
+    if args.distill_eps > 0 and not args.distill_encoder:
+        raise ValueError('--distill-eps needs --distill-encoder '
+                         '(a trained agent.pt whose encoder drives '
+                         'the teacher adapter)')
     if joint_mode:
         # 'controller借助注意力优化' form: the base DQN lives in-graph,
         # initialised from the deployed checkpoint and fine-tuned with
@@ -231,9 +235,88 @@ def train(args):
         if args.episodes <= 0:
             agent.save(out / 'agent.pt', meta={**meta, 'episode': 0,
                                                'bc_only': True})
-    if (residual_mode or joint_mode) and args.episodes <= 0:
+    if (residual_mode or joint_mode) and args.episodes <= 0 \
+            and not args.distill_eps:
         agent.save(out / 'agent.pt',
                    meta={**meta, 'episode': 0, 'untrained': True})
+
+    # ---- phase 0.5: adapter-teacher distillation ---------------------
+    # 'controller借助注意力优化' via imitation: the SceneGuidedDQN
+    # adapter's per-tick actions (attention already inside them) are
+    # the labels; the joint student's weights update toward them —
+    # the controller changes, guided by attention, inside its own
+    # behaviour manifold instead of being dragged by a foreign reward.
+    if joint_mode and args.distill_eps > 0:
+        import copy
+        from dev.takeover_probe.scene_mp import (
+            SceneGuidedDQN, bound_dqn_agent,
+        )
+        from tools.sumo_live_broadcast.controllers import (
+            inference_q_values,
+        )
+        enc_agent, _ = SceneSignalAgent.load(args.distill_encoder)
+        vanilla = build_controllers(dqn_s1_path=args.joint_dqn)['dqn_s1'] \
+            if args.distill_filter else None
+        demos, kept_eps = [], 0
+        for i in range(args.distill_eps):
+            injects = sample_injects(rng, allow_none_p=args.allow_none_p)
+            world.close()
+            world = build_world(
+                args.scene, args.traffic_seed_base - 100 - i,
+                Path(args.runtime_dir or '/tmp/takeover_signal'),
+                out / 'logger',
+                {'t_fixed': args.t_fixed, 't_min': args.t_min,
+                 'min_green_vehicle': 3, 'max_red_vehicle': 6})
+            ranks = list(range(len(world.intersection_ids)))
+            fb_d = FeatureBuilder(
+                world, injects, report_delay=args.report_delay,
+                layout='identity', phys=args.phys,
+                include_forecast=not args.no_forecast, phase_age=True)
+            dqn_d = bound_dqn_agent(world, args.joint_dqn,
+                                    rank=ranks[0])
+            adapter = SceneGuidedDQN(
+                enc_agent, fb_d, world, dqn_d,
+                beta=args.distill_beta, t_min=0.0,
+                gate=args.distill_gate, fade='in',
+                direction='auto', bind_tau=0.4, dose_frac=0.35)
+            transitions, records = run_signal_episode(
+                world, fb_d, ranks,
+                injects=copy.deepcopy(injects), agent=adapter,
+                interval=args.interval,
+                episode_seconds=args.episode_seconds,
+                q_base_fn=lambda d=dqn_d: inference_q_values(d))
+            if vanilla is not None:
+                world.reset()
+                vanilla.bind(world, ranks=ranks)
+                fb_v = FeatureBuilder(world, [],
+                                      report_delay=args.report_delay)
+                _, records_v = run_signal_episode(
+                    world, fb_v, ranks,
+                    injects=copy.deepcopy(injects),
+                    controller=vanilla, interval=args.interval,
+                    episode_seconds=args.episode_seconds)
+                q_adv = sum(r['total_queue'] for r in records)
+                q_van = sum(r['total_queue'] for r in records_v)
+                if q_adv >= q_van:
+                    continue                    # loser episode dropped
+            kept_eps += 1
+            replay.extend(transitions)          # teacher data in replay
+            demos += [(t['s'], t['a'],
+                       int(t['a'] != int(np.argmax(t['qb']))))
+                      for t in transitions]
+        dev = float(np.mean([d[2] for d in demos])) if demos else 0.0
+        bc_loss, dev_recall = bc_updates_joint(
+            agent, opt, demos, args, rng)
+        target.load_state_dict(agent.state_dict())
+        print(json.dumps({
+            'distill_encoder': args.distill_encoder,
+            'demo_eps': kept_eps, 'demo_pairs': len(demos),
+            'dev_frac': round(dev, 4), 'bc_loss': round(bc_loss, 4),
+            'dev_recall': round(dev_recall, 4)}), flush=True)
+        if args.episodes <= 0:
+            agent.save(out / 'agent.pt',
+                       meta={**meta, 'episode': 0,
+                             'bc_only': True, 'distill': True})
 
     log = []
     for ep in range(1, args.episodes + 1):
@@ -302,6 +385,61 @@ def train(args):
             agent.save(out / 'agent.pt', meta={**meta, 'episode': ep})
     (out / 'train_log.json').write_text(
         json.dumps(log, ensure_ascii=False, indent=1))
+
+
+def bc_updates_joint(policy, opt, demos, args, rng):
+    """Weighted-CE imitation of adapter actions on the joint student.
+
+    demos: (snap, teacher_action, dev) where dev flags the rare ticks
+    the adapter deviated from the frozen base's argmax — those carry
+    the scene-conditioned signal and get ``1 + distill_dev_weight``
+    weight so the majority "agree with base" labels don't drown them.
+    Returns (mean_loss, deviation_recall)."""
+    import torch
+    import torch.nn.functional as F
+    from dev.takeover_probe.dispatch_model import collate
+    if not demos:
+        return 0.0, 0.0
+    losses, hits, n_dev = [], 0, 0
+    for _ in range(args.distill_updates):
+        idx = rng.integers(0, len(demos), size=args.batch)
+        s = collate([demos[i][0] for i in idx])
+        a = torch.as_tensor([demos[i][1] for i in idx])
+        wt = torch.as_tensor(
+            [1.0 + args.distill_dev_weight * demos[i][2] for i in idx],
+            dtype=torch.float32)
+        q, _ = policy.q_values(s)
+        loss = (F.cross_entropy(q, a, reduction='none') * wt).mean()
+        loss.backward()
+        if args.grad_clip > 0:
+            torch.nn.utils.clip_grad_norm_(policy.parameters(),
+                                           args.grad_clip)
+        opt.step()
+        opt.zero_grad()
+        losses.append(loss.item())
+        dev_mask = torch.as_tensor(
+            [demos[i][2] for i in idx], dtype=torch.bool)
+        if dev_mask.any():
+            n_dev += 1
+            hits += int((q.argmax(-1)[dev_mask] == a[dev_mask]).sum())
+    dev_total = sum(d[2] for d in demos)
+    # final pass: recall over all deviation samples (informative ticks)
+    recall = 0.0
+    if dev_total:
+        import torch as _t
+        correct = 0
+        idx_all = _t.arange(0, len(demos))
+        for chunk in idx_all.split(512):
+            s = collate([demos[i][0] for i in chunk])
+            a = _t.as_tensor([demos[i][1] for i in chunk])
+            dv = _t.as_tensor([demos[i][2] for i in chunk],
+                              dtype=_t.bool)
+            if dv.any():
+                with _t.no_grad():
+                    q, _ = policy.q_values(s)
+                correct += int((q.argmax(-1)[dv] == a[dv]).sum())
+        recall = correct / float(dev_total)
+    return float(np.mean(losses)), recall
 
 
 def bc_updates(agent, opt, demos, args, rng):
@@ -536,6 +674,22 @@ def main():
     p.add_argument('--base-lr', type=float, default=1e-5,
                    help='fine-tune lr for the in-graph base DQN '
                         '(joint mode)')
+    p.add_argument('--distill-encoder', default=None,
+                   help='PATH to a trained agent.pt — its encoder '
+                        'drives the SceneGuidedDQN teacher that emits '
+                        'the demo labels')
+    p.add_argument('--distill-eps', type=int, default=0,
+                   help='adapter-teacher demo episodes before RL '
+                        '(joint mode; 0 = off)')
+    p.add_argument('--distill-updates', type=int, default=1500)
+    p.add_argument('--distill-dev-weight', type=float, default=2.0,
+                   help='extra CE weight on deviation ticks '
+                        '(adapter != base argmax)')
+    p.add_argument('--distill-filter', action='store_true',
+                   help='keep only demo episodes where the adapter '
+                        'beat vanilla DQN on the same seed')
+    p.add_argument('--distill-beta', type=float, default=40.0)
+    p.add_argument('--distill-gate', type=float, default=8.0)
     p.add_argument('--teacher', default='maxpressure',
                    help='teacher controller for demonstration episodes '
                         '(0 episodes = BC off)')

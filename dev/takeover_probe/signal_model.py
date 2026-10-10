@@ -285,6 +285,9 @@ class SceneJointPolicy(SceneResidualPolicy):
             idx = int(q.argmax(dim=-1).item())
         return idx, q.detach().cpu().numpy()[0].tolist(), w
 
+    def q_values(self, batch):
+        return self.forward(batch)
+
     def save(self, path, meta=None):
         torch.save({
             'kind': 'joint',

@@ -127,6 +127,17 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
   `plot_scene_effect.py`（介入前后效果图：同 episode 同 seed
   上 sga 引导臂 vs vanilla 底座的被报边排队曲线，标注播报
   到达时刻与事件窗口，双面板 DQN/MP 两底座）。
+  `SceneResidualPolicy`（signal_model.py：引导式补课形态——
+  冻结 DQN 底座 + 场景模块学有界门控残差
+  Q = q_base + dose_frac·spread·gate(bind)·tanh(head(z))；
+  q_base 逐 tick 实时采样存进 transition（qb/qbp），底座
+  保持黑盒；方向头零初始化+分段线性绑定门（<tau 严格 0）
+  ⇒ 出生 ≡ 底座逐位相同、无文本 ≡ 底座逐位相同；
+  训练走 `--residual-dqn`（train_signal，跳过 BC——底座
+  已是收敛控制器，TD 只进编码器与残差头），评测走
+  `--residual/--residual-notext` 臂（eval_signal，复用
+  --scenedqn-dqn 底座权重）。smoke：未训 ckpt 与 dqn_s1
+  全指标逐位相同）。
   注：eval_signal 的 injects 每臂重解析
   （apply_injects 会改写 inject dict，共享会导致后跑的臂
   吃到已耗尽事件——曾致全网格结论假象，已修）；
@@ -205,6 +216,20 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
 - `dev/hitl_live/build_demos.py`：示范集构建——打包档案→扁平
   (obs,aE,r,obs',done,episode_id) npz，episode 序保持（n-step 后缀
   按 episode_id 分组推导）。
+- `sequential/adjudication.py`：B′ 采样时裁定层——判官面板
+  （terms 带参治理词表 / reward_model 冻结 RM / qgap 收敛 DQN 快照，
+  qgap 硬门槛 episode≥min_episode 且 gradient_updates>0，ep0 档拒载），
+  `z=clip(Σw_j·z_j/Σ|w_j|,±clip)` 权重归一合成，单判官崩溃降级不
+  回退 r0；manifest digest 入 checkpoint（resume 强校验防换判官）。
+  转移只存 r_base+裁定特征（payload.aux / reward_aux），三腿在
+  sample 后同口径 r_eff=r_base+λz 进 TD loss；腿特征经
+  `leg_features_from_view` 按 (run_id,episode_id) 分组回放
+  ServiceGapTracker 重建。经 plan child `trainer_overrides` 的
+  `adjudication` spec + `adjudication_ctx[_path]` 接入；与旧
+  reward_mode b1/b2 互斥。
+- `dev/hitl_live/build_pilot_plan.py` 增 `--bprime-arms`/`--bpc-arms`
+  + `--adjudication-manifest`/`--adjudication-ctx`：HITL_BP（纯在线
+  统一裁定）/ HITL_BPC（裁定+专家腿，旧 B 不能表达的组合）两臂。
 
 ## 已裁决归档（2026-10-07 Z 裁）
 

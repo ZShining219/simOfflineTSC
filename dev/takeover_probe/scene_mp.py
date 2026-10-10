@@ -127,7 +127,7 @@ class SceneGuidedMP:
             for p in range(len(inter.phases))]
         return base, max(abs(v) for v in base) or 1.0
 
-    def act(self, batch, epsilon=0.0, rng=None):
+    def act(self, batch, epsilon=0.0, rng=None, q_base=None):
         inter = self.world.intersections[0]
         z, w = self.agent.encode(batch)         # (1,d), (1,L)
         w = w[0].detach().cpu().numpy()

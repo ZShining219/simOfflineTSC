@@ -43,7 +43,9 @@ from dev.takeover_probe.probe import (  # noqa: E402
 from dev.takeover_probe.dispatch_state import (  # noqa: E402
     FeatureBuilder, fb_kwargs_from_meta,
 )
-from dev.takeover_probe.signal_model import SceneSignalAgent  # noqa: E402
+from dev.takeover_probe.signal_model import (  # noqa: E402
+    SceneResidualPolicy, SceneSignalAgent,
+)
 from dev.takeover_probe.scene_mp import (  # noqa: E402
     SceneGuidedDQN, SceneGuidedMP, bound_dqn_agent,
 )
@@ -53,6 +55,9 @@ from dev.takeover_probe.signal_runtime import (  # noqa: E402
 from dev.takeover_probe.train_router import (  # noqa: E402
     EDGE_TARGETS, TRAIN_EDGES,
 )
+from tools.sumo_live_broadcast.controllers import (  # noqa: E402
+    inference_q_values,
+)
 from tools.sumo_live_broadcast.injects import (  # noqa: E402
     apply_injects, parse_injects,
 )
@@ -60,11 +65,12 @@ from tools.sumo_live_broadcast.injects import (  # noqa: E402
 
 def eval_episode(world, fb, ranks, injects, agent=None, controller=None,
                  episode_seconds=3600, interval=10, text_override=None,
-                 clear_thresh=2.0):
+                 clear_thresh=2.0, q_base_fn=None):
     transitions, records = run_signal_episode(
         world, fb, ranks, injects=injects, agent=agent,
         controller=controller, interval=interval,
-        episode_seconds=episode_seconds, text_override=text_override)
+        episode_seconds=episode_seconds, text_override=text_override,
+        q_base_fn=q_base_fn)
     ev = injects[0] if injects else None
     ev_edge = (ev.get('edge_from') or ev.get('edge') or '') if ev else ''
     ev_lanes = set(fb.edge_to_laneidx.get(ev_edge, []))
@@ -143,6 +149,14 @@ def main():
                    help='min-green hold for scenedqn arms — default 0 to '
                         'match the vanilla DQN decision discipline '
                         '(no hold); scenemp keeps --scenemp-t-min')
+    p.add_argument('--residual', action='append', default=[],
+                   help='NAME=PATH — SceneResidualPolicy arm: trained '
+                        'gated residual on the frozen DQN base '
+                        '(--scenedqn-dqn supplies the weights)')
+    p.add_argument('--residual-notext', default=None,
+                   help='PATH — residual arm with the report channel '
+                        'blinded (kind=none): with gate<tau the policy '
+                        'should reproduce vanilla DQN exactly')
     p.add_argument('--builtin', default='fixedtime,maxpressure',
                    help='comma-separated builtin controller ids '
                         '(+dqn_s1 for the S1 snapshot)')
@@ -198,12 +212,18 @@ def main():
         name, path = spec.split('=', 1)
         scenedqns[name] = (SceneSignalAgent.load(path), path)
     scenedqn_weights = args.scenedqn_dqn or args.dqn_s1
+    residuals = {}
+    for spec in args.residual:
+        name, path = spec.split('=', 1)
+        residuals[name] = (SceneResidualPolicy.load(path), path)
     builtins = {c: c for c in args.builtin.split(',') if c}
     results = {name: [] for name in agents}
     for name in scenemps:
         results[f'scenemp_{name}'] = []
     for name in scenedqns:
         results[f'scenedqn_{name}'] = []
+    for name in residuals:
+        results[f'residual_{name}'] = []
     for name in builtins:
         results[name] = []
     if args.sga_notext:
@@ -212,6 +232,8 @@ def main():
         results['scenemp_notext'] = []
     if args.scenedqn_notext:
         results['scenedqn_notext'] = []
+    if args.residual_notext:
+        results['residual_notext'] = []
 
     ep_counter = 0
     for spec in grids:
@@ -283,6 +305,41 @@ def main():
                     clear_thresh=args.clear_thresh)
                 metrics['event'] = spec or 'none'
                 results[f'scenedqn_{name}'].append(metrics)
+                world.reset()
+            for name, ((policy, payload), path) in residuals.items():
+                injects = parse_injects([spec]) if spec else []
+                fb = FeatureBuilder(
+                    world, injects, report_delay=args.report_delay,
+                    **fb_kwargs_from_meta(payload.get('meta')))
+                dqn = bound_dqn_agent(world, scenedqn_weights,
+                                      rank=ranks[0])
+                qb_fn = (lambda dqn=dqn: inference_q_values(dqn))
+                metrics = eval_episode(
+                    world, fb, ranks, injects, agent=policy,
+                    episode_seconds=args.episode_seconds,
+                    interval=args.interval, q_base_fn=qb_fn,
+                    clear_thresh=args.clear_thresh)
+                metrics['event'] = spec or 'none'
+                results[f'residual_{name}'].append(metrics)
+                world.reset()
+            if args.residual_notext:
+                injects = parse_injects([spec]) if spec else []
+                policy, payload = SceneResidualPolicy.load(
+                    args.residual_notext)
+                fb = FeatureBuilder(
+                    world, injects, report_delay=args.report_delay,
+                    **fb_kwargs_from_meta(payload.get('meta')))
+                dqn = bound_dqn_agent(world, scenedqn_weights,
+                                      rank=ranks[0])
+                qb_fn = (lambda dqn=dqn: inference_q_values(dqn))
+                metrics = eval_episode(
+                    world, fb, ranks, injects, agent=policy,
+                    episode_seconds=args.episode_seconds,
+                    interval=args.interval, q_base_fn=qb_fn,
+                    text_override={'kind': 'none'},
+                    clear_thresh=args.clear_thresh)
+                metrics['event'] = spec or 'none'
+                results['residual_notext'].append(metrics)
                 world.reset()
             if args.scenedqn_notext:
                 injects = parse_injects([spec]) if spec else []

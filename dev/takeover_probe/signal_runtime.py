@@ -27,12 +27,16 @@ def run_signal_episode(world, fb, ranks, injects=None, agent=None,
                        controller=None, interval=10, episode_seconds=3600,
                        epsilon=0.0, rng=None, text_override=None,
                        reward_scale=50.0, record_snaps=False,
-                       switch_penalty=0.0):
+                       switch_penalty=0.0, q_base_fn=None):
     """``record_snaps``: take snapshots + emit transitions even when a
     builtin ``controller`` drives — used to collect teacher
     demonstrations for BC warm-start.  ``switch_penalty``: per phase-change
     reward cost (yellow/all-red time is real capacity loss — without it a
-    learned policy can collapse into every-tick toggling)."""
+    learned policy can collapse into every-tick toggling).
+    ``q_base_fn``: callable -> per-phase values of a frozen base
+    controller at the current tick (residual policies ride on it);
+    sampled once per decision tick and stored as ``qb``/``qbp`` inside
+    each transition."""
     injects = injects or []
     held = {
         rank: int(inter.virtual_phase)
@@ -51,6 +55,7 @@ def run_signal_episode(world, fb, ranks, injects=None, agent=None,
             # close the previous tick: r over its interval, s' = now
             snap = fb.snapshot(now, text_override=text_override) \
                 if (agent is not None or record_snaps) else None
+            qb = q_base_fn() if q_base_fn is not None else None
             if open_tick is not None:
                 r = -(interval_queue / max(1.0, now - open_tick['t'])) \
                     / reward_scale - interval_switches
@@ -58,6 +63,7 @@ def run_signal_episode(world, fb, ranks, injects=None, agent=None,
                     transitions.append({
                         's': open_tick['snap'], 'a': open_tick['a'],
                         'r': r, 'sp': snap, 'done': False,
+                        'qb': open_tick['qb'], 'qbp': qb,
                     })
                 open_tick['r'] = r
             # decide for the new tick
@@ -67,7 +73,7 @@ def run_signal_episode(world, fb, ranks, injects=None, agent=None,
                 from dev.takeover_probe.dispatch_model import collate
                 batch = collate([snap])
                 a, qvals, attn_w = agent.act(
-                    batch, epsilon=epsilon, rng=rng)
+                    batch, epsilon=epsilon, rng=rng, q_base=qb)
                 _, sentence = fb.event_fields(now)
                 for rank in ranks:
                     held[rank] = a
@@ -90,7 +96,7 @@ def run_signal_episode(world, fb, ranks, injects=None, agent=None,
                     attn_w.detach().cpu().numpy().ravel().tolist()
                     if attn_w is not None else None),
             })
-            open_tick = {'snap': snap, 'a': a, 't': now}
+            open_tick = {'snap': snap, 'a': a, 't': now, 'qb': qb}
             interval_queue = 0.0
             next_decision_t = now + interval
         lane_queue = world.get_info('lane_waiting_count') or {}
@@ -106,5 +112,6 @@ def run_signal_episode(world, fb, ranks, injects=None, agent=None,
         transitions.append({
             's': open_tick['snap'], 'a': open_tick['a'], 'r': r,
             'sp': open_tick['snap'], 'done': True,
+            'qb': open_tick['qb'], 'qbp': open_tick['qb'],
         })
     return transitions, records

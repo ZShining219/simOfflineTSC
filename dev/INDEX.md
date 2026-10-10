@@ -227,6 +227,11 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
   ServiceGapTracker 重建。经 plan child `trainer_overrides` 的
   `adjudication` spec + `adjudication_ctx[_path]` 接入；与旧
   reward_mode b1/b2 互斥。
+- `dev/hitl_live/calibrate_adjudication.py`：B′ 判官面板逐判官归一化
+  校准——在 expert_pool_manifest 列表上逐转移算各判官 raw 分，回填
+  spec 的 mu/sigma/calibration_count 产冻结 manifest
+  （`output_data/hitl_probe/adjudication/manifest_v1_calibrated.json`）。
+  已跑：hitl_ep50+student_ep50+expert_ep50 三池 731 转移校准一版。
 - `dev/hitl_live/build_pilot_plan.py` 增 `--bprime-arms`/`--bpc-arms`
   + `--adjudication-manifest`/`--adjudication-ctx`：HITL_BP（纯在线
   统一裁定）/ HITL_BPC（裁定+专家腿，旧 B 不能表达的组合）两臂。

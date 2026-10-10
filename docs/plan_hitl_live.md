@@ -185,8 +185,46 @@ view 缓存，resume 后确定性重放。在线 `(stage_index, local_episode)`
 plan 侧：`build_pilot_plan.py --bprime-arms/--bpc-arms` +
 `--adjudication-manifest spec.json --adjudication-ctx topo.json`
 生成 HITL_BP / HITL_BPC 臂（BPC 走 expert_pool_* 既有键）。
-未做：判官质量离线评估（分歧矩阵/预测效度）、qgap μ/σ 正式校准、
-B′/BPC 的 5-seed 配对证据、投票聚合、词条权重寻优。
+
+**B′ 5-seed 配对结果（2026-10-11，pilot 档）**：判官面板先在
+hitl_ep50+student_ep50+expert_ep50 三池 731 转移上离线校准
+（`calibrate_adjudication.py`，terms μ=-0.78/σ=0.30、RM μ=-1.03/σ=0.84、
+qgap μ=-6.69/σ=9.34，与 B 通道 h/f̂ 校准互相印证）；manifest
+`output_data/hitl_probe/adjudication/manifest_v1_calibrated.json`，
+判官表=terms(w1.0)+RM(w1.0)+qgap(ep400收敛档,w0.5)。10 run
+（BP/BPC×5 seed，同 ep0/seed/20ep 预算）全部 rc=0；21600 个更新窗
+裁定块覆盖率 100%，missing_features=0、judge_fallbacks=0；expert
+腿 z=+0.14（被认可）vs online z≈-1.2（被批注），两腿同 manifest
+digest 逐位一致。对 C0 的 AULC 差（10000 次配对 bootstrap）：
+
+| 指标 | HITL_B1 | HITL_B2 | HITL_BP | HITL_BPC |
+|---|---|---|---|---|
+| travel_time | -1.79 CI[-3.6,+0.1] | +1.67 ns | +0.49 ns | **+5.78** CI[-0.0,+12.1] 差 |
+| throughput | +16.77 ns | **+30.97** P=0.004 好 | **+21.66** CI[+1.7,+38.9] 好 | **-16.25** P=0.902 差 |
+| unfinished | +1.11 ns | -0.16 ns | +0.41 ns | +2.68 CI[-0.3,+5.9] 偏差 |
+| rrt | -16.02 ns | **-26.74** P=0.996 好 | **-19.20** CI[-35.2,-2.1] 好 | +13.68 ns 偏差 |
+
+诚实判读：
+1. **BP 复现了 B2 的改善模式**：throughput/rrt 显著正向、tt/unfinished
+   中性，幅度约为 B2 的 2/3——统一打分在在线腿上与旧 B 方案同量级
+   有效，机制等价成立；但"评委团>单判官"（H2）无支持证据，三判官
+   加权对单一 f̂ 甚至略有稀释。
+2. **BPC 未救活 C**：对 C0 在 tt/throughput 显著为负，模式与
+   HITL_EXPERT 臂一致——H3（口径混杂是 C 负因）被否，C 通道伤害
+   来自纠偏数据分布本身而非奖励语义。
+3. 判官语义正确（expert 腿近零分/学生深负分）但 BP≈B2 意味着
+   多判官当前没有增量信息——三判官对学生转移分歧达 ~2σ
+   （qgap -2.43 vs RM -0.49/terms -0.60，均为归一化 z），加权
+   聚合被深负的 qgap 主导；判官质量离线评估（分歧矩阵/预测
+   效度）与逐判官消融仍是缺口。
+4. 偏差记录：BP/BPC 的 run attempt_dir 少嵌一层导致 eval 落于
+   hitl_probe/_shared_evaluation，已归并 pilot5；判官工件加载曾
+   触碰 cuda RNG 使 initial-state digest 失配，队列以
+   CUDA_VISIBLE_DEVICES="" 对齐 catalog 生成环境（CPU 负载不受影响），
+   判官构造亦加 fork_rng(cuda) 隔离。
+
+未做：判官质量离线评估（分歧矩阵/预测效度）、逐判官消融臂、
+BP-vs-B2 直接配对、投票聚合、词条权重寻优。
 
 **评估器修正（2026-10-09）**：`world.close()` 原插在 metric 读取之前
 导致 `FatalTraCIError: network not yet constructed`（eval 全灭）；

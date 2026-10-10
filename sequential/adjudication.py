@@ -101,8 +101,12 @@ class RewardModelJudge:
             raise ValueError('reward_model judge requires a frozen model path')
         blob = torch.load(model_path, map_location='cpu')
         # fork_rng: nn.Linear init consumes torch RNG; keep the agent's
-        # rng_state_digest stable across environment rebind audits.
-        with torch.random.fork_rng(devices=[]):
+        # rng_state_digest stable across environment rebind audits.  CUDA
+        # devices must be forked too: torch.load/deserialization can consume
+        # cuda RNG, and initial-state/rebind digest audits capture it.
+        _devs = list(range(torch.cuda.device_count())
+                   ) if torch.cuda.is_available() else []
+        with torch.random.fork_rng(devices=_devs):
             self.net = PreferenceRewardNet(int(blob['feature_dim']))
             self.net.load_state_dict(blob['state_dict'])
         self.net.eval()
@@ -179,8 +183,11 @@ class QGapJudge:
         in_dim = int(state['dense_1.weight'].shape[1])
         out_dim = int(state['dense_3.weight'].shape[0])
         # fork_rng: nn.Linear init consumes torch RNG; keep the agent's
-        # rng_state_digest stable across environment rebind audits.
-        with torch.random.fork_rng(devices=[]):
+        # rng_state_digest stable across environment rebind audits.  CUDA
+        # devices must be forked too (see RewardModelJudge).
+        _devs = list(range(torch.cuda.device_count())
+                   ) if torch.cuda.is_available() else []
+        with torch.random.fork_rng(devices=_devs):
             self.net = DQNNet(in_dim, out_dim)
             self.net.load_state_dict(state)
         self.net.eval()
@@ -234,8 +241,10 @@ class Adjudicator:
             cls = JUDGE_TYPES.get(jtype)
             if cls is None:
                 raise ValueError(f'Unknown judge type: {jtype}')
+            import inspect
+            accepted = set(inspect.signature(cls.__init__).parameters)
             kwargs = {k: v for k, v in entry.items()
-                      if k not in ('type', 'weight', 'mu', 'sigma')}
+                      if k in accepted and k != 'self'}
             judge = cls(**kwargs)
             self.judges.append({
                 'judge': judge, 'type': jtype,

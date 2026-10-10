@@ -135,6 +135,9 @@ def train(args):
         print(json.dumps({'teacher': args.teacher,
                           'demo_pairs': len(demos),
                           'bc_loss': round(bc_loss, 4)}), flush=True)
+        if args.episodes <= 0:
+            agent.save(out / 'agent.pt', meta={**meta, 'episode': 0,
+                                               'bc_only': True})
 
     log = []
     for ep in range(1, args.episodes + 1):

@@ -8,7 +8,7 @@ attributable to the forced window's controller choice (plus knock-on
 window choices the router makes afterward from the forked state).
 
 Usage:
-    python -m dev.takeover_probe.fork_probe \
+    python -m dev.takeover_probe._router.fork_probe \
         --router <ckpt> --extra-model dhoa=<ckpt> \
         --event 'surge:road_2_1_2:road_1_2_1:900:750:3' --seed 5000 \
         --fork 2160=maxpressure --fork 2280=maxpressure \
@@ -24,7 +24,7 @@ from pathlib import Path
 
 import numpy as np
 
-_REPO_ROOT = Path(__file__).resolve().parents[2]
+_REPO_ROOT = Path(__file__).resolve().parents[3]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
@@ -35,7 +35,7 @@ from dev.takeover_probe.dispatch_state import (  # noqa: E402
     FeatureBuilder, fb_kwargs_from_meta,
 )
 from dev.takeover_probe.dispatch_model import DispatchRouter  # noqa: E402
-from dev.takeover_probe.router_runtime import (  # noqa: E402
+from dev.takeover_probe._router.router_runtime import (  # noqa: E402
     run_router_episode,
 )
 from tools.sumo_live_broadcast.injects import parse_injects  # noqa: E402

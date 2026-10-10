@@ -14,7 +14,7 @@ seed to see whether arm identity changes the outcome (i.e. whether the
 event creates a control problem at all).
 
 Usage:
-    python -m dev.takeover_probe.stage1_event_physics --seed 5200 \
+    python -m dev.takeover_probe._router.stage1_event_physics --seed 5200 \
         --out output_data/dev_takeover_probe/stage1_physics
 """
 
@@ -26,7 +26,7 @@ import sys
 from collections import defaultdict
 from pathlib import Path
 
-_REPO_ROOT = Path(__file__).resolve().parents[2]
+_REPO_ROOT = Path(__file__).resolve().parents[3]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 

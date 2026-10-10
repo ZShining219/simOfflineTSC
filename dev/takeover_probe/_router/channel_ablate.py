@@ -34,7 +34,7 @@ Conditions, identity layout:
 
 No SUMO, no retraining — encoder forward passes only.
 Usage:
-    python -m dev.takeover_probe.channel_ablate \
+    python -m dev.takeover_probe._router.channel_ablate \
         --dump output_data/dev_takeover_probe/probe_repr/z_dump.npz \
         --records-dir output_data/dev_takeover_probe/eval_p2_obj3 \
         --out output_data/dev_takeover_probe/probe_repr
@@ -49,7 +49,7 @@ from pathlib import Path
 
 import numpy as np
 
-_REPO_ROOT = Path(__file__).resolve().parents[2]
+_REPO_ROOT = Path(__file__).resolve().parents[3]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 

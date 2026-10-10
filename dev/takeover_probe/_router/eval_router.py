@@ -14,7 +14,7 @@ absent from the training grid) on test traffic seeds — nothing here
 updates weights.
 
 Usage:
-    python -m dev.takeover_probe.eval_router \
+    python -m dev.takeover_probe._router.eval_router \
         --attn-ckpt <p> --concat-ckpt <p> --out <dir>
 """
 
@@ -27,7 +27,7 @@ from pathlib import Path
 
 import numpy as np
 
-_REPO_ROOT = Path(__file__).resolve().parents[2]
+_REPO_ROOT = Path(__file__).resolve().parents[3]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
@@ -37,7 +37,7 @@ from dev.takeover_probe.probe import (  # noqa: E402
 from dev.takeover_probe.dispatch_state import (  # noqa: E402
     FeatureBuilder, fb_kwargs_from_meta,
 )
-from dev.takeover_probe.router_runtime import (  # noqa: E402
+from dev.takeover_probe._router.router_runtime import (  # noqa: E402
     run_router_episode,
 )
 from tools.sumo_live_broadcast.injects import parse_injects  # noqa: E402

@@ -22,7 +22,7 @@ Curves are seed-mean +- sample SD over the 3 held-out seeds; fig11 shows
 seed s0 rows with mean switches annotated.
 
 Usage:
-    python -m dev.takeover_probe.make_figs --root output_data/dev_takeover_probe
+    python -m dev.takeover_probe._router.make_figs --root output_data/dev_takeover_probe
 """
 
 from __future__ import annotations

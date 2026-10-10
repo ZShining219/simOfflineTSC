@@ -30,7 +30,7 @@ Tasks on z
   bind_mass   attention mass on reported edge's lanes (attn arms only)
 
 Usage:
-    python -m dev.takeover_probe.scene_distill \
+    python -m dev.takeover_probe._router.scene_distill \
         --dump output_data/dev_takeover_probe/scene_dump/scene_dump.npz \
         --out  output_data/dev_takeover_probe/scene_distill/
 """
@@ -47,7 +47,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-_REPO_ROOT = Path(__file__).resolve().parents[2]
+_REPO_ROOT = Path(__file__).resolve().parents[3]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 

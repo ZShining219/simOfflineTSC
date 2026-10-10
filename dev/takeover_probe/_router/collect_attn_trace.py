@@ -5,7 +5,7 @@ conditions (correct / wrong-location / no-text) and dumps per-window
 attention weight vectors.  Output feeds ``make_figs.fig7``.
 
 Usage:
-    python -m dev.takeover_probe.collect_attn_trace \
+    python -m dev.takeover_probe._router.collect_attn_trace \
         --ckpt output_data/dev_takeover_probe/router_attn_obj3/router_attn.pt \
         --out output_data/dev_takeover_probe/figs/attn_trace
 """
@@ -17,13 +17,13 @@ import json
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 from dev.takeover_probe.probe import (  # noqa: E402
     build_world, build_controllers, _bind_all, DEFAULT_DQN_S1)
 from dev.takeover_probe.dispatch_state import (  # noqa: E402
     FeatureBuilder, fb_kwargs_from_meta)
-from dev.takeover_probe.router_runtime import run_router_episode  # noqa: E402
+from dev.takeover_probe._router.router_runtime import run_router_episode  # noqa: E402
 from tools.sumo_live_broadcast.injects import parse_injects  # noqa: E402
 
 

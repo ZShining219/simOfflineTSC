@@ -10,7 +10,7 @@ cross-attention lane weights are encouraged toward the report's bound
 lanes — small weight, skipped for the concat baseline (no attention).
 
 Usage:
-    python -m dev.takeover_probe.train_router --variant attn \
+    python -m dev.takeover_probe._router.train_router --variant attn \
         --episodes 40 --out output_data/dev_takeover_probe/router_attn
 """
 
@@ -24,7 +24,7 @@ from pathlib import Path
 
 import numpy as np
 
-_REPO_ROOT = Path(__file__).resolve().parents[2]
+_REPO_ROOT = Path(__file__).resolve().parents[3]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
@@ -32,7 +32,7 @@ from dev.takeover_probe.probe import (  # noqa: E402
     build_controllers, build_world, _bind_all,
 )
 from dev.takeover_probe.dispatch_state import FeatureBuilder  # noqa: E402
-from dev.takeover_probe.router_runtime import (  # noqa: E402
+from dev.takeover_probe._router.router_runtime import (  # noqa: E402
     run_router_episode,
 )
 from tools.sumo_live_broadcast.injects import parse_injects  # noqa: E402

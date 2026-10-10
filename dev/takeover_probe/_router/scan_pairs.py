@@ -11,7 +11,7 @@ where text is the only way to pick right -> the substrate for proving
 text necessity.
 
 Usage:
-    python -m dev.takeover_probe.scan_pairs --out <dir>
+    python -m dev.takeover_probe._router.scan_pairs --out <dir>
 """
 from __future__ import annotations
 
@@ -21,7 +21,7 @@ import json
 import sys
 from pathlib import Path
 
-_REPO_ROOT = Path(__file__).resolve().parents[2]
+_REPO_ROOT = Path(__file__).resolve().parents[3]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
@@ -29,10 +29,10 @@ from dev.takeover_probe.probe import (  # noqa: E402
     build_controllers, build_world, _bind_all, DEFAULT_DQN_S1,
 )
 from dev.takeover_probe.dispatch_state import FeatureBuilder  # noqa: E402
-from dev.takeover_probe.router_runtime import (  # noqa: E402
+from dev.takeover_probe._router.router_runtime import (  # noqa: E402
     run_router_episode,
 )
-from dev.takeover_probe.eval_router import eval_metrics  # noqa: E402
+from dev.takeover_probe._router.eval_router import eval_metrics  # noqa: E402
 from tools.sumo_live_broadcast.injects import parse_injects  # noqa: E402
 
 

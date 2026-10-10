@@ -30,7 +30,7 @@ automatically consistent):
   impact_rep         next-window mean queue on REPORTED edge's lanes
 
 Usage:
-    python -m dev.takeover_probe.collect_scene_dump --out <dir>
+    python -m dev.takeover_probe._router.collect_scene_dump --out <dir>
 """
 
 from __future__ import annotations
@@ -42,7 +42,7 @@ from pathlib import Path
 
 import numpy as np
 
-_REPO_ROOT = Path(__file__).resolve().parents[2]
+_REPO_ROOT = Path(__file__).resolve().parents[3]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
@@ -53,10 +53,10 @@ from dev.takeover_probe.dispatch_state import (  # noqa: E402
     FeatureBuilder, fb_kwargs_from_meta,
 )
 from dev.takeover_probe.dispatch_model import DispatchRouter  # noqa: E402
-from dev.takeover_probe.router_runtime import (  # noqa: E402
+from dev.takeover_probe._router.router_runtime import (  # noqa: E402
     run_router_episode,
 )
-from dev.takeover_probe.train_router import EDGE_TARGETS  # noqa: E402
+from dev.takeover_probe._router.train_router import EDGE_TARGETS  # noqa: E402
 from tools.sumo_live_broadcast.injects import parse_injects  # noqa: E402
 
 CONG_THRESH = 1.0   # mean queue (veh) below this -> 'no congestion edge'

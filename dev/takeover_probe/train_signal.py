@@ -34,7 +34,8 @@ from dev.takeover_probe.probe import (  # noqa: E402
 )
 from dev.takeover_probe.dispatch_state import FeatureBuilder  # noqa: E402
 from dev.takeover_probe.signal_model import (  # noqa: E402
-    STATE_ONLY, SceneResidualPolicy, SceneSignalAgent,
+    STATE_ONLY, SceneJointPolicy, SceneResidualPolicy,
+    SceneSignalAgent,
 )
 from dev.takeover_probe.signal_runtime import (  # noqa: E402
     run_signal_episode,
@@ -81,11 +82,56 @@ def train(args):
         phase_age=True)
     state_only = args.variant in STATE_ONLY
     residual_mode = args.residual_dqn is not None
-    if residual_mode and args.variant not in ('sga', 'attn'):
+    joint_mode = args.joint_dqn is not None
+    if (residual_mode or joint_mode) \
+            and args.variant not in ('sga', 'attn'):
         raise ValueError(
-            f'--residual-dqn needs a binding variant (sga/attn), '
-            f'got {args.variant!r}')
-    if residual_mode:
+            '--residual-dqn/--joint-dqn need a binding variant '
+            f'(sga/attn), got {args.variant!r}')
+    if residual_mode and joint_mode:
+        raise ValueError('--residual-dqn and --joint-dqn are exclusive')
+    if joint_mode:
+        # 'controller借助注意力优化' form: the base DQN lives in-graph,
+        # initialised from the deployed checkpoint and fine-tuned with
+        # a small lr — TD lands in the controller's own weights.
+        from dev.takeover_probe.scene_mp import bound_dqn_agent
+        from tools.sumo_live_broadcast.controllers import (
+            load_qnet_payload,
+        )
+        probe = bound_dqn_agent(world, args.joint_dqn, rank=0)
+        flat_in_lanes = [l for g in probe.ob_generator.lanes
+                         for l in g]
+        payload = load_qnet_payload(args.joint_dqn)
+        if not payload['phase']:
+            raise ValueError('joint mode assumes phase-in-feature DQN '
+                             '(payload phase=False unsupported)')
+        agent = SceneJointPolicy(
+            lane_dim=fb0.lane_tokens(0.0).shape[1],
+            text_dim=fb0.text_dim, global_dim=fb0.global_dim,
+            n_phases=n_phases, d_model=args.d_model,
+            variant=args.variant, residual_pool=args.residual_pool,
+            geom=fb0.model_geom(), n_edges=fb0.n_edges,
+            edge_idx=fb0.lane_edge_idx,
+            dose_frac=args.res_dose, bind_tau=args.res_bind_tau,
+            base_state_dict=payload['state_dict'],
+            base_arch=payload['algorithm_id'],
+            base_in_lanes=flat_in_lanes, lane_names=fb0.lanes,
+            base_input_dim=payload['input_dim'])
+        target = SceneJointPolicy(
+            lane_dim=fb0.lane_tokens(0.0).shape[1],
+            text_dim=fb0.text_dim, global_dim=fb0.global_dim,
+            n_phases=n_phases, d_model=args.d_model,
+            variant=args.variant, residual_pool=args.residual_pool,
+            geom=fb0.model_geom(), n_edges=fb0.n_edges,
+            edge_idx=fb0.lane_edge_idx,
+            dose_frac=args.res_dose, bind_tau=args.res_bind_tau,
+            base_state_dict=payload['state_dict'],
+            base_arch=payload['algorithm_id'],
+            base_in_lanes=flat_in_lanes, lane_names=fb0.lanes,
+            base_input_dim=payload['input_dim'])
+        base_init = {k: v.detach().clone()
+                     for k, v in agent.base.state_dict().items()}
+    elif residual_mode:
         # guided补课 form: frozen base DQN supplies q_base per tick;
         # the scene module only learns a bounded gated correction.
         # BC is pointless here — the base already drives.
@@ -122,7 +168,17 @@ def train(args):
             n_lanes=fb0.n_lanes)
     target.load_state_dict(agent.state_dict())
     target.eval()
-    opt = torch.optim.Adam(agent.parameters(), lr=args.lr)
+    if joint_mode:
+        # base gets a small lr (fine-tune a converged controller);
+        # the scene branch gets the normal lr — the controller is
+        # the object being optimised, attention is the channel
+        opt = torch.optim.Adam([
+            {'params': agent.base.parameters(), 'lr': args.base_lr},
+            {'params': list(agent.encoder.parameters())
+             + list(agent.delta.parameters()), 'lr': args.lr},
+        ])
+    else:
+        opt = torch.optim.Adam(agent.parameters(), lr=args.lr)
     replay = deque(maxlen=args.buffer)
 
     meta = dict(
@@ -135,9 +191,15 @@ def train(args):
                     residual_dqn=str(Path(args.residual_dqn).name),
                     res_dose=args.res_dose,
                     res_bind_tau=args.res_bind_tau)
+    if joint_mode:
+        meta.update(kind='joint',
+                    joint_dqn=str(Path(args.joint_dqn).name),
+                    base_lr=args.base_lr,
+                    res_dose=args.res_dose,
+                    res_bind_tau=args.res_bind_tau)
 
     # ---- phase 0: teacher demonstrations + BC warm-start ---------------
-    if args.teacher_eps > 0 and not residual_mode:
+    if args.teacher_eps > 0 and not (residual_mode or joint_mode):
         demos = []
         for tep in range(args.teacher_eps):
             injects = sample_injects(rng, allow_none_p=args.allow_none_p)
@@ -169,7 +231,7 @@ def train(args):
         if args.episodes <= 0:
             agent.save(out / 'agent.pt', meta={**meta, 'episode': 0,
                                                'bc_only': True})
-    if residual_mode and args.episodes <= 0:
+    if (residual_mode or joint_mode) and args.episodes <= 0:
         agent.save(out / 'agent.pt',
                    meta={**meta, 'episode': 0, 'untrained': True})
 
@@ -209,6 +271,12 @@ def train(args):
         replay.extend(transitions)
         if residual_mode:
             stats = update_residual(agent, target, opt, replay, args, rng)
+        elif joint_mode:
+            stats = update_joint(agent, target, opt, replay, args, rng)
+            drift = float(np.mean([
+                float((p - base_init[k]).abs().mean())
+                for k, p in agent.base.state_dict().items()]))
+            stats['base_drift'] = round(drift, 6)
         else:
             stats = update(agent, target, opt, replay, args, rng)
         if ep % args.target_sync == 0:
@@ -326,6 +394,58 @@ def update_residual(policy, target, opt, replay, args, rng):
             'gate': round(float(np.mean(gates)), 4)}
 
 
+def update_joint(policy, target, opt, replay, args, rng):
+    """Double-DQN TD for the joint policy — the base Q network is in
+    the graph, so gradients reach BOTH the controller's own weights
+    (small lr) and the scene branch.  No stored qb needed."""
+    import torch
+    from dev.takeover_probe.dispatch_model import collate
+    if len(replay) < args.batch * 2:
+        return {'loss': 0.0, 'aux': 0.0, 'gate': 0.0}
+    losses, auxs, gates = [], [], []
+    idxs = rng.integers(0, len(replay),
+                        size=(args.updates_per_ep, args.batch))
+    rlist = list(replay)
+    for idx_row in idxs:
+        batch_tr = [rlist[i] for i in idx_row]
+        s = collate([t['s'] for t in batch_tr])
+        sp = collate([t['sp'] for t in batch_tr])
+        a = torch.as_tensor([t['a'] for t in batch_tr])
+        r = torch.as_tensor([t['r'] for t in batch_tr],
+                            dtype=torch.float32)
+        done = torch.as_tensor([t['done'] for t in batch_tr],
+                               dtype=torch.float32)
+        q, w = policy(s)
+        with torch.no_grad():
+            a_star = policy(sp)[0].argmax(dim=-1)
+            q_next = target(sp)[0]
+            td = r + args.gamma * (1 - done) * q_next.gather(
+                1, a_star.unsqueeze(1)).squeeze(1)
+        loss = torch.nn.functional.smooth_l1_loss(
+            q.gather(1, a.unsqueeze(1)).squeeze(1), td)
+        aux = torch.zeros(())
+        terms = []
+        for i, t in enumerate(batch_tr):
+            tgt = t['s'].get('event_lane_idx') or []
+            if tgt:
+                p = w[i, torch.as_tensor(tgt)].sum()
+                terms.append(-torch.log(p.clamp_min(1e-6)))
+        if terms:
+            aux = torch.stack(terms).mean() * args.aux_weight
+        (loss + aux).backward()
+        if args.grad_clip > 0:
+            torch.nn.utils.clip_grad_norm_(policy.parameters(),
+                                           args.grad_clip)
+        opt.step()
+        opt.zero_grad()
+        losses.append(loss.item())
+        auxs.append(float(aux))
+        gates.append(float(policy.bind_gate(w).mean()))
+    return {'loss': round(float(np.mean(losses)), 4),
+            'aux': round(float(np.mean(auxs)), 4),
+            'gate': round(float(np.mean(gates)), 4)}
+
+
 def update(agent, target, opt, replay, args, rng):
     import torch
     from dev.takeover_probe.dispatch_model import collate
@@ -408,6 +528,14 @@ def main():
     p.add_argument('--res-reg', type=float, default=0.0,
                    help='weight of the normalised-intervention penalty '
                         '(engage-only-where-it-pays sparsity)')
+    p.add_argument('--joint-dqn', default=None,
+                   help='PATH to deployed DQN weights — train a '
+                        'SceneJointPolicy: base in-graph, fine-tuned '
+                        'with --base-lr; TD lands in the controller '
+                        'itself (exclusive with --residual-dqn)')
+    p.add_argument('--base-lr', type=float, default=1e-5,
+                   help='fine-tune lr for the in-graph base DQN '
+                        '(joint mode)')
     p.add_argument('--teacher', default='maxpressure',
                    help='teacher controller for demonstration episodes '
                         '(0 episodes = BC off)')

@@ -220,6 +220,115 @@ class SceneResidualPolicy(nn.Module):
         return agent, payload
 
 
+class SceneJointPolicy(SceneResidualPolicy):
+    """Controller trained WITH scene-guided attention inside — the
+    'controller借助注意力优化' form.  The base DQN lives in-graph
+    (initialised from the deployed checkpoint, fine-tuned with a small
+    lr), so TD gradients land in the controller's own weights; the
+    attention branch is the scene channel it optimises through.
+
+    The base feature (in-lane ``lane_count`` in generator order +
+    phase one-hot) is rebuilt from the snapshot batch: ``lane_perm``
+    maps the generator's lane order onto ``fb.lanes`` and the count
+    slot is de-normalised (``*count_scale``).  Everything else —
+    bounded gated residual, save/load — is inherited.
+    """
+
+    def __init__(self, *a, base_state_dict=None, base_arch='dqn_mlp',
+                 base_in_lanes=None, lane_names=None, count_idx=1,
+                 count_scale=10.0, base_input_dim=None, lane_perm=None,
+                 **kw):
+        super().__init__(*a, **kw)
+        if lane_perm is None:
+            if not base_in_lanes or not lane_names:
+                raise ValueError(
+                    'SceneJointPolicy needs base_in_lanes and '
+                    'lane_names (generator order vs fb.lanes), or a '
+                    'ready lane_perm')
+            perm = [lane_names.index(l) for l in base_in_lanes]
+        else:
+            perm = list(lane_perm)
+        self.register_buffer(
+            'lane_perm', torch.as_tensor(perm, dtype=torch.long))
+        self.count_idx = int(count_idx)
+        self.count_scale = float(count_scale)
+        self.base_arch = base_arch
+        in_dim = int(base_input_dim or (len(perm) + self.n_phases))
+        self.base_input_dim = in_dim
+        from sequential.agent import build_q_network
+        self.base = build_q_network(base_arch, in_dim, self.n_phases)
+        if base_state_dict is not None:
+            self.base.load_state_dict(base_state_dict)
+
+    def base_features(self, batch):
+        counts = (batch['lanes'][:, self.lane_perm, self.count_idx]
+                  * self.count_scale)
+        phase_oh = batch['global'][:, :self.n_phases]
+        return torch.cat([counts, phase_oh], dim=-1)
+
+    def forward(self, batch, q_base=None):
+        qb = self.base(self.base_features(batch))
+        z, w = self.encoder(batch['lanes'], batch['text'],
+                            batch['global'])
+        d = torch.tanh(self.delta(z))
+        spread = (qb.max(dim=-1).values
+                  - qb.min(dim=-1).values).clamp_min(1e-6)
+        q = qb + self.dose_frac * spread.unsqueeze(-1) \
+            * self.bind_gate(w) * d
+        return q, w
+
+    def act(self, batch, epsilon=0.0, rng=None, q_base=None):
+        q, w = self.forward(batch)
+        if epsilon > 0 and rng is not None and rng.random() < epsilon:
+            idx = int(rng.integers(self.n_phases))
+        else:
+            idx = int(q.argmax(dim=-1).item())
+        return idx, q.detach().cpu().numpy()[0].tolist(), w
+
+    def save(self, path, meta=None):
+        torch.save({
+            'kind': 'joint',
+            'variant': self.variant,
+            'n_phases': self.n_phases,
+            'dose_frac': self.dose_frac,
+            'bind_tau': self.bind_tau,
+            'n_edges': self.n_edges,
+            'edge_idx': self.edge_idx.cpu().numpy().tolist(),
+            'base_arch': self.base_arch,
+            'base_input_dim': self.base_input_dim,
+            'lane_perm': self.lane_perm.cpu().numpy().tolist(),
+            'count_idx': self.count_idx,
+            'count_scale': self.count_scale,
+            'state_dict': self.state_dict(),
+            'meta': meta or {},
+        }, str(path))
+
+    @classmethod
+    def load(cls, path, map_location='cpu'):
+        payload = torch.load(str(path), map_location=map_location,
+                             weights_only=False)
+        meta = payload.get('meta') or {}
+        agent = cls(
+            meta['lane_dim'], meta['text_dim'], meta['global_dim'],
+            payload['n_phases'], d_model=meta.get('d_model', 64),
+            variant=payload['variant'],
+            residual_pool=meta.get('residual_pool', 'mean'),
+            geom=meta.get('geom'),
+            n_edges=payload.get('n_edges', 1),
+            edge_idx=payload.get('edge_idx'),
+            dose_frac=payload.get('dose_frac', 0.35),
+            bind_tau=payload.get('bind_tau', 0.4),
+            base_arch=payload.get('base_arch', 'dqn_mlp'),
+            lane_perm=payload['lane_perm'],
+            base_input_dim=payload.get('base_input_dim'),
+            count_idx=payload.get('count_idx', 1),
+            count_scale=payload.get('count_scale', 10.0),
+        )
+        agent.load_state_dict(payload['state_dict'])
+        agent.eval()
+        return agent, payload
+
+
 class SceneSignalAgent(nn.Module):
     """Scene encoder + linear per-phase Q head (DQN action = phase id)."""
 

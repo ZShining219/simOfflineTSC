@@ -44,7 +44,7 @@ from dev.takeover_probe.dispatch_state import (  # noqa: E402
     FeatureBuilder, fb_kwargs_from_meta,
 )
 from dev.takeover_probe.signal_model import (  # noqa: E402
-    SceneResidualPolicy, SceneSignalAgent,
+    SceneJointPolicy, SceneResidualPolicy, SceneSignalAgent,
 )
 from dev.takeover_probe.scene_mp import (  # noqa: E402
     SceneGuidedDQN, SceneGuidedMP, bound_dqn_agent,
@@ -61,6 +61,20 @@ from tools.sumo_live_broadcast.controllers import (  # noqa: E402
 from tools.sumo_live_broadcast.injects import (  # noqa: E402
     apply_injects, parse_injects,
 )
+
+
+class _JointBaseOnly:
+    """Inner base net of a joint ckpt run alone — answers whether the
+    attention-guided training left value inside the controller itself
+    (internalisation check: base_only vs original dqn_s1)."""
+
+    def __init__(self, policy):
+        self.p = policy
+
+    def act(self, batch, epsilon=0.0, rng=None, q_base=None):
+        q = self.p.base(self.p.base_features(batch))
+        return int(q.argmax(dim=-1).item()), \
+            q.detach().cpu().numpy()[0].tolist(), None
 
 
 def eval_episode(world, fb, ranks, injects, agent=None, controller=None,
@@ -157,6 +171,15 @@ def main():
                    help='PATH — residual arm with the report channel '
                         'blinded (kind=none): with gate<tau the policy '
                         'should reproduce vanilla DQN exactly')
+    p.add_argument('--joint', action='append', default=[],
+                   help='NAME=PATH — SceneJointPolicy arm: controller '
+                        'fine-tuned with the attention inside')
+    p.add_argument('--joint-notext', default=None,
+                   help='PATH — joint arm with the report channel '
+                        'blinded (kind=none)')
+    p.add_argument('--joint-base', default=None,
+                   help='PATH — run the joint ckpt\'s inner base net '
+                        'alone (internalisation check vs dqn_s1)')
     p.add_argument('--builtin', default='fixedtime,maxpressure',
                    help='comma-separated builtin controller ids '
                         '(+dqn_s1 for the S1 snapshot)')
@@ -216,6 +239,10 @@ def main():
     for spec in args.residual:
         name, path = spec.split('=', 1)
         residuals[name] = (SceneResidualPolicy.load(path), path)
+    joints = {}
+    for spec in args.joint:
+        name, path = spec.split('=', 1)
+        joints[name] = (SceneJointPolicy.load(path), path)
     builtins = {c: c for c in args.builtin.split(',') if c}
     results = {name: [] for name in agents}
     for name in scenemps:
@@ -224,6 +251,8 @@ def main():
         results[f'scenedqn_{name}'] = []
     for name in residuals:
         results[f'residual_{name}'] = []
+    for name in joints:
+        results[f'joint_{name}'] = []
     for name in builtins:
         results[name] = []
     if args.sga_notext:
@@ -234,6 +263,10 @@ def main():
         results['scenedqn_notext'] = []
     if args.residual_notext:
         results['residual_notext'] = []
+    if args.joint_notext:
+        results['joint_notext'] = []
+    if args.joint_base:
+        results['joint_base'] = []
 
     ep_counter = 0
     for spec in grids:
@@ -340,6 +373,50 @@ def main():
                     clear_thresh=args.clear_thresh)
                 metrics['event'] = spec or 'none'
                 results['residual_notext'].append(metrics)
+                world.reset()
+            for name, ((policy, payload), path) in joints.items():
+                injects = parse_injects([spec]) if spec else []
+                fb = FeatureBuilder(
+                    world, injects, report_delay=args.report_delay,
+                    **fb_kwargs_from_meta(payload.get('meta')))
+                metrics = eval_episode(
+                    world, fb, ranks, injects, agent=policy,
+                    episode_seconds=args.episode_seconds,
+                    interval=args.interval,
+                    clear_thresh=args.clear_thresh)
+                metrics['event'] = spec or 'none'
+                results[f'joint_{name}'].append(metrics)
+                world.reset()
+            if args.joint_notext:
+                injects = parse_injects([spec]) if spec else []
+                policy, payload = SceneJointPolicy.load(
+                    args.joint_notext)
+                fb = FeatureBuilder(
+                    world, injects, report_delay=args.report_delay,
+                    **fb_kwargs_from_meta(payload.get('meta')))
+                metrics = eval_episode(
+                    world, fb, ranks, injects, agent=policy,
+                    episode_seconds=args.episode_seconds,
+                    interval=args.interval,
+                    text_override={'kind': 'none'},
+                    clear_thresh=args.clear_thresh)
+                metrics['event'] = spec or 'none'
+                results['joint_notext'].append(metrics)
+                world.reset()
+            if args.joint_base:
+                injects = parse_injects([spec]) if spec else []
+                policy, payload = SceneJointPolicy.load(args.joint_base)
+                fb = FeatureBuilder(
+                    world, injects, report_delay=args.report_delay,
+                    **fb_kwargs_from_meta(payload.get('meta')))
+                metrics = eval_episode(
+                    world, fb, ranks, injects,
+                    agent=_JointBaseOnly(policy),
+                    episode_seconds=args.episode_seconds,
+                    interval=args.interval,
+                    clear_thresh=args.clear_thresh)
+                metrics['event'] = spec or 'none'
+                results['joint_base'].append(metrics)
                 world.reset()
             if args.scenedqn_notext:
                 injects = parse_injects([spec]) if spec else []

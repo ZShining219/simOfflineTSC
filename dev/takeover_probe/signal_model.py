@@ -5,6 +5,19 @@ attention module IS the controller's representation backbone, deciding
 signal phases directly every decision tick — not a meta-policy over
 child controllers.
 
+=== CANONICAL (2026-10) ===
+Current deliverable: ``SceneJointPolicy`` — deployed dqn_s1 base kept
+in-graph (init from checkpoint, fine-tuned at --base-lr) + sga encoder
++ gated bounded residual.  Trained by adapter-teacher distillation
+(sig9_joint_bc) then original-reward TD (sig10_joint_rl).
+Status of the other classes here:
+  ``SceneResidualPolicy``  frozen-base gated residual — superseded
+                           exploration (+0.7% vs -2.7% joint_bc);
+                           kept as parent class of SceneJointPolicy.
+  ``SceneSignalAgent``     from-scratch RL agent — abandoned
+                           (failed to learn base driving, ~2x queue).
+===========================
+
 Arms (``variant``):
 
   Scene-channel arms (lanes + text + global -> z):

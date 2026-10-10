@@ -40,7 +40,7 @@ from dev.takeover_probe.signal_model import (  # noqa: E402
 from dev.takeover_probe.signal_runtime import (  # noqa: E402
     run_signal_episode,
 )
-from dev.takeover_probe.train_router import (  # noqa: E402
+from dev.takeover_probe._router.train_router import (  # noqa: E402
     EDGE_TARGETS, TRAIN_DURS, TRAIN_EDGES, TRAIN_ONSETS, TRAIN_PERIODS,
 )
 from tools.sumo_live_broadcast.injects import parse_injects  # noqa: E402
@@ -170,6 +170,15 @@ def train(args):
             variant=args.variant, residual_pool=args.residual_pool,
             geom=fb0.model_geom() if not state_only else None,
             n_lanes=fb0.n_lanes)
+    if args.init_from:
+        # warm-start from a prior checkpoint (e.g. the BC student)
+        # before continuing with TD — joint base_init was snapshotted
+        # earlier so drift still measures cumulative movement from the
+        # deployed dqn_s1 weights.
+        payload0 = torch.load(args.init_from, map_location='cpu',
+                              weights_only=False)
+        agent.load_state_dict(payload0['state_dict'])
+        print(json.dumps({'init_from': args.init_from}), flush=True)
     target.load_state_dict(agent.state_dict())
     target.eval()
     if joint_mode:
@@ -350,7 +359,7 @@ def train(args):
             world, fb, ranks, injects=injects, agent=agent,
             interval=args.interval, episode_seconds=args.episode_seconds,
             epsilon=eps, rng=rng, switch_penalty=args.switch_penalty,
-            q_base_fn=q_base_fn)
+            q_base_fn=q_base_fn, orig_reward=args.orig_reward)
         replay.extend(transitions)
         if residual_mode:
             stats = update_residual(agent, target, opt, replay, args, rng)
@@ -671,6 +680,14 @@ def main():
                         'SceneJointPolicy: base in-graph, fine-tuned '
                         'with --base-lr; TD lands in the controller '
                         'itself (exclusive with --residual-dqn)')
+    p.add_argument('--init-from', default=None,
+                   help='warm-start agent+target from a prior checkpoint '
+                        '(e.g. the BC student) before TD continues')
+    p.add_argument('--orig-reward', action='store_true',
+                   help='use the deployed DQN original objective '
+                        '(-12 x mean incoming-lane waiting count) instead '
+                        'of the probe shaping — keeps the TD target '
+                        'consistent with what the base converged on')
     p.add_argument('--base-lr', type=float, default=1e-5,
                    help='fine-tune lr for the in-graph base DQN '
                         '(joint mode)')

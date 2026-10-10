@@ -52,7 +52,7 @@ from dev.takeover_probe.scene_mp import (  # noqa: E402
 from dev.takeover_probe.signal_runtime import (  # noqa: E402
     run_signal_episode,
 )
-from dev.takeover_probe.train_router import (  # noqa: E402
+from dev.takeover_probe._router.train_router import (  # noqa: E402
     EDGE_TARGETS, TRAIN_EDGES,
 )
 from tools.sumo_live_broadcast.controllers import (  # noqa: E402

@@ -1,5 +1,13 @@
 """Scene-guided attention + SMDP router for controller dispatch.
 
+NOTE (2026-10): the router architecture was REJECTED (two decision
+layers).  The live component here is the encoder family —
+``SceneAttention`` / ``CompositeSceneEncoder`` ('sga') /
+``SelfAttentionEncoder`` / ``ConcatEncoder`` — consumed by
+``signal_model.py`` policies and the adapter teachers in
+``scene_mp.py``.  ``DispatchRouter`` is dead code kept only for the
+archived probes under ``_router/``.
+
 Two encoder variants sharing one router head:
 
   variant='attn'   scene text embedding is the query over lane tokens

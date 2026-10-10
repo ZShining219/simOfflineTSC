@@ -64,95 +64,43 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
   README），2026-10-07 裁决收仓长期维护；源自治理工作区 govern_1007/scratch/。
 - `dev/govern_1007/`：本治理任务的授权暂存位（当前为空）。
 - `dev/_legacy/20261007/`：见 `dev/_legacy/20261007/README.md`。
-- `dev/takeover_probe/`：控制器接管与调度器探针族（探索件）。
-  `probe.py` 为接管分叉探针：复用 tools/sumo_live_broadcast 控制器适配器 +
-  world 构建；前缀到指定决策步后切换接管控制器，逐决策记录车道级排队，
-  分叉点状态指纹校验确定性；支持 `--inject` 突发车流注入
-  （注入实现已收编 `tools/sumo_live_broadcast/injects.py`，与转播服务共用）。
-  `dispatch_state.py`（车道/全局/事件文本特征化+播报延迟）、
-  `dispatch_model.py`（Scene-Guided Attention / SelfAttention /
-  Concat 三变体 DispatchRouter——对应任务书三方对比：场景引导注意力 /
-  自注意力Transformer / 无注意力基线；attn 变体可选
-  `--residual-pool mms` 残差增强：mean+max+std 仅统计物理特征）、
-  `router_runtime.py`（窗口化接管运行循环）、`train_router.py`（SMDP Double-DQN
-  训练，支持目标条件化 reward + 配对课程 + aux 对齐衰减 + 多事件干扰注入）、
-  `eval_router.py`（冻结评测 A/B/C/D+文本消融，`--extra NAME=CKPT` 扩臂）、
-  `scan_pairs.py`（反事实胜者矩阵扫描：固定臂在不同
-  事件参数下的最优翻转）、`eval_objective.py`（目标条件化配对评测：
-  同物理事件仅声明目标不同；单事件格为 global/focus 成员对，
-  `edgeA+edgeB` 多事件格为 focus@A/focus@B 绑定翻转对）、
-  `make_figs.py`（机制类扩展出图：配对 regret、消融阶梯、绑定一致性、
-  训练曲线、排队轨迹、注意力热力图，以及 held-out 逐时间对比曲线
-  （queue/throughput/事件车道/控制器时间线 fig8–fig11），PNG 单出）、
-  `collect_attn_trace.py`（冻结 checkpoint 注意力权重轨迹采集，
-  供 fig7 热力图；windows 日志含 `attn_weights`+`lane_names`）、
-  `probe_repr.py`（表征层探针：同 rollout 下三冻结编码器配对取 z，
-  测任务书主指标——事件影响预测 / 拥堵等级分类 / 压缩保持 /
-  参数量与延迟，留一 episode CV）、
-  `channel_ablate.py`（信道归因：基于 z_dump 重建 snap，
-  event_flag 与文本信道独立扰动，测绑定/Δz/决策翻转；
-  免 SUMO 免重训）、`fork_probe.py`（诊断性分叉：同 seed 重放 +
-  指定窗口强制控制器，测关键窗臂选的反事实代价；
-  `run_router_episode` 加 `force_choices` 钩子）。
-  `collect_scene_dump.py`（场景蒸馏数据集采集：A 自然匹配 /
-  B 失配播报 / C 纯播报 / D 无播报四相，全 8 边覆盖，
-  每窗存 lanes/text/global + 场景标签）、`scene_distill.py`
-  （表征层蒸馏基准：各编码臂同输入同 z 维同场景目标训练产 z，
-  场景保真探针 + 冻结 z 线性探针 + episode 级切分 +
-  未见播报边 held-out 泛化，与调度性能解耦的第一级评测；
-  编码臂含 sga 复合模块 / attn / selfattn / concat / flat-mlp）。
-  单层信号控制线（场景注意力直接做信号控制器表征骨干，
-  替代双层路由架构）：`signal_model.py`（SceneSignalAgent =
-  编码器族 + 相位 Q 头；场景信道臂 sga/attn/selfattn/concat +
-  状态独占臂 selfattn_st/concat_st/mlp_st——baseline 只吃常规
-  观测 phys='queue'，场景信道归场景模块）、`signal_runtime.py`
-  （10s 决策粒度 episode 驱动器，agent 直接出相位，builtin
-  控制器同驱动器评测）、`train_signal.py`（相位级 Double-DQN
-  + 绑定 aux 损失）、`eval_signal.py`（事件格评测：排队积分 /
-  被报边排队 / 峰值 / 清堵时间 / 吞吐 / 绑定质量 +
-  sga_notext 盲化消融）。播报词汇改描述性 'congest'
-  （surge 注入报为"道路拥堵"——现象非机制；
-  播报句去预测时长与调度指令；est_remaining 经
-  `--no-forecast`/include_forecast 退出输入，仅作蒸馏标签）。
-  `scene_mp.py`（SceneGuidedMP/SceneGuidedDQN：编码器注意力
-  权重注入冻结底座控制器逐相位取值的适配器——底座可插拔
-  （MP 压力 / dqn_s1 冻结 Q 值，经 `_base_and_dose` 切换，
-  DQN 剂量参照为活 Q 展布），交叉注意力绑定质量作介入门控
-  bind_tau，车道显著度/queue/qmix 作 bonus 方向，
-  fade in/out/band 与 dose_frac 剂量封顶；无 RL 环，
-  `--scenemp`/`--scenedqn` 臂接入 eval_signal，notext 消融
-  验证绑不上时逐位复现 vanilla 底座）、`stage1_event_physics.py`
-  （stage-1 事件物理探针：同 seed 上 close1/close2/surge/none
-  × fixed/dqn_s1/mp 对照，判事件是否构成可控问题）、
-  `plot_scene_effect.py`（介入前后效果图：同 episode 同 seed
-  上 sga 引导臂 vs vanilla 底座的被报边排队曲线，标注播报
-  到达时刻与事件窗口，双面板 DQN/MP 两底座）。
-  `SceneResidualPolicy`（signal_model.py：引导式补课形态——
-  冻结 DQN 底座 + 场景模块学有界门控残差
-  Q = q_base + dose_frac·spread·gate(bind)·tanh(head(z))；
-  q_base 逐 tick 实时采样存进 transition（qb/qbp），底座
-  保持黑盒；方向头零初始化+分段线性绑定门（<tau 严格 0）
-  ⇒ 出生 ≡ 底座逐位相同、无文本 ≡ 底座逐位相同；
-  训练走 `--residual-dqn`（train_signal，跳过 BC——底座
-  已是收敛控制器，TD 只进编码器与残差头），评测走
-  `--residual/--residual-notext` 臂（eval_signal，复用
-  --scenedqn-dqn 底座权重）。smoke：未训 ckpt 与 dqn_s1
-  全指标逐位相同）。
-  注：eval_signal 的 injects 每臂重解析
-  （apply_injects 会改写 inject dict，共享会导致后跑的臂
-  吃到已耗尽事件——曾致全网格结论假象，已修）；
-  builtin 控制器每臂重绑（world.reset() 重建
-  world.intersections，跨 reset 复用绑定会读到冻结
-  Intersection——曾致 dqn_s1 相位特征钉死、数值随臂序漂移，
-  已修）；scenedqn 默认 t_min=0 对齐原生 DQN 无 min-green
-  纪律（scenemp 保留 MP 原生 t_min）。
-  训练课程支持
-  `--periods/--durs/--onsets` 网格覆盖（重度偏向校准用），
-  评测支持 `--events` 追加未见事件格
-  为场景引导注意力调度
-  Pilot 配套件。产物在
-  `output_data/dev_takeover_probe/`（不入库）；
-  转播侧 `DispatchController` 适配器在 `tools/sumo_live_broadcast/controllers.py`。
+- `dev/takeover_probe/`：场景引导注意力信号控制探针族（探索件）。
+  **当前主线（2026-10 定型）**：单层场景条件信号控制器——
+  `SceneJointPolicy`（signal_model.py canonical 标记）：dqn_s1
+  底座图内保留（ckpt 初始化 + `--base-lr` 微调）+ sga 编码器
+  （车道自注意力+播报交叉注意力+边身份绑定）+ 门控有界残差
+  Q = q_base + dose·spread·gate(bind)·tanh(δ(z))。
+  训练链路：① adapter 教师（scene_mp.py SceneGuidedDQN：冻结
+  底座+注意力启发式偏置）跑事件局 → 赢家过滤 → ② 学生加权
+  CE 蒸馏（`--distill-*`，sig9_joint_bc，-2.7% 胜 dqn_s1 与
+  MP，且超教师）→ ③ 原装 reward TD 微调（`--orig-reward` =
+  -12×入口车道排队均值，与 dqn_s1 收敛目标同义；
+  `--init-from` 热启动学生权重；sig10_joint_rl）。
+  入口：`train_signal.py`/`eval_signal.py`；
+  `signal_runtime.py` 为 10s 决策粒度 episode 驱动器。
+  产物 `output_data/dev_takeover_probe/`（不入库）：sig5_*
+  编码器消融 / sig6* from-scratch 信号 agent（学不会驾驶，
+  已弃） / sig7_res_* 冻结底座学习残差（+0.7%，被 joint
+  取代） / sig8_joint_sga 错 reward 联合微调（+9%，灾难性
+  遗忘，反例） / sig9_joint_bc 蒸馏学生（当前最优） /
+  sig10_joint_rl 原装目标 RL 续训。
+  **已否决归档**：双层 DispatchRouter 架构（上层选控制器、
+  下层选相位）移 `_router/`（含 train/eval/runtime 及表征
+  探针，见目录 README）；DispatchRouter 类仅在
+  dispatch_model.py 留档供归档件引用。注意与 codex 分支
+  scene_attention+tarl（EXPERIMENTS.md 的"注意力线"）是
+  不同项目不同路网，勿混。
+  **仍活用的共享件**：`probe.py`（build_world /
+  build_controllers / DEFAULT_DQN_S1）、`dispatch_state.py`
+  （FeatureBuilder：车道 token+播报 text_vec+global）、
+  `dispatch_model.py`（编码器族，见文件头 NOTE）、
+  `scene_mp.py`（adapter 教师；文件名只提 MP 但含
+  SceneGuidedDQN）、`plot_scene_effect.py`（介入前后曲线）、
+  `tools/sumo_live_broadcast/controllers.py`（与直播系统
+  共享的 DQN 推理适配——改动影响两条线）。
+  历史陷阱（已修勿复踩）：eval 每臂重解析 injects（
+  apply_injects 会改写 dict）+ 每臂重绑控制器（world.reset()
+  重建 intersections）；scenedqn t_min=0 对齐原生 DQN 纪律。
 - `dev/hitl_live/`：HITL 拓展实验件（设计依据 `docs/plan_hitl_live.md`）。
   采集端 `tools/sumo_live_broadcast` 已有真人专家席：`--expert human`
   + gate 命中冻结仿真弹横幅（相位按钮+倒计时），`--hitl-human-timeout`

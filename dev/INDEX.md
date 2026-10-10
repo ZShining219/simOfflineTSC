@@ -123,7 +123,10 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
   `--scenemp`/`--scenedqn` 臂接入 eval_signal，notext 消融
   验证绑不上时逐位复现 vanilla 底座）、`stage1_event_physics.py`
   （stage-1 事件物理探针：同 seed 上 close1/close2/surge/none
-  × fixed/dqn_s1/mp 对照，判事件是否构成可控问题）。
+  × fixed/dqn_s1/mp 对照，判事件是否构成可控问题）、
+  `plot_scene_effect.py`（介入前后效果图：同 episode 同 seed
+  上 sga 引导臂 vs vanilla 底座的被报边排队曲线，标注播报
+  到达时刻与事件窗口，双面板 DQN/MP 两底座）。
   注：eval_signal 的 injects 每臂重解析
   （apply_injects 会改写 inject dict，共享会导致后跑的臂
   吃到已耗尽事件——曾致全网格结论假象，已修）；

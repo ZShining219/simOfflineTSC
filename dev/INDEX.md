@@ -126,7 +126,12 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
   × fixed/dqn_s1/mp 对照，判事件是否构成可控问题）。
   注：eval_signal 的 injects 每臂重解析
   （apply_injects 会改写 inject dict，共享会导致后跑的臂
-  吃到已耗尽事件——曾致全网格结论假象，已修）。
+  吃到已耗尽事件——曾致全网格结论假象，已修）；
+  builtin 控制器每臂重绑（world.reset() 重建
+  world.intersections，跨 reset 复用绑定会读到冻结
+  Intersection——曾致 dqn_s1 相位特征钉死、数值随臂序漂移，
+  已修）；scenedqn 默认 t_min=0 对齐原生 DQN 无 min-green
+  纪律（scenemp 保留 MP 原生 t_min）。
   训练课程支持
   `--periods/--durs/--onsets` 网格覆盖（重度偏向校准用），
   评测支持 `--events` 追加未见事件格

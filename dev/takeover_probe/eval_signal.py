@@ -139,6 +139,10 @@ def main():
     p.add_argument('--scenedqn-notext', default=None,
                    help='PATH to agent.pt — scenedqn arm with the report '
                         'channel blinded (kind=none), ablation control')
+    p.add_argument('--scenedqn-t-min', type=float, default=0.0,
+                   help='min-green hold for scenedqn arms — default 0 to '
+                        'match the vanilla DQN decision discipline '
+                        '(no hold); scenemp keeps --scenemp-t-min')
     p.add_argument('--builtin', default='fixedtime,maxpressure',
                    help='comma-separated builtin controller ids '
                         '(+dqn_s1 for the S1 snapshot)')
@@ -266,7 +270,7 @@ def main():
                                       rank=ranks[0])
                 mp = SceneGuidedDQN(agent, fb, world, dqn,
                                     beta=args.scenemp_beta,
-                                    t_min=args.scenemp_t_min,
+                                    t_min=args.scenedqn_t_min,
                                     gate=args.scenemp_gate,
                                     fade=args.scenemp_fade,
                                     direction=args.scenemp_direction,
@@ -291,7 +295,7 @@ def main():
                                       rank=ranks[0])
                 mp = SceneGuidedDQN(agent, fb, world, dqn,
                                     beta=args.scenemp_beta,
-                                    t_min=args.scenemp_t_min,
+                                    t_min=args.scenedqn_t_min,
                                     gate=args.scenemp_gate,
                                     fade=args.scenemp_fade,
                                     direction=args.scenemp_direction,
@@ -348,12 +352,15 @@ def main():
                 dqn_s1_path=(args.dqn_s1 if 'dqn_s1' in builtins
                              else None))
             needed = set(builtins) - {'dqn_s1'}
-            _bind_all(world, controllers, ranks, needed=needed)
-            if 'dqn_s1' in builtins:
-                controllers['dqn_s1'] = controllers['dqn_s1'].bind(
-                    world, ranks=ranks)
             for name in builtins:
                 injects = parse_injects([spec]) if spec else []
+                # world.reset() REBUILDS world.intersections — a controller
+                # bound before an earlier arm's reset would read phase/
+                # generators from a frozen Intersection.  Rebind per arm.
+                _bind_all(world, controllers, ranks, needed=needed)
+                if name == 'dqn_s1':
+                    controllers['dqn_s1'] = controllers['dqn_s1'].bind(
+                        world, ranks=ranks)
                 fb0 = FeatureBuilder(world, injects,
                                      report_delay=args.report_delay)
                 metrics = eval_episode(

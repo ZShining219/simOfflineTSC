@@ -197,11 +197,13 @@ class FeatureBuilder:
         self.active_edge_idx = sorted(flagged)
         return tokens
 
-    def text_vec(self, now, override=None):
-        """override: dict-like mutations for ablation
-        ({'kind':'none'} no-text, {'edge': 'road_x'} wrong-location).
+    def fields_text_vec(self, fields):
+        """Report fields -> text vector (single source of truth).
+
+        Shared by ``text_vec`` (structured report channel) and the NL
+        front-end in ``nl_scene`` (natural-language reports parsed back
+        into the same field schema).
         """
-        fields = self._report_fields(now, override)
         vec = np.zeros(self.text_dim, dtype=np.float32)
         kind = fields.get('kind', 'none')
         kind = EVENT_KIND_ALIAS.get(kind, kind)
@@ -227,6 +229,13 @@ class FeatureBuilder:
                                3600) / 3600.0
         vec[off + 5] = 1.0 if fields.get('objective') == 'focus' else 0.0
         return vec
+
+    def text_vec(self, now, override=None):
+        """override: dict-like mutations for ablation
+        ({'kind':'none'} no-text, {'edge': 'road_x'} wrong-location).
+        """
+        fields = self._report_fields(now, override)
+        return self.fields_text_vec(fields)
 
     def global_vec(self, now):
         phase = 0

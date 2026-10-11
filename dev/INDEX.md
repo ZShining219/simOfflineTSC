@@ -101,6 +101,32 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
   历史陷阱（已修勿复踩）：eval 每臂重解析 injects（
   apply_injects 会改写 dict）+ 每臂重绑控制器（world.reset()
   重建 intersections）；scenedqn t_min=0 对齐原生 DQN 纪律。
+- `dev/takeover_probe/dispatch_specialist.py`：注意力 key 派发壳
+  （探索件）。`KeyDispatchAgent`：encoder 绑定报告→(kind,edge)
+  key≥bind_tau → 注册表查专项，否则基座 act()；规则派发非学习
+  策略（避开被否 SMDP router 的双层决策）；oracle 模式读
+  `fb.event_fields` 作鉴别上限；audit 记录逐 tick 派发轨迹。
+- `dev/takeover_probe/dispatch_eval.py`：派发门评测（探索件）。
+  surge 网格 ×{dispatch_attn, dispatch_oracle, dispatch_blind,
+  dispatch_mp(无文本规则专项), joint_always, FT/MP/dqn_s1}。
+  dispatch_gate_v1 结果（n=16）：blind≡dqn_s1 逐位回退、
+  attn≡oracle 鉴别无损、dispatch_mp 全场最优
+  (ev 15207 vs MP 15392；queue_int −5% vs MP)。
+- `dev/takeover_probe/dispatch_fig.py`：派发门佐证图生成（探索件）。
+  单事件轨迹 episode 出四联图：车道×车道自注意力（交通响应层，
+  sa_sal）+ text->lane 交叉注意力热力图（报告臂 vs 盲化臂同标尺）
+  + 全边 mass 束/接管曲线（fig_attn.png）；gate 聚合出 base vs
+  Scene-Guided Attention 归一化优化柱状（fig_bars.png）。产物在
+  `output_data/dev_takeover_probe/dispatch_figs_v1/`。
+- `dev/takeover_probe/nl_scene.py`：自然语言播报→场景字段结构化
+  前端（探索件）。`nl_render` 把播报字段渲染成多模板 NL 句式
+  （模拟异构上报），`NLSceneParser`（hash n-gram 线性分类器 +
+  边名字面提取）按"模板留出"训练评估；`NLDispatchAgent` 在 act
+  内完成 NL→字段→text_vec 重建，下游注意力绑定/规则派发零改动。
+  演示 `output_data/dev_takeover_probe/nl_scene_v1/nl_demo.json`：
+  留出话术 acc≈0.71（硬负例/未见过恢复句式仍误）、NL 臂接管
+  72 tick 与结构化臂逐位一致，命中未见过恢复句式的变体仅丢尾段
+  接管（60 tick）——优雅降级而非误派发。
 - `dev/hitl_live/`：HITL 拓展实验件（设计依据 `docs/plan_hitl_live.md`）。
   采集端 `tools/sumo_live_broadcast` 已有真人专家席：`--expert human`
   + gate 命中冻结仿真弹横幅（相位按钮+倒计时），`--hitl-human-timeout`

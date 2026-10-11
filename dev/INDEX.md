@@ -111,6 +111,10 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
   `harvest_matrix.py` 产出 `matrix_report{,_so}.json`（下三角矩阵+最深退化汇总），
   `plot_so_compare.py` 产出 `fig_so_{retention_trajectory,worst_degradation}.png`
   （clear/fifo/半离线三条件对照，逐种子细线+均值粗线+基线虚线）。
+  诊断件 `grad_diag.py`——纯离线梯度协调探针：从 resumable checkpoint
+  重建模型+优化器，以 so1 归档 transition 为新旧数据探针，测 batch 梯度
+  余弦/符号冲突/范数比与单步真实更新前后旧场景 TD 误差变化；
+  产出 `artifacts/cl_hz1x1/grad_diag.json`（5 边界 × so/clear 双 ckpt）。
 - `dev/_legacy/20261007/`：见 `dev/_legacy/20261007/README.md`。
 
 ## 已裁决归档（2026-10-07 Z 裁）

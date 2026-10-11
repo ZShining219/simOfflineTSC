@@ -1,7 +1,9 @@
 from . import RLAgent
+import dataclasses
 import random
 import numpy as np
 from collections import deque
+from datetime import datetime, timezone
 import os
 import torch
 import torch.nn as nn
@@ -11,6 +13,8 @@ import gym
 from generator import LaneVehicleGenerator, IntersectionPhaseGenerator, IntersectionVehicleGenerator
 from torch.nn.utils import clip_grad_norm_
 from agent import utils
+from arterial.replay import (HistoricalPool, LocalTransition, mixed_batch,
+                             split_local_transitions)
 
 
 @Registry.register_model('frap')
@@ -100,6 +104,58 @@ class FRAP_DQNAgent(RLAgent):
         self.optimizer = torch.optim.Adam(
             self.model.parameters(), lr=self.learning_rate, eps=1e-7)
         self.criterion = nn.MSELoss(reduction='mean')
+
+        model_param = self.dic_agent_conf.param
+        command_param = Registry.mapping['command_mapping']['setting'].param
+        self.offline_pool = HistoricalPool()
+        self.offline_ratio = float(model_param.get('offline_ratio', 0.0))
+        self.offline_sampling_strategy = model_param.get(
+            'offline_sampling_strategy', 'scene_intersection_balanced')
+        self.visible_history_scenes = tuple()
+        self.scene_id = str(model_param.get('scene_id', command_param['network']))
+        self.roadnet_id = str(model_param.get('roadnet_id', command_param['network']))
+        self.training_stage = int(model_param.get('training_stage', 0))
+        self.training_seed = int(command_param['seed'])
+        self.policy_version = 0
+        self.collect_history = bool(model_param.get('collect_history', False))
+        self.archive_pending = []
+        self.last_train_diagnostics = None
+        history_paths = model_param.get('history_paths', [])
+        scene_order = tuple(model_param.get('scene_order', [self.scene_id]))
+        history_mode = model_param.get('history_access_mode', 'causal')
+        if scene_order:
+            self.visible_history_scenes = HistoricalPool.visible_scenes(
+                scene_order, self.training_stage, history_mode)
+        if history_paths:
+            self.offline_pool = HistoricalPool.load_many(history_paths)
+            self._validate_history_manifests()
+            if not self.visible_history_scenes and self.offline_ratio:
+                self.offline_ratio = 0.0
+        elif self.offline_ratio and self.visible_history_scenes:
+            raise ValueError(
+                'offline_ratio requires history_paths for the visible history set')
+
+    def _validate_history_manifests(self):
+        # Cross-scene archives describe different physical junctions, so the
+        # junction identity itself is intentionally not compared.  Structural
+        # equivalence (one controlled intersection, same observation/action/
+        # reward schema) is what makes offline transitions consumable here.
+        expected_state = {
+            'variant': 'base', 'dimension': int(self.ob_generator.ob_length),
+            'phase': self.phase, 'phase_one_hot': self.one_hot,
+            'position_encoding': False, 'normalized_lane_counts': False,
+        }
+        for manifest in self.offline_pool.manifests:
+            if len(manifest['intersection_ids']) != self.sub_agents:
+                raise ValueError('History intersection count does not match agent')
+            if manifest['state_schema'] != expected_state:
+                raise ValueError('History state schema does not match FRAP agent')
+            action = manifest['action_schema']
+            if (tuple(action['dimensions']) != (self.action_space.n,) or
+                    int(action['shared_network_output_dimension']) != self.action_space.n):
+                raise ValueError('History action schema does not match FRAP agent')
+            if manifest['reward_schema']['variant'] != 'original':
+                raise ValueError('History reward schema does not match FRAP agent')
 
     def __repr__(self):
         return self.model.__repr__()
@@ -287,6 +343,49 @@ class FRAP_DQNAgent(RLAgent):
         :return: None
         '''
         self.replay_buffer.append((key, (last_obs, last_phase, actions, rewards, obs, cur_phase)))
+        if self.collect_history:
+            parts = str(key).split('_')
+            record = split_local_transitions(
+                [self.inter_id], last_obs, last_phase,
+                np.atleast_1d(actions), np.atleast_1d(rewards), obs, cur_phase,
+                bool(done), False, self.scene_id,
+                int(parts[0]), int(parts[1]), self.training_stage,
+                self.policy_version,
+                collector_training_seed=self.training_seed)[0]
+            self.archive_pending.append(dataclasses.replace(
+                record, metadata=dataclasses.replace(
+                    record.metadata, source='offline_history')))
+
+    def drain_archive_records(self):
+        records, self.archive_pending = self.archive_pending, []
+        return records
+
+    def history_manifest(self, roadnet_id, training_seed, num_episodes,
+                         num_decision_steps, source_policy='frap'):
+        return {
+            'roadnet_id': str(roadnet_id), 'scene_id': self.scene_id,
+            'intersection_ids': [self.inter_id],
+            'state_schema': {
+                'variant': 'base',
+                'dimension': int(self.ob_generator.ob_length),
+                'phase': self.phase, 'phase_one_hot': self.one_hot,
+                'position_encoding': False, 'normalized_lane_counts': False,
+            },
+            'action_schema': {
+                'kind': 'local_discrete', 'dimensions': [self.action_space.n],
+                'shared_network_output_dimension': self.action_space.n,
+            },
+            'reward_schema': {
+                'variant': 'original',
+                'original': 'negative mean incoming lane waiting count times 12',
+            },
+            'num_episodes': int(num_episodes),
+            'num_decision_steps': int(num_decision_steps),
+            'training_seed': int(training_seed),
+            'source_policy': str(source_policy),
+            'collection_stage': int(self.training_stage),
+            'created_at': datetime.now(timezone.utc).isoformat(),
+        }
 
     def _batchwise(self, samples):
         '''
@@ -337,9 +436,26 @@ class FRAP_DQNAgent(RLAgent):
         # Early episodes can contain fewer transitions than one minibatch.
         # Return a zero loss until enough samples exist; this preserves the
         # normal update path once the replay buffer reaches batch_size.
-        if len(self.replay_buffer) < self.batch_size:
+        offline_count = int(round(self.batch_size * self.offline_ratio))
+        online_needed = self.batch_size - offline_count
+        if len(self.replay_buffer) < online_needed:
             return np.array(0.0, dtype=np.float32)
-        samples = random.sample(self.replay_buffer, self.batch_size)
+        if offline_count:
+            if not (self.visible_history_scenes and self.offline_pool.records):
+                raise RuntimeError(
+                    'Semi-offline training requires a non-empty visible '
+                    'offline pool')
+            tagged = mixed_batch(
+                _OnlineReplayView(self.replay_buffer), self.offline_pool,
+                self.batch_size, self.offline_ratio,
+                self.visible_history_scenes,
+                strategy=self.offline_sampling_strategy, rng=random)
+            samples = [
+                self._offline_to_sample(item) if source == 'offline_history'
+                else item for item, source in tagged
+            ]
+        else:
+            samples = random.sample(self.replay_buffer, self.batch_size)
         b_t, b_tp, rewards, actions = self._batchwise(samples)
         out = self.target_model(b_tp, train=False) # (batch_size,num_actions)
         target = rewards + self.gamma * torch.max(out, dim=1)[0] # (batch_size)
@@ -353,7 +469,25 @@ class FRAP_DQNAgent(RLAgent):
         self.optimizer.step()
         if self.epsilon > self.epsilon_min:
             self.epsilon *= self.epsilon_decay
+        self.policy_version += 1
         return loss.clone().detach().numpy()
+
+    def is_training_ready(self):
+        offline_count = int(round(self.batch_size * self.offline_ratio))
+        online_needed = self.batch_size - offline_count
+        if len(self.replay_buffer) < online_needed:
+            return False
+        if offline_count:
+            return bool(self.visible_history_scenes and self.offline_pool.records)
+        return True
+
+    @staticmethod
+    def _offline_to_sample(record):
+        key = record.metadata.transition_id
+        payload = (record.state.reshape(1, -1), record.phase,
+                   np.asarray([record.action]), record.reward,
+                   record.next_state.reshape(1, -1), record.next_phase)
+        return (key, payload)
 
     def load_model(self, e):
         '''
@@ -384,6 +518,19 @@ class FRAP_DQNAgent(RLAgent):
             os.makedirs(path)
         model_name = os.path.join(path, f'{e}_{self.rank}.pt')
         torch.save(self.model.state_dict(), model_name)
+
+
+class _OnlineReplayView:
+    """Expose the (key, payload) deque through the mixed_batch sample API."""
+
+    def __init__(self, records):
+        self.records = records
+
+    def __len__(self):
+        return len(self.records)
+
+    def sample(self, count, rng=random):
+        return rng.sample(list(self.records), count)
 
 
 class FRAP(nn.Module):

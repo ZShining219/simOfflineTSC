@@ -14,6 +14,7 @@ from agent import utils
 
 import gym
 import os
+import random
 from collections import deque
 
 from pfrl.nn import Branched
@@ -129,6 +130,19 @@ class IPPO_pfrl(RLAgent):
             obs = ob
         obs = torch.tensor(obs, dtype=torch.float32)
         if test:
+            if self.eval_policy == 'sampled':
+                # Stochastic-policy evaluation: act() samples from the policy
+                # and mutates RNG + PFRL bookkeeping, so snapshot and restore
+                # the guard-protected RNG state around the call.  Intended for
+                # eval-only runs; do not enable for mid-training evaluation.
+                rng_snapshot = (torch.get_rng_state(), np.random.get_state(),
+                                random.getstate())
+                try:
+                    return self.agent.act(obs)
+                finally:
+                    torch.set_rng_state(rng_snapshot[0])
+                    np.random.set_state(rng_snapshot[1])
+                    random.setstate(rng_snapshot[2])
             # Deterministic evaluation: argmax over the policy distribution.
             # Samples nothing, so protected training state (incl. RNG) stays
             # untouched under EvaluationIsolationGuard; same convention as
@@ -211,6 +225,9 @@ class IPPO_pfrl(RLAgent):
         self.ppo_epochs = int(p.get('ppo_epochs', 4))
         self.reward_scale = float(p.get('reward_scale', 1.0))
         self.ppo_gamma = float(p.get('gamma', 0.99))
+        self.eval_policy = str(p.get('eval_policy', 'deterministic'))
+        if self.eval_policy not in ('deterministic', 'sampled'):
+            raise ValueError(f'Unknown eval_policy: {self.eval_policy}')
         self.optimizer = torch.optim.Adam(
             self.model.parameters(), lr=self.learning_rate, eps=1e-5)
         self.agent = PPO(self.model, self.optimizer,

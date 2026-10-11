@@ -112,13 +112,35 @@ class DQNAgent(RLAgent):
                                        alpha=0.9, centered=False, eps=1e-7)
 
         if history_paths:
-            self.offline_pool = HistoricalPool.load_many(history_paths)
+            self.offline_pool = self._materialize_history(history_paths)
             self._validate_history_manifests()
             if not self.visible_history_scenes and self.offline_ratio:
                 self.offline_ratio = 0.0
         elif self.offline_ratio and self.visible_history_scenes:
             raise ValueError(
                 'offline_ratio requires history_paths for the visible history set')
+
+    @staticmethod
+    def _materialize_history(history_paths):
+        """Load all archive shards eagerly.
+
+        LazyHistoricalPool resolves each sampled record by loading a random
+        shard file, which is right for multi-intersection archives but costs
+        a torch.load per draw here: hz1x1 keeps one archive per scene with
+        ~36k single-intersection records, so materializing once is trivial
+        in memory and removes per-step disk I/O from the update path.
+        """
+        from pathlib import Path as _Path
+        lazy = HistoricalPool.load_many(history_paths)
+        records = []
+        for directory, manifest in zip(history_paths, lazy.manifests):
+            directory = _Path(directory)
+            for name in manifest.get('transition_files', ['transitions.pt']):
+                records.extend(
+                    torch.load(directory / name, weights_only=False))
+        pool = HistoricalPool(records)
+        pool.manifests = lazy.manifests
+        return pool
 
     def _validate_history_manifests(self):
         # Cross-scene archives describe different physical junctions, so the

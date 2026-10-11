@@ -183,7 +183,9 @@ class Runner:
             self.config = yaml.safe_load(handle)
         self.config.pop('config_record', None)
         configured_episodes = int(self.config['trainer']['episodes'])
-        if not 0 <= episode < configured_episodes:
+        # An episode-0 checkpoint is also valid for zero-episode eval runs.
+        if not (0 <= episode < configured_episodes
+                or (episode == 0 and configured_episodes == 0)):
             raise ValueError('Resume checkpoint episode is outside run budget')
         with (output / 'run_manifest.json').open(encoding='utf-8') as handle:
             run_manifest = json.load(handle)

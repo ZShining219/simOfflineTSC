@@ -885,7 +885,9 @@ class TSCTrainer(BaseTrainer):
                 self.history_archive_writer.append_episode(
                     e + 1, self.agents[0].drain_archive_records())
             self._flush_time_window()
-            mean_loss = np.mean(np.array(episode_loss)) if episode_loss else None
+            flat_losses = [v for x in episode_loss
+                           for v in np.atleast_1d(x) if v is not None]
+            mean_loss = np.mean(flat_losses) if flat_losses else None
             
             completed_episodes = e + 1
             self.writeLog("TRAIN", completed_episodes, self.metric.real_average_travel_time(),\

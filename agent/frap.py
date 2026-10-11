@@ -334,8 +334,11 @@ class FRAP_DQNAgent(RLAgent):
         :param: None
         :return: value of loss
         '''
+        # Early episodes can contain fewer transitions than one minibatch.
+        # Return a zero loss until enough samples exist; this preserves the
+        # normal update path once the replay buffer reaches batch_size.
         if len(self.replay_buffer) < self.batch_size:
-            return
+            return np.array(0.0, dtype=np.float32)
         samples = random.sample(self.replay_buffer, self.batch_size)
         b_t, b_tp, rewards, actions = self._batchwise(samples)
         out = self.target_model(b_tp, train=False) # (batch_size,num_actions)

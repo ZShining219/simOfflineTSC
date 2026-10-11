@@ -148,7 +148,7 @@ class IPPO_pfrl(RLAgent):
         else:
             obs = ob
         obs = torch.tensor(obs, dtype=torch.float32)
-        self.agent.observe(obs, reward, done, False)
+        self.agent.observe(obs, reward * self.reward_scale, done, False)
 
     def train(self):
         result = self.agent.get_statistics()
@@ -204,16 +204,25 @@ class IPPO_pfrl(RLAgent):
                 lecun_init(nn.Linear(64, 1))
             )
         )
-        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=2.5e-4, eps=1e-5)
+        p = Registry.mapping['model_mapping']['setting'].param
+        self.entropy_coef = float(p.get('entropy_coef', 0.001))
+        self.minibatch_size = int(p.get('minibatch_size', 360))
+        self.clip_eps = float(p.get('clip_eps', 0.1))
+        self.ppo_epochs = int(p.get('ppo_epochs', 4))
+        self.reward_scale = float(p.get('reward_scale', 1.0))
+        self.ppo_gamma = float(p.get('gamma', 0.99))
+        self.optimizer = torch.optim.Adam(
+            self.model.parameters(), lr=self.learning_rate, eps=1e-5)
         self.agent = PPO(self.model, self.optimizer,
+                         gamma=self.ppo_gamma,
                          phi=lambda x: np.asarray(x, dtype=np.float32),
-                         clip_eps=0.1,
+                         clip_eps=self.clip_eps,
                          clip_eps_vf=0.2,
                          update_interval=360,
-                         minibatch_size=360,
-                         epochs=4,
+                         minibatch_size=self.minibatch_size,
+                         epochs=self.ppo_epochs,
                          standardize_advantages=True,
-                         entropy_coef=0.001,
+                         entropy_coef=self.entropy_coef,
                          max_grad_norm=0.5)
 
     def load_model(self, e):

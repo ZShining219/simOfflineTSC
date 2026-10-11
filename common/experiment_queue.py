@@ -495,6 +495,13 @@ class QueueRunner:
                     last_sample = now
                 allowed, reasons = self.submission_allowed(sample)
                 self.write_status(sample, reasons)
+                # Reclaim resumable work in-process: tasks whose workers died
+                # after publishing a checkpoint can continue without waiting
+                # for a full queue restart.
+                for task in self.tasks:
+                    if task["status"] == "RESUMABLE" and self._checkpoint_exists(task):
+                        task['use_resume'] = True
+                        task['status'] = 'PENDING'
                 pending = [task for task in self.tasks if task["status"] == "PENDING"]
                 pending.sort(key=lambda t: t.get('priority', 0))
                 while (allowed and pending

@@ -50,15 +50,21 @@ ORDERS = {
     'o2': [NETS['s1'], NETS['c4'], NETS['c2'], NETS['c3']],
     'o3': [NETS['c2'], NETS['c3'], NETS['s1'], NETS['c4']],
 }
+# PPO arm is the plan5-calibrated variant (v2): entropy_coef 0.1 keeps the
+# policy from collapsing to a subset of actions (v1 with entropy 0.001
+# produced a flat, non-learning curve); reward_scale x12 + minibatch 90 +
+# clip 0.2 + gamma 0.95 match Plan5PPOAdapter's working configuration.
 ARMS = {
     'ddqn': {'agent': 'dqn', 'model_extra': {'double_dqn': True}},
     'duel': {'agent': 'dqn',
              'model_extra': {'double_dqn': True, 'dueling': True}},
     'frap': {'agent': 'frap', 'model_extra': {}},
-    'ppo': {'agent': 'ppo_pfrl', 'model_extra': {}},
+    'ppov2': {'agent': 'ppo_pfrl', 'model_extra': {
+        'entropy_coef': 0.1, 'minibatch_size': 90, 'clip_eps': 0.2,
+        'ppo_epochs': 4, 'reward_scale': 12.0, 'gamma': 0.95}},
 }
 CONDS = {  # replay condition -> arms that run it
-    'clear': ['ddqn', 'duel', 'frap', 'ppo'],
+    'clear': ['ddqn', 'duel', 'frap', 'ppov2'],
     'fifo': ['ddqn', 'duel', 'frap'],
 }
 SEEDS = [0, 1, 2]

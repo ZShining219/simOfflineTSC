@@ -78,11 +78,13 @@ def overlay_path(run_id):
 
 
 def write_overlay(run_id, model_extra, trainer_extra):
-    lines = ['model:']
-    for k, v in model_extra.items():
-        lines.append(f'  {k}: {v}' if not isinstance(v, str)
-                     else f'  {k}: {v}')
-    lines.append('')
+    lines = []
+    if model_extra:
+        lines.append('model:')
+        for k, v in model_extra.items():
+            lines.append(f'  {k}: {v}' if not isinstance(v, str)
+                         else f'  {k}: {v}')
+        lines.append('')
     lines.append('trainer:')
     for k, v in trainer_extra.items():
         if isinstance(v, list):

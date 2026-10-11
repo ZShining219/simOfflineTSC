@@ -229,6 +229,9 @@ class TSCTrainer(BaseTrainer):
         command = Registry.mapping['command_mapping']['setting'].param
         model = Registry.mapping['model_mapping']['setting'].param
         self.resume_episode = int(command.get('resume_episode') or 0)
+        # A resume run may legitimately restart from the episode-0 checkpoint;
+        # ``resume_episode == 0`` is falsy, so track request presence separately.
+        self._resume_requested = command.get('resume_episode') is not None
         if self.resume_episode:
             summary_path = os.path.join(self.output_path, 'evaluation', 'summary.json')
             if os.path.isfile(summary_path):
@@ -251,7 +254,8 @@ class TSCTrainer(BaseTrainer):
                 simulation_steps=self.steps,
                 action_interval=self.action_interval,
                 action_dim=self.agents[0].action_space.n,
-                resume_episode=(self.resume_episode or None),
+                resume_episode=(self.resume_episode
+                                if self._resume_requested else None),
             )
         # replay file is only valid in cityflow now. 
         # TODO: support SUMO and Openengine later
@@ -275,7 +279,9 @@ class TSCTrainer(BaseTrainer):
             directory = configured if os.path.isabs(configured) else os.path.join(
                 self.output_path, configured)
             self.history_archive_writer = HistoryArchiveWriter(
-                directory, resume_episode=(self.resume_episode or None))
+                directory,
+                resume_episode=(self.resume_episode
+                                if self._resume_requested else None))
         self.shared_action_log = os.path.join(self.output_path, 'actions.jsonl')
         self.intersection_metrics_log = os.path.join(
             self.output_path, 'intersection_metrics.jsonl')

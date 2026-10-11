@@ -104,6 +104,10 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
   （1476 任务：ddqn/dueling_ddqn/frap×{clear,fifo}+ppo×{clear} 四阶段链 ×
   2 序 × 3 种子 + 单任务基线 + 逐 cell 冻结评估）与台账 REGISTERED 行；
   依赖 `run.py` 的 `model.stage_checkpoint`/`replay_policy`/`epsilon_mode` 路径。
+  姊妹件 `build_queue_so.py` 产出 `run_queue_so1.json`（612 任务：半离线臂
+  soddqn/soduel/sofrap × 2 序 × 3 种子，offline_ratio=0.25 因果历史，
+  在线 buffer 随场景清空、历史包按 stage 归档 `history_archive/`）；
+  基线复用 cl1（offline_ratio=0 同码路）。
 - `dev/_legacy/20261007/`：见 `dev/_legacy/20261007/README.md`。
 
 ## 已裁决归档（2026-10-07 Z 裁）

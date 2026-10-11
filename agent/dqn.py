@@ -71,6 +71,10 @@ class DQNAgent(RLAgent):
         self.learning_rate = Registry.mapping['model_mapping']['setting'].param['learning_rate']
         self.vehicle_max = Registry.mapping['model_mapping']['setting'].param['vehicle_max']
         self.batch_size = Registry.mapping['model_mapping']['setting'].param['batch_size']
+        self.double_dqn = bool(
+            Registry.mapping['model_mapping']['setting'].param.get('double_dqn', False))
+        self.dueling = bool(
+            Registry.mapping['model_mapping']['setting'].param.get('dueling', False))
 
         self.model = self._build_model()
         self.target_model = self._build_model()
@@ -189,7 +193,10 @@ class DQNAgent(RLAgent):
         :param: None
         :return model: DQN model
         '''
-        model = DQNNet(self.ob_length, self.action_space.n)
+        if getattr(self, 'dueling', False):
+            model = DuelingDQNNet(self.ob_length, self.action_space.n)
+        else:
+            model = DQNNet(self.ob_length, self.action_space.n)
         return model
 
     def remember(self, last_obs, last_phase, actions, actions_prob, rewards, obs,
@@ -380,8 +387,13 @@ class DQNAgent(RLAgent):
         samples = random.sample(self.replay_buffer, self.batch_size)
         self._record_replay_samples(samples)
         b_t, b_tp, rewards, actions = self._batchwise(samples)
-        out = self.target_model(b_tp, train=False)
-        target = rewards + self.gamma * torch.max(out, dim=1)[0]
+        if self.double_dqn:
+            next_actions = self.model(b_tp, train=False).argmax(dim=1, keepdim=True)
+            out = self.target_model(b_tp, train=False).gather(1, next_actions).squeeze(1)
+            target = rewards + self.gamma * out
+        else:
+            out = self.target_model(b_tp, train=False)
+            target = rewards + self.gamma * torch.max(out, dim=1)[0]
         target_f = self.model(b_t, train=False)
         for i, action in enumerate(actions):
             target_f[i][action] = target[i]
@@ -468,3 +480,33 @@ class DQNNet(nn.Module):
         else:
             with torch.no_grad():
                 return self._forward(x)
+
+
+class DuelingDQNNet(nn.Module):
+    """Small dueling head with the same input/action contract as ``DQNNet``.
+
+    Matches sequential/agent.py's DuelingDQNNet layout (feature trunk +
+    value/advantage streams) so run.py-line arms can share the architecture.
+    """
+
+    def __init__(self, input_dim, output_dim):
+        super(DuelingDQNNet, self).__init__()
+        self.activation_name = 'relu'
+        self.architecture_name = 'dueling_mlp'
+        self.feature = nn.Sequential(
+            nn.Linear(input_dim, 20), nn.ReLU(),
+            nn.Linear(20, 20), nn.ReLU(),
+        )
+        self.value = nn.Linear(20, 1)
+        self.advantage = nn.Linear(20, output_dim)
+
+    def forward(self, x, train=True):
+        def compute():
+            hidden = self.feature(x)
+            value = self.value(hidden)
+            advantage = self.advantage(hidden)
+            return value + advantage - advantage.mean(dim=1, keepdim=True)
+        if train:
+            return compute()
+        with torch.no_grad():
+            return compute()

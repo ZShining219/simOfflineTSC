@@ -26,6 +26,7 @@ class FRAP_DQNAgent(RLAgent):
         self.gamma = self.dic_agent_conf.param["gamma"]
         self.grad_clip = self.dic_agent_conf.param["grad_clip"]
         self.epsilon = self.dic_agent_conf.param["epsilon"]
+        self.initial_epsilon = self.epsilon
         self.epsilon_min = self.dic_agent_conf.param["epsilon_min"]
         self.epsilon_decay = self.dic_agent_conf.param["epsilon_decay"]
         self.learning_rate = self.dic_agent_conf.param["learning_rate"]
@@ -258,6 +259,16 @@ class FRAP_DQNAgent(RLAgent):
         '''
         weights = self.model.state_dict()
         self.target_model.load_state_dict(weights)
+
+    def reset_epsilon(self, mode):
+        # Same semantics as dqn.DQNAgent.reset_epsilon so the shared
+        # stage-checkpoint loader works for FRAP arms too.
+        if mode == 'reset_schedule':
+            self.epsilon = self.initial_epsilon
+        elif mode == 'fixed_low':
+            self.epsilon = self.epsilon_min
+        elif mode != 'continue_schedule':
+            raise ValueError(f'Unknown epsilon mode: {mode}')
 
     def remember(self, last_obs, last_phase, actions, actions_prob, rewards, obs, cur_phase, done, key):
         '''

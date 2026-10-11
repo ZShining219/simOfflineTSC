@@ -73,6 +73,13 @@ class IPPO_pfrl(RLAgent):
         self.agent = None
         self.optimizer = None
         self._build_model()
+        # Checkpoint-protocol compatibility: PFRL PPO has neither a target
+        # network nor an epsilon schedule.  ``target_model`` aliases the live
+        # model so resumable checkpoints keep a coherent payload, and
+        # ``epsilon``/``reset_epsilon`` satisfy the shared stage-checkpoint
+        # loader contract without changing PPO semantics.
+        self.target_model = self.model
+        self.epsilon = 0.0
 
     def __repr__(self):
         return self.model.__repr__()
@@ -121,6 +128,14 @@ class IPPO_pfrl(RLAgent):
         else:
             obs = ob
         obs = torch.tensor(obs, dtype=torch.float32)
+        if test:
+            # Deterministic evaluation: argmax over the policy distribution.
+            # Samples nothing, so protected training state (incl. RNG) stays
+            # untouched under EvaluationIsolationGuard; same convention as
+            # plan5/ppo_adapter.py's frozen-eval path.
+            with torch.no_grad():
+                distribution, _ = self.model(obs)
+            return torch.argmax(distribution.probs, dim=1).cpu().numpy()
         action = self.agent.act(obs)
         return action
 
@@ -142,6 +157,12 @@ class IPPO_pfrl(RLAgent):
 
     def update_target_network(self):
         pass
+
+    def reset_epsilon(self, mode):
+        if mode not in ('reset_schedule', 'fixed_low', 'continue_schedule'):
+            raise ValueError(f'Unknown epsilon mode: {mode}')
+        # No epsilon-greedy schedule exists for the PFRL PPO policy; the
+        # attribute is carried only for shared-checkpoint compatibility.
 
     def sample(self):
         return np.random.randint(0, self.action_space.n, self.sub_agents)

@@ -99,6 +99,11 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
 - `dev/scene_semantics/`：轨迹场景语义标注探索件（P0 窗口恢复/统计 → P2 事实描述+冻结编码 →
   P3 三层匹配验证），探索期实现；执行依据 `docs/plan_trajectory_scene_semantics.md`，
   产物落 `data/output_data/scene_semantics/`。
+- `dev/cl_hz1x1/`：hz1x1 持续学习（sequential stage 链 + 冻结下三角评估矩阵）
+  队列生成件——`build_queue.py` 产出 `artifacts/cl_hz1x1/run_queue_cl1.json`
+  （1476 任务：ddqn/dueling_ddqn/frap×{clear,fifo}+ppo×{clear} 四阶段链 ×
+  2 序 × 3 种子 + 单任务基线 + 逐 cell 冻结评估）与台账 REGISTERED 行；
+  依赖 `run.py` 的 `model.stage_checkpoint`/`replay_policy`/`epsilon_mode` 路径。
 - `dev/_legacy/20261007/`：见 `dev/_legacy/20261007/README.md`。
 
 ## 已裁决归档（2026-10-07 Z 裁）

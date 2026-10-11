@@ -7,7 +7,7 @@
 - 设计稿/证据位置：artifacts/att_entity_004/{run_queue_att004_*.json, run_state_*/}；configs/tsc/att_entity_004/generated/*.yml；artifacts/att_entity_004/{ABLATION_ARMS_DESIGN,DIVIDE_CONQUER_DESIGN,SGA_REPAIR_DESIGN}.md
 - 结论：fixG/fixR/fixD/crossq/ablA/ablation/a2s/a3s/holdout 波次均完成并留档；
 - **fixG 收官测评收割（2026-10-07，eval 实为 10-05 已跑完、此前未汇总判读）**：fe_fixG_* 网格 5 seed×{ep50/100/150/200}×5 条件×3 eval seed 共 300 run 全存在。判读：①优化层——fixG vs a3s 同 seed/同 eval 配对 canonical TT ep50 −24.9s、ep100 −8.9s（收敛更快且更优）；②表征层——wrong_type−canonical 中位 +1.34s 非零，类型语义仍在影响行为；③**效用层未翻正**——canonical−empty 中位 +0.58s（均值 +2.27s 被 s? 单点 +28.7s 拉高），文本通道相对 empty 仍无净收益，独家信息设计需求不变。evidence：hz4x4/fe_fixG_*。stg2 波次登记未执行、2026-10-07 裁决转 SCOPE_DISCARD，stg1/ctl 部分臂 DROPPED（SCOPE_DISCARD）；SGA-GB 梯度线经 pilot 判定为负结果后停止（SGA_GB_PILOT_RESULT.md）；三指标+条件矩阵证据在 data/output_data/analysis/att_entity_004/ 与 baseline_cmp.md。
-- 登记单元 2018（train/eval/smoke/batch/calibration = 84/1889/34/0/0）（追溯登记 2026-10-07）
+- 登记单元 2039（train/eval/smoke/batch/calibration = 86/1893/34/0/0）（追溯登记 2026-10-07）
 
 | run_id | 臂/net/seed | ep | 状态 | 起始 | TT/th/unfinished | 产物路径 | 备注 |
 |---|---|---|---|---|---|---|---|
@@ -22,6 +22,21 @@
 | `ev2p_fixG_s7_kp10_can` | fixG_s7/hz4x4/s7 | 20 | DONE | 2026-10-07 | — | `data/output_data/analysis/att_entity_004/eval_v2/ev2p_fixG_s7_kp10_can` | w34_2 zero-train probe: inject_shift=10 (CPU-only, canonical condition) |
 | `ev2p_fixG_s7_kp20_can` | fixG_s7/hz4x4/s7 | 20 | DONE | 2026-10-07 | — | `data/output_data/analysis/att_entity_004/eval_v2/ev2p_fixG_s7_kp20_can` | w34_2 zero-train probe: inject_shift=20 (CPU-only, canonical condition) |
 | `ev2p_fixG_s7_kp5_can` | fixG_s7/hz4x4/s7 | 20 | DONE | 2026-10-07 | — | `data/output_data/analysis/att_entity_004/eval_v2/ev2p_fixG_s7_kp5_can` | w34_2 zero-train probe: inject_shift=5 (CPU-only, canonical condition) |
+| `lag_blockthrot_fixG_s7` | fixG_s7/hz4x4/s7 | 40 | DONE | 2026-10-09 | — | `data/output_data/analysis/att_entity_004/lag_utility/lag_blockthrot_fixG_s7` | REGISTERED+RUNNING: lag_utility probe — lane_blockage 节流 oracle（堵塞边在下游节点减服务，acti |
+| `lag_corridorL120_clbind_s7` | closure_bind_s7/hz4x4/s7 | 40 | DONE | 2026-10-09 | — | `data/output_data/analysis/att_entity_004/lag_utility/lag_corridorL120_clbind_s7` | REGISTERED: lag_utility probe — corridor-throttle oracle，lead=120（窗含预告段预置）, eval |
+| `lag_corridorL120_fixG_s7` | fixG_s7/hz4x4/s7 | 40 | DONE | 2026-10-09 | — | `data/output_data/analysis/att_entity_004/lag_utility/lag_corridorL120_fixG_s7` | REGISTERED: lag_utility probe — corridor-throttle oracle，lead=120（窗含预告段预置）, eval |
+| `lag_corridor_clbind_s7` | closure_bind_s7/hz4x4/s7 | 40 | DONE | 2026-10-09 | — | `data/output_data/analysis/att_entity_004/lag_utility/lag_corridor_clbind_s7` | REGISTERED: lag_utility probe — corridor-throttle oracle（馈入+上游最小走廊相位），lead=0, ev |
+| `lag_corridor_fixG_s7` | fixG_s7/hz4x4/s7 | 40 | DONE | 2026-10-09 | — | `data/output_data/analysis/att_entity_004/lag_utility/lag_corridor_fixG_s7` | REGISTERED: lag_utility probe — corridor-throttle oracle（馈入+上游最小走廊相位），lead=0, ev |
+| `lag_lead120_clbind_s7` | closure_bind_s7/hz4x4/s7 | 40 | DONE | 2026-10-09 | — | `data/output_data/analysis/att_entity_004/lag_utility/lag_lead120_clbind_s7` | REGISTERED: lag_utility probe — TARL_ANNOUNCE_LEAD_S=120, canonical, eval_v2 40e |
+| `lag_lead120_fixG_s7` | fixG_s7/hz4x4/s7 | 40 | DONE | 2026-10-09 | — | `data/output_data/analysis/att_entity_004/lag_utility/lag_lead120_fixG_s7` | REGISTERED: lag_utility probe — TARL_ANNOUNCE_LEAD_S=120 (report early 120s, cle |
+| `lag_lead300_clbind_s7` | closure_bind_s7/hz4x4/s7 | 40 | DONE | 2026-10-09 | — | `data/output_data/analysis/att_entity_004/lag_utility/lag_lead300_clbind_s7` | REGISTERED: lag_utility probe — TARL_ANNOUNCE_LEAD_S=300, canonical, eval_v2 40e |
+| `lag_lead300_fixG_s7` | fixG_s7/hz4x4/s7 | 40 | DONE | 2026-10-09 | — | `data/output_data/analysis/att_entity_004/lag_utility/lag_lead300_fixG_s7` | REGISTERED: lag_utility probe — TARL_ANNOUNCE_LEAD_S=300, canonical, eval_v2 40e |
+| `lag_oracle_clbind_s7` | closure_bind_s7/hz4x4/s7 | 40 | DONE | 2026-10-09 | — | `data/output_data/analysis/att_entity_004/lag_utility/lag_oracle_clbind_s7` | REGISTERED: lag_utility probe — oracle dead-lane mask on closure_bind arm, eval_ |
+| `lag_oracle_fixG_s7` | fixG_s7/hz4x4/s7 | 40 | DONE | 2026-10-09 | — | `data/output_data/analysis/att_entity_004/lag_utility/lag_oracle_fixG_s7` | REGISTERED: lag_utility probe — oracle dead-lane mask (closure feeder in-lane ze |
+| `lag_recboost_clbind_s7` | closure_bind_s7/hz4x4/s7 | 40 | DONE | 2026-10-09 | — | `data/output_data/analysis/att_entity_004/lag_utility/lag_recboost_clbind_s7` | REGISTERED+RUNNING: lag_utility probe — corridor recovery-boost oracle（恢复窗 end.. |
+| `lag_recboost_fixG_s7` | fixG_s7/hz4x4/s7 | 40 | DONE | 2026-10-09 | — | `data/output_data/analysis/att_entity_004/lag_utility/lag_recboost_fixG_s7` | REGISTERED+RUNNING: lag_utility probe — corridor recovery-boost oracle（恢复窗 end.. |
+| `lag_rr_can_fixG_s7` | fixG_s7/hz4x4/s7 | 40 | DONE | 2026-10-09 | — | `data/output_data/analysis/att_entity_004/lag_utility/lag_rr_can_fixG_s7` | REGISTERED+DONE: lag_utility — TARL_REROUTE_P=0.5 下 canonical eval_v2 基线（reroute |
+| `lag_rr_corridor_fixG_s7` | fixG_s7/hz4x4/s7 | 40 | DONE | 2026-10-09 | — | `data/output_data/analysis/att_entity_004/lag_utility/lag_rr_corridor_fixG_s7` | REGISTERED+DONE: lag_utility — TARL_REROUTE_P=0.5 下 corridor-throttle oracle（判 r |
 | `att004_abl_smoke_concat` | abl_smoke_concat/hz4x4/s7 | 2 | DONE | 2026-10-03 | 204.2/617/1440 | `data/output_data/tsc/sumo_tarl_concat/hz4x4/att004_abl_smoke_concat` |  |
 | `att004_abl_smoke_selfattn` | abl_smoke_selfattn/hz4x4/s7 | 2 | DONE | 2026-10-03 | 361.8/562/1538 | `data/output_data/tsc/sumo_tarl_selfattn/hz4x4/att004_abl_smoke_selfattn` |  |
 | `att004_atsmoke_ctrl` | atsmoke_ctrl/hz4x4/s7 | 1 | DONE | 2026-10-05 | 661.8/2331/652 | `data/output_data/tsc/sumo_tarl_attention/hz4x4/att004_atsmoke_ctrl` |  |
@@ -126,10 +141,12 @@
 | `att004_l2_a3s_s17` | l2_a3s/hz4x4/s17 | 15 | ABORTED | 2026-10-03 | 425.2/970/1300 | `data/output_data/tsc/sumo_tarl_attention/hz4x4/att004_l2_a3s_s17` | run_status 残留'运行中'；无存活进程(2026-10-07 核查)；已写训练记录 15 条 |
 | `att004_l2_a3s_s27` | l2_a3s/hz4x4/s27 | 15 | ABORTED | 2026-10-03 | 528.4/483/1858 | `data/output_data/tsc/sumo_tarl_attention/hz4x4/att004_l2_a3s_s27` | run_status 残留'运行中'；无存活进程(2026-10-07 核查)；已写训练记录 15 条 |
 | `att004_l2_a3s_s7` | l2_a3s/hz4x4/s7 | 15 | ABORTED | 2026-10-03 | 349.7/1113/1740 | `data/output_data/tsc/sumo_tarl_attention/hz4x4/att004_l2_a3s_s7` | run_status 残留'运行中'；无存活进程(2026-10-07 核查)；已写训练记录 15 条 |
+| `att004_paircurr_s7` | paircurr_s7/hz4x4/s7 | 200 | DONE | 2026-10-09 | — | `data/output_data/tsc/sumo_tarl_attention/hz4x4/att004_paircurr_s7` | M1 配对课程训练臂：100 对（同 schedule 同 sumo_seed 仅 canonical/empty 不同），fixG 同超参；验证配对能否把 c |
 | `att004_sgagb_s17` | sgagb/hz4x4/s17 | 100 | DONE | 2026-10-01 | 360.5/2725/258 | `data/output_data/tsc/sumo_tarl_attention/hz4x4/att004_sgagb_s17` |  |
 | `att004_sgagb_s7` | sgagb/hz4x4/s7 | 100 | DONE | 2026-10-01 | 362.0/2728/255 | `data/output_data/tsc/sumo_tarl_attention/hz4x4/att004_sgagb_s7` |  |
 | `att004_stg1_s27` | stg1/hz4x4/s27 | 111 | ABORTED | 2026-10-01 | 356.7/2716/267 | `data/output_data/tsc/sumo_tarl_attention/hz4x4/att004_stg1_s27` | run_status 残留'运行中'；无存活进程(2026-10-07 核查)；已写训练记录 111 条 |
 | `att004_stg1_s7` | stg1/hz4x4/s7 | 109 | ABORTED | 2026-10-01 | 356.2/2720/263 | `data/output_data/tsc/sumo_tarl_attention/hz4x4/att004_stg1_s7` | run_status 残留'运行中'；无存活进程(2026-10-07 核查)；已写训练记录 109 条 |
+| `att004_surge_pair_s7` | surge_pair_s7/hz4x4/s7 | 200 | RUNNING | 2026-10-09 | — | `data/output_data/tsc/sumo_tarl_attention/hz4x4/att004_surge_pair_s7` | REGISTERED: pairaux surge 臂——配对课程(同 schedule/同 seed can/emp)×surge 计划，ztask_voca |
 | `sumo_tarl_crossq__hz4x4___aborted_premature_20261005__att004` | crossq/hz4x4/s17 | 2 | ABORTED | 2026-10-05 | 675.7/2353/630 | `data/output_data/tsc/sumo_tarl_crossq/hz4x4/_aborted_premature_20261005/att004_c` | alias→sumo_tarl_crossq__hz4x4__att004_crossq_s; quarantined under _aborted_premature_20261005; 隔离桶语义=中止残留; 同名隔离/残留副本，逻辑同一 run→su |
 | `sumo_tarl_crossq__hz4x4___aborted_premature_20261005__att004` | crossq/hz4x4/s27 | 3 | ABORTED | 2026-10-05 | 709.4/2318/665 | `data/output_data/tsc/sumo_tarl_crossq/hz4x4/_aborted_premature_20261005/att004_c` | alias→sumo_tarl_crossq__hz4x4__att004_crossq_s; quarantined under _aborted_premature_20261005; 隔离桶语义=中止残留; 同名隔离/残留副本，逻辑同一 run→su |
 | `sumo_tarl_crossq__hz4x4___aborted_premature_20261005__att004` | crossq/hz4x4/s37 | 3 | ABORTED | 2026-10-05 | 796.7/2205/778 | `data/output_data/tsc/sumo_tarl_crossq/hz4x4/_aborted_premature_20261005/att004_c` | alias→sumo_tarl_crossq__hz4x4__att004_crossq_s; quarantined under _aborted_premature_20261005; 隔离桶语义=中止残留; 同名隔离/残留副本，逻辑同一 run→su |
@@ -141,7 +158,7 @@
 | `sumo_tarl_crossq__hz4x4__att004_crossq_s47` | crossq/hz4x4/s47 | 200 | DONE | 2026-10-05 | 355.8/2733/250 | `data/output_data/tsc/sumo_tarl_crossq/hz4x4/att004_crossq_s47` |  |
 | `sumo_tarl_crossq__hz4x4__att004_crossq_s7` | crossq/hz4x4/s7 | 200 | DONE | 2026-10-05 | 354.4/2731/252 | `data/output_data/tsc/sumo_tarl_crossq/hz4x4/att004_crossq_s7` |  |
 
-评估 attempt 共 1889 行，按包/来源聚合：
+评估 attempt 共 1893 行，按包/来源聚合：
 
 | 评估包/来源 | n DONE/FAILED/ABORTED | 条件集 | eval seeds |
 |---|---|---|---|
@@ -167,6 +184,7 @@
 | `att004_fixD_s7` | 0/1/0 | — | — |
 | `att004_fixR_s17` | 6/1/0 | — | — |
 | `att004_fixR_s7` | 15/0/0 | — | — |
+| `att004_paircurr_s7/checkpoints/resumable/episode_0200.pt` | 3/0/0 | canonical,empty,foreign,wrong_type | — |
 | `closure_bind_s7` | 3/0/0 | canonical,empty,wrong_type | — |
 | `colight` | 72/0/0 | — | — |
 | `colight_s7_e200` | 1/0/0 | physical_only | — |

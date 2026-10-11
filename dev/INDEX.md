@@ -107,7 +107,10 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
   姊妹件 `build_queue_so.py` 产出 `run_queue_so1.json`（612 任务：半离线臂
   soddqn/soduel/sofrap × 2 序 × 3 种子，offline_ratio=0.25 因果历史，
   在线 buffer 随场景清空、历史包按 stage 归档 `history_archive/`）；
-  基线复用 cl1（offline_ratio=0 同码路）。
+  基线复用 cl1（offline_ratio=0 同码路）。收割/绘图件——
+  `harvest_matrix.py` 产出 `matrix_report{,_so}.json`（下三角矩阵+最深退化汇总），
+  `plot_so_compare.py` 产出 `fig_so_{retention_trajectory,worst_degradation}.png`
+  （clear/fifo/半离线三条件对照，逐种子细线+均值粗线+基线虚线）。
 - `dev/_legacy/20261007/`：见 `dev/_legacy/20261007/README.md`。
 
 ## 已裁决归档（2026-10-07 Z 裁）

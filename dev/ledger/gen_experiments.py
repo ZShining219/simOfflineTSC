@@ -112,6 +112,17 @@ META = {
  "conclusion": "1 DONE、5 FAILED、1 SCOPE_DISCARD（inspect_mplight，2026-10-07 裁决：基线已被 baseline_eval 覆盖）。",
  "queues": "—",
 },
+"cl_hz1x1": {
+ "title": "cl_hz1x1 同质单路口持续学习（cl1 主线 + so1 半离线）",
+ "hypothesis": "值迭代型 TSC-RL 在顺序场景训练下发生机制性灾难性遗忘；25% 因果历史离线混合应以架构无关方式消除遗忘且不损害新场景学习。",
+ "plan_id": "cl_hz1x1_v1",
+ "design": "artifacts/cl_hz1x1/{run_queue_cl1.json, run_queue_so1.json}；dev/cl_hz1x1/{build_queue,build_queue_so,harvest_matrix,plot_so_compare}.py；"
+           "矩阵 artifacts/cl_hz1x1/matrix_report{,_so}.json；图 artifacts/cl_hz1x1/fig_so_{retention_trajectory,worst_degradation}.png",
+ "conclusion": "cl1 1476/1476 + so1 612/612 全 DONE。①ddqn/duel/frap 三骨干在 clear 下均崩（o2 最深退化 +597/+282/+140s），遗忘为 off-policy 机制性失败非实现特例；"
+               "②结构调制易感性（duel>ddqn>frap）但不免疫；③25% 因果半离线三臂 18/18 链最深退化 ≤+9s，对角线新学习近似保持——"
+               "结论=抗遗忘修复，非绝对性能提升。PPO 为 on-policy 未入 so 臂。216 行 SCOPE_DISCARD 为超范围裁决留档。",
+ "queues": "artifacts/cl_hz1x1/{run_queue_cl1.json, run_queue_so1.json}",
+},
 }
 
 def fmt_metrics(m):
@@ -139,6 +150,7 @@ SHORT = {
 "milestone0_infra": "基础设施验证",
 "paper_infra_validation": "paper 基建验证",
 "misc_probes": "零散探针",
+"cl_hz1x1": "hz1x1 持续学习：三骨干证实 off-policy 机制性遗忘；25% 因果半离线全臂消除（最深退化 ≤+9s）",
 }
 
 camps = collections.Counter(r["campaign"] for r in ROWS)

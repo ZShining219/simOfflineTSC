@@ -696,6 +696,9 @@ class TSCTrainer(BaseTrainer):
         '''
         if self.training_mode == 'pure_offline':
             return self._train_shared_offline()
+        _prof_enabled = bool(os.environ.get('TSC_TIME_PROFILE'))
+        _prof = {'env_reset': 0.0, 'env_step': 0.0, 'network_update': 0.0,
+                 'target_update': 0.0, 'evaluation': 0.0}
         total_decision_num = self.global_decision_step
         flush = 0
         if not self.resume_episode and self._should_evaluate(0):
@@ -721,7 +724,9 @@ class TSCTrainer(BaseTrainer):
             if getattr(self, 'event_plan', None) is not None:
                 # Absolute episode index keeps plan rows aligned on resume.
                 self.event_plan.select_train(e)
+            _t = time.perf_counter()
             last_obs = self.env.reset()  # agent * [sub_agent, feature]
+            _prof['env_reset'] += time.perf_counter() - _t
             self._previous_entered_cumulative = 0
             self._previous_exited_cumulative = 0
             self._time_window_index = None
@@ -777,7 +782,9 @@ class TSCTrainer(BaseTrainer):
 
                     rewards_list = []
                     for _ in range(self.action_interval):
+                        _t = time.perf_counter()
                         obs, rewards, dones, _ = self.env.step(actions.flatten())
+                        _prof['env_step'] += time.perf_counter() - _t
                         i += 1
                         rewards_list.append(np.stack(rewards))
                     rewards = np.mean(rewards_list, axis=0)  # [agent, intersection]
@@ -870,11 +877,15 @@ class TSCTrainer(BaseTrainer):
                 if total_decision_num > self.learning_start and agents_ready and\
                         total_decision_num % self.update_model_rate == self.update_model_rate - 1:
 
+                    _t = time.perf_counter()
                     cur_loss_q = np.stack(self.optimizer_update_from_replay())
+                    _prof['network_update'] += time.perf_counter() - _t
                     episode_loss.append(cur_loss_q)
                 if total_decision_num > self.learning_start and \
                         total_decision_num % self.update_target_rate == self.update_target_rate - 1:
+                    _t = time.perf_counter()
                     [ag.update_target_network() for ag in self.agents]
+                    _prof['target_update'] += time.perf_counter() - _t
                     self.target_updates += 1
 
                 if all(dones):
@@ -905,10 +916,12 @@ class TSCTrainer(BaseTrainer):
                 self.logger.debug("intersection:{}, mean_episode_reward:{}, mean_queue:{}".format(j, self.metric.lane_rewards()[j],\
                      self.metric.lane_queue()[j]))
             if self._should_evaluate(completed_episodes):
+                _t = time.perf_counter()
                 if self._uses_explicit_evaluation_schedule():
                     self._run_scheduled_evaluation(completed_episodes)
                 else:
                     self.train_test(completed_episodes)
+                _prof['evaluation'] += time.perf_counter() - _t
         # self.dataset.flush([ag.replay_buffer for ag in self.agents])
         [ag.save_model(e=self.episodes) for ag in self.agents]
         if not self._uses_explicit_evaluation_schedule():
@@ -924,6 +937,12 @@ class TSCTrainer(BaseTrainer):
             )
             self.history_archive_writer.finalize(manifest)
         self._flush_time_window()
+        if _prof_enabled:
+            _prof['episodes'] = self.episodes
+            _prof['gradient_updates'] = self.gradient_updates
+            with open(os.path.join(self.output_path, 'timing_profile.json'),
+                      'w', encoding='utf-8') as _f:
+                json.dump(_prof, _f, indent=1, sort_keys=True)
 
     @staticmethod
     def _append_jsonl(path, record):

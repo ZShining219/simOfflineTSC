@@ -111,10 +111,39 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
   `harvest_matrix.py` 产出 `matrix_report{,_so}.json`（下三角矩阵+最深退化汇总），
   `plot_so_compare.py` 产出 `fig_so_{retention_trajectory,worst_degradation}.png`
   （clear/fifo/半离线三条件对照，逐种子细线+均值粗线+基线虚线）。
+  诊断件 `drift_diag.py`——历史策略/价值漂移诊断（冻结推理，不改 ckpt）：
+  `pool` 用基准 ckpt 在 held-out sumo 种子上 greedy rollout 建场景公共
+  参考状态池（~1500 态/场景，c4/c2 合并两臂基准并留 src 标签）；
+  `measure` 对链上 ep{0,50,100} ckpt 测 Q-L1/去中心化 Q-L1/贪心翻转率
+  （累计+相邻）/Action Gap，含 archive 补充数据集与跨臂决策差异行；
+  `mkqueue` 生成中途 ckpt 冻结 TT 补评队列（治理路径 runner）；
+  `harvest`/`report` 汇总 TT 并出漂移-进度曲线与漂移-TT 对应图。
+  产物 `artifacts/cl_hz1x1/{drift_pool/,drift_*_rows.json,drift_*_tt.json,
+  drift_figs/,run_queue_drift_*.json,run_state_drift_*/}`。
   诊断件 `grad_diag.py`——纯离线梯度协调探针：从 resumable checkpoint
   重建模型+优化器，以 so1 归档 transition 为新旧数据探针，测 batch 梯度
   余弦/符号冲突/范数比与单步真实更新前后旧场景 TD 误差变化；
   产出 `artifacts/cl_hz1x1/grad_diag.json`（5 边界 × so/clear 双 ckpt）。
+  诊断件 `fqe_probe.py`——离线策略价值评估（OPE）可行性探针（纯离线，
+  不改 ckpt、不跑新仿真）：6 个候选策略/种子 = s1 基准 st1ep100 +
+  clear/so st4 ep{0,50,100}；真值取既有 ev*/drift_* 冻结 eval 格的
+  reward_sum/travel_time（eval 种子 101–103）；以 so 臂 st1
+  `history_archive` 归档 transition 为独立历史轨迹（shard 末条标记
+  terminal），半梯度 FQE（γ=0.95，DQNNet 同构）逐策略估计 V；
+  覆盖变体 all/early(ep1–50)/late(ep51–100)/n4k/explor（仅 off-greedy
+  转移）探覆盖-误差关系；输出 Spearman(V̂, 真回报) 与
+  good/bad 策略分离判定；附 FQE 随机种子方差探针（信号 vs 噪声）。
+  产物 `artifacts/cl_hz1x1/{fqe_s1.json,fqe_s1_noise.json,mc_s1.jsonl}`。
+  审计：Bellman target/γ/reward/done 口径均无误；失败根因为
+  覆盖不足——各候选策略所选动作在档案状态上的支持率仅
+  10–50%，且崩溃 clear 策略在每种覆盖变体下支持率最低
+  （late 变体 base 69% vs clear_ep50 27%）。
+  口径核验（--mc 子进程单回合 rollout，`mc_s1.jsonl` 63 行）：
+  逐决策步 reward 的 J_γ=Σ0.95^t·r_t 与官方 reward_sum 对拍
+  max|Δ|=0.01；J_γ 真值排序改变（sd0 base 退至第 5、clear_ep50
+  差距缩至 ~3×）但 FQE SEP 仍 4/15——口径对齐不能挽救排序。
+  结论：单点 FQE 排序不可靠（SEP 4/15、ΔV̂≈种子噪声），
+  支持走不确定性约束的历史策略保护路线。
 - `dev/_legacy/20261007/`：见 `dev/_legacy/20261007/README.md`。
 
 ## 已裁决归档（2026-10-07 Z 裁）

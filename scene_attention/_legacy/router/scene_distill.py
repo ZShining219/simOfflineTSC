@@ -52,9 +52,55 @@ if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
 from scene_attention.dispatch_model import (  # noqa: E402
-    SceneAttention, CompositeSceneEncoder, SelfAttentionEncoder,
-    ConcatEncoder,
+    SceneAttention, CompositeSceneEncoder,
 )
+
+# Frozen copies of the ablation encoders — removed from the live
+# package (dispatch_model.py) after the mechanism cleanup; kept here
+# so this archived script stays runnable.
+class SelfAttentionEncoder(nn.Module):
+    """Self-attention Transformer arm: lanes attend to lanes."""
+
+    def __init__(self, lane_dim, text_dim, global_dim, d_model=64,
+                 heads=4):
+        super().__init__()
+        self.lane_proj = nn.Linear(lane_dim, d_model)
+        self.self_attn = nn.MultiheadAttention(
+            d_model, heads, batch_first=True)
+        self.text_proj = nn.Linear(text_dim, d_model)
+        self.fuse = nn.Sequential(
+            nn.Linear(d_model * 2 + global_dim, d_model), nn.ReLU(),
+            nn.Linear(d_model, d_model), nn.ReLU(),
+        )
+
+    def forward(self, lanes, text, glob):
+        x = self.lane_proj(lanes)
+        ctx, w = self.self_attn(x, x, x, need_weights=True)
+        pooled = ctx.mean(dim=1)
+        z = self.fuse(torch.cat(
+            [pooled, self.text_proj(text), glob], dim=-1))
+        return z, w.mean(dim=1)
+
+
+class ConcatEncoder(nn.Module):
+    """No-attention baseline: text + pooled state -> MLP."""
+
+    def __init__(self, lane_dim, text_dim, global_dim, d_model=64):
+        super().__init__()
+        in_dim = text_dim + global_dim + lane_dim
+        self.mlp = nn.Sequential(
+            nn.Linear(in_dim, d_model), nn.ReLU(),
+            nn.Linear(d_model, d_model), nn.ReLU(),
+            nn.Linear(d_model, d_model), nn.ReLU(),
+        )
+
+    def forward(self, lanes, text, glob):
+        pooled = lanes.mean(dim=1)
+        z = self.mlp(torch.cat([text, glob, pooled], dim=-1))
+        w = torch.zeros(lanes.shape[0], lanes.shape[1],
+                        device=lanes.device)
+        return z, w
+
 
 ARMS = ['sga', 'attn', 'selfattn', 'concat', 'mlp']
 ATN_ARMS = {'sga', 'attn'}        # arms whose w is a cross-attn map

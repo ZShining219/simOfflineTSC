@@ -1,20 +1,26 @@
-"""Scene-guided attention + SMDP router for controller dispatch.
+"""Scene-guided attention encoders + SMDP router for controller dispatch.
 
 NOTE (2026-10): the router architecture was REJECTED (two decision
-layers).  The live component here is the encoder family —
-``SceneAttention`` / ``CompositeSceneEncoder`` ('sga') /
-``SelfAttentionEncoder`` / ``ConcatEncoder`` — consumed by
-``signal_model.py`` policies and the adapter teachers in
-``scene_mp.py``.  ``DispatchRouter`` is dead code kept only for the
-archived probes under ``_router/``.
+layers).  The live component here is the scene-guided encoder family —
+``SceneAttention`` ('attn') and ``CompositeSceneEncoder`` ('sga',
+canonical) — consumed by ``signal_model.py`` policies and the adapter
+teachers in ``scene_mp.py``.  ``DispatchRouter`` is a superseded
+research architecture retained only as live HITL dispatch tooling
+(``hitl.live.controllers`` loads its checkpoints) and for the
+archived probes under ``_legacy/router/``; it is not a maintained
+training target.
 
-Two encoder variants sharing one router head:
+The selfattn/concat comparison encoders were removed — they exist
+only to produce the frozen ablation evidence; recover from git
+history if re-runs are needed.
+
+Encoder variants sharing one router head:
 
   variant='attn'   scene text embedding is the query over lane tokens
                    (cross-attention); residual path keeps raw traffic
                    state so attention cannot drop necessary information.
-  variant='concat' text and mean-pooled lanes are concatenated into an
-                   MLP of matched capacity — the no-attention baseline C.
+  variant='sga'    composite module: lane self-attn feeds the text
+                   cross-attention, plus identity binding (canonical).
 
 Router scores each registered controller with a learned per-controller
 embedding:  Q(z, k) = MLP([z, e_k, z ⊙ e_k]) -> scalar.
@@ -176,56 +182,6 @@ class CompositeSceneEncoder(SceneAttention):
         return z, w
 
 
-class SelfAttentionEncoder(nn.Module):
-    """Self-attention Transformer arm: lanes attend to lanes.
-
-    The scene text is projected and concatenated at fusion time, but it is
-    never a query — attention here is intra-modal only.  This is the task-book
-    comparison arm: identical attention machinery and identical inputs, but no
-    scene-guidance of the attention itself.
-    """
-
-    def __init__(self, lane_dim, text_dim, global_dim, d_model=64, heads=4):
-        super().__init__()
-        self.lane_proj = nn.Linear(lane_dim, d_model)
-        self.self_attn = nn.MultiheadAttention(
-            d_model, heads, batch_first=True)
-        self.text_proj = nn.Linear(text_dim, d_model)
-        self.fuse = nn.Sequential(
-            nn.Linear(d_model * 2 + global_dim, d_model), nn.ReLU(),
-            nn.Linear(d_model, d_model), nn.ReLU(),
-        )
-
-    def forward(self, lanes, text, glob):
-        x = self.lane_proj(lanes)                     # (B,L,d)
-        ctx, w = self.self_attn(x, x, x, need_weights=True)  # w: (B,L,L)
-        pooled = ctx.mean(dim=1)                      # (B,d)
-        z = self.fuse(torch.cat(
-            [pooled, self.text_proj(text), glob], dim=-1))
-        # per-lane salience proxy = received attention mass (column mean)
-        return z, w.mean(dim=1)
-
-
-class ConcatEncoder(nn.Module):
-    """No-attention baseline: text + pooled state -> MLP."""
-
-    def __init__(self, lane_dim, text_dim, global_dim, d_model=64):
-        super().__init__()
-        in_dim = text_dim + global_dim + lane_dim
-        self.mlp = nn.Sequential(
-            nn.Linear(in_dim, d_model), nn.ReLU(),
-            nn.Linear(d_model, d_model), nn.ReLU(),
-            nn.Linear(d_model, d_model), nn.ReLU(),
-        )
-
-    def forward(self, lanes, text, glob):
-        pooled = lanes.mean(dim=1)
-        z = self.mlp(torch.cat([text, glob, pooled], dim=-1))
-        w = torch.zeros(lanes.shape[0], lanes.shape[1],
-                        device=lanes.device)
-        return z, w
-
-
 class DispatchRouter(nn.Module):
     """Scene encoder + per-controller Q heads (SMDP action = controller)."""
 
@@ -243,12 +199,11 @@ class DispatchRouter(nn.Module):
             self.encoder = CompositeSceneEncoder(
                 lane_dim, text_dim, global_dim, d_model,
                 residual_pool=residual_pool, geom=geom)
-        elif variant == 'selfattn':
-            self.encoder = SelfAttentionEncoder(
-                lane_dim, text_dim, global_dim, d_model)
         else:
-            self.encoder = ConcatEncoder(
-                lane_dim, text_dim, global_dim, d_model)
+            raise ValueError(
+                f'unknown router variant {variant!r} — the selfattn/'
+                'concat comparison arms were removed; recover them '
+                'from git history if archived ckpts must reload')
         self.ctrl_emb = nn.Embedding(len(controller_ids), d_model)
         self.head = nn.Sequential(
             nn.Linear(d_model * 3, d_model), nn.ReLU(),

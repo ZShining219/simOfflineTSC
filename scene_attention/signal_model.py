@@ -18,21 +18,16 @@ Status of the other classes here:
                            (failed to learn base driving, ~2x queue).
 ===========================
 
-Arms (``variant``):
+Arms (``variant``) — scene-guided family only:
 
-  Scene-channel arms (lanes + text + global -> z):
     'sga'         composite module: lane self-attn + text cross-attn +
-                  identity binding + scene content into z
+                  identity binding + scene content into z (canonical)
     'attn'        text-as-query cross-attention over lanes
-    'selfattn'    lane self-attn, text concatenated at fusion
-    'concat'      pooled-state + text MLP
 
-  State-only baselines (lanes + global -> z, no scene channel —
-  the conventional observation pipeline the task book compares
-  against; pair them with phys='queue' lane features):
-    'selfattn_st' self-attention over lane tokens
-    'concat_st'   lane-mean + global MLP
-    'mlp_st'      flat MLP over all lane tokens (richest state arm)
+The comparison arms (selfattn/concat encoders and the *_st
+state-only baselines) were removed from the maintained surface —
+they exist only to produce the frozen ablation evidence; recover
+them from git history if re-runs are ever needed.
 """
 
 from __future__ import annotations
@@ -43,75 +38,8 @@ import torch.nn as nn
 
 from scene_attention.dispatch_model import (
     CompositeSceneEncoder,
-    ConcatEncoder,
     SceneAttention,
-    SelfAttentionEncoder,
 )
-
-
-class StateSelfAttentionEncoder(nn.Module):
-    """Self-attention over lane tokens + global vector; no scene text."""
-
-    def __init__(self, lane_dim, global_dim, d_model=64, heads=4):
-        super().__init__()
-        self.lane_proj = nn.Linear(lane_dim, d_model)
-        self.self_attn = nn.MultiheadAttention(
-            d_model, heads, batch_first=True)
-        self.fuse = nn.Sequential(
-            nn.Linear(d_model + global_dim, d_model), nn.ReLU(),
-            nn.Linear(d_model, d_model), nn.ReLU(),
-        )
-
-    def forward(self, lanes, text, glob):
-        x = self.lane_proj(lanes)
-        ctx, w = self.self_attn(x, x, x, need_weights=True)
-        z = self.fuse(torch.cat([ctx.mean(dim=1), glob], dim=-1))
-        return z, w.mean(dim=1)
-
-
-class StateConcatEncoder(nn.Module):
-    """Lane-mean pooled state + global -> MLP; no attention, no text."""
-
-    def __init__(self, lane_dim, global_dim, d_model=64):
-        super().__init__()
-        self.mlp = nn.Sequential(
-            nn.Linear(lane_dim + global_dim, d_model), nn.ReLU(),
-            nn.Linear(d_model, d_model), nn.ReLU(),
-            nn.Linear(d_model, d_model), nn.ReLU(),
-        )
-
-    def forward(self, lanes, text, glob):
-        z = self.mlp(torch.cat([lanes.mean(dim=1), glob], dim=-1))
-        w = torch.zeros(lanes.shape[0], lanes.shape[1],
-                        device=lanes.device)
-        return z, w
-
-
-class StateFlatMLPEncoder(nn.Module):
-    """Flat MLP over every lane token + global; no attention, no text.
-
-    Strongest state-only arm: no pooling bottleneck — the full lane
-    vector reaches the MLP directly.
-    """
-
-    def __init__(self, n_lanes, lane_dim, global_dim, d_model=64):
-        super().__init__()
-        self.mlp = nn.Sequential(
-            nn.Linear(n_lanes * lane_dim + global_dim, d_model * 2),
-            nn.ReLU(),
-            nn.Linear(d_model * 2, d_model * 2), nn.ReLU(),
-            nn.Linear(d_model * 2, d_model), nn.ReLU(),
-        )
-
-    def forward(self, lanes, text, glob):
-        z = self.mlp(torch.cat(
-            [lanes.flatten(start_dim=1), glob], dim=-1))
-        w = torch.zeros(lanes.shape[0], lanes.shape[1],
-                        device=lanes.device)
-        return z, w
-
-
-STATE_ONLY = ('selfattn_st', 'concat_st', 'mlp_st')
 
 
 class SceneResidualPolicy(nn.Module):
@@ -135,9 +63,9 @@ class SceneResidualPolicy(nn.Module):
       delta  : zero-init linear head on the condensed z — at birth the
                residual is identically zero whatever the gate says.
 
-    Variants with no binding product ('selfattn_st' etc.) are not
-    supported — the gate IS the scene-conditional switch; without it
-    there is nothing to distinguish "scene says engage" from noise.
+    Variants with no binding product are not supported — the gate IS
+    the scene-conditional switch; without it there is nothing to
+    distinguish "scene says engage" from noise.
     """
 
     def __init__(self, lane_dim, text_dim, global_dim, n_phases,
@@ -362,25 +290,11 @@ class SceneSignalAgent(nn.Module):
             self.encoder = CompositeSceneEncoder(
                 lane_dim, text_dim, global_dim, d_model,
                 residual_pool=residual_pool, geom=geom)
-        elif variant == 'selfattn':
-            self.encoder = SelfAttentionEncoder(
-                lane_dim, text_dim, global_dim, d_model)
-        elif variant == 'concat':
-            self.encoder = ConcatEncoder(
-                lane_dim, text_dim, global_dim, d_model)
-        elif variant == 'selfattn_st':
-            self.encoder = StateSelfAttentionEncoder(lane_dim, global_dim,
-                                                     d_model)
-        elif variant == 'concat_st':
-            self.encoder = StateConcatEncoder(lane_dim, global_dim,
-                                              d_model)
-        elif variant == 'mlp_st':
-            if n_lanes is None:
-                raise ValueError('mlp_st needs n_lanes')
-            self.encoder = StateFlatMLPEncoder(n_lanes, lane_dim,
-                                               global_dim, d_model)
         else:
-            raise ValueError(f'unknown variant {variant!r}')
+            raise ValueError(
+                f'unknown variant {variant!r} — the ablation arms '
+                '(selfattn/concat/*_st) were removed; only the '
+                'scene-guided family (sga/attn) is maintained')
         self.head = nn.Linear(d_model, self.n_phases)
 
     def encode(self, batch):

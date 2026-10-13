@@ -2,8 +2,9 @@
 
 Compares, under an identical congestion-event grid:
 
-  learned arms   scene-channel agents (sga/attn/selfattn/concat ckpts)
-                 and state-only agents (selfattn_st/concat_st/mlp_st)
+  learned arms   scene-guided agents (sga/attn ckpts); the
+                 selfattn/concat/*_st comparison arms were removed —
+                 recover from git history if their ckpts must reload
   ablation       the same sga ckpt with the text channel zeroed
                  ('no_text' — attention module present but blind)
   conventional   fixedtime / maxpressure / sotl / dqn_s1 controllers
@@ -20,7 +21,7 @@ Metrics per episode:
 
 Usage:
     python -m scene_attention.eval \
-        --agent sga=out_sga/agent.pt --agent selfattn_st=out_sa/agent.pt \
+        --agent sga=out_sga/agent.pt --agent attn=out_attn/agent.pt \
         --builtin maxpressure,fixedtime --episodes-per-event 2
 """
 
@@ -52,7 +53,7 @@ from scene_attention.scene_mp import (  # noqa: E402
 from scene_attention.env import (  # noqa: E402
     run_signal_episode,
 )
-from scene_attention._legacy.router.train_router import (  # noqa: E402
+from scene_attention.events import (  # noqa: E402
     DISCHARGE_OF, DISTRACTOR_OF, EDGE_TARGETS, FEEDER_OF,
     TRAIN_EDGES,
 )

@@ -26,8 +26,9 @@
 
 - `train.py`/`eval.py`：训练/评测面；
 - `env.py`：事件 episode 运行时（`run_signal_episode`）；
-- `signal_model.py`：`SceneJointPolicy`/`SceneResidualPolicy`/`SceneSignalAgent`/`STATE_ONLY`；
-- `dispatch_model.py`：`DispatchRouter`/`CompositeSceneEncoder`/`collate`；
+- `signal_model.py`：`SceneJointPolicy`（canonical）/`SceneResidualPolicy`（其父类，底座冻结残差）/`SceneSignalAgent`（sga/attn ckpt 装载面+蒸馏编码器供体）；
+- `dispatch_model.py`：`SceneAttention`/`CompositeSceneEncoder`（sga，canonical 编码器）/`DispatchRouter`（已否决研究架构，仅留作 `hitl.live.controllers` 调度工具与归档 ckpt 装载）/`collate`；
+- 已移除（git 历史可查）：`selfattn`/`concat` 对照编码器与 `selfattn_st`/`concat_st`/`mlp_st` state-only 消融臂——仅服务于已冻结的消融证据；
 - `dispatch_specialist.py`：`KeyDispatchAgent`/`wrap_controller`（意图分发特化）；
 - `dispatch_state.py`：`FeatureBuilder`/`fb_kwargs_from_meta`（状态构造，含 `_coord_topology`）；
 - `scene_mp.py`：G4 Guided 代际变体（`SceneGuidedMP/DQN`、`bound_dqn_agent`）；

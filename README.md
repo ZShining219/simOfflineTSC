@@ -149,7 +149,7 @@ data/output_data/ha_sodqn/               # HA-SODQN engineering / 正式运行 /
 
 ## 研究线：场景引导注意力调度（scene_attention）
 
-`scene_attention/` 方法包（升格自 `dev/takeover_probe`，方法卡见其 README）：事件播报文本编码为场景 query，引导对车道状态 token 的交叉注意力，产出浓缩场景表征注入信号控制。当前主线为单层场景条件控制器 `SceneJointPolicy`（dqn_s1 底座 + sga 注意力 + 门控有界残差），训练链路 adapter 教师蒸馏→原装 reward RL 微调→意图编译层；历史探索期三变体（场景引导注意力/自注意力/无注意力 concat）与 SMDP Router 双层架构（已否决，归档 `_legacy/router/`）均留档。配套配对目标翻转评测、文本消融与注意力-标注一致性度量，均已接入上述转播服务可在线演示。
+`scene_attention/` 方法包（升格自 `dev/takeover_probe`，方法卡见其 README）：事件播报文本编码为场景 query，引导对车道状态 token 的交叉注意力，产出浓缩场景表征注入信号控制。当前主线为单层场景条件控制器 `SceneJointPolicy`（dqn_s1 底座 + sga 注意力 + 门控有界残差），训练链路 adapter 教师蒸馏→原装 reward RL 微调→意图编译层；历史探索期对照臂（自注意力/无注意力 concat/state-only 消融）已从维护面移除（git 历史可查），SMDP Router 双层架构已否决（归档 `_legacy/router/`）。配套配对目标翻转评测、文本消融与注意力-标注一致性度量，均已接入上述转播服务可在线演示。
 
 历史注记：控制器注册表与场景编码器解耦的 `DispatchRouter` 双层架构已被否决（上层动作空间退化为控制器选择），实现留存于 `scene_attention/_legacy/router/`（附死因 README）；编码器活组件（`CompositeSceneEncoder` 等）在 `scene_attention/dispatch_model.py`。
 

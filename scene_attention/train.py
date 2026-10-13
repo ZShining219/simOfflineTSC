@@ -8,7 +8,7 @@ by control value directly, with no controller-selection layer in between.
 
 Auxiliary loss (binding alignment): while an event report is active the
 cross-attention lane weights are encouraged toward the report's bound
-lanes — same as the router trainer, skipped for state-only arms.
+lanes — same as the router trainer.
 
 Usage:
     python -m scene_attention.train --variant sga \
@@ -34,8 +34,7 @@ from scene_attention.probe.takeover import (  # noqa: E402
 )
 from scene_attention.dispatch_state import FeatureBuilder  # noqa: E402
 from scene_attention.signal_model import (  # noqa: E402
-    STATE_ONLY, SceneJointPolicy, SceneResidualPolicy,
-    SceneSignalAgent,
+    SceneJointPolicy, SceneResidualPolicy, SceneSignalAgent,
 )
 from scene_attention.env import (  # noqa: E402
     run_signal_episode,
@@ -98,7 +97,6 @@ def train(args):
         world, [], report_delay=args.report_delay, layout='identity',
         phys=args.phys, include_forecast=not args.no_forecast,
         phase_age=True, intent_coord_w=args.intent_coord_w)
-    state_only = args.variant in STATE_ONLY
     residual_mode = args.residual_dqn is not None
     joint_mode = args.joint_dqn is not None
     if (residual_mode or joint_mode) \
@@ -179,15 +177,13 @@ def train(args):
             text_dim=fb0.text_dim, global_dim=fb0.global_dim,
             n_phases=n_phases, d_model=args.d_model,
             variant=args.variant, residual_pool=args.residual_pool,
-            geom=fb0.model_geom() if not state_only else None,
-            n_lanes=fb0.n_lanes)
+            geom=fb0.model_geom())
         target = SceneSignalAgent(
             lane_dim=fb0.lane_tokens(0.0).shape[1],
             text_dim=fb0.text_dim, global_dim=fb0.global_dim,
             n_phases=n_phases, d_model=args.d_model,
             variant=args.variant, residual_pool=args.residual_pool,
-            geom=fb0.model_geom() if not state_only else None,
-            n_lanes=fb0.n_lanes)
+            geom=fb0.model_geom())
     if args.init_from:
         # warm-start from a prior checkpoint (e.g. the BC student)
         # before continuing with TD — joint base_init was snapshotted
@@ -691,8 +687,10 @@ def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--scene', default='S2')
     p.add_argument('--variant', default='sga',
-                   choices=['attn', 'sga', 'selfattn', 'concat',
-                            'selfattn_st', 'concat_st', 'mlp_st'])
+                   choices=['sga', 'attn'],
+                   help='scene-guided encoder arm (canonical: sga); '
+                        'the selfattn/concat/*_st comparison arms were '
+                        'removed — recover from git history if needed')
     p.add_argument('--phys', choices=['full', 'queue'], default='full')
     p.add_argument('--no-forecast', action='store_true',
                    help='zero the est_remaining text slot (report = '

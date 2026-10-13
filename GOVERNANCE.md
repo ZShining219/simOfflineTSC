@@ -55,6 +55,31 @@ dev/                     # 一次性脚本唯一合法堆放处 + INDEX.md
 dev/_legacy/<date>/      # 历史散件归档（移动非删除）
 ```
 
+### 3.1 包形状约定（Route A：统一形状取代统一入口）
+
+正式能力一律收进包，拉起语法统一为 **`python -m <pkg>[.<face>] [args]`**；`python -m <pkg>` 打开包门面（子命令集或面表卡，见各包 README）。禁止新写根级 `*_run.py` 入口。
+
+**方法包**（`sequential/`、`scene_attention/`、后续新算法）固定槽位：
+
+```
+<pkg>/README.md   方法卡：问什么/入口面表/当前结论/变体状态/证据指针
+<pkg>/__main__.py python -m <pkg> 的包门面
+<pkg>/env.py      env 构造与 wrapper（或声明复用下层契约）
+<pkg>/model*.py   策略/网络实现（可目录化）
+<pkg>/probe/      可选：已登记探针（python -m <pkg>.probe.<x>）
+<pkg>/figs/       可选：出图件（产物件，不算入口）
+<pkg>/_legacy/    可选：死代际归档（附死因 README）
+```
+
+**通道包**（`hitl/`）槽位按职责命名：`serve`（`python -m hitl.serve`）、`pipeline/<stage>`、`plans`、`probe`、`audit`；HITL 训练态一律走 `sequential`（`mode=hitl_channel`），本包不开 train 面。
+
+约束：
+
+- 包只许依赖下层契约（`world/`、`common/`、`dataset/`、`utils/` 与自身内部件）；禁跨包 import 内部实现。
+- 工单放 `configs/<pkg>/`；实验参数禁内嵌在脚本里。
+- 老根级入口只许留薄 shim（deprecation 提示后转发 `-m` 面），下一版本清理。
+- 出图/一次性件不进面，按 dev/ 规则登记或归 `<pkg>/figs/`。
+
 ## 4. 台账（两级，强制）
 
 ### 4.1 `ledger/runs.jsonl` 字段口径

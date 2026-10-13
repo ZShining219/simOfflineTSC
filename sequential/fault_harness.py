@@ -36,7 +36,7 @@ def run_fault_recovery(manifest_path, output_root, logical_run_id,
     launch_stdout_path = os.path.join(audit_root, 'launch.stdout.log')
     launch_stderr_path = os.path.join(audit_root, 'launch.stderr.log')
     command = [
-        sys.executable, 'sequential_run.py', 'launch',
+        sys.executable, '-m', 'sequential', 'launch',
         '--manifest', manifest_path, '--output-root', output_root,
         '--logical-run-id', logical_run_id, '--max-child', str(max_child),
     ]
@@ -89,7 +89,7 @@ def run_fault_recovery(manifest_path, output_root, logical_run_id,
     resume_stdout_path = os.path.join(audit_root, 'resume.stdout.log')
     resume_stderr_path = os.path.join(audit_root, 'resume.stderr.log')
     resume_command = [
-        sys.executable, 'sequential_run.py', 'resume-failed',
+        sys.executable, '-m', 'sequential', 'resume-failed',
         '--manifest', manifest_path, '--output-root', output_root,
         '--max-child', str(max_child),
     ]

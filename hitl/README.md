@@ -32,11 +32,16 @@
 - 会话录制落 `output_data/hitl_probe/sessions/`（勿再默认 /tmp）；
 - 新产出按 `output_data/hitl_probe/<stage>/` 分区；台账新 run 用 `line=hitl`。
 
-## 入口
+## 入口面表（`python -m hitl.<face>`，统一包形状 GOVERNANCE §3.1）
 
-- 实时会话：`python -m hitl.live`（原 `python -m tools.sumo_live_broadcast`）
-- plan 生成：`python hitl/plans/build_r3_plan.py`；派发：`bash hitl/plans/dispatch_r3.sh`
-- 判官/RM 校准：`python hitl/probe/calibrate_*.py`
+| 面 | 命令 | 说明 |
+|---|---|---|
+| 门面 | `python -m hitl` | 打印本表 |
+| 服务 | `python -m hitl.serve` | 实时转播+专家席+问询门+录制（等价旧 `python -m hitl.live`） |
+| 数据面 | `python -m hitl.pipeline <stage>` | stage：package/segments/build_pairs/build_demos/filter_pool/train_reward/dump_lane_topology；直通 `-m hitl.pipeline.<stage>` 亦可 |
+| plan | `python -m hitl.plans build --round <r>` | round 按 `build_<r>_plan.py` 自动枚举（现：pilot/gate/r2/r3）；派发 `bash hitl/plans/dispatch_r3.sh` |
+| 探针 | `python -m hitl.probe.<x>` | paired_probe/paired_bootstrap/calibrate_*/rm_env_corr；`-m hitl.probe` 打印清单 |
+| 审计 | `python -m hitl.audit.<x>` | B′判官审计件 10 个；`-m hitl.audit` 打印清单 |
 
 ## 相关仓
 

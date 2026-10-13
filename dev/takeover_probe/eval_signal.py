@@ -53,7 +53,8 @@ from dev.takeover_probe.signal_runtime import (  # noqa: E402
     run_signal_episode,
 )
 from dev.takeover_probe._router.train_router import (  # noqa: E402
-    EDGE_TARGETS, TRAIN_EDGES,
+    DISCHARGE_OF, DISTRACTOR_OF, EDGE_TARGETS, FEEDER_OF,
+    TRAIN_EDGES,
 )
 from tools.sumo_live_broadcast.controllers import (  # noqa: E402
     inference_q_values,
@@ -76,6 +77,48 @@ class _JointBaseOnly:
         return int(q.argmax(dim=-1).item()), \
             q.detach().cpu().numpy()[0].tolist(), None
 
+
+
+def spec_list(spec, corridor=False, distractor=False):
+    """Primary spec + optional unreported feeder-load surge."""
+    if not spec:
+        return []
+    specs = [spec]
+    if distractor:
+        d = distractor_spec(spec)
+        if d:
+            specs.append(d)
+    if corridor:
+        parts = spec.split(':')
+        if parts[0] == 'surge':
+            edge, onset, dur, period = (parts[1], float(parts[3]),
+                                        float(parts[4]), float(parts[5]))
+            feeder = FEEDER_OF.get(edge)
+            if feeder:
+                specs.append(
+                    f'surge:{feeder}:{edge}:{max(0.0, onset - 120)}:'
+                    f'{dur + 120}:{period + 3}:global')
+            discharge = DISCHARGE_OF.get(edge)
+            if discharge:
+                specs.append(
+                    f'throttle:{discharge}:{max(0.0, onset - 60)}:'
+                    f'{dur + 60}:3.0:global')
+    return specs
+
+
+def distractor_spec(spec):
+    """Unreported surge on an edge OUTSIDE the event's watch set —
+    a physically real but report-irrelevant competitor."""
+    parts = spec.split(':')
+    if parts[0] != 'surge':
+        return None
+    edge, onset, dur = parts[1], float(parts[3]), float(parts[4])
+    dist = DISTRACTOR_OF.get(edge)
+    target = EDGE_TARGETS.get(dist)
+    if not dist or not target:
+        return None
+    return (f'surge:{dist}:{target}:{max(0.0, onset - 120)}:'
+            f'{dur + 120}:5:global')
 
 def eval_episode(world, fb, ranks, injects, agent=None, controller=None,
                  episode_seconds=3600, interval=10, text_override=None,
@@ -112,7 +155,7 @@ def eval_episode(world, fb, ranks, injects, agent=None, controller=None,
             if w is not None and onset <= rec['t'] <= end_t:
                 w = np.asarray(w).ravel()
                 bind.append(float(w[idx].sum()))
-    return {
+    out = {
         'queue_int': float(queues.sum() * interval),
         'ev_queue_int': float(ev_q.sum() * interval),
         'peak_queue': float(queues.max() if len(queues) else 0.0),
@@ -121,6 +164,38 @@ def eval_episode(world, fb, ranks, injects, agent=None, controller=None,
         'bind_mass': (round(float(np.mean(bind)), 4) if bind else None),
         'ticks': len(records),
     }
+    # corridor-specific integrals: queue on the coordination legs —
+    # feeder link, discharge links, and the metering-source approaches
+    # (2-hop watch set).  Lets us see whether governance relieves or
+    # merely relocates corridor pressure.
+    if ev is not None:
+        # topology-derived watch set — independent of the model's
+        # intent_coord_w, so the metric is comparable across arms
+        _pred, _succ = fb._edge_pred, fb._edge_succ
+        watch_edges = sorted(
+            (_pred.get(ev_edge, set()) | _succ.get(ev_edge, set())
+             | {s2 for f in _pred.get(ev_edge, set())
+                for s2 in _pred.get(f, set())})
+            - {ev_edge})
+        coord_idx = sorted(
+            i for e in watch_edges
+            for i in fb.edge_to_laneidx.get(e, []))
+        if coord_idx:
+            out['corr_queue_int'] = float(sum(
+                sum(rec['lane_queue'].get(fb.lanes[i], 0)
+                    for i in coord_idx)
+                for rec in records) * interval)
+            bind_c = []
+            if ev is not None:
+                onset = ev['start_t'] + fb.report_delay
+                for rec in records:
+                    w = rec.get('attn_weights')
+                    if w is not None and onset <= rec['t'] <= end_t:
+                        w = np.asarray(w).ravel()
+                        bind_c.append(float(w[coord_idx].sum()))
+            if bind_c:
+                out['corr_bind_mass'] = round(float(np.mean(bind_c)), 4)
+    return out
 
 
 def main():
@@ -177,6 +252,10 @@ def main():
     p.add_argument('--joint-notext', default=None,
                    help='PATH — joint arm with the report channel '
                         'blinded (kind=none)')
+    p.add_argument('--joint-lie', default=None,
+                   help='joint ckpt under a WRONG-edge report override: '
+                        'if the policy genuinely consumes the text, it '
+                        'mis-serves the named edge — text-dependence proof')
     p.add_argument('--joint-base', default=None,
                    help='PATH — run the joint ckpt\'s inner base net '
                         'alone (internalisation check vs dqn_s1)')
@@ -191,6 +270,13 @@ def main():
     p.add_argument('--periods', default='4')
     p.add_argument('--episodes-per-event', type=int, default=2)
     p.add_argument('--include-none', action='store_true')
+    p.add_argument('--distractor', action='store_true',
+                   help='also inject an unreported surge on an edge '
+                        'OUTSIDE the event corridor — tests whether '
+                        'attention follows the report or raw salience')
+    p.add_argument('--corridor', action='store_true',
+                   help='pair each event with an unreported '
+                        'feeder-load surge (corridor governance)')
     p.add_argument('--episode-seconds', type=int, default=1800)
     p.add_argument('--interval', type=int, default=10)
     p.add_argument('--clear-thresh', type=float, default=2.0)
@@ -265,6 +351,8 @@ def main():
         results['residual_notext'] = []
     if args.joint_notext:
         results['joint_notext'] = []
+    if args.joint_lie:
+        results['joint_lie'] = []
     if args.joint_base:
         results['joint_base'] = []
 
@@ -283,7 +371,7 @@ def main():
             # applied) — every arm must get a fresh parse or later arms
             # silently run event-free episodes
             for name, ((agent, payload), path) in agents.items():
-                injects = parse_injects([spec]) if spec else []
+                injects = parse_injects(spec_list(spec, args.corridor, args.distractor)) if spec else []
                 fb = FeatureBuilder(
                     world, injects, report_delay=args.report_delay,
                     **fb_kwargs_from_meta(payload.get('meta')))
@@ -296,7 +384,7 @@ def main():
                 results[name].append(metrics)
                 world.reset()
             for name, ((agent, payload), path) in scenemps.items():
-                injects = parse_injects([spec]) if spec else []
+                injects = parse_injects(spec_list(spec, args.corridor, args.distractor)) if spec else []
                 fb = FeatureBuilder(
                     world, injects, report_delay=args.report_delay,
                     **fb_kwargs_from_meta(payload.get('meta')))
@@ -317,7 +405,7 @@ def main():
                 results[f'scenemp_{name}'].append(metrics)
                 world.reset()
             for name, ((agent, payload), path) in scenedqns.items():
-                injects = parse_injects([spec]) if spec else []
+                injects = parse_injects(spec_list(spec, args.corridor, args.distractor)) if spec else []
                 fb = FeatureBuilder(
                     world, injects, report_delay=args.report_delay,
                     **fb_kwargs_from_meta(payload.get('meta')))
@@ -340,7 +428,7 @@ def main():
                 results[f'scenedqn_{name}'].append(metrics)
                 world.reset()
             for name, ((policy, payload), path) in residuals.items():
-                injects = parse_injects([spec]) if spec else []
+                injects = parse_injects(spec_list(spec, args.corridor, args.distractor)) if spec else []
                 fb = FeatureBuilder(
                     world, injects, report_delay=args.report_delay,
                     **fb_kwargs_from_meta(payload.get('meta')))
@@ -356,7 +444,7 @@ def main():
                 results[f'residual_{name}'].append(metrics)
                 world.reset()
             if args.residual_notext:
-                injects = parse_injects([spec]) if spec else []
+                injects = parse_injects(spec_list(spec, args.corridor, args.distractor)) if spec else []
                 policy, payload = SceneResidualPolicy.load(
                     args.residual_notext)
                 fb = FeatureBuilder(
@@ -375,7 +463,7 @@ def main():
                 results['residual_notext'].append(metrics)
                 world.reset()
             for name, ((policy, payload), path) in joints.items():
-                injects = parse_injects([spec]) if spec else []
+                injects = parse_injects(spec_list(spec, args.corridor, args.distractor)) if spec else []
                 fb = FeatureBuilder(
                     world, injects, report_delay=args.report_delay,
                     **fb_kwargs_from_meta(payload.get('meta')))
@@ -388,7 +476,7 @@ def main():
                 results[f'joint_{name}'].append(metrics)
                 world.reset()
             if args.joint_notext:
-                injects = parse_injects([spec]) if spec else []
+                injects = parse_injects(spec_list(spec, args.corridor, args.distractor)) if spec else []
                 policy, payload = SceneJointPolicy.load(
                     args.joint_notext)
                 fb = FeatureBuilder(
@@ -403,8 +491,27 @@ def main():
                 metrics['event'] = spec or 'none'
                 results['joint_notext'].append(metrics)
                 world.reset()
+            if args.joint_lie:
+                injects = parse_injects(spec_list(spec, args.corridor, args.distractor)) if spec else []
+                policy, payload = SceneJointPolicy.load(args.joint_lie)
+                fb = FeatureBuilder(
+                    world, injects, report_delay=args.report_delay,
+                    **fb_kwargs_from_meta(payload.get('meta')))
+                ev_edge = spec.split(':')[1] if spec else ''
+                others = [e for e in TRAIN_EDGES if e != ev_edge]
+                lie = others[0] if others else ev_edge
+                metrics = eval_episode(
+                    world, fb, ranks, injects, agent=policy,
+                    episode_seconds=args.episode_seconds,
+                    interval=args.interval,
+                    text_override={'edge': lie},
+                    clear_thresh=args.clear_thresh)
+                metrics['event'] = spec or 'none'
+                metrics['lie_edge'] = lie
+                results['joint_lie'].append(metrics)
+                world.reset()
             if args.joint_base:
-                injects = parse_injects([spec]) if spec else []
+                injects = parse_injects(spec_list(spec, args.corridor, args.distractor)) if spec else []
                 policy, payload = SceneJointPolicy.load(args.joint_base)
                 fb = FeatureBuilder(
                     world, injects, report_delay=args.report_delay,
@@ -419,7 +526,7 @@ def main():
                 results['joint_base'].append(metrics)
                 world.reset()
             if args.scenedqn_notext:
-                injects = parse_injects([spec]) if spec else []
+                injects = parse_injects(spec_list(spec, args.corridor, args.distractor)) if spec else []
                 agent, payload = SceneSignalAgent.load(
                     args.scenedqn_notext)
                 fb = FeatureBuilder(
@@ -445,7 +552,7 @@ def main():
                 results['scenedqn_notext'].append(metrics)
                 world.reset()
             if args.scenemp_notext:
-                injects = parse_injects([spec]) if spec else []
+                injects = parse_injects(spec_list(spec, args.corridor, args.distractor)) if spec else []
                 agent, payload = SceneSignalAgent.load(args.scenemp_notext)
                 fb = FeatureBuilder(
                     world, injects, report_delay=args.report_delay,
@@ -468,7 +575,7 @@ def main():
                 results['scenemp_notext'].append(metrics)
                 world.reset()
             if args.sga_notext:
-                injects = parse_injects([spec]) if spec else []
+                injects = parse_injects(spec_list(spec, args.corridor, args.distractor)) if spec else []
                 agent, payload = SceneSignalAgent.load(args.sga_notext)
                 fb = FeatureBuilder(
                     world, injects, report_delay=args.report_delay,
@@ -487,7 +594,7 @@ def main():
                              else None))
             needed = set(builtins) - {'dqn_s1'}
             for name in builtins:
-                injects = parse_injects([spec]) if spec else []
+                injects = parse_injects(spec_list(spec, args.corridor, args.distractor)) if spec else []
                 # world.reset() REBUILDS world.intersections — a controller
                 # bound before an earlier arm's reset would read phase/
                 # generators from a frozen Intersection.  Rebind per arm.
@@ -533,6 +640,17 @@ def main():
                 [r['bind_mass'] for r in rows
                  if r['bind_mass'] is not None])), 4)
                 if any(r['bind_mass'] is not None for r in rows)
+                else None),
+            'corr_queue_int': (round(float(np.mean(
+                [r['corr_queue_int'] for r in rows
+                 if 'corr_queue_int' in r])), 1)
+                if any('corr_queue_int' in r for r in rows)
+                else None),
+            'corr_bind_mass': (round(float(np.nanmean(
+                [r['corr_bind_mass'] for r in rows
+                 if r.get('corr_bind_mass') is not None])), 4)
+                if any(r.get('corr_bind_mass') is not None
+                       for r in rows)
                 else None),
         }
     (out / 'results.json').write_text(

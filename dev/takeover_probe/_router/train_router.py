@@ -42,12 +42,35 @@ EDGE_TARGETS = {
     'road_0_1_0': 'road_1_1_0', 'road_1_0_1': 'road_1_1_2',
     'road_2_1_2': 'road_1_2_1', 'road_1_2_3': 'road_1_3_2',
 }
+# Upstream feeder of each trainable inbound edge on the sumohz1x1
+# corridor net — parsed from the net's lane connections
+# (dispatch_state.FeatureBuilder._coord_topology derives the same map
+# live; kept here for inject sampling where no world exists yet).
+FEEDER_OF = {
+    'road_0_1_0': 'road_1_1_2', 'road_1_0_1': 'road_1_1_3',
+    'road_2_1_2': 'road_1_1_0', 'road_1_2_3': 'road_1_1_1',
+}
+# First (of two) discharge links each inbound edge drains into —
+# the corridor's downstream leg, used to place downstream-bottleneck
+# pressure for corridor-load scenarios.
+DISCHARGE_OF = {
+    'road_0_1_0': 'road_1_1_0', 'road_1_0_1': 'road_1_1_1',
+    'road_2_1_2': 'road_1_1_2', 'road_1_2_3': 'road_1_1_3',
+}
+# One inbound edge OUTSIDE each event edge's 2-hop watch set —
+# used to inject a physically real but report-irrelevant distractor
+# surge that tests report-vs-salience competition.
+DISTRACTOR_OF = {
+    'road_0_1_0': 'road_1_2_3', 'road_1_0_1': 'road_0_1_0',
+    'road_2_1_2': 'road_1_0_1', 'road_1_2_3': 'road_2_1_2',
+}
 TRAIN_PERIODS = [2, 4]
 TRAIN_DURS = [300, 600, 900]
 TRAIN_ONSETS = [300, 600, 900, 1200]
 
 
 def sample_injects(rng, allow_none_p=0.25, p_multi=0.0,
+                   p_corridor=0.0,
                    periods=None, durs=None, onsets=None,
                    p_throttle=0.0, throttle_speeds=(2.0, 5.0)):
     """Random surge schedule from the training grid; ~25% no-event.
@@ -89,6 +112,29 @@ def sample_injects(rng, allow_none_p=0.25, p_multi=0.0,
             f"surge:{edge2}:{EDGE_TARGETS[edge2]}:{onset2}:{dur}:"
             f"{int(periods[rng.integers(len(periods))])}:"
             f"{obj2}")
+    if rng.random() < p_corridor and edge in FEEDER_OF:
+        # corridor-load variant: the reported corridor is put under real
+        # pressure on BOTH legs, so watching the coordination edges the
+        # intent names pays off physically:
+        #   feeder surge   — sustained inflow on the upstream link,
+        #                    routed into the event edge (keeps pouring
+        #                    cars into the congestion)
+        #   discharge throttle — speed-cap one downstream link so it
+        #                    backs up; discharging into it wastes green
+        #                    (spillback-side 'keep the outflow clear')
+        # Both are objective=global and unreported — the broadcast still
+        # names only the primary edge; the corridor context must come
+        # from the intent, not the sentence.
+        feeder = FEEDER_OF[edge]
+        specs.append(
+            f"surge:{feeder}:{edge}:{max(0, onset - 120)}:{dur + 120}:"
+            f"{int(periods[rng.integers(len(periods))]) + 3}:"
+            f"global")
+        discharge = DISCHARGE_OF.get(edge)
+        if discharge:
+            specs.append(
+                f"throttle:{discharge}:{max(0, onset - 60)}:"
+                f"{dur + 60}:3.0:global")
     return parse_injects(specs)
 
 

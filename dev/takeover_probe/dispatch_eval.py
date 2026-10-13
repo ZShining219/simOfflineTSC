@@ -50,8 +50,9 @@ from dev.takeover_probe.dispatch_specialist import (  # noqa: E402
     KeyDispatchAgent, wrap_controller,
 )
 from dev.takeover_probe._router.train_router import (  # noqa: E402
-    EDGE_TARGETS, TRAIN_EDGES,
+    DISCHARGE_OF, EDGE_TARGETS, FEEDER_OF, TRAIN_EDGES,
 )
+from dev.takeover_probe.eval_signal import spec_list  # noqa: E402
 from tools.sumo_live_broadcast.injects import parse_injects  # noqa: E402
 
 SIG9 = 'output_data/dev_takeover_probe/sig9_joint_bc/agent.pt'
@@ -91,6 +92,9 @@ def main():
     p.add_argument('--t-fixed', type=int, default=30)
     p.add_argument('--t-min', type=int, default=10)
     p.add_argument('--clear-thresh', type=float, default=2.0)
+    p.add_argument('--corridor', action='store_true',
+                   help='append the unreported feeder surge + throttled '
+                        'discharge link to every event (corridor load)')
     p.add_argument('--runtime-dir', default=None)
     p.add_argument('--out', required=True)
     args = p.parse_args()
@@ -129,7 +133,7 @@ def main():
                     ('dispatch_attn', False, None),
                     ('dispatch_oracle', True, None),
                     ('dispatch_blind', False, {'kind': 'none'})):
-                injects = parse_injects([spec])
+                injects = parse_injects(spec_list(spec, args.corridor))
                 _bind_all(world, controllers, ranks,
                           needed=set(controllers) - {'dqn_s1'})
                 controllers['dqn_s1'] = controllers['dqn_s1'].bind(
@@ -156,7 +160,7 @@ def main():
             # ---- text-free rule specialist (dispatch is its only
             #      scene channel) --------------------------------------
             mp_spec = None
-            injects = parse_injects([spec])
+            injects = parse_injects(spec_list(spec, args.corridor))
             _bind_all(world, controllers, ranks,
                       needed=set(controllers) - {'dqn_s1'})
             controllers['dqn_s1'] = controllers['dqn_s1'].bind(
@@ -182,7 +186,7 @@ def main():
             world.reset()
 
             # ---- controls ---------------------------------------------
-            injects = parse_injects([spec])
+            injects = parse_injects(spec_list(spec, args.corridor))
             fb = FeatureBuilder(world, injects,
                                 report_delay=args.report_delay, **fb_meta)
             m = eval_episode(
@@ -195,7 +199,7 @@ def main():
             world.reset()
 
             for name in ('fixedtime', 'maxpressure', 'dqn_s1'):
-                injects = parse_injects([spec])
+                injects = parse_injects(spec_list(spec, args.corridor))
                 _bind_all(world, controllers, ranks,
                           needed=set(controllers) - {'dqn_s1'})
                 controllers['dqn_s1'] = controllers['dqn_s1'].bind(

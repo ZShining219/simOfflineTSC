@@ -70,12 +70,24 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
   底座图内保留（ckpt 初始化 + `--base-lr` 微调）+ sga 编码器
   （车道自注意力+播报交叉注意力+边身份绑定）+ 门控有界残差
   Q = q_base + dose·spread·gate(bind)·tanh(δ(z))。
-  训练链路：① adapter 教师（scene_mp.py SceneGuidedDQN：冻结
+  **内部意图层（sig12 起定型，sig15 走廊版）**：外部接口仍是
+  现象播报（kind/edge/severity，无指令）；`dispatch_state.
+  intent_vec/intent_watch` 把它编译为两套按边向量——θ_reward
+  责任集（事件边+feeder+discharge，`--intent-coord-w` 分摊权重，
+  `--scene-reward-w` 以 Σ(q·θ̂)/Σθ̂ 加权排队罚进 reward）与
+  θ_watch 观察集（+pred-of-feeder 截流来路边，aux 加权 CE 教
+  L2 绑定 w 铺开）。拓扑由 `FeatureBuilder._coord_topology`
+  从 SUMO lane.getLinks 实时解析（1×1 走廊网 pred/succ +
+  2-hop 来路）。训练链路：① adapter 教师（scene_mp.py SceneGuidedDQN：冻结
   底座+注意力启发式偏置）跑事件局 → 赢家过滤 → ② 学生加权
   CE 蒸馏（`--distill-*`，sig9_joint_bc，-2.7% 胜 dqn_s1 与
   MP，且超教师）→ ③ 原装 reward TD 微调（`--orig-reward` =
   -12×入口车道排队均值，与 dqn_s1 收敛目标同义；
   `--init-from` 热启动学生权重；sig10_joint_rl）。
+  ④ 意图效用纯在线续训（sig11 无意图对照 → sig12 单边意图，
+  文本转承重；sig13/14 走廊意图负结果：空走廊无回报 →
+  sig15 corridor-load 场景：主事件+静默 feeder surge+throttle
+  discharge，`--p-corridor`，文本臂在走廊指标上分化）。
   入口：`train_signal.py`/`eval_signal.py`；
   `signal_runtime.py` 为 10s 决策粒度 episode 驱动器。
   产物 `output_data/dev_takeover_probe/`（不入库）：sig5_*
@@ -101,6 +113,61 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
   历史陷阱（已修勿复踩）：eval 每臂重解析 injects（
   apply_injects 会改写 dict）+ 每臂重绑控制器（world.reset()
   重建 intersections）；scenedqn t_min=0 对齐原生 DQN 纪律。
+- `dev/takeover_probe/attn_text_probe.py`：E5 响应契约探针
+  （探索件）。同状态换文本（真/谎/无）逐 tick 量化：逐边绑定
+  质量、w-θ_watch 余弦对齐（`align_true/lie/none`、谎报对谎
+  走廊 `align_lie_on_liewatch`）、w-L1 文本敏感度、残差幅度、
+  动作翻转率；`--corridor` 复现训练场景。产物
+  `output_data/dev_takeover_probe/attn_probe_c2/`：sga15 谎报
+  对齐谎报走廊 0.42>真 0.35（注意力跟报告所指）；sga16(aux=0)
+  对齐全平、w-L1 0.03——θ_watch 监督是可审计契约非性能件。
+- `dev/takeover_probe/joint_attn_fig.py`：反事实注意力热力图
+  （探索件）。单状态三文本臂六面板热力，corridor 模式按
+  θ_watch 分层标记（事件边/协调腿/截流来路）。产物
+  `attn_probe_fig_c/fig_joint_attn.png`。
+- `dev/takeover_probe/evidence_fig.py`：量化证据四联图（探索件）。
+  汇总已收割 results.json/探针 JSON 出 E1 走廊治理 / E5 契约
+  / E7 跨路网收益% / E2 机制选型四联柱状，不再跑仿真。产物
+  `evidence_fig/evidence.png`。
+- `dev/takeover_probe/report_effect_fig.py`：单事件一句话证据图
+  （探索件）。同 episode 三文本臂：上=注意力压在当前播报所指
+  走廊的比例（逐 tick 解析播报边，谎报臂画谎走廊），下=事件边
+  排队曲线。注意 rec['text'] 记的是真实播报句，override 只改
+  模型输入；lane_queue 以车道名为键（勿用下标直接查）。产物
+  `evidence_fig/report_effect.png`。
+- `dev/takeover_probe/corridor_delta_fig.py`：一句话柱状图（探索件）。
+  从 results.json 直接出"报告所指走廊排队 vs 无文本臂"的下降
+  比例柱状（走廊=事件边+协调腿合计），fixedtime 超框加截断
+  标记。产物 `evidence_fig/corridor_delta.png`。
+- `dev/takeover_probe/sig15_table.py`：SIGMA 式汇总表（探索件）。
+  跨 eval 目录拼 mean±std 主表 + paired Wilcoxon + 延迟/强度/
+  跨场景小表；读 `results.json`['arms'] 的逐 case 记录。
+- `dev/takeover_probe/sig15_panels.py`：三联证据图（探索件）。
+  A=走廊收益配对%柱(带SEM+Wilcoxon星标) B=延迟鲁棒曲线
+  C=强度剂量响应；数据源 sig15_eval_main8/delay*/sev。
+  产物 `evidence_fig/sig15_panels.png`。
+- `dev/takeover_probe/taskbook_figs.py`：任务书佐证图组（探索件）。
+  一图一问题六联：F1 感知-响应契约（attn_probe_c2 反事实
+  探针：真/谎/无文本对齐 + sga16 无监督对照）/ F2 感知-浓缩
+  表征（probe_repr_id 四编码器三指标）/ F3 决策-主效应
+  （逐case配对连线+分指标增益分布+参照口径归因）/ F4 决策-
+  设计消融（意图粒度阶梯 + 非joint编码器参照臂）/ F5 决策-
+  鲁棒边界（delay 全档 + distract + sev 分档的配对增益）/
+  F6 决策-迁移（sig15_eval_{S1,S3,S4} 主模型零样本迁移，勿与
+  sig15_S*_eval 场景内重训混淆）。决策层统一用"对盲化孪生
+  逐case配对增益%"呈现，绝对值柱图压不出 ~9% 差。配对按
+  (event,第k次)键对齐。Wilcoxon 复用 sig15_table scipy-free
+  实现；中文标签需 NotoSansCJK 字体。
+  产物 `taskbook_figs/f{1..6}_*.png`。
+- `dev/takeover_probe/sga_arch_fig.py`：现行架构图（探索件）。
+  外部输入仅 SUMO 观测 + 现象播报；播报穿 SGA 虚线边界分
+  两条通路：① text_vec（推理：query + fuse3 语义通道）
+  ② 意图编译（训练：θ_reward 塑形 / θ_watch aux 监督）。
+  编码器内为递进主干（lane_proj→车道自注意力→身份绑定
+  交叉注意力）+ 并行旁支（mms 残差、text_proj）→ fuse3
+  浓缩 z；副产物 w 只作门控/审计。底座 dqn_s1 图内微调 +
+  门控有界残差 → 相位；底条蒸馏训练链路（含 sig6/7/8
+  否决理由）。产物 `taskbook_figs/f0_architecture.png`。
 - `dev/takeover_probe/dispatch_specialist.py`：注意力 key 派发壳
   （探索件）。`KeyDispatchAgent`：encoder 绑定报告→(kind,edge)
   key≥bind_tau → 注册表查专项，否则基座 act()；规则派发非学习
@@ -156,6 +223,82 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
   （vs 决策数，多 seed mean±std 带）、AULC、对 C0 同 seed 配对 delta、
   专家腿消耗量（sampling_windows 账本）；eval 快照 digest 去重的
   前导/内段别名按"同快照同估值"语义补齐（与 paired_bootstrap 同口径）。
+- `dev/hitl_live/build_r2_plan.py`：r2 增补臂 plan 生成（探索件）。
+  克隆 pilot5 已验证 child 为模板（不重新推导 initial_state/digest），
+  生成 6 新臂×5seed=30 run：BPT/BPM/BPQ 逐判官消融（单判官 manifest），
+  EXPB/EXPL 大纠偏池（2190 转移 18 会话）r=0.25/0.05，
+  APIQB 大示范池（1462 转移）双预训。产 `pilot5/plan_r2.json`。
+  注意：HITL_EXPERT 的 run_id 历史名 HITL_EXP-SD*，克隆时须按
+  -SD 后缀重建而非条件串替换；run-child 的 --attempt-dir 须用
+  runs/<id>/attempt_001 两层结构（决定 eval 落 pilot5/_shared_evaluation）。
+- `dev/hitl_live/build_r3_plan.py`：r3 多场景复现 plan 生成（探索件）。
+  克隆 pilot5/r2 已验证 child 为模板，把每通道代表臂
+  （C0 基线/APIQB 双预训/B2 塑形/EXPB 纠偏池）×5seed 铺到三个
+  杭州真实路口配置（sumohz1x1_config2/3/4 = qc-yn/kn-hz/sb-sx，
+  1417/743/1671 veh，论文式"同拓扑换流量分布"多场景）。B2 为
+  零样本 RM 迁移（bc-tyc 训练直接部署）。initial_state/digest 复用
+  `initial_state_catalog.json` 预登记项；注意 seed0 存在
+  `_r2` 重复 run 目录且 ep0 内容不同，须按 catalog sha 匹配选
+  checkpoint，不能取 glob 首个。产 `pilot5/plan_r3.json`（60 children）。
+- `dev/hitl_live/dispatch_r3.sh`：r3 run-child 批量派发器（探索件）。
+  attempt_dir 用 `multiscene/<tag>/runs/<id>`——runtime 取
+  dirname×2 为 launch_root，故 eval 落 `multiscene/_shared_evaluation`
+  （三场景共享，run_id 含 -TAG- 区分，统计时按 tag 过滤）。
+  需 env: SUMO_HOME=<colight>/lib/python3.10/site-packages/sumo +
+  CUDA_VISIBLE_DEVICES=""。幂等：completed.json 存在则跳过。
+- `dev/hitl_live/deck_figs.py`：HITL 汇报组图（探索件）。
+  按"一图一事、对比锚定 C0"组织：fig0 系统集成消融
+  （主场景 FULL(=示范+偏好双通道集成；C 腿在 demo_ac 路径
+  未接线，经 HITL_AB 臂比特级复核确认) vs 单通道臂 vs C0，论文"完整版vs
+  简化版"位）；fig3 全场景系统曲线总图（4 场景行×3 指标列，
+  只画 C0 vs FULL 两条线=系统口径，5seed±SEM；fig1/旧fig3
+  单通道版已弃）；fig2 冻结 RM 偏好预测准确率
+  （in-domain 94.6% vs 零样本 qc 78.7%/kn 83.3%/sb 80.8%，
+  2400 对/场景，规则教师标签）——对应论文表4.3 的
+  跨控制器鲁棒性叙事位。pairs_<tag>/topology_<cfg>.json 为
+  其配套产物（build_pairs.py + dump_lane_topology.py 同流程）。
+  产物 `pilot5/figs_deck/`。
+- `dev/hitl_live/hitl_arch_fig.py`：HITL 模块架构图（探索件）。
+  三层单系统口径：在线会话层（人只在专家席：gate 触发问人→
+  接管/同意→recorder 审计）→数据资产层（一份录制分层为
+  demo/片段+偏好/纠偏转移三种人源数据）→训练层（A 双预训/
+  B 奖励塑形/C 回放腿同作用于 HASODQNAgent）；底条列证据链
+  六环，虚线箭头表"新学生回会话层"闭环。中文需 NotoSansCJK。
+  产物 `pilot5/figs_deck/hitl_arch.png`。
+- `dev/hitl_live/gate_modes_table.py`：gate 触发策略消融表
+  （探索件）。五模式各 10 seed 配对采集（gate_modes/<mode>/，
+  hitl 臂，同 inject/冷却；实际查询量对齐 ~4-8/ep）：queries、takeover、
+  takeover_yield、事件窗内触发占比、终端三指标。
+  配套改动：tools/sumo_live_broadcast/gate.py 新增
+  random/margin/window 三模式（check 扩 margin/now 可选参，
+  向后兼容；margin=学生 Q top1−top2 近期分位自适应触发，
+  window=事件窗 oracle，窗由 paired_probe 从 inject 自动推导）；
+  engine.py 两处 check 调用补传学生 margin（SnapshotController
+  inference_q_values）与仿真秒。产 `gate_modes_table.json`。
+- `dev/hitl_live/build_gate_plan.py`：gate 消融训练 plan（探索件）。
+  克隆 plan_r2 的 HITL_EXPB 模板（大池 r=0.25），五臂各换一个
+  gate 模式采集的纠偏池（pools/hitl_gate_<mode>，seed0-9×10 会话
+  合并，~1210 转移/池）；臂 HITL_GATE_{OD,RAND,MARGIN,PERIOD,WIN}。
+  产 `pilot5/plan_gate.json`（25 run，campaign=hitl_live_gate，
+  统计在 `pilot5/stats_gate/`，评测已归并 pilot5/_shared_evaluation）。
+- `dev/hitl_live/rm_env_corr.py`：RM 打分 vs 环境奖励相关性
+  （探索件，对齐顾第三章 PCC 验证层）。冻结偏好 RM 对三源池
+  （专家/学生/hitl）片段打分 vs 同段平均环境奖励：Pearson
+  0.34~0.53（专家集最强）、Spearman 0.20~0.37——编码了交通
+  语义排序但不等价重构真奖励。产 `reward_model_v1/rm_env_corr.json`。
+  配套终局基线采集：`output_data/hitl_probe/baseline_{fixedtime,
+  sotl}`（各 10 seed live，ft tt=175.6/sotl 103.6/mp 83.4）+
+  `hitl_cost_table.json`（问人成本与数据资产表）。
+- `dev/hitl_live/multiscene_table.py`：r3 多场景汇总（探索件）。
+  live 三臂（student/hitl/expert×10seed）终端指标表 + 逐场景
+  paired_bootstrap（臂 vs 场景本地 C0，复用 collect/paired_deltas/
+  bootstrap，run_id 按 -TAG- 拆分）。产 `multiscene/summary_r3.json`。
+- `dev/hitl_live/hitl_score_fig.py`：三通道全臂森林图（探索件）。
+  合并 pilot5 各 stats_*/paired_bootstrap.json（baseline=C0），
+  4 指标 AULC delta + 95% CI + 显著性星标，按 A/B/B'/C 通道
+  着色；含文档未载的 EXPC(r=.125)/EXPD(衰减)/EXPF(gateq 池)
+  及 r2 增补 6 臂（BPT/BPM/BPQ/EXPB/EXPL/APIQB，共 21 臂）。
+  产物 `output_data/hitl_probe/pilot5/figs_ALL/hitl_score.png`。
 - `dev/hitl_live/dump_lane_topology.py`：场景车道拓扑转储（in_lanes 顺序、
   车道长度→容量、相位→服务车道映射），B 通道特征/教师分的 ctx 来源。
 - `dev/hitl_live/segments.py`：B 通道片段切割 + 确定性教师分
@@ -209,6 +352,49 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
 - `dev/hitl_live/build_pilot_plan.py` 增 `--bprime-arms`/`--bpc-arms`
   + `--adjudication-manifest`/`--adjudication-ctx`：HITL_BP（纯在线
   统一裁定）/ HITL_BPC（裁定+专家腿，旧 B 不能表达的组合）两臂。
+- `dev/action_ranking_audit/action_ranking_audit.py`：动作排序误排审计
+  （纯事后分析，不跑仿真）——读 `output_data/allocation_accuracy_formal_cf/`
+  的 Q 预测 + 8 动作反事实推演 + oracle 标签，按 (method,scene,state) 计算
+  Q 序 vs 实际回报序的 Spearman/Kendall/成对反序率/选中动作真实名次，以及
+  chosen−oracle 的归一化 regret 与 Δqueue AUC/Δreal_delay/Δthroughput 原始
+  交通损失；含方法内汇总与 R25/R50 对 CONT 的同状态配对 bootstrap。
+  产物写 `output_data/action_ranking_audit/`。
+- `dev/action_ranking_audit/counterfactual_v2.py`：v2 严格反事实推演器
+  （fresh world + loadState + 固定 --seed → 同后续实现；逐决策记录原 DQN
+  reward、γ=0.95 折现回报与交通指标）。模式：`continuations`（indep/cont
+  双接管 90s）、`multiseed`（高 gap 对 × 多未来 seed）、`boundary`（在
+  30/60/90s 决策点记录 obs+两套 Q 向量，供 bootstrap 修正）、`episodes`
+  （推演至 episode 终止 3600s 求全回报近似）。产物
+  `output_data/action_ranking_audit/v2_rollouts/`。
+- `dev/action_ranking_audit/analyze_v2.py`：v2 四任务分析——训练奖励口径
+  回报排序、indep-vs-cont 配对敏感性、多种子稳定性、场景/负载/相位/时段
+  分层。产物 `v2_*.csv` + `v2_action_ranking_report.md`。
+- `dev/action_ranking_audit/analyze_bootstrap.py`：高差异状态三口径对比
+  （R1 60s 截断回报 / R2 边界 Q bootstrap 修正 / R3 全 episode 回报），
+  含与已存分支的确定性逐位校验。产物 `v2_bootstrap_*.csv` +
+  `v2_bootstrap_eval_report.md`。
+- `dev/action_ranking_audit/mine_preference_pairs.py`：从 multiseed 反事实
+  分支挖多种子确认的动作偏好对（a+ 在 ≥4/5 种子下 60s 折现回报更优），
+  产物 `preference_pairs.json`（112 对）。
+- `dev/action_ranking_audit/rank_aux_train.py`：L = L_TD + λ·L_rank 辅助
+  微调——TD 与 agent/dqn.py 同式（DQNNet/目标网/γ=0.95/RMSprop/MSE），
+  rank 项为 logistic softplus(-(Q+−Q-))；含 before/after 场景排序指标与
+  固定批 TD 漂移度量。--arm {A,B,C,D}：A=1×TD、B=2×TD（等量计算对照）、
+  C=TD+rank、D=TD+反事实回报回归。试点产物 `rank_aux_pilot/` +
+  `rank_aux_pilot_report.md`；四臂对照 `rank_aux_abcd/` + `rank_aux_abcd_report.md`。
+  注意：import agent 前必须按 counterfactual_v2 方式设 SUMO_HOME/SUMO_BINARY
+  环境变量，否则包 __init__ 内某处会静默退出。
+- `dev/action_ranking_audit/rank_aux_eval.py`：贪心策略整 episode SUMO 交通
+  评估（throughput/avg_travel_time/unfinished + queue_auc/real_delay），
+  fresh world + --seed 多种子。
+- `dev/action_ranking_audit/divergence_probe.py`：双 checkpoint 闭环分歧探针——
+  driver 驱动、shadow 同状态影子评估，argmax 分歧即存 saveState 快照 +
+  逐决策状态特征 JSONL。产物 `divergence_bc/`。
+- `dev/action_ranking_audit/divergence_cf.py`：分歧快照反事实核验——
+  强制 a_driver/a_shadow 两分支 × {driver 自身, indep-seed0} 接管 × 多
+  未来 seed，复用 counterfactual_v2.run_branch。产物 `divergence_bc/cf*/`。
+- `dev/action_ranking_audit/analyze_divergence.py`：分歧率画像 +
+  分歧动作反事实差值统计（C 方向归一化：Δ>0 即 C 的动作为优）。
 
 ## 已裁决归档（2026-10-07 Z 裁）
 

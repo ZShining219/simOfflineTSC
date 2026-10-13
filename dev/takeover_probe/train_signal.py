@@ -41,16 +41,24 @@ from dev.takeover_probe.signal_runtime import (  # noqa: E402
     run_signal_episode,
 )
 from dev.takeover_probe._router.train_router import (  # noqa: E402
-    EDGE_TARGETS, TRAIN_DURS, TRAIN_EDGES, TRAIN_ONSETS, TRAIN_PERIODS,
+    DISCHARGE_OF, EDGE_TARGETS, FEEDER_OF, TRAIN_DURS, TRAIN_EDGES, TRAIN_ONSETS,
+    TRAIN_PERIODS,
 )
 from tools.sumo_live_broadcast.injects import parse_injects  # noqa: E402
 
 
-def sample_injects(rng, allow_none_p=0.25):
+def sample_injects(rng, allow_none_p=0.25, p_corridor=0.0):
     """Single congestion event on a random injectable edge.
 
     Reports are pure-phenomenon ('道路拥堵') — no objective flag is ever
     set (the broadcast names a phenomenon, not a governance directive).
+
+    ``p_corridor``: with that probability a second, UNREPORTED surge is
+    placed on the event edge's upstream feeder link, routed into the
+    event edge — the corridor carries real inflow pressure so watching
+    the feeder (the coordination edge the intent names) has a physical
+    payoff.  Starts earlier so the feeder is already loading when the
+    primary report arrives.
     """
     if rng.random() < allow_none_p:
         return []
@@ -58,8 +66,18 @@ def sample_injects(rng, allow_none_p=0.25):
     onset = int(TRAIN_ONSETS[rng.integers(len(TRAIN_ONSETS))])
     dur = int(TRAIN_DURS[rng.integers(len(TRAIN_DURS))])
     period = int(TRAIN_PERIODS[rng.integers(len(TRAIN_PERIODS))])
-    return parse_injects(
-        [f'surge:{edge}:{EDGE_TARGETS[edge]}:{onset}:{dur}:{period}'])
+    specs = [f'surge:{edge}:{EDGE_TARGETS[edge]}:{onset}:{dur}:{period}']
+    if rng.random() < p_corridor:
+        feeder = FEEDER_OF[edge]
+        specs.append(
+            f'surge:{feeder}:{edge}:{max(0, onset - 120)}:'
+            f'{dur + 120}:{period + 3}:global')
+        discharge = DISCHARGE_OF.get(edge)
+        if discharge:
+            specs.append(
+                f'throttle:{discharge}:{max(0, onset - 60)}:'
+                f'{dur + 60}:3.0:global')
+    return parse_injects(specs)
 
 
 def train(args):
@@ -79,7 +97,7 @@ def train(args):
     fb0 = FeatureBuilder(
         world, [], report_delay=args.report_delay, layout='identity',
         phys=args.phys, include_forecast=not args.no_forecast,
-        phase_age=True)
+        phase_age=True, intent_coord_w=args.intent_coord_w)
     state_only = args.variant in STATE_ONLY
     residual_mode = args.residual_dqn is not None
     joint_mode = args.joint_dqn is not None
@@ -215,7 +233,8 @@ def train(args):
     if args.teacher_eps > 0 and not (residual_mode or joint_mode):
         demos = []
         for tep in range(args.teacher_eps):
-            injects = sample_injects(rng, allow_none_p=args.allow_none_p)
+            injects = sample_injects(rng, allow_none_p=args.allow_none_p,
+                                 p_corridor=args.p_corridor)
             world.close()
             world = build_world(
                 args.scene, args.traffic_seed_base - 1 - tep,
@@ -228,7 +247,8 @@ def train(args):
             fb_t = FeatureBuilder(
                 world, injects, report_delay=args.report_delay,
                 layout='identity', phys=args.phys,
-                include_forecast=not args.no_forecast, phase_age=True)
+                include_forecast=not args.no_forecast, phase_age=True,
+                intent_coord_w=args.intent_coord_w)
             transitions, _ = run_signal_episode(
                 world, fb_t, ranks, injects=injects,
                 controller=ctrls[args.teacher], interval=args.interval,
@@ -268,7 +288,8 @@ def train(args):
             if args.distill_filter else None
         demos, kept_eps = [], 0
         for i in range(args.distill_eps):
-            injects = sample_injects(rng, allow_none_p=args.allow_none_p)
+            injects = sample_injects(rng, allow_none_p=args.allow_none_p,
+                                 p_corridor=args.p_corridor)
             world.close()
             world = build_world(
                 args.scene, args.traffic_seed_base - 100 - i,
@@ -280,7 +301,8 @@ def train(args):
             fb_d = FeatureBuilder(
                 world, injects, report_delay=args.report_delay,
                 layout='identity', phys=args.phys,
-                include_forecast=not args.no_forecast, phase_age=True)
+                include_forecast=not args.no_forecast, phase_age=True,
+                intent_coord_w=args.intent_coord_w)
             dqn_d = bound_dqn_agent(world, args.joint_dqn,
                                     rank=ranks[0])
             adapter = SceneGuidedDQN(
@@ -329,7 +351,8 @@ def train(args):
 
     log = []
     for ep in range(1, args.episodes + 1):
-        injects = sample_injects(rng, allow_none_p=args.allow_none_p)
+        injects = sample_injects(rng, allow_none_p=args.allow_none_p,
+                                 p_corridor=args.p_corridor)
         # fresh SUMO world per episode -> independent traffic seed
         world.close()
         world = build_world(args.scene, args.traffic_seed_base + ep,
@@ -342,7 +365,8 @@ def train(args):
         fb = FeatureBuilder(
             world, injects, report_delay=args.report_delay,
             layout='identity', phys=args.phys,
-            include_forecast=not args.no_forecast, phase_age=True)
+            include_forecast=not args.no_forecast, phase_age=True,
+            intent_coord_w=args.intent_coord_w)
         q_base_fn = None
         if residual_mode:
             from dev.takeover_probe.scene_mp import bound_dqn_agent
@@ -359,7 +383,8 @@ def train(args):
             world, fb, ranks, injects=injects, agent=agent,
             interval=args.interval, episode_seconds=args.episode_seconds,
             epsilon=eps, rng=rng, switch_penalty=args.switch_penalty,
-            q_base_fn=q_base_fn, orig_reward=args.orig_reward)
+            q_base_fn=q_base_fn, orig_reward=args.orig_reward,
+            scene_w=args.scene_reward_w)
         replay.extend(transitions)
         if residual_mode:
             stats = update_residual(agent, target, opt, replay, args, rng)
@@ -515,7 +540,14 @@ def update_residual(policy, target, opt, replay, args, rng):
         aux = torch.zeros(())
         terms = []
         for i, t in enumerate(batch_tr):
-            tgt = t['s'].get('event_lane_idx') or []
+            tw = t['s'].get('intent_lane_w')
+            if tw is not None and float(np.asarray(tw).sum()) > 0:
+                twt = torch.as_tensor(np.asarray(tw, dtype=np.float32))
+                terms.append(-(twt * torch.log(
+                    w[i].clamp_min(1e-8))).sum())
+                continue
+            tgt = (t['s'].get('intent_lane_idx')
+                     or t['s'].get('event_lane_idx') or [])
             if tgt:
                 p = w[i, torch.as_tensor(tgt)].sum()
                 terms.append(-torch.log(p.clamp_min(1e-6)))
@@ -573,7 +605,14 @@ def update_joint(policy, target, opt, replay, args, rng):
         aux = torch.zeros(())
         terms = []
         for i, t in enumerate(batch_tr):
-            tgt = t['s'].get('event_lane_idx') or []
+            tw = t['s'].get('intent_lane_w')
+            if tw is not None and float(np.asarray(tw).sum()) > 0:
+                twt = torch.as_tensor(np.asarray(tw, dtype=np.float32))
+                terms.append(-(twt * torch.log(
+                    w[i].clamp_min(1e-8))).sum())
+                continue
+            tgt = (t['s'].get('intent_lane_idx')
+                     or t['s'].get('event_lane_idx') or [])
             if tgt:
                 p = w[i, torch.as_tensor(tgt)].sum()
                 terms.append(-torch.log(p.clamp_min(1e-6)))
@@ -623,7 +662,14 @@ def update(agent, target, opt, replay, args, rng):
         if agent.variant in ('attn', 'sga'):
             terms = []
             for i, t in enumerate(batch_tr):
-                tgt = t['s'].get('event_lane_idx') or []
+                tw = t['s'].get('intent_lane_w')
+                if tw is not None and float(np.asarray(tw).sum()) > 0:
+                    twt = torch.as_tensor(np.asarray(tw, dtype=np.float32))
+                    terms.append(-(twt * torch.log(
+                        w[i].clamp_min(1e-8))).sum())
+                    continue
+                tgt = (t['s'].get('intent_lane_idx')
+                     or t['s'].get('event_lane_idx') or [])
                 if tgt:
                     p = w[i, torch.as_tensor(tgt)].sum()
                     terms.append(-torch.log(p.clamp_min(1e-6)))
@@ -683,6 +729,19 @@ def main():
     p.add_argument('--init-from', default=None,
                    help='warm-start agent+target from a prior checkpoint '
                         '(e.g. the BC student) before TD continues')
+    p.add_argument('--p-corridor', type=float, default=0.0,
+                   help='prob. of an unreported feeder-load surge paired '
+                        'with each event — makes watching the corridor '
+                        'edge pay off physically')
+    p.add_argument('--intent-coord-w', type=float, default=0.0,
+                   help='governance-corridor intent: feeder+discharge '
+                        'edges of the reported edge carry this fraction '
+                        'of its intent weight (0 = v1 single-edge)')
+    p.add_argument('--scene-reward-w', type=float, default=0.0,
+                   help='SIGMA-style intent utility weight — while a '
+                        'report is live, -w*mean(queue on the intent '
+                        'edges) is added to the reward, making the text '
+                        'channel load-bearing instead of optional')
     p.add_argument('--orig-reward', action='store_true',
                    help='use the deployed DQN original objective '
                         '(-12 x mean incoming-lane waiting count) instead '

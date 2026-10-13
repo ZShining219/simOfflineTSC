@@ -28,7 +28,7 @@ def run_signal_episode(world, fb, ranks, injects=None, agent=None,
                        epsilon=0.0, rng=None, text_override=None,
                        reward_scale=50.0, record_snaps=False,
                        switch_penalty=0.0, q_base_fn=None,
-                       orig_reward=False):
+                       orig_reward=False, scene_w=0.0):
     """``record_snaps``: take snapshots + emit transitions even when a
     builtin ``controller`` drives — used to collect teacher
     demonstrations for BC warm-start.  ``switch_penalty``: per phase-change
@@ -43,7 +43,13 @@ def run_signal_episode(world, fb, ranks, injects=None, agent=None,
     incoming lanes, sampled at the tick boundary (LaneVehicleGenerator
     in_only=True, average='all', negative=True, x12).  Keeps the TD
     target identical to what the base converged on, so fine-tuning does
-    not rewrite its Q calibration."""
+    not rewrite its Q calibration.
+    ``scene_w``: SIGMA-style intent utility — while a report is live the
+    internal intent vector (``fb.intent_vec``) adds
+    ``-scene_w * mean(queue over intent lanes, theta-weighted)`` to the
+    reward.  The report's edge identity then defines WHERE the extra
+    penalty applies: a policy can only optimise the term by consuming
+    the text channel, so scene conditioning stops being optional."""
     injects = injects or []
     held = {
         rank: int(inter.virtual_phase)
@@ -64,9 +70,23 @@ def run_signal_episode(world, fb, ranks, injects=None, agent=None,
         if orig_reward:
             lwc = world.get_info('lane_waiting_count') or {}
             vals = [float(lwc.get(l, 0.0)) for l in in_lanes]
-            return -12.0 * float(np.mean(vals)) if vals else 0.0
-        return -(interval_queue / max(1.0, now - open_tick['t'])) \
-            / reward_scale - interval_switches
+            r = -12.0 * float(np.mean(vals)) if vals else 0.0
+        else:
+            r = -(interval_queue / max(1.0, now - open_tick['t'])) \
+                / reward_scale - interval_switches
+        if scene_w:
+            fields_now, _ = fb.event_fields(now)
+            th = fb.intent_vec(fields_now)
+            if th.any():
+                # theta-normalised mean queue over intent lanes:
+                # named edge weight = 1, corridor edges = coord_w —
+                # identical to the v1 edge-mean when coord_w == 0.
+                w_lane = (th / th.max())[fb.lane_edge_idx]
+                lq = world.get_info('lane_waiting_count') or {}
+                q = np.array([lq.get(l, 0.0) for l in fb.lanes])
+                r -= scene_w * float(
+                    (q * w_lane).sum() / w_lane.sum())
+        return r
     while True:
         now = float(world.get_current_time())
         if episode_seconds and now >= episode_seconds:

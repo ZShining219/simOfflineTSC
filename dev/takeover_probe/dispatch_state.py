@@ -59,6 +59,7 @@ def fb_kwargs_from_meta(meta):
     kw['phys'] = meta.get('phys', 'full')
     kw['include_forecast'] = bool(meta.get('include_forecast', True))
     kw['phase_age'] = bool(meta.get('phase_age', False))
+    kw['intent_coord_w'] = float(meta.get('intent_coord_w', 0.0))
     return kw
 
 
@@ -67,10 +68,16 @@ class FeatureBuilder:
 
     def __init__(self, world, injects, report_delay=30.0,
                  layout='identity', include_event_flag=None,
-                 phys='full', include_forecast=True, phase_age=False):
+                 phys='full', include_forecast=True, phase_age=False,
+                 intent_coord_w=0.0):
         self.world = world
         self.events = event_specs(injects)
         self.report_delay = float(report_delay)
+        # intent-coordination weight: 0 = v1 single-edge intent;
+        # >0 = governance-corridor intent (feeder + discharge edges of
+        # the reported edge carry coord_w x the event edge's intent
+        # weight — 'watch the inflow, keep the outflow clear')
+        self.intent_coord_w = float(intent_coord_w)
         # 'queue' restricts the lane physical channel to queue counts —
         # the conventional-observation baseline level (what a plain DQN
         # sees); 'full' keeps queue+count+wait for the scene module.
@@ -99,6 +106,9 @@ class FeatureBuilder:
         self.n_edges = len(self.edges)
         self.lane_edge_idx = np.array(
             [self.edge_to_idx[l.rsplit('_', 1)[0]] for l in self.lanes])
+        self._edge_lane_count = np.array(
+            [len(self.edge_to_laneidx[e]) for e in self.edges],
+            dtype=np.float32)
         self.layout = layout
         self.lane_id_slice = None
         self.text_id_slice = None
@@ -121,6 +131,44 @@ class FeatureBuilder:
         self.text_dim = self.n_kinds + self._text_edge_dim + SCALARS
         self.global_dim = 8 + 3 + (1 if self.phase_age else 0)
         self.active_edge_idx = None
+        self._edge_pred, self._edge_succ = self._coord_topology()
+
+    def _coord_topology(self):
+        """Edge predecessor/successor maps from live lane connectivity —
+        the 'who feeds / who receives' structure the intent compiler
+        needs.  Internal ':' junction lanes are traversed through to the
+        first real edge (max 3 hops).  Empty maps on non-SUMO worlds —
+        intent then degrades to the v1 single-edge form.
+        """
+        pred = {e: set() for e in self.edges}
+        succ = {e: set() for e in self.edges}
+        try:
+            eng = self.world.eng
+
+            def reach_edges(lane, depth=0):
+                if depth > 3:
+                    return set()
+                out = set()
+                for lk in eng.lane.getLinks(lane):
+                    nl = lk[0]
+                    if nl.startswith(':'):
+                        out |= reach_edges(nl, depth + 1)
+                    else:
+                        out.add(nl.rsplit('_', 1)[0])
+                return out
+
+            for lane in self.lanes:
+                e = lane.rsplit('_', 1)[0]
+                for s in reach_edges(lane):
+                    if s in succ:
+                        succ[e].add(s)
+            for a in self.edges:
+                for b in succ[a]:
+                    if b in pred:
+                        pred[b].add(a)
+        except Exception:
+            pass
+        return pred, succ
 
     def model_geom(self):
         """Shared identity-subspace descriptor for SceneAttention binding.
@@ -142,6 +190,7 @@ class FeatureBuilder:
                 'phys': self.phys,
                 'include_forecast': self.include_forecast,
                 'phase_age': self.phase_age,
+                'intent_coord_w': self.intent_coord_w,
                 'geom': self.model_geom()}
 
     def event_fields(self, now):
@@ -196,6 +245,65 @@ class FeatureBuilder:
                 tokens[idx, flag_col] = 1.0
         self.active_edge_idx = sorted(flagged)
         return tokens
+
+    def intent_vec(self, fields):
+        """Phenomenon report fields -> internal intent vector over edges
+        (the SIGMA ``theta`` analogue, in the shared identity space).
+
+        External reports stay phenomenon-level ('congestion on edge X');
+        the intent compiler translates them into a per-edge priority
+        weight the *objective* can consume.  While a report is live
+        (including the recovery tail):
+
+          the named edge          severity/3   — drain it
+          its feeder edge(s)      x coord_w    — watch the inflow
+          its discharge edge(s)   x coord_w    — keep the outflow clear
+
+        i.e. v2 reads the report as a congestion-GOVERNANCE intent: a
+        corridor of edges that must be watched together, not a single
+        hotspot.  ``intent_coord_w == 0`` recovers v1 (named edge only).
+        'none' or missing edge -> all-zero (no intent).
+        """
+        theta = np.zeros(self.n_edges, dtype=np.float32)
+        edge, kind = fields.get('edge'), fields.get('kind')
+        kind = EVENT_KIND_ALIAS.get(kind, kind)
+        if edge and kind in ('congest', 'lane_close'):
+            sev = float(fields.get('severity', 1) or 1) / 3.0
+            i = self.edge_to_idx.get(edge)
+            if i is not None:
+                theta[i] = sev
+            if self.intent_coord_w > 0:
+                for c in (self._edge_pred.get(edge, set())
+                          | self._edge_succ.get(edge, set())):
+                    j = self.edge_to_idx.get(c)
+                    if j is not None:
+                        theta[j] = max(theta[j], sev * self.intent_coord_w)
+        return theta
+
+    def intent_watch(self, fields):
+        """Wider 'should be seen' set for attention supervision —
+        the corridor's WATCH context, as opposed to intent_vec's
+        keep-clear responsibility:
+
+          intent_vec  (reward) : event + feeder + discharge
+          intent_watch (aux)   : + upstream approach edges that FEED
+                                 the feeder link (the metering sources —
+                                 their queue is the cost of metering,
+                                 context to watch, not a target to
+                                 clear).  Weighted coord_w x 0.6.
+        """
+        theta = self.intent_vec(fields)
+        if self.intent_coord_w > 0 and theta.any():
+            edge = fields.get('edge')
+            for f in self._edge_pred.get(edge, set()):
+                for src in self._edge_pred.get(f, set()):
+                    j = self.edge_to_idx.get(src)
+                    if j is not None:
+                        theta[j] = max(
+                            theta[j],
+                            theta[self.edge_to_idx.get(edge, j)]
+                            * self.intent_coord_w * 0.6)
+        return theta
 
     def fields_text_vec(self, fields):
         """Report fields -> text vector (single source of truth).
@@ -268,9 +376,26 @@ class FeatureBuilder:
         true_flagged = set()
         if true_fields.get('edge') and true_fields.get('active') is not False:
             true_flagged = set(self.edge_to_laneidx.get(true_fields['edge'], []))
+        theta_w = self.intent_watch(true_fields)
+        intent_lanes = sorted(
+            i for i in range(self.n_lanes)
+            if theta_w[self.lane_edge_idx[i]] > 0)
+        # aux target distribution over lanes: normalised per EDGE first
+        # (edge mass = theta_e / sum theta over the WATCH set), then
+        # spread evenly within the edge's lanes — so the named edge
+        # keeps the largest single mass while the corridor (incl.
+        # upstream metering-source approaches) shares the rest.
+        lane_w = np.zeros(self.n_lanes, dtype=np.float32)
+        if theta_w.sum() > 0:
+            for i in range(self.n_lanes):
+                e_idx = self.lane_edge_idx[i]
+                n_in = self._edge_lane_count[e_idx]
+                lane_w[i] = (theta_w[e_idx] / n_in) / theta_w.sum()
         return {
             'lanes': lanes,
             'text': self.text_vec(now, override=text_override),
             'global': self.global_vec(now),
             'event_lane_idx': sorted(true_flagged),
+            'intent_lane_idx': intent_lanes,
+            'intent_lane_w': lane_w,
         }

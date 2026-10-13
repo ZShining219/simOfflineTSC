@@ -7,7 +7,7 @@
 然后在 seed 维度做 10000 次配对重采样 → 均值差 + 95% CI。
 
 用法：
-    python dev/hitl_live/paired_bootstrap.py \
+    python hitl/probe/paired_bootstrap.py \
         --root output_data/hitl_probe/pilot5 \
         --plan output_data/hitl_probe/pilot5/plan.json \
         --out output_data/hitl_probe/pilot5/stats/

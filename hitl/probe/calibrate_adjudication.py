@@ -13,7 +13,7 @@ raw 分，产出校准后的 adjudication manifest：每个判官条目补
                      分组回放 ServiceGapTracker 重建
 
 用法：
-    python dev/hitl_live/calibrate_adjudication.py \
+    python hitl/probe/calibrate_adjudication.py \
         --pool output_data/hitl_probe/pools/hitl_ep50/expert_pool_manifest.json \
         --pool output_data/hitl_probe/pools/student_ep50/expert_pool_manifest.json \
         --pool output_data/hitl_probe/pools/expert_ep50/expert_pool_manifest.json \

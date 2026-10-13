@@ -1,6 +1,6 @@
 """Paired HITL probe: same seed, same scene, student-only vs gated-expert.
 
-探索件（dev/hitl_live/，登记 dev/INDEX.md）。无头跑真实的
+探索件（hitl/probe/，登记 dev/INDEX.md）。无头跑真实的
 BroadcastEngine 会话——测量面就是 recorder，所以"人在回路有效性"的
 证据数据与直播录制链路完全一致（record → package → OfflineTrajectoryDataset
 可直接复核）。
@@ -18,7 +18,7 @@ manifest；跑完收集终端三指标（travel_time/throughput/unfinished）+
 
 用法（repo 根，conda env: colight）：
 
-    python dev/hitl_live/paired_probe.py \
+    python hitl/probe/paired_probe.py \
         --scene S2 --student snap_sumohz1x1 --expert maxpressure \
         --seeds 0 1 --horizon 1200 --speed 96 \
         --inject surge:road_0_1_0:road_1_2_3:300:600:20 \
@@ -351,7 +351,7 @@ def main(argv=None):
         encoding='utf-8')
 
     if args.package:
-        from dev.hitl_live.package import package_session
+        from hitl.pipeline.package import package_session
         for run in runs:
             out_dir = (
                 Path(args.out) / 'archives' /

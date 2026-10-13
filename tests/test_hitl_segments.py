@@ -2,7 +2,7 @@ import unittest
 
 import numpy as np
 
-from dev.hitl_live.segments import (
+from hitl.pipeline.segments import (
     label_pair, segment_episode, service_gap_series, teacher_series)
 
 

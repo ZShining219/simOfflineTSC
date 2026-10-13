@@ -9,7 +9,7 @@ split 按 episode 划分（防泄漏）：fit=episode 训练集、val=留出集�
     reward_manifest.json   配置/hash/标签分布/指标
 
 用法：
-    python dev/hitl_live/train_reward.py \
+    python hitl/pipeline/train_reward.py \
         --pairs output_data/hitl_probe/pairs_pilot \
         --out output_data/hitl_probe/reward_model_v1 --seed 11
 """

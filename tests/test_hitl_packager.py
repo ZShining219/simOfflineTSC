@@ -1,6 +1,6 @@
 """HITL session packager tests: synthetic recorder sessions -> archives.
 
-The packager (dev/hitl_live/package.py) is exercised entirely on hand-built
+The packager (hitl/pipeline/package.py) is exercised entirely on hand-built
 ``transitions.jsonl``/``manifest.json`` fixtures — no SUMO required.  A tiny
 roadnet XML fixture feeds ``_scene_semantics`` so the produced dataset
 manifest carries real semantic hashes.
@@ -13,7 +13,7 @@ from pathlib import Path
 
 import numpy as np
 
-from dev.hitl_live.package import (
+from hitl.pipeline.package import (
     PackagingError, _AUTHORSHIP_ORDER, package_session,
 )
 from dataset.offline_trajectory_dataset import (

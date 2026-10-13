@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """build_gate_plan.py — gate 触发策略消融 plan（训练层）。
 
-探索件（dev/hitl_live/，登记 dev/INDEX.md）。克隆 plan_r2 里
+探索件（hitl/plans/，登记 dev/INDEX.md）。克隆 plan_r2 里
 HITL_EXPB（大池 r=0.25）模板，逐模式把 expert_pool_manifest
 换成对应触发策略采集的纠偏池——唯一变量是"gate 以什么策略
 问人产出的池"。臂名 HITL_GATE_{OD,RAND,MARGIN,PERIOD,WIN}
@@ -11,7 +11,7 @@ HITL_EXPB（大池 r=0.25）模板，逐模式把 expert_pool_manifest
 
 用法：
 
-    python dev/hitl_live/build_gate_plan.py \
+    python hitl/plans/build_gate_plan.py \
         --out output_data/hitl_probe/pilot5/plan_gate.json
 """
 

@@ -7,7 +7,7 @@
 MP 控盘池（expert_ep50）——偏差记入实验记录，不报等效。
 
 用法：
-    python dev/hitl_live/build_demos.py \
+    python hitl/pipeline/build_demos.py \
         --archive output_data/hitl_probe/pools/expert_ep50 \
         --out output_data/hitl_probe/demos/demo_expert_ep50.npz
 """
@@ -27,7 +27,7 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-from dev.hitl_live.segments import _obs_rows, load_episode  # noqa: E402
+from hitl.pipeline.segments import _obs_rows, load_episode  # noqa: E402
 
 
 def _episode_paths(archive_dir):

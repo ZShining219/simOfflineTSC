@@ -194,7 +194,7 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
   留出话术 acc≈0.71（硬负例/未见过恢复句式仍误）、NL 臂接管
   72 tick 与结构化臂逐位一致，命中未见过恢复句式的变体仅丢尾段
   接管（60 tick）——优雅降级而非误派发。
-- `dev/hitl_live/`：HITL 拓展实验件（设计依据 `docs/plan_hitl_live.md`）。
+- `hitl/`：HITL 拓展实验件（设计依据 `docs/plan_hitl_live.md`）。
   采集端 `tools/sumo_live_broadcast` 已有真人专家席：`--expert human`
   + gate 命中冻结仿真弹横幅（相位按钮+倒计时），`--hitl-human-timeout`
   超时沉默仍计费，答案落 hitl.expert_id='human'（详见设计文档专家席行）。
@@ -206,24 +206,24 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
   `OfflineTrajectoryDataset`/`validate_offline_dataset` 直接消费
   （自检内嵌于打包流程）。变长 episode、HITL 溯源进
   `behavior_mode`/`hitl/labels.jsonl` 副产物，不伪造正式 run 元数据。
-  用法：`python dev/hitl_live/package.py --session <session_dir>
+  用法：`python hitl/pipeline/package.py --session <session_dir>
   [--session <session_dir>...] --out <archive_dir> --network <name>
   [--seed N] [--strict]`（多会话合并：episode 全局重编号、global_step
   连续化、归属记 labels/source_shards；另发 `expert_pool_manifest.json`
   供 sequential 专家腿消费）。产物 `output_data/hitl_archives/`（不入库）。
-- `dev/hitl_live/paired_probe.py`：三臂（student/hitl/expert）同 seed 配对
+- `hitl/probe/paired_probe.py`：三臂（student/hitl/expert）同 seed 配对
   运行时探针——第 0 层"专家资格体检"工具。
-- `dev/hitl_live/make_figs.py`：probe 佐证图（排队轨迹+gate 标记/终端三指标/
+- `hitl/figs/make_figs.py`：probe 佐证图（排队轨迹+gate 标记/终端三指标/
   事件窗放大/成本-效果）。
-- `dev/hitl_live/build_pilot_plan.py`：C 通道训练臂对照 plan 生成器——
+- `hitl/plans/build_pilot_plan.py`：C 通道训练臂对照 plan 生成器——
   同一 ep0 checkpoint/seed 出 HITL_C0/HITL_EXP/HITL_CTRL/HITL_DEMO 四臂
   （差异仅 `expert_pool_manifest`/`expert_ratio`）；产物用
   `sequential_run.py run-child` 逐臂执行（探索性 pilot，不入台账）。
-- `dev/hitl_live/curve_figs.py`：训练期佐证图——自主冻结 eval 学习曲线
+- `hitl/figs/curve_figs.py`：训练期佐证图——自主冻结 eval 学习曲线
   （vs 决策数，多 seed mean±std 带）、AULC、对 C0 同 seed 配对 delta、
   专家腿消耗量（sampling_windows 账本）；eval 快照 digest 去重的
   前导/内段别名按"同快照同估值"语义补齐（与 paired_bootstrap 同口径）。
-- `dev/hitl_live/build_r2_plan.py`：r2 增补臂 plan 生成（探索件）。
+- `hitl/plans/build_r2_plan.py`：r2 增补臂 plan 生成（探索件）。
   克隆 pilot5 已验证 child 为模板（不重新推导 initial_state/digest），
   生成 6 新臂×5seed=30 run：BPT/BPM/BPQ 逐判官消融（单判官 manifest），
   EXPB/EXPL 大纠偏池（2190 转移 18 会话）r=0.25/0.05，
@@ -231,7 +231,7 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
   注意：HITL_EXPERT 的 run_id 历史名 HITL_EXP-SD*，克隆时须按
   -SD 后缀重建而非条件串替换；run-child 的 --attempt-dir 须用
   runs/<id>/attempt_001 两层结构（决定 eval 落 pilot5/_shared_evaluation）。
-- `dev/hitl_live/build_r3_plan.py`：r3 多场景复现 plan 生成（探索件）。
+- `hitl/plans/build_r3_plan.py`：r3 多场景复现 plan 生成（探索件）。
   克隆 pilot5/r2 已验证 child 为模板，把每通道代表臂
   （C0 基线/APIQB 双预训/B2 塑形/EXPB 纠偏池）×5seed 铺到三个
   杭州真实路口配置（sumohz1x1_config2/3/4 = qc-yn/kn-hz/sb-sx，
@@ -240,13 +240,13 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
   `initial_state_catalog.json` 预登记项；注意 seed0 存在
   `_r2` 重复 run 目录且 ep0 内容不同，须按 catalog sha 匹配选
   checkpoint，不能取 glob 首个。产 `pilot5/plan_r3.json`（60 children）。
-- `dev/hitl_live/dispatch_r3.sh`：r3 run-child 批量派发器（探索件）。
+- `hitl/plans/dispatch_r3.sh`：r3 run-child 批量派发器（探索件）。
   attempt_dir 用 `multiscene/<tag>/runs/<id>`——runtime 取
   dirname×2 为 launch_root，故 eval 落 `multiscene/_shared_evaluation`
   （三场景共享，run_id 含 -TAG- 区分，统计时按 tag 过滤）。
   需 env: SUMO_HOME=<colight>/lib/python3.10/site-packages/sumo +
   CUDA_VISIBLE_DEVICES=""。幂等：completed.json 存在则跳过。
-- `dev/hitl_live/deck_figs.py`：HITL 汇报组图（探索件）。
+- `hitl/figs/deck_figs.py`：HITL 汇报组图（探索件）。
   按"一图一事、对比锚定 C0"组织：fig0 系统集成消融
   （主场景 FULL(=示范+偏好双通道集成；C 腿在 demo_ac 路径
   未接线，经 HITL_AB 臂比特级复核确认) vs 单通道臂 vs C0，论文"完整版vs
@@ -258,14 +258,14 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
   跨控制器鲁棒性叙事位。pairs_<tag>/topology_<cfg>.json 为
   其配套产物（build_pairs.py + dump_lane_topology.py 同流程）。
   产物 `pilot5/figs_deck/`。
-- `dev/hitl_live/hitl_arch_fig.py`：HITL 模块架构图（探索件）。
+- `hitl/figs/hitl_arch_fig.py`：HITL 模块架构图（探索件）。
   三层单系统口径：在线会话层（人只在专家席：gate 触发问人→
   接管/同意→recorder 审计）→数据资产层（一份录制分层为
   demo/片段+偏好/纠偏转移三种人源数据）→训练层（A 双预训/
   B 奖励塑形/C 回放腿同作用于 HASODQNAgent）；底条列证据链
   六环，虚线箭头表"新学生回会话层"闭环。中文需 NotoSansCJK。
   产物 `pilot5/figs_deck/hitl_arch.png`。
-- `dev/hitl_live/gate_modes_table.py`：gate 触发策略消融表
+- `hitl/figs/gate_modes_table.py`：gate 触发策略消融表
   （探索件）。五模式各 10 seed 配对采集（gate_modes/<mode>/，
   hitl 臂，同 inject/冷却；实际查询量对齐 ~4-8/ep）：queries、takeover、
   takeover_yield、事件窗内触发占比、终端三指标。
@@ -275,13 +275,13 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
   window=事件窗 oracle，窗由 paired_probe 从 inject 自动推导）；
   engine.py 两处 check 调用补传学生 margin（SnapshotController
   inference_q_values）与仿真秒。产 `gate_modes_table.json`。
-- `dev/hitl_live/build_gate_plan.py`：gate 消融训练 plan（探索件）。
+- `hitl/plans/build_gate_plan.py`：gate 消融训练 plan（探索件）。
   克隆 plan_r2 的 HITL_EXPB 模板（大池 r=0.25），五臂各换一个
   gate 模式采集的纠偏池（pools/hitl_gate_<mode>，seed0-9×10 会话
   合并，~1210 转移/池）；臂 HITL_GATE_{OD,RAND,MARGIN,PERIOD,WIN}。
   产 `pilot5/plan_gate.json`（25 run，campaign=hitl_live_gate，
   统计在 `pilot5/stats_gate/`，评测已归并 pilot5/_shared_evaluation）。
-- `dev/hitl_live/rm_env_corr.py`：RM 打分 vs 环境奖励相关性
+- `hitl/probe/rm_env_corr.py`：RM 打分 vs 环境奖励相关性
   （探索件，对齐顾第三章 PCC 验证层）。冻结偏好 RM 对三源池
   （专家/学生/hitl）片段打分 vs 同段平均环境奖励：Pearson
   0.34~0.53（专家集最强）、Spearman 0.20~0.37——编码了交通
@@ -289,29 +289,29 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
   配套终局基线采集：`output_data/hitl_probe/baseline_{fixedtime,
   sotl}`（各 10 seed live，ft tt=175.6/sotl 103.6/mp 83.4）+
   `hitl_cost_table.json`（问人成本与数据资产表）。
-- `dev/hitl_live/multiscene_table.py`：r3 多场景汇总（探索件）。
+- `hitl/figs/multiscene_table.py`：r3 多场景汇总（探索件）。
   live 三臂（student/hitl/expert×10seed）终端指标表 + 逐场景
   paired_bootstrap（臂 vs 场景本地 C0，复用 collect/paired_deltas/
   bootstrap，run_id 按 -TAG- 拆分）。产 `multiscene/summary_r3.json`。
-- `dev/hitl_live/hitl_score_fig.py`：三通道全臂森林图（探索件）。
+- `hitl/figs/hitl_score_fig.py`：三通道全臂森林图（探索件）。
   合并 pilot5 各 stats_*/paired_bootstrap.json（baseline=C0），
   4 指标 AULC delta + 95% CI + 显著性星标，按 A/B/B'/C 通道
   着色；含文档未载的 EXPC(r=.125)/EXPD(衰减)/EXPF(gateq 池)
   及 r2 增补 6 臂（BPT/BPM/BPQ/EXPB/EXPL/APIQB，共 21 臂）。
   产物 `output_data/hitl_probe/pilot5/figs_ALL/hitl_score.png`。
-- `dev/hitl_live/dump_lane_topology.py`：场景车道拓扑转储（in_lanes 顺序、
+- `hitl/pipeline/dump_lane_topology.py`：场景车道拓扑转储（in_lanes 顺序、
   车道长度→容量、相位→服务车道映射），B 通道特征/教师分的 ctx 来源。
-- `dev/hitl_live/segments.py`：B 通道片段切割 + 确定性教师分
+- `hitl/pipeline/segments.py`：B 通道片段切割 + 确定性教师分
   （h=-0.5Q-0.5U，逐车道 q_l/c_l + 相位服务史重建 u_l）+ spec §6.2
   奖励模型特征 [obs|one_hot(a)|obs'|q/c|u/T_u]。
-- `dev/hitl_live/build_pairs.py`：档案→片段→偏好对数据集
+- `hitl/pipeline/build_pairs.py`：档案→片段→偏好对数据集
   （片段均值特征 + H 标签 + 平局保留）。
-- `dev/hitl_live/train_reward.py`：偏好奖励模型训练（128→128→1，BCE，
+- `hitl/pipeline/train_reward.py`：偏好奖励模型训练（128→128→1，BCE，
   episode 级留出，早停；产 reward_model.pt + normalization.json +
   reward_manifest.json）。
-- `dev/hitl_live/calibrate_reward.py`：B 通道归一化统计冻结（校准集上
+- `hitl/probe/calibrate_reward.py`：B 通道归一化统计冻结（校准集上
   h/f_hat 的 μ/σ，产 reward_calibration.json 供训练器 shaping）。
-- `dev/hitl_live/paired_bootstrap.py`：同 seed 配对 bootstrap（10000
+- `hitl/probe/paired_bootstrap.py`：同 seed 配对 bootstrap（10000
   重采样；AULC_delta/final_delta + 95% CI，spec §11.4 口径）。
 - `sequential/reward_model.py`：偏好奖励网络 PreferenceRewardNet
   （128→128→1，温度 0.25，BCE 含平局 y=0.5）。
@@ -330,7 +330,7 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
   -logπ·A）；在线起点重置优化器+目标网拷贝 critic（spec 边界）。
   plan child `policy='demo_ac'` + `demo_pretrain` 块接入；快照复用
   online_only 通道（actor logits argmax = argmax π，evaluator 无分叉）。
-- `dev/hitl_live/build_demos.py`：示范集构建——打包档案→扁平
+- `hitl/pipeline/build_demos.py`：示范集构建——打包档案→扁平
   (obs,aE,r,obs',done,episode_id) npz，episode 序保持（n-step 后缀
   按 episode_id 分组推导）。
 - `sequential/adjudication.py`：B′ 采样时裁定层——判官面板
@@ -344,12 +344,12 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
   ServiceGapTracker 重建。经 plan child `trainer_overrides` 的
   `adjudication` spec + `adjudication_ctx[_path]` 接入；与旧
   reward_mode b1/b2 互斥。
-- `dev/hitl_live/calibrate_adjudication.py`：B′ 判官面板逐判官归一化
+- `hitl/probe/calibrate_adjudication.py`：B′ 判官面板逐判官归一化
   校准——在 expert_pool_manifest 列表上逐转移算各判官 raw 分，回填
   spec 的 mu/sigma/calibration_count 产冻结 manifest
   （`output_data/hitl_probe/adjudication/manifest_v1_calibrated.json`）。
   已跑：hitl_ep50+student_ep50+expert_ep50 三池 731 转移校准一版。
-- `dev/hitl_live/build_pilot_plan.py` 增 `--bprime-arms`/`--bpc-arms`
+- `hitl/plans/build_pilot_plan.py` 增 `--bprime-arms`/`--bpc-arms`
   + `--adjudication-manifest`/`--adjudication-ctx`：HITL_BP（纯在线
   统一裁定）/ HITL_BPC（裁定+专家腿，旧 B 不能表达的组合）两臂。
 - `dev/action_ranking_audit/action_ranking_audit.py`：动作排序误排审计

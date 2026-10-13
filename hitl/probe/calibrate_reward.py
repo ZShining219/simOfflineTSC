@@ -29,7 +29,7 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-from dev.hitl_live.segments import (  # noqa: E402
+from hitl.pipeline.segments import (  # noqa: E402
     load_context, load_episode, step_features, teacher_series)
 
 

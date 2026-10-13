@@ -20,7 +20,7 @@ the frozen-autonomous metrics.  Figures:
                               loss_expert trajectory
 
 Usage:
-    python dev/hitl_live/curve_figs.py --root output_data/hitl_probe/pilot \
+    python hitl/figs/curve_figs.py --root output_data/hitl_probe/pilot \
         --teacher-tt 83.72 --out output_data/hitl_probe/pilot/figs
 """
 

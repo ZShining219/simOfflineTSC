@@ -11,7 +11,7 @@
 
 用法（repo 根，conda env: colight）：
 
-    python dev/hitl_live/hitl_arch_fig.py
+    python hitl/figs/hitl_arch_fig.py
 """
 
 from __future__ import annotations

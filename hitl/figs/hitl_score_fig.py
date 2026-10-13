@@ -5,7 +5,7 @@
 
 用法::
 
-    python -m dev.hitl_live.hitl_score_fig \
+    python -m hitl.figs.hitl_score_fig \
         --pilot output_data/hitl_probe/pilot5 \
         --out output_data/hitl_probe/pilot5/figs_ALL/hitl_score.png
 """

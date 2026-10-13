@@ -1,7 +1,7 @@
 """Read-only HITL expert-correction pool for HA-SODQN.
 
 The pool wraps a packaged broadcast-session archive produced by
-``dev/hitl_live/package.py``.  Unlike :class:`HistoricalArchive` (the frozen
+``hitl/pipeline/package.py``.  Unlike :class:`HistoricalArchive` (the frozen
 Plan 1 curriculum), the expert pool is a *single-network, precollected*
 correction dataset: every transition it contains was actually executed in a
 live session — including gate-triggered expert takeovers — so it is causally

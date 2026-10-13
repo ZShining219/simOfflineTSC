@@ -61,7 +61,7 @@
 
 CLI：`--record DIR` 开录制；`--expert maxpressure --hitl-gate periodic|on_demand [--hitl-period N | --hitl-queue-threshold X | --hitl-queue-growth X] [--hitl-budget B] [--hitl-cooldown C]` 开虚拟专家干预。全部 opt-in，不配 = 不存在。
 
-实验侧（打包/对照/出图）归 `dev/hitl_live/`，登记 `dev/INDEX.md`。
+实验侧（打包/对照/出图）归 `hitl/`，登记 `dev/INDEX.md`。
 
 训练臂 pilot 管线（已落地）：`build_pilot_plan.py` 从同一 ep0 checkpoint + 同 seed
 生成 HITL_C0 / HITL_EXP(纠偏池) / HITL_CTRL(等量机器数据) / HITL_DEMO(纯示范池)
@@ -285,7 +285,7 @@ AπQ×5 seed，同 ep0/seed/预算；pretrain 2000 步）全部完成。A 内部
 - episode 边界 = reset/会话结束；悬空区间以 `truncated=True` 封存（转播无自然终止）
 - JSONL 落盘；NPZ 分片 + manifest 由 dev 侧打包器后做
 
-### packager 契约（已落地，`dev/hitl_live/package.py`）
+### packager 契约（已落地，`hitl/pipeline/package.py`）
 
 - 输入：录制会话目录（`manifest.json` + `transitions.jsonl` + 可选 proposals/interventions）；`source_config` 从会话 manifest 取，亦可 `--config` 覆盖
 - 输出 `<out>/`：`trajectory/`（Plan 1 同构分片，复用 `EpisodeTrajectoryWriter` 保证逐位同格式）+ `source_shards.jsonl` + `datasets/<network>/<stage>/manifest.json` + `hitl/` 审计副产物（session_manifest/proposals/interventions 副本 + `labels.jsonl` 逐转移归属表 + index）+ `manifest.json` 根清单 + `packaging_report.json`

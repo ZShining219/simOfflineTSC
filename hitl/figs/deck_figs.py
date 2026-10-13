@@ -16,7 +16,7 @@ run_id→condition 映射从 plan_A/plan_merged/plan_r2 合并。
 
 用法（repo 根，conda env: colight）：
 
-    python dev/hitl_live/deck_figs.py
+    python hitl/figs/deck_figs.py
 """
 
 from __future__ import annotations
@@ -28,13 +28,13 @@ from pathlib import Path
 import numpy as np
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(_REPO_ROOT / 'dev/hitl_live'))
+sys.path.insert(0, str(_REPO_ROOT))
 
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt  # noqa: E402
 
-import paired_bootstrap as pb  # noqa: E402
+from hitl.probe import paired_bootstrap as pb  # noqa: E402
 
 ROOT = _REPO_ROOT / 'output_data/hitl_probe'
 PILOT = ROOT / 'pilot5'

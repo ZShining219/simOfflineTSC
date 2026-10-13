@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """rm_env_corr.py — 冻结奖励模型打分 vs 环境奖励相关性（对齐顾第三章 PCC 验证）。
 
-探索件（dev/hitl_live/，登记 dev/INDEX.md）。她把 IRL 学出的奖励
+探索件（hitl/probe/，登记 dev/INDEX.md）。她把 IRL 学出的奖励
 权重与真实奖励算 PCC；我们把冻结偏好奖励模型对片段打分，与同
 一片段的平均环境奖励算 Spearman/Pearson——验证"学出的信号确实
 编码了交通语义而非噪声"。片段级口径（RM 本来就是按 6 决策窗训练）。
@@ -11,7 +11,7 @@
 
 用法（repo 根，conda env: colight）：
 
-    python dev/hitl_live/rm_env_corr.py \
+    python hitl/probe/rm_env_corr.py \
         --out output_data/hitl_probe/reward_model_v1/rm_env_corr.json
 """
 
@@ -26,9 +26,8 @@ import numpy as np
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(_REPO_ROOT))
-sys.path.insert(0, str(_REPO_ROOT / 'dev/hitl_live'))
 
-from dev.hitl_live.segments import (  # noqa: E402
+from hitl.pipeline.segments import (  # noqa: E402
     load_context, load_episode, segment_episode, step_features)
 
 POOLS = {
@@ -36,7 +35,7 @@ POOLS = {
     'student': 'output_data/hitl_probe/pools/student_ep50_big',
     'hitl': 'output_data/hitl_probe/pools/hitl_ep50_big',
 }
-TOPOLOGY = 'dev/hitl_live/topology_sumohz1x1.json'
+TOPOLOGY = 'hitl/topology/topology_sumohz1x1.json'
 MODEL = 'output_data/hitl_probe/reward_model_v1/reward_model.pt'
 
 

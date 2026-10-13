@@ -14,7 +14,7 @@
 单独执行（探索性 pilot，不入正式台账；正式实验另走治理流程）。
 
 用法：
-    python dev/hitl_live/build_pilot_plan.py \
+    python hitl/plans/build_pilot_plan.py \
         --expert-pool output_data/hitl_probe/pools/hitl_ep50/expert_pool_manifest.json \
         --ctrl-pool   output_data/hitl_probe/pools/student_ep50/expert_pool_manifest.json \
         --demo-pool   output_data/hitl_probe/pools/expert_ep50/expert_pool_manifest.json \

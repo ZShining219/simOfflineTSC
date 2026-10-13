@@ -1,6 +1,6 @@
 """Build the r3 multi-scene HITL plan: 4 arms × 5 seeds × 3 configs.
 
-探索件（dev/hitl_live/，登记 dev/INDEX.md）。把 pilot5/r2 已验证的
+探索件（hitl/plans/，登记 dev/INDEX.md）。把 pilot5/r2 已验证的
 代表性臂复制到另外三个杭州真实路口配置，检验 HITL 通道在不同流量
 分布下的可迁移性（论文式"同拓扑换流量分布"多场景）：
 
@@ -16,7 +16,7 @@
 
 用法（repo 根，conda env: colight）：
 
-    python dev/hitl_live/build_r3_plan.py
+    python hitl/plans/build_r3_plan.py
 
 产物：``output_data/hitl_probe/pilot5/plan_r3.json``（60 children）
 """

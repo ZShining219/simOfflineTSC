@@ -1,6 +1,6 @@
 """Gate trigger-mode comparison table (HITL gate ablation, phase 1).
 
-探索件（dev/hitl_live/，登记 dev/INDEX.md）。横向比较同一预算下
+探索件（hitl/figs/，登记 dev/INDEX.md）。横向比较同一预算下
 不同触发策略的 live 会话：五种模式各 10 seed 全新采集
 （gate_modes/<mode>/，hitl 臂，同 inject/冷却；on_demand 预算 36
 实际花 ~7，window 预算 7——各臂实际查询量对齐）。
@@ -14,7 +14,7 @@
 
 用法（repo 根，conda env: colight）：
 
-    python dev/hitl_live/gate_modes_table.py \
+    python hitl/figs/gate_modes_table.py \
         --out output_data/hitl_probe/gate_modes/gate_modes_table.json
 """
 

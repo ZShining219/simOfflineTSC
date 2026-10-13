@@ -19,7 +19,7 @@ student/expert/manual candidates stay in ``hitl`` provenance fields and in
 ``proposals.jsonl``.  Observation/reward features reuse the same generator
 recipe as the DQN training/inference path so recorded rows are directly
 consumable by the sequential replay tooling (NPZ packaging happens
-downstream, e.g. under ``dev/hitl_live/``).
+downstream, e.g. under ``hitl/live/``).
 """
 
 from __future__ import annotations

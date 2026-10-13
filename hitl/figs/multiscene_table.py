@@ -1,6 +1,6 @@
 """r3 multi-scene summary: per-scene paired bootstrap + live probe table.
 
-探索件（dev/hitl_live/，登记 dev/INDEX.md）。两个产出：
+探索件（hitl/figs/，登记 dev/INDEX.md）。两个产出：
 
 1. 逐场景配对统计：对每个场景根调 paired_bootstrap.collect，
    各臂 vs 该场景自己的 HITL_C0（同 seed 配对，10000 重采样）；
@@ -9,7 +9,7 @@
 
 用法（repo 根，conda env: colight）：
 
-    python dev/hitl_live/multiscene_table.py
+    python hitl/figs/multiscene_table.py
 """
 
 from __future__ import annotations
@@ -21,9 +21,9 @@ from pathlib import Path
 import numpy as np
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(_REPO_ROOT / 'dev/hitl_live'))
+sys.path.insert(0, str(_REPO_ROOT))
 
-import paired_bootstrap as pb  # noqa: E402
+from hitl.probe import paired_bootstrap as pb  # noqa: E402
 
 ROOT = _REPO_ROOT / 'output_data/hitl_probe'
 PLAN = ROOT / 'pilot5/plan_r3.json'

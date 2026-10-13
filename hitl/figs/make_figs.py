@@ -1,6 +1,6 @@
 """Quantitative-evidence figures for the paired HITL probe.
 
-探索件（dev/hitl_live/，登记 dev/INDEX.md）。读取
+探索件（hitl/figs/，登记 dev/INDEX.md）。读取
 ``paired_probe.py`` 的产物目录（runs.json + probe_manifest.json +
 sessions/*/interventions.jsonl + transitions.jsonl），产出
 "人在回路有效性"的四张佐证对比图 + 机读汇总：
@@ -23,7 +23,7 @@ sessions/*/interventions.jsonl + transitions.jsonl），产出
 
 用法：
 
-    python dev/hitl_live/make_figs.py --run-dir output_data/hitl_probe/run1
+    python hitl/figs/make_figs.py --run-dir output_data/hitl_probe/run1
 """
 
 from __future__ import annotations

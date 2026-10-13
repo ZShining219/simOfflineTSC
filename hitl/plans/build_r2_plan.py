@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """build_r2_plan.py — HITL r2 增补臂 plan 生成（pilot5 模板克隆法）。
 
-探索件（dev/hitl_live/，登记 dev/INDEX.md）。不重新推导
+探索件（hitl/plans/，登记 dev/INDEX.md）。不重新推导
 initial_state/digest——直接把 pilot5 已验证的 child 当模板克隆，
 只改实验变量字段，保证与既有臂"同初始权重/同 seed/同预算"可比。
 
@@ -21,7 +21,7 @@ initial_state/digest——直接把 pilot5 已验证的 child 当模板克隆，
 
 用法：
 
-    python dev/hitl_live/build_r2_plan.py \
+    python hitl/plans/build_r2_plan.py \
         --pilot5-dir output_data/hitl_probe/pilot5 \
         --expert-pool output_data/hitl_probe/pools/hitl_ep50_big/expert_pool_manifest.json \
         --demo-data output_data/hitl_probe/demos/demo_expert_ep50_big.npz \

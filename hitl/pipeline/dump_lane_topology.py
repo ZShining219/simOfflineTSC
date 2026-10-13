@@ -11,9 +11,9 @@ sequential runtime), then records:
     min_green_s              min green phase duration in the program
 
 Usage:
-    python dev/hitl_live/dump_lane_topology.py \
+    python hitl/pipeline/dump_lane_topology.py \
         --sim-config configs/sim/sumohz1x1.cfg \
-        --out dev/hitl_live/topology_sumohz1x1.json
+        --out hitl/topology/topology_sumohz1x1.json
 """
 
 from __future__ import annotations

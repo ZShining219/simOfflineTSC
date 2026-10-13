@@ -9,7 +9,7 @@ trajectory/episodes/*.npz + source_shards.jsonl，全部 sha256 一致，
 ExpertPoolArchive(verify_hashes=True) 可直接装载。
 
 用法：
-    python dev/hitl_live/filter_pool.py \
+    python hitl/pipeline/filter_pool.py \
         --src output_data/hitl_probe/pools/hitl_ep50 \
         --dst output_data/hitl_probe/pools/hitl_ep50_tookover \
         --modes hitl_expert_took_over

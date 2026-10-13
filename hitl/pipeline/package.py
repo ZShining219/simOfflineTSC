@@ -1,6 +1,6 @@
 """HITL session packager: recorder JSONL -> offline trajectory archive.
 
-探索件（归 dev/hitl_live/，登记 dev/INDEX.md）。把
+探索件（归 hitl/pipeline/，登记 dev/INDEX.md）。把
 ``hitl/live`` ``--record`` 录出的会话目录（transitions/
 proposals/interventions + manifest）打包成离线档案：
 
@@ -36,7 +36,7 @@ proposals/interventions + manifest）打包成离线档案：
 
 用法（repo 根目录，conda env: colight）：
 
-    python dev/hitl_live/package.py \
+    python hitl/pipeline/package.py \
         --session output_data/hitl_live/<session_id> \
         --out output_data/hitl_archives/hitl_<tag> \
         --network sumohz1x1 --seed 0

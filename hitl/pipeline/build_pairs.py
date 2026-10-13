@@ -11,10 +11,10 @@
 均摊（c_l 相同则 Q 等价）；u_l 由相位服务史重建（需要 --topology）。
 
 用法：
-    python dev/hitl_live/build_pairs.py \
+    python hitl/pipeline/build_pairs.py \
         --archive HITL=output_data/hitl_probe/pools/hitl_ep50 \
         --archive DEMO=output_data/hitl_probe/pools/expert_ep50 \
-        --topology dev/hitl_live/topology_sumohz1x1.json \
+        --topology hitl/topology/topology_sumohz1x1.json \
         --window 6 --out output_data/hitl_probe/pairs_pilot
 """
 
@@ -33,7 +33,7 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-from dev.hitl_live.segments import (  # noqa: E402
+from hitl.pipeline.segments import (  # noqa: E402
     build_pairs, label_pair, load_context, load_episode, segment_episode,
     step_features, teacher_series,
 )

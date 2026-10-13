@@ -1,6 +1,6 @@
 """Traffic-perturbation injection + event broadcast for SUMO worlds.
 
-Shared by ``dev/takeover_probe`` (offline fork probe) and the live
+Shared by ``scene_attention`` (offline fork probe) and the live
 ``BroadcastEngine`` (interactive broadcast).  All specs are plain strings so
 the same schedule can drive headless runs and the UI.
 

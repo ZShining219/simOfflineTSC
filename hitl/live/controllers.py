@@ -273,8 +273,8 @@ class DispatchController:
 
     def bind(self, world, ranks=None):
         # lazy imports keep this module loadable without torch/dev paths
-        from dev.takeover_probe.dispatch_model import DispatchRouter
-        from dev.takeover_probe.dispatch_state import (
+        from scene_attention.dispatch_model import DispatchRouter
+        from scene_attention.dispatch_state import (
             FeatureBuilder, fb_kwargs_from_meta)
         from hitl.live.injects import parse_injects
 
@@ -314,7 +314,7 @@ class DispatchController:
         return self._children[self._active].decide(rank)
 
     def _route(self, now):
-        from dev.takeover_probe.dispatch_model import collate
+        from scene_attention.dispatch_model import collate
         snap = self._fb.snapshot(now)
         batch = collate([snap])
         idx, _, _ = self._router.act(batch, epsilon=0.0)

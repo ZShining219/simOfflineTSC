@@ -64,7 +64,9 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
   README），2026-10-07 裁决收仓长期维护；源自治理工作区 govern_1007/scratch/。
 - `dev/govern_1007/`：本治理任务的授权暂存位（当前为空）。
 - `dev/_legacy/20261007/`：见 `dev/_legacy/20261007/README.md`。
-- `dev/takeover_probe/`：场景引导注意力信号控制探针族（探索件）。
+- `dev/takeover_probe/`：**已升格** `scene_attention/`（2026-10-13，方法包，
+  面表见其 README）；本条目下各文件路径已迁，产物桶
+  `output_data/dev_takeover_probe/` 沿用旧名不动。
   **当前主线（2026-10 定型）**：单层场景条件信号控制器——
   `SceneJointPolicy`（signal_model.py canonical 标记）：dqn_s1
   底座图内保留（ckpt 初始化 + `--base-lr` 微调）+ sga 编码器
@@ -88,8 +90,8 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
   文本转承重；sig13/14 走廊意图负结果：空走廊无回报 →
   sig15 corridor-load 场景：主事件+静默 feeder surge+throttle
   discharge，`--p-corridor`，文本臂在走廊指标上分化）。
-  入口：`train_signal.py`/`eval_signal.py`；
-  `signal_runtime.py` 为 10s 决策粒度 episode 驱动器。
+  入口：`python -m scene_attention.train`/`python -m scene_attention.eval`；
+  `env.py`（原 signal_runtime.py）为 10s 决策粒度 episode 驱动器。
   产物 `output_data/dev_takeover_probe/`（不入库）：sig5_*
   编码器消融 / sig6* from-scratch 信号 agent（学不会驾驶，
   已弃） / sig7_res_* 冻结底座学习残差（+0.7%，被 joint
@@ -113,7 +115,7 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
   历史陷阱（已修勿复踩）：eval 每臂重解析 injects（
   apply_injects 会改写 dict）+ 每臂重绑控制器（world.reset()
   重建 intersections）；scenedqn t_min=0 对齐原生 DQN 纪律。
-- `dev/takeover_probe/attn_text_probe.py`：E5 响应契约探针
+- `scene_attention/probe/attn_text.py`：E5 响应契约探针
   （探索件）。同状态换文本（真/谎/无）逐 tick 量化：逐边绑定
   质量、w-θ_watch 余弦对齐（`align_true/lie/none`、谎报对谎
   走廊 `align_lie_on_liewatch`）、w-L1 文本敏感度、残差幅度、
@@ -121,32 +123,32 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
   `output_data/dev_takeover_probe/attn_probe_c2/`：sga15 谎报
   对齐谎报走廊 0.42>真 0.35（注意力跟报告所指）；sga16(aux=0)
   对齐全平、w-L1 0.03——θ_watch 监督是可审计契约非性能件。
-- `dev/takeover_probe/joint_attn_fig.py`：反事实注意力热力图
+- `scene_attention/figs/joint_attn_fig.py`：反事实注意力热力图
   （探索件）。单状态三文本臂六面板热力，corridor 模式按
   θ_watch 分层标记（事件边/协调腿/截流来路）。产物
   `attn_probe_fig_c/fig_joint_attn.png`。
-- `dev/takeover_probe/evidence_fig.py`：量化证据四联图（探索件）。
+- `scene_attention/figs/evidence_fig.py`：量化证据四联图（探索件）。
   汇总已收割 results.json/探针 JSON 出 E1 走廊治理 / E5 契约
   / E7 跨路网收益% / E2 机制选型四联柱状，不再跑仿真。产物
   `evidence_fig/evidence.png`。
-- `dev/takeover_probe/report_effect_fig.py`：单事件一句话证据图
+- `scene_attention/figs/report_effect_fig.py`：单事件一句话证据图
   （探索件）。同 episode 三文本臂：上=注意力压在当前播报所指
   走廊的比例（逐 tick 解析播报边，谎报臂画谎走廊），下=事件边
   排队曲线。注意 rec['text'] 记的是真实播报句，override 只改
   模型输入；lane_queue 以车道名为键（勿用下标直接查）。产物
   `evidence_fig/report_effect.png`。
-- `dev/takeover_probe/corridor_delta_fig.py`：一句话柱状图（探索件）。
+- `scene_attention/figs/corridor_delta_fig.py`：一句话柱状图（探索件）。
   从 results.json 直接出"报告所指走廊排队 vs 无文本臂"的下降
   比例柱状（走廊=事件边+协调腿合计），fixedtime 超框加截断
   标记。产物 `evidence_fig/corridor_delta.png`。
-- `dev/takeover_probe/sig15_table.py`：SIGMA 式汇总表（探索件）。
+- `scene_attention/figs/sig15_table.py`：SIGMA 式汇总表（探索件）。
   跨 eval 目录拼 mean±std 主表 + paired Wilcoxon + 延迟/强度/
   跨场景小表；读 `results.json`['arms'] 的逐 case 记录。
-- `dev/takeover_probe/sig15_panels.py`：三联证据图（探索件）。
+- `scene_attention/figs/sig15_panels.py`：三联证据图（探索件）。
   A=走廊收益配对%柱(带SEM+Wilcoxon星标) B=延迟鲁棒曲线
   C=强度剂量响应；数据源 sig15_eval_main8/delay*/sev。
   产物 `evidence_fig/sig15_panels.png`。
-- `dev/takeover_probe/taskbook_figs.py`：任务书佐证图组（探索件）。
+- `scene_attention/figs/taskbook_figs.py`：任务书佐证图组（探索件）。
   一图一问题六联：F1 感知-响应契约（attn_probe_c2 反事实
   探针：真/谎/无文本对齐 + sga16 无监督对照）/ F2 感知-浓缩
   表征（probe_repr_id 四编码器三指标）/ F3 决策-主效应
@@ -159,7 +161,7 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
   (event,第k次)键对齐。Wilcoxon 复用 sig15_table scipy-free
   实现；中文标签需 NotoSansCJK 字体。
   产物 `taskbook_figs/f{1..6}_*.png`。
-- `dev/takeover_probe/sga_arch_fig.py`：现行架构图（探索件）。
+- `scene_attention/figs/sga_arch_fig.py`：现行架构图（探索件）。
   外部输入仅 SUMO 观测 + 现象播报；播报穿 SGA 虚线边界分
   两条通路：① text_vec（推理：query + fuse3 语义通道）
   ② 意图编译（训练：θ_reward 塑形 / θ_watch aux 监督）。
@@ -168,24 +170,24 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
   浓缩 z；副产物 w 只作门控/审计。底座 dqn_s1 图内微调 +
   门控有界残差 → 相位；底条蒸馏训练链路（含 sig6/7/8
   否决理由）。产物 `taskbook_figs/f0_architecture.png`。
-- `dev/takeover_probe/dispatch_specialist.py`：注意力 key 派发壳
+- `scene_attention/dispatch_specialist.py`：注意力 key 派发壳
   （探索件）。`KeyDispatchAgent`：encoder 绑定报告→(kind,edge)
   key≥bind_tau → 注册表查专项，否则基座 act()；规则派发非学习
   策略（避开被否 SMDP router 的双层决策）；oracle 模式读
   `fb.event_fields` 作鉴别上限；audit 记录逐 tick 派发轨迹。
-- `dev/takeover_probe/dispatch_eval.py`：派发门评测（探索件）。
+- `scene_attention/probe/dispatch_eval.py`：派发门评测（探索件）。
   surge 网格 ×{dispatch_attn, dispatch_oracle, dispatch_blind,
   dispatch_mp(无文本规则专项), joint_always, FT/MP/dqn_s1}。
   dispatch_gate_v1 结果（n=16）：blind≡dqn_s1 逐位回退、
   attn≡oracle 鉴别无损、dispatch_mp 全场最优
   (ev 15207 vs MP 15392；queue_int −5% vs MP)。
-- `dev/takeover_probe/dispatch_fig.py`：派发门佐证图生成（探索件）。
+- `scene_attention/figs/dispatch_fig.py`：派发门佐证图生成（探索件）。
   单事件轨迹 episode 出四联图：车道×车道自注意力（交通响应层，
   sa_sal）+ text->lane 交叉注意力热力图（报告臂 vs 盲化臂同标尺）
   + 全边 mass 束/接管曲线（fig_attn.png）；gate 聚合出 base vs
   Scene-Guided Attention 归一化优化柱状（fig_bars.png）。产物在
   `output_data/dev_takeover_probe/dispatch_figs_v1/`。
-- `dev/takeover_probe/nl_scene.py`：自然语言播报→场景字段结构化
+- `scene_attention/nl_scene.py`：自然语言播报→场景字段结构化
   前端（探索件）。`nl_render` 把播报字段渲染成多模板 NL 句式
   （模拟异构上报），`NLSceneParser`（hash n-gram 线性分类器 +
   边名字面提取）按"模板留出"训练评估；`NLDispatchAgent` 在 act

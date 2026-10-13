@@ -14,7 +14,7 @@
 | `python -m scene_attention` | 注意力方法包门面 | scene_attention/ | 正式面 |
 | `python -m hitl` | HITL 通道包门面 | hitl/ | 正式面 |
 | `environment.py` | 环境探测辅助 | — | 基础设施 |
-| `scripts/compare_run_configs.py` | M0 run 配置比对（调 utils/run_config_compare） | milestone0_infra | 工具件，保留 |
+| `tools/compare_run_configs.py` | M0 run 配置比对（调 utils/run_config_compare）；原 `scripts/`（2026-10-13 并入 tools/ 后删目录） | milestone0_infra | 工具件，保留 |
 
 ## tools/ — 一次性启动/驱动脚本（campaign 绑定，原位保留）
 

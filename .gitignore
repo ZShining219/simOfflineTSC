@@ -38,3 +38,9 @@ data/output_data/
 *.sh
 !dev/checks/*.sh
 *.ipynb
+
+# Runtime coordination artifacts (queues / claims / eval bundles) — runtime state, not versioned.
+/artifacts/*
+!/artifacts/wiki_claims/
+/artifacts/wiki_claims/*
+!/artifacts/wiki_claims/README.md

@@ -126,7 +126,6 @@ data/output_data/ha_sodqn/               # HA-SODQN engineering / 正式运行 /
 | bench/ | 正式验收口径（BENCH.md + profiles） |
 | dev/ | 一次性脚本唯一合法堆放处 + INDEX.md 登记 |
 | docs/ | 计划文档 + **实验记录**（`docs/experiments/`，每实验一份固定格式，规则见 `docs/README.md`）+ 里程碑归档 `docs/done/` |
-| scripts/ | 辅助脚本（如 run 配置比对） |
 | tools/、tests/ | 分析与可视化工具（见下节）、最小回归测试 |
 
 ## 工具与可视化

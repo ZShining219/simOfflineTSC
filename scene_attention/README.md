@@ -35,6 +35,21 @@
 - `nl_scene.py`：NL 播报→结构化字段管线；
 - `events.py`：sig 事件常量**唯一源**（从 router 时代抽出，见 `_legacy/router/README`）。
 
+## 机制谱系与产物映射
+
+代际链（输出均落 `output_data/dev_takeover_probe/`，~168 目录）：
+
+| 代际 | 机制 | 产物前缀 | 件数/时段 | 状态 |
+|---|---|---|---|---|
+| G3 Router 双层 | `DispatchRouter` SMDP 选控制器 | `router_*`/`eval_obj_*`/`eval_p*`/`probe_repr*`/`channel_ablate`/`scan_pairs`/`stage1_physics` | ~45 / 10-08~09 | **否决**：上层退化为控制器选择；代码封存 `_legacy/router/` |
+| 编码器消融矩阵 | sga vs selfattn vs concat vs *_st | `sig_*`/`sig2-5_*`/`eval_sig1/2/3/5_*` | ~20 / 10-09~10 | 证据冻结；消融臂代码已移除（git 可查） |
+| 信号 agent 代际 | sig6 from-scratch→sig7 冻结残差→sig8 错 reward joint | `sig6*`/`sig7_res_sga`/`sig8_joint_sga` | ~6 / 10-10 | 取代：见 `signal_model.py` 头注 |
+| **sig9-16 Joint+意图层** | `SceneJointPolicy` + intent_vec + corridor | `sig9_joint_bc`/`sig10_joint_rl`/`sig11*`/`sig12_joint_intent`/`sig13,14_corridor`/`sig15_*`/`sig16_noaux` | **~38 / 10-10~12** | **canonical**：台账 `takeover_probe_sig15` 24 行全 DONE |
+| 意图层外围 | KeyDispatch 派发 + NL 前端 | `dispatch_gate_v1`/`spec_gate_congest_v1`/`sig15_dispatch_eval`/`nl_scene_v1` | ~5 / 10-11 | 维护中（`sig15_dispatch_eval` 属主线） |
+| 参照系/图件 | fixedtime/mp/dqn_s1 参照 + fork 探针 + 出图 | `s2_ref_*`/`s5_ref_*`/`s2_fork*`/`figs`/`plots`/`*_fig` | ~23 / 10-08~12 | 对照证据 |
+
+主线读法：`sig9_joint_bc`（adapter 教师蒸馏）→ `sig10_joint_rl`（原装 reward TD）→ `sig11`（无意图对照）→ `sig12_joint_intent`（单边意图）→ `sig13/14_corridor`（走廊负结果）→ `sig15_corrload + S1/S3/S4`（corridor-load 主链，多场景泛化，14 个评测变体）→ `sig16_noaux`（无辅助对照）。产物目录名即 run_id；ledger 只覆盖 sig15 起（治理 10-07 落地，此前靠目录自述）。
+
 ## 工单与产物
 
 - 事件常量：`scene_attention/events.py`（采样空间单源；`configs/scene_attention/` 工单覆盖为下一步）；

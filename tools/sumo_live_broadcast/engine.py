@@ -18,6 +18,8 @@ import threading
 import time
 from pathlib import Path
 
+import numpy as np
+
 from tools.sumo_gui_comparison import (
     _configure_registry, _make_world_config,
 )
@@ -604,6 +606,25 @@ class BroadcastEngine:
                 sum(lane_waiting.get(lane, 0.0) for lane in lanes))
         return queues
 
+    def _student_margin(self, rank):
+        """Student Q top-1/top-2 margin for one rank — the ``margin``
+        gate's uncertainty signal.  ``None`` when the student exposes no
+        Q-values (non-snapshot controllers)."""
+        controller = self.controllers.get(self.controller_id)
+        agent = getattr(controller, '_agents', {}).get(int(rank))
+        if agent is None:
+            return None
+        try:
+            from tools.sumo_live_broadcast.controllers import (
+                inference_q_values)
+            q = np.asarray(inference_q_values(agent), dtype=float)
+            if q.size < 2:
+                return None
+            top2 = np.partition(q, -2)[-2:]
+            return float(top2.max() - top2.min())
+        except Exception:
+            return None
+
     def _expert_consult(self, now, proposals):
         """Ask the expert seat where the gate fired; sets _expert_ctx."""
         self._expert_ctx = None
@@ -623,7 +644,8 @@ class BroadcastEngine:
                 if rank in self.manual_overrides or rank not in proposals:
                     continue
                 fired, reason = self.gate.check(
-                    rank, queues.get(rank, 0.0), self._decision_index)
+                    rank, queues.get(rank, 0.0), self._decision_index,
+                    margin=self._student_margin(rank), now=now)
                 if not fired:
                     if (reason == 'budget_exhausted'
                             and not self._budget_logged):
@@ -659,7 +681,8 @@ class BroadcastEngine:
             if rank not in proposals:
                 continue
             fired, reason = self.gate.check(
-                rank, queues.get(rank, 0.0), self._decision_index)
+                rank, queues.get(rank, 0.0), self._decision_index,
+                margin=self._student_margin(rank), now=now)
             if not fired:
                 if reason == 'budget_exhausted' and not self._budget_logged:
                     self._record_event('专家干预预算耗尽')

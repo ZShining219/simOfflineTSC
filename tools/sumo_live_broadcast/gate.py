@@ -16,6 +16,13 @@ Modes:
 * ``on_demand`` — fires when the junction's incoming-lane waiting queue
   exceeds ``queue_threshold`` (absolute) or grows by ``queue_growth``
   versus the previous eligible decision (relative); either suffices
+* ``random``    — fires with probability ``random_prob`` per eligible
+  decision (same budget; lower bound for "when to ask")
+* ``margin``    — fires when the student's top-1/top-2 Q-margin falls in
+  the lowest ``margin_frac`` of its recent history (uncertainty trigger;
+  self-calibrating to the same budget on any scene)
+* ``window``    — fires only while ``now`` (sim seconds) lies inside one
+  of ``windows`` (event-window oracle: upper bound for query timing)
 
 The gate is deliberately pure: it receives the junction's queue and the
 global decision index and returns ``(fired, reason)``.  World access,
@@ -24,14 +31,21 @@ expert invocation and arbitration stay in the engine/recorder.
 
 from __future__ import annotations
 
-MODES = ('off', 'periodic', 'on_demand')
+import random
+from collections import deque
+
+import numpy as np
+
+MODES = ('off', 'periodic', 'on_demand', 'random', 'margin', 'window')
 
 
 class HitlGate:
     """Per-rank trigger with episode budget and cooldown."""
 
     def __init__(self, mode='off', period=10, queue_threshold=None,
-                 queue_growth=None, budget=36, cooldown=3):
+                 queue_growth=None, budget=36, cooldown=3,
+                 random_prob=0.06, margin_frac=0.06, margin_warmup=20,
+                 windows=None, rng_seed=0):
         if mode not in MODES:
             raise ValueError(f'unknown gate mode: {mode}')
         self.mode = mode
@@ -42,6 +56,12 @@ class HitlGate:
             None if queue_growth is None else float(queue_growth))
         self.budget = max(0, int(budget))
         self.cooldown = max(0, int(cooldown))
+        self.random_prob = float(random_prob)
+        self.margin_frac = float(margin_frac)
+        self.margin_warmup = max(2, int(margin_warmup))
+        self.windows = [
+            (float(lo), float(hi)) for lo, hi in (windows or [])]
+        self._rng = random.Random(rng_seed)
         self.reset()
 
     # ------------------------------------------------------------- episode
@@ -53,6 +73,7 @@ class HitlGate:
         self._last_fired = {}  # rank -> decision index of last query
         self._seen = {}        # rank -> eligible decisions seen
         self._last_queue = {}  # rank -> queue at previous eligible decision
+        self._margins = {}     # rank -> deque of recent student Q-margins
 
     # -------------------------------------------------------------- status
 
@@ -70,16 +91,23 @@ class HitlGate:
             'queue_growth': self.queue_growth,
             'budget': self.budget,
             'cooldown': self.cooldown,
+            'random_prob': (
+                self.random_prob if self.mode == 'random' else None),
+            'margin_frac': (
+                self.margin_frac if self.mode == 'margin' else None),
+            'windows': self.windows if self.mode == 'window' else None,
         }
 
     # --------------------------------------------------------------- check
 
-    def check(self, rank, queue, decision_index):
+    def check(self, rank, queue, decision_index, margin=None, now=None):
         """Return ``(fired, reason)`` for one rank at a decision boundary.
 
         ``queue`` is the junction's incoming-lane waiting-vehicle count
         for this decision; ``decision_index`` is the engine's monotonic
-        decision counter.
+        decision counter.  ``margin`` (student Q top-1 minus top-2) feeds
+        ``margin`` mode; ``now`` (sim seconds) feeds ``window`` mode.
+        Both are optional so legacy callers keep working.
         """
         rank = int(rank)
         self._seen[rank] = self._seen.get(rank, 0) + 1
@@ -89,6 +117,21 @@ class HitlGate:
         if self.mode == 'periodic':
             if self._seen[rank] % self.period == 0:
                 fire_reason = 'periodic'
+        elif self.mode == 'random':
+            if self._rng.random() < self.random_prob:
+                fire_reason = 'random'
+        elif self.mode == 'margin':
+            hist = self._margins.setdefault(rank, deque(maxlen=240))
+            if margin is not None and np.isfinite(margin):
+                if (len(hist) >= self.margin_warmup
+                        and float(margin) <= float(np.quantile(
+                            np.asarray(hist), self.margin_frac))):
+                    fire_reason = 'margin'
+                hist.append(float(margin))
+        elif self.mode == 'window':
+            if now is not None and any(
+                    lo <= float(now) <= hi for lo, hi in self.windows):
+                fire_reason = 'window'
         elif self.mode == 'on_demand':
             if (self.queue_threshold is not None
                     and queue >= self.queue_threshold):

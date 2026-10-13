@@ -121,6 +121,20 @@ def _series(session_dir):
     return rows
 
 
+def _inject_windows(injects):
+    """Event windows (sim seconds) parsed from surge inject specs —
+    the ``window`` gate's oracle schedule."""
+    windows = []
+    for spec in injects or []:
+        parts = str(spec).split(':')
+        if parts and parts[0] == 'surge' and len(parts) >= 5:
+            try:
+                windows.append((float(parts[3]), float(parts[4])))
+            except ValueError:
+                continue
+    return windows
+
+
 def run_arm(args, arm, seed, controllers):
     """One paired run: fresh engine session, drive to horizon, harvest."""
     from tools.sumo_live_broadcast.engine import BroadcastEngine
@@ -141,6 +155,10 @@ def run_arm(args, arm, seed, controllers):
             queue_threshold=args.gate_queue_threshold,
             queue_growth=args.gate_queue_growth,
             budget=budget, cooldown=args.gate_cooldown,
+            random_prob=args.gate_random_prob,
+            margin_frac=args.gate_margin_frac,
+            windows=(args.gate_window or _inject_windows(args.inject)),
+            rng_seed=seed,
         )
     elif arm == 'expert':
         controller_id = args.expert
@@ -234,10 +252,18 @@ def main(argv=None):
     parser.add_argument('--inject', action='append', default=[],
                         help='e.g. surge:road_0_1_0:road_1_2_3:300:600:20')
     parser.add_argument('--gate', default='on_demand',
-                        choices=['periodic', 'on_demand'])
+                        choices=['periodic', 'on_demand', 'random',
+                                 'margin', 'window'])
     parser.add_argument('--gate-period', type=int, default=3)
     parser.add_argument('--gate-queue-threshold', type=float, default=None)
     parser.add_argument('--gate-queue-growth', type=float, default=5)
+    parser.add_argument('--gate-random-prob', type=float, default=0.06)
+    parser.add_argument('--gate-margin-frac', type=float, default=0.06)
+    parser.add_argument('--gate-window', action='append', default=None,
+                        type=lambda s: tuple(
+                            float(x) for x in s.split('-')),
+                        help='LO-HI sim-seconds; default derives from '
+                             'surge inject specs; repeatable')
     parser.add_argument('--gate-budget', type=int, default=None,
                         help='queries/episode; default derives spec formula '
                              'B=floor(0.1*horizon/action_interval)')
@@ -314,6 +340,9 @@ def main(argv=None):
                 'explicit' if args.gate_budget is not None
                 else 'floor(0.1*horizon/action_interval)'),
             'cooldown': args.gate_cooldown,
+            'random_prob': args.gate_random_prob,
+            'margin_frac': args.gate_margin_frac,
+            'windows': (args.gate_window or _inject_windows(args.inject)),
         },
         'run_count': len(runs),
     }

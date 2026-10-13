@@ -59,7 +59,7 @@ from dev.takeover_probe.dispatch_eval import SIG9, _EncoderShim  # noqa: E402
 from dev.takeover_probe.dispatch_specialist import (  # noqa: E402
     KeyDispatchAgent, wrap_controller,
 )
-from tools.sumo_live_broadcast.injects import (  # noqa: E402
+from hitl.live.injects import (  # noqa: E402
     EVENT_KIND_LABEL, EVENT_KINDS, parse_injects,
 )
 

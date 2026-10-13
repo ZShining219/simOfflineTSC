@@ -38,7 +38,7 @@ from dev.takeover_probe.dispatch_model import DispatchRouter  # noqa: E402
 from dev.takeover_probe._router.router_runtime import (  # noqa: E402
     run_router_episode,
 )
-from tools.sumo_live_broadcast.injects import parse_injects  # noqa: E402
+from hitl.live.injects import parse_injects  # noqa: E402
 
 
 def run_one(args, fork_map):

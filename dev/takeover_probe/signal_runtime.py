@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from tools.sumo_live_broadcast.injects import apply_injects
+from hitl.live.injects import apply_injects
 
 
 def run_signal_episode(world, fb, ranks, injects=None, agent=None,

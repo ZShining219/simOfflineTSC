@@ -24,7 +24,7 @@ from dev.takeover_probe.probe import (  # noqa: E402
 from dev.takeover_probe.dispatch_state import (  # noqa: E402
     FeatureBuilder, fb_kwargs_from_meta)
 from dev.takeover_probe._router.router_runtime import run_router_episode  # noqa: E402
-from tools.sumo_live_broadcast.injects import parse_injects  # noqa: E402
+from hitl.live.injects import parse_injects  # noqa: E402
 
 
 def main():

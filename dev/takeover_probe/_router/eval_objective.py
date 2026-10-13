@@ -54,7 +54,7 @@ from dev.takeover_probe._router.eval_router import eval_metrics  # noqa: E402
 from dev.takeover_probe._router.train_router import (  # noqa: E402
     EDGE_TARGETS, priority_lanes_for,
 )
-from tools.sumo_live_broadcast.injects import parse_injects  # noqa: E402
+from hitl.live.injects import parse_injects  # noqa: E402
 
 
 def main():

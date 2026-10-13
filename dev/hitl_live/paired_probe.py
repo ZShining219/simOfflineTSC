@@ -137,9 +137,9 @@ def _inject_windows(injects):
 
 def run_arm(args, arm, seed, controllers):
     """One paired run: fresh engine session, drive to horizon, harvest."""
-    from tools.sumo_live_broadcast.engine import BroadcastEngine
-    from tools.sumo_live_broadcast.gate import HitlGate
-    from tools.sumo_live_broadcast.recorder import HitlRecorder
+    from hitl.live.engine import BroadcastEngine
+    from hitl.live.gate import HitlGate
+    from hitl.live.recorder import HitlRecorder
 
     gate = None
     expert_id = None
@@ -286,7 +286,7 @@ def main(argv=None):
     args.sim_config = str(Path(args.sim_config).expanduser().resolve())
     args.out = str(Path(args.out).expanduser().resolve())
 
-    from tools.sumo_live_broadcast.cli import (
+    from hitl.live.cli import (
         _parse_model_arg, build_controllers)
     ns = argparse.Namespace(
         model=[_parse_model_arg(m) for m in args.model],

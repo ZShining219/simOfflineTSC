@@ -1,6 +1,6 @@
 """Controller-takeover probe: scripted fork experiment on a SUMO scene.
 
-探索件（非正式实验入口）。复用 tools/sumo_live_broadcast 的控制器适配器与
+探索件（非正式实验入口）。复用 hitl/live 的控制器适配器与
 tools/sumo_gui_comparison 的 world 构建函数，在无 UI 的确定性循环里做：
 
     reference  FixedTime 全程跑一遍，逐决策记录各进口车道排队
@@ -35,12 +35,12 @@ from tools.sumo_gui_comparison import (  # noqa: E402
     _make_world_config,
 )
 from tools.sumo_html_comparison import canonical_scene  # noqa: E402
-from tools.sumo_live_broadcast.controllers import (  # noqa: E402
+from hitl.live.controllers import (  # noqa: E402
     build_builtin_controllers,
     build_snapshot_controller,
 )
-from tools.sumo_live_broadcast.engine import DEFAULT_MODEL_PARAMS  # noqa: E402
-from tools.sumo_live_broadcast.injects import (  # noqa: E402
+from hitl.live.engine import DEFAULT_MODEL_PARAMS  # noqa: E402
+from hitl.live.injects import (  # noqa: E402
     apply_injects as _apply_injects,
     parse_injects,
 )

@@ -56,10 +56,10 @@ from dev.takeover_probe._router.train_router import (  # noqa: E402
     DISCHARGE_OF, DISTRACTOR_OF, EDGE_TARGETS, FEEDER_OF,
     TRAIN_EDGES,
 )
-from tools.sumo_live_broadcast.controllers import (  # noqa: E402
+from hitl.live.controllers import (  # noqa: E402
     inference_q_values,
 )
-from tools.sumo_live_broadcast.injects import (  # noqa: E402
+from hitl.live.injects import (  # noqa: E402
     apply_injects, parse_injects,
 )
 

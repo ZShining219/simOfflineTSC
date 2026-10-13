@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from tools.sumo_live_broadcast.injects import apply_injects
+from hitl.live.injects import apply_injects
 
 
 def _window_reward(records, switched, priority_lanes=None):

@@ -205,7 +205,7 @@ class SceneGuidedDQN(SceneGuidedMP):
         self.dqn = dqn_agent        # bound inference agent (rank 0)
 
     def _base_and_dose(self, inter, counts):
-        from tools.sumo_live_broadcast.controllers import \
+        from hitl.live.controllers import \
             inference_q_values
         q = inference_q_values(self.dqn)
         if len(q) != len(inter.phases):
@@ -219,7 +219,7 @@ class SceneGuidedDQN(SceneGuidedMP):
 def bound_dqn_agent(world, weights_path, rank=0):
     """Load a deployed Q-network and bind an inference-only agent to
     ``world`` at ``rank`` — the frozen base for ``SceneGuidedDQN``."""
-    from tools.sumo_live_broadcast.controllers import (
+    from hitl.live.controllers import (
         _build_inference_agent, load_qnet_payload,
     )
     payload = load_qnet_payload(weights_path)

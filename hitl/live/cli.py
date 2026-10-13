@@ -1,8 +1,8 @@
 """Command line entry for the live SUMO broadcast server.
 
 Example:
-    python -m tools.sumo_live_broadcast --scene S2 --port 8010
-    python -m tools.sumo_live_broadcast --scene S4 \
+    python -m hitl.live --scene S2 --port 8010
+    python -m hitl.live --scene S4 \
         --model dhoa=output_data/.../snapshots/sumohz1x1_config3.pt
 """
 
@@ -183,7 +183,7 @@ def _build_scene_configs(args):
 
 def build_parser():
     parser = argparse.ArgumentParser(
-        prog='tools.sumo_live_broadcast',
+        prog='hitl.live',
         description=__doc__,
     )
     parser.add_argument(

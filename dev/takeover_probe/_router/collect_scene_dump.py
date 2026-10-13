@@ -57,7 +57,7 @@ from dev.takeover_probe._router.router_runtime import (  # noqa: E402
     run_router_episode,
 )
 from dev.takeover_probe._router.train_router import EDGE_TARGETS  # noqa: E402
-from tools.sumo_live_broadcast.injects import parse_injects  # noqa: E402
+from hitl.live.injects import parse_injects  # noqa: E402
 
 CONG_THRESH = 1.0   # mean queue (veh) below this -> 'no congestion edge'
 

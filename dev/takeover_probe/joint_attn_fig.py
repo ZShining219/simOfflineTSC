@@ -41,7 +41,7 @@ from dev.takeover_probe.signal_runtime import (  # noqa: E402
 from dev.takeover_probe._router.train_router import (  # noqa: E402
     DISCHARGE_OF, EDGE_TARGETS, FEEDER_OF, TRAIN_EDGES,
 )
-from tools.sumo_live_broadcast.injects import parse_injects  # noqa: E402
+from hitl.live.injects import parse_injects  # noqa: E402
 
 
 def sa_salience(policy, lanes_t):

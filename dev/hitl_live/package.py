@@ -1,7 +1,7 @@
 """HITL session packager: recorder JSONL -> offline trajectory archive.
 
 探索件（归 dev/hitl_live/，登记 dev/INDEX.md）。把
-``tools/sumo_live_broadcast`` ``--record`` 录出的会话目录（transitions/
+``hitl/live`` ``--record`` 录出的会话目录（transitions/
 proposals/interventions + manifest）打包成离线档案：
 
     <out>/

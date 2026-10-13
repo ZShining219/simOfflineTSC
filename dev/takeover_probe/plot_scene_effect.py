@@ -31,8 +31,8 @@ from dev.takeover_probe.scene_mp import (  # noqa: E402
     SceneGuidedDQN, SceneGuidedMP, bound_dqn_agent,
 )
 from dev.takeover_probe.signal_runtime import run_signal_episode  # noqa: E402
-from tools.sumo_live_broadcast.injects import parse_injects  # noqa: E402
-from tools.sumo_live_broadcast.controllers import (  # noqa: E402
+from hitl.live.injects import parse_injects  # noqa: E402
+from hitl.live.controllers import (  # noqa: E402
     _build_inference_agent, load_qnet_payload,
 )
 
@@ -168,7 +168,7 @@ class _DqnCtrl:
         self.agent = agent
 
     def decide(self, rank=0):
-        from tools.sumo_live_broadcast.controllers import _inference_action
+        from hitl.live.controllers import _inference_action
         return _inference_action(self.agent)
 
 

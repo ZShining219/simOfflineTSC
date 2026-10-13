@@ -39,7 +39,7 @@ from dev.takeover_probe.dispatch_specialist import (  # noqa: E402
 from dev.takeover_probe.dispatch_eval import (  # noqa: E402
     _EncoderShim, SIG9,
 )
-from tools.sumo_live_broadcast.injects import parse_injects  # noqa: E402
+from hitl.live.injects import parse_injects  # noqa: E402
 
 
 class _SAShim(_EncoderShim):

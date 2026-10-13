@@ -276,7 +276,7 @@ class DispatchController:
         from dev.takeover_probe.dispatch_model import DispatchRouter
         from dev.takeover_probe.dispatch_state import (
             FeatureBuilder, fb_kwargs_from_meta)
-        from tools.sumo_live_broadcast.injects import parse_injects
+        from hitl.live.injects import parse_injects
 
         self._router, payload = DispatchRouter.load(self.router_ckpt)
         meta = payload.get('meta') or {}

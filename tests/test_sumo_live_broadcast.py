@@ -6,16 +6,16 @@ from types import SimpleNamespace
 
 import numpy as np
 
-from tools.sumo_live_broadcast.cli import (
+from hitl.live.cli import (
     _parse_model_arg, build_controllers, build_parser,
 )
-from tools.sumo_live_broadcast.controllers import (
+from hitl.live.controllers import (
     ManualController, _state_dict_dims, build_builtin_controllers,
     build_snapshot_controller,
 )
-from tools.sumo_live_broadcast.gate import HitlGate
-from tools.sumo_live_broadcast.page import build_page
-from tools.sumo_live_broadcast.recorder import HitlRecorder
+from hitl.live.gate import HitlGate
+from hitl.live.page import build_page
+from hitl.live.recorder import HitlRecorder
 
 
 def _fake_world(virtual_phase=2, phase_count=4, junction_count=1):
@@ -153,7 +153,7 @@ class SumoLiveBroadcastTest(unittest.TestCase):
         self.assertIn('/static/js/app.js', page)
         self.assertIn('/static/js/renderer', page)
         app_js = (Path(__file__).parent.parent /
-                  'tools/sumo_live_broadcast/static/js/app.js').read_text()
+                  'hitl/live/static/js/app.js').read_text()
         self.assertIn("EventSource('/api/stream')", app_js)
         self.assertIn('api/control', app_js)
 
@@ -162,13 +162,13 @@ class SumoLiveBroadcastTest(unittest.TestCase):
         # the sole signal that building finished.  The page must infer the
         # live transition inside onFrame or the overlay stays in 'building'.
         app_js = (Path(__file__).parent.parent /
-                  'tools/sumo_live_broadcast/static/js/app.js').read_text()
+                  'hitl/live/static/js/app.js').read_text()
         onframe = app_js.split('function onFrame(f) {', 1)[1]
         self.assertIn("sessionState !== 'live'", onframe[:800])
 
     def test_map_renderers_implement_the_same_contract(self):
         js_dir = (Path(__file__).parent.parent /
-                  'tools/sumo_live_broadcast/static/js')
+                  'hitl/live/static/js')
         for name in ('renderer_canvas.js', 'renderer_deckgl.js'):
             src = (js_dir / name).read_text()
             for method in ('setNetwork', 'pushFrame', 'setFocus',
@@ -375,7 +375,7 @@ class SumoLiveBroadcastTest(unittest.TestCase):
 
     def _human_seat_engine(self):
         """Bare BroadcastEngine wired for the human banner path."""
-        from tools.sumo_live_broadcast.engine import BroadcastEngine
+        from hitl.live.engine import BroadcastEngine
         eng = BroadcastEngine.__new__(BroadcastEngine)
         eng.world = _FakeWorld()
         eng.recorder = None

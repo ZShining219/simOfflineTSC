@@ -34,7 +34,7 @@ from dev.takeover_probe.eval_signal import spec_list  # noqa: E402
 from dev.takeover_probe._router.train_router import (  # noqa: E402
     TRAIN_EDGES,
 )
-from tools.sumo_live_broadcast.injects import parse_injects  # noqa: E402
+from hitl.live.injects import parse_injects  # noqa: E402
 
 _EDGE_RE = re.compile(r'road_\d+_\d+_\d+')
 

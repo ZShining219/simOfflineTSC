@@ -44,7 +44,7 @@ from dev.takeover_probe._router.train_router import (  # noqa: E402
     DISCHARGE_OF, EDGE_TARGETS, FEEDER_OF, TRAIN_DURS, TRAIN_EDGES, TRAIN_ONSETS,
     TRAIN_PERIODS,
 )
-from tools.sumo_live_broadcast.injects import parse_injects  # noqa: E402
+from hitl.live.injects import parse_injects  # noqa: E402
 
 
 def sample_injects(rng, allow_none_p=0.25, p_corridor=0.0):
@@ -117,7 +117,7 @@ def train(args):
         # initialised from the deployed checkpoint and fine-tuned with
         # a small lr — TD lands in the controller's own weights.
         from dev.takeover_probe.scene_mp import bound_dqn_agent
-        from tools.sumo_live_broadcast.controllers import (
+        from hitl.live.controllers import (
             load_qnet_payload,
         )
         probe = bound_dqn_agent(world, args.joint_dqn, rank=0)
@@ -280,7 +280,7 @@ def train(args):
         from dev.takeover_probe.scene_mp import (
             SceneGuidedDQN, bound_dqn_agent,
         )
-        from tools.sumo_live_broadcast.controllers import (
+        from hitl.live.controllers import (
             inference_q_values,
         )
         enc_agent, _ = SceneSignalAgent.load(args.distill_encoder)
@@ -370,7 +370,7 @@ def train(args):
         q_base_fn = None
         if residual_mode:
             from dev.takeover_probe.scene_mp import bound_dqn_agent
-            from tools.sumo_live_broadcast.controllers import (
+            from hitl.live.controllers import (
                 inference_q_values,
             )
             dqn = bound_dqn_agent(world, args.residual_dqn,

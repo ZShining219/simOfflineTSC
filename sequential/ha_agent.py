@@ -39,6 +39,8 @@ class HASODQNAgent(SequentialDQNAgent):
         self.verify_archive_hashes = bool(verify_archive_hashes)
         self.expert_pool_manifest = expert_pool_manifest
         self.expert_ratio = float(expert_ratio)
+        self.expert_ratio_schedule = self._parse_ratio_schedule(
+            trainer_config.get('expert_ratio_schedule'))
         self.expert_capacity = int(expert_capacity)
         self._validate_ha_config()
         self.online_rng = random.Random(derive_rng_seed(training_seed, 'online_replay_sampler'))
@@ -62,6 +64,32 @@ class HASODQNAgent(SequentialDQNAgent):
         self.last_local_episode = 0
         self.replay = SequentialReplay(int(trainer_config['buffer_size']))
 
+    @staticmethod
+    def _parse_ratio_schedule(spec):
+        """Normalize an optional [[episode, ratio], ...] knot list."""
+        if not spec:
+            return None
+        knots = sorted((int(k[0]), float(k[1])) for k in spec)
+        if not knots or knots[0][0] < 0:
+            raise ValueError('expert_ratio_schedule must be [[episode, ratio]]')
+        return tuple(knots)
+
+    def _effective_expert_ratio(self):
+        """Expert share for the CURRENT episode: static ratio unless an
+        episode-knot schedule is configured (linear interpolation between
+        knots, clamped at both ends)."""
+        schedule = getattr(self, 'expert_ratio_schedule', None)
+        if not schedule:
+            return self.expert_ratio
+        ep = int(self.last_local_episode)
+        if ep <= schedule[0][0]:
+            return schedule[0][1]
+        for (e0, r0), (e1, r1) in zip(schedule, schedule[1:]):
+            if ep <= e1:
+                frac = (ep - e0) / max(e1 - e0, 1)
+                return r0 + frac * (r1 - r0)
+        return schedule[-1][1]
+
     def _validate_ha_config(self):
         if self.archive_mode not in {'NONE', 'P1C', 'P1F'}:
             raise ValueError('HA archive mode must be none/P1C/P1F')
@@ -77,12 +105,18 @@ class HASODQNAgent(SequentialDQNAgent):
                 raise ValueError('HA-SODQN requires an archive root manifest')
         if self.owp_capacity <= 0 or self.alignment_warmup_episodes < 0:
             raise ValueError('Invalid HA-SODQN working-pool configuration')
-        if (self.expert_pool_manifest is None) != (self.expert_ratio <= 0.0):
+        _sched_max = max(
+            (r for _, r in (self.expert_ratio_schedule or ())), default=None)
+        _wants_expert = self.expert_ratio > 0.0 or (
+            _sched_max is not None and _sched_max > 0.0)
+        if (self.expert_pool_manifest is None) != (not _wants_expert):
             raise ValueError(
                 'expert_pool_manifest and expert_ratio must be set together')
         if not 0.0 <= self.expert_ratio < 1.0:
             raise ValueError('expert_ratio must be in [0, 1)')
-        if self.offline_ratio + self.expert_ratio >= 1.0:
+        if _sched_max is not None and not 0.0 <= _sched_max < 1.0:
+            raise ValueError('expert_ratio_schedule ratios must be in [0, 1)')
+        if self.offline_ratio + max(self.expert_ratio, _sched_max or 0.0) >= 1.0:
             raise ValueError(
                 'offline_ratio + expert_ratio must leave an online share')
         if self.expert_capacity <= 0:
@@ -348,9 +382,10 @@ class HASODQNAgent(SequentialDQNAgent):
             int(round(self.batch_size * self.offline_ratio))
             if offline_enabled and self.historical_sampler is not None else 0
         )
+        effective_expert_ratio = self._effective_expert_ratio()
         expert_count = (
-            int(round(self.batch_size * self.expert_ratio))
-            if self.expert_sampler is not None and self.expert_ratio > 0
+            int(round(self.batch_size * effective_expert_ratio))
+            if self.expert_sampler is not None and effective_expert_ratio > 0
             else 0
         )
         online_count = self.batch_size - offline_count - expert_count
@@ -427,7 +462,7 @@ class HASODQNAgent(SequentialDQNAgent):
             ),
             'requested_offline_ratio': self.offline_ratio,
             'actual_offline_ratio': offline_count / self.batch_size,
-            'requested_expert_ratio': self.expert_ratio,
+            'requested_expert_ratio': effective_expert_ratio,
             'actual_expert_ratio': expert_count / self.batch_size,
             'online_count': online_count, 'offline_count': offline_count,
             'expert_count': expert_count,
@@ -495,6 +530,10 @@ class HASODQNAgent(SequentialDQNAgent):
             'last_local_episode': self.last_local_episode,
             'expert': None if self.expert_archive is None else {
                 'expert_ratio': self.expert_ratio,
+                'expert_ratio_schedule': (
+                    None if getattr(self, 'expert_ratio_schedule', None) is None
+                    else [list(k) for k in self.expert_ratio_schedule]
+                ),
                 'expert_capacity': self.expert_capacity,
                 'pool_digest': self.expert_archive.pool_digest,
                 'expert_rng_state': self.expert_rng.getstate(),
@@ -560,6 +599,12 @@ class HASODQNAgent(SequentialDQNAgent):
                     'checkpoint expects an expert pool')
             if expert_state['expert_ratio'] != self.expert_ratio:
                 raise ValueError('expert_ratio changed on resume')
+            saved_schedule = expert_state.get('expert_ratio_schedule')
+            if saved_schedule != (
+                None if getattr(self, 'expert_ratio_schedule', None) is None
+                else [list(k) for k in self.expert_ratio_schedule]
+            ):
+                raise ValueError('expert_ratio_schedule changed on resume')
             if expert_state['expert_capacity'] != self.expert_capacity:
                 raise ValueError('expert_capacity changed on resume')
             if expert_state['pool_digest'] != self.expert_archive.pool_digest:

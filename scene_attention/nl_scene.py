@@ -22,7 +22,7 @@ Two pieces:
                     not memorisation.
 
 ``NLDispatchAgent`` is a drop-in ``KeyDispatchAgent`` that performs the
-NL->fields step inside act(); ``eval_signal``/``run_signal_episode``
+NL->fields step inside act(); ``eval.py``/``run_signal_episode``
 need no changes.
 
 Demo:

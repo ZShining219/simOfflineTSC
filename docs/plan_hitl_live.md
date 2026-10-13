@@ -65,7 +65,7 @@ CLI：`--record DIR` 开录制；`--expert maxpressure --hitl-gate periodic|on_d
 
 训练臂 pilot 管线（已落地）：`build_pilot_plan.py` 从同一 ep0 checkpoint + 同 seed
 生成 HITL_C0 / HITL_EXP(纠偏池) / HITL_CTRL(等量机器数据) / HITL_DEMO(纯示范池)
-四臂 plan；逐臂 `sequential_run.py run-child`（注意 `CUDA_VISIBLE_DEVICES=""`——
+四臂 plan；逐臂 `python -m sequential run-child`（注意 `CUDA_VISIBLE_DEVICES=""`——
 checkpoint 的 rng_state_digest 按 CPU-only 语义钉死，GPU 可见时 digest 不匹配）；
 `curve_figs.py` 从 `_shared_evaluation` + `replay_diagnostics` 抽自主冻结 eval
 学习曲线/AULC/对基线 delta/专家腿消耗账本。`ReplayDiagnostics` 已补

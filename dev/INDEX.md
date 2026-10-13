@@ -9,9 +9,10 @@
 | 路径 | 用途 | 关联 | 判定 |
 |---|---|---|---|
 | `run.py` | 实验主入口/参数定义 | 全仓 | 正式入口 |
-| `offline_run.py` | 离线数据训练入口 | 半离线线 | 正式入口 |
-| `sequential_run.py` | sequential 模块入口 | sequential/ | 模块入口 |
-| `arterial_run.py` | arterial 线入口 | arterial/ | 模块入口 |
+| `python -m sequential.offline` | 纯离线训练面（旧 `offline_run.py` 留 shim） | 半离线线 | 正式面 |
+| `python -m sequential` | sequential 包门面 | sequential/ | 正式面 |
+| `python -m scene_attention` | 注意力方法包门面 | scene_attention/ | 正式面 |
+| `python -m hitl` | HITL 通道包门面 | hitl/ | 正式面 |
 | `environment.py` | 环境探测辅助 | — | 基础设施 |
 | `scripts/compare_run_configs.py` | M0 run 配置比对（调 utils/run_config_compare） | milestone0_infra | 工具件，保留 |
 
@@ -220,7 +221,7 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
 - `hitl/plans/build_pilot_plan.py`：C 通道训练臂对照 plan 生成器——
   同一 ep0 checkpoint/seed 出 HITL_C0/HITL_EXP/HITL_CTRL/HITL_DEMO 四臂
   （差异仅 `expert_pool_manifest`/`expert_ratio`）；产物用
-  `sequential_run.py run-child` 逐臂执行（探索性 pilot，不入台账）。
+  `python -m sequential run-child` 逐臂执行（探索性 pilot，不入台账）。
 - `hitl/figs/curve_figs.py`：训练期佐证图——自主冻结 eval 学习曲线
   （vs 决策数，多 seed mean±std 带）、AULC、对 C0 同 seed 配对 delta、
   专家腿消耗量（sampling_windows 账本）；eval 快照 digest 去重的

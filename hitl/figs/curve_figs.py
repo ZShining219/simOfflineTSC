@@ -2,7 +2,7 @@
 """curve_figs.py — HITL C-channel pilot learning-effect figures.
 
 Reads a 4-arm pilot output root produced by build_pilot_plan.py +
-sequential_run.py run-child:
+python -m sequential run-child:
 
     <root>/runs/<LOGICAL_RUN_ID>/attempt_001/           (per-arm attempt dirs)
     <root>/_shared_evaluation/physical/*/attempt_*/     (autonomous evals)

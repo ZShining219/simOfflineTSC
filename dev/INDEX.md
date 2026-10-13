@@ -288,7 +288,7 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
   语义排序但不等价重构真奖励。产 `reward_model_v1/rm_env_corr.json`。
   配套终局基线采集：`output_data/hitl_probe/baseline_{fixedtime,
   sotl}`（各 10 seed live，ft tt=175.6/sotl 103.6/mp 83.4）+
-  `hitl_cost_table.json`（问人成本与数据资产表）。
+  `hitl_probe/_meta/hitl_cost_table.json`（问人成本与数据资产表）。
 - `hitl/figs/multiscene_table.py`：r3 多场景汇总（探索件）。
   live 三臂（student/hitl/expert×10seed）终端指标表 + 逐场景
   paired_bootstrap（臂 vs 场景本地 C0，复用 collect/paired_deltas/

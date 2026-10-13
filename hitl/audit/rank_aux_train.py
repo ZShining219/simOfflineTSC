@@ -13,7 +13,7 @@ no attention module, no SUMO executor changes -- this script only does
 offline gradient updates on a checkpoint plus frozen evaluation.
 
 Usage (pilot):
-    python dev/action_ranking_audit/rank_aux_train.py \
+    python hitl/audit/rank_aux_train.py \
         --checkpoint <src.pt> --scene sumohz1x1 --pairs preference_pairs.json \
         --td-dir output_data/tsc/sumo_dqn/sumohz1x1/<run>/trajectory/episodes \
         --lam 1.0 --steps 3000

@@ -352,31 +352,31 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
 - `hitl/plans/build_pilot_plan.py` 增 `--bprime-arms`/`--bpc-arms`
   + `--adjudication-manifest`/`--adjudication-ctx`：HITL_BP（纯在线
   统一裁定）/ HITL_BPC（裁定+专家腿，旧 B 不能表达的组合）两臂。
-- `dev/action_ranking_audit/action_ranking_audit.py`：动作排序误排审计
+- `hitl/audit/action_ranking_audit.py`：动作排序误排审计
   （纯事后分析，不跑仿真）——读 `output_data/allocation_accuracy_formal_cf/`
   的 Q 预测 + 8 动作反事实推演 + oracle 标签，按 (method,scene,state) 计算
   Q 序 vs 实际回报序的 Spearman/Kendall/成对反序率/选中动作真实名次，以及
   chosen−oracle 的归一化 regret 与 Δqueue AUC/Δreal_delay/Δthroughput 原始
   交通损失；含方法内汇总与 R25/R50 对 CONT 的同状态配对 bootstrap。
   产物写 `output_data/action_ranking_audit/`。
-- `dev/action_ranking_audit/counterfactual_v2.py`：v2 严格反事实推演器
+- `hitl/audit/counterfactual_v2.py`：v2 严格反事实推演器
   （fresh world + loadState + 固定 --seed → 同后续实现；逐决策记录原 DQN
   reward、γ=0.95 折现回报与交通指标）。模式：`continuations`（indep/cont
   双接管 90s）、`multiseed`（高 gap 对 × 多未来 seed）、`boundary`（在
   30/60/90s 决策点记录 obs+两套 Q 向量，供 bootstrap 修正）、`episodes`
   （推演至 episode 终止 3600s 求全回报近似）。产物
   `output_data/action_ranking_audit/v2_rollouts/`。
-- `dev/action_ranking_audit/analyze_v2.py`：v2 四任务分析——训练奖励口径
+- `hitl/audit/analyze_v2.py`：v2 四任务分析——训练奖励口径
   回报排序、indep-vs-cont 配对敏感性、多种子稳定性、场景/负载/相位/时段
   分层。产物 `v2_*.csv` + `v2_action_ranking_report.md`。
-- `dev/action_ranking_audit/analyze_bootstrap.py`：高差异状态三口径对比
+- `hitl/audit/analyze_bootstrap.py`：高差异状态三口径对比
   （R1 60s 截断回报 / R2 边界 Q bootstrap 修正 / R3 全 episode 回报），
   含与已存分支的确定性逐位校验。产物 `v2_bootstrap_*.csv` +
   `v2_bootstrap_eval_report.md`。
-- `dev/action_ranking_audit/mine_preference_pairs.py`：从 multiseed 反事实
+- `hitl/audit/mine_preference_pairs.py`：从 multiseed 反事实
   分支挖多种子确认的动作偏好对（a+ 在 ≥4/5 种子下 60s 折现回报更优），
   产物 `preference_pairs.json`（112 对）。
-- `dev/action_ranking_audit/rank_aux_train.py`：L = L_TD + λ·L_rank 辅助
+- `hitl/audit/rank_aux_train.py`：L = L_TD + λ·L_rank 辅助
   微调——TD 与 agent/dqn.py 同式（DQNNet/目标网/γ=0.95/RMSprop/MSE），
   rank 项为 logistic softplus(-(Q+−Q-))；含 before/after 场景排序指标与
   固定批 TD 漂移度量。--arm {A,B,C,D}：A=1×TD、B=2×TD（等量计算对照）、
@@ -384,16 +384,16 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
   `rank_aux_pilot_report.md`；四臂对照 `rank_aux_abcd/` + `rank_aux_abcd_report.md`。
   注意：import agent 前必须按 counterfactual_v2 方式设 SUMO_HOME/SUMO_BINARY
   环境变量，否则包 __init__ 内某处会静默退出。
-- `dev/action_ranking_audit/rank_aux_eval.py`：贪心策略整 episode SUMO 交通
+- `hitl/audit/rank_aux_eval.py`：贪心策略整 episode SUMO 交通
   评估（throughput/avg_travel_time/unfinished + queue_auc/real_delay），
   fresh world + --seed 多种子。
-- `dev/action_ranking_audit/divergence_probe.py`：双 checkpoint 闭环分歧探针——
+- `hitl/audit/divergence_probe.py`：双 checkpoint 闭环分歧探针——
   driver 驱动、shadow 同状态影子评估，argmax 分歧即存 saveState 快照 +
   逐决策状态特征 JSONL。产物 `divergence_bc/`。
-- `dev/action_ranking_audit/divergence_cf.py`：分歧快照反事实核验——
+- `hitl/audit/divergence_cf.py`：分歧快照反事实核验——
   强制 a_driver/a_shadow 两分支 × {driver 自身, indep-seed0} 接管 × 多
   未来 seed，复用 counterfactual_v2.run_branch。产物 `divergence_bc/cf*/`。
-- `dev/action_ranking_audit/analyze_divergence.py`：分歧率画像 +
+- `hitl/audit/analyze_divergence.py`：分歧率画像 +
   分歧动作反事实差值统计（C 方向归一化：Δ>0 即 C 的动作为优）。
 
 ## 已裁决归档（2026-10-07 Z 裁）

@@ -1,45 +1,33 @@
-# 阶段性执行文档
+# docs/ — 文档目录规则
 
-本目录用于存放与用户讨论后形成的 plan、goal，以及其他非永久但需要在任务执行期间持续参考的文件。
+本目录承载三类内容，职责互不相同：
 
-此类文件应清晰记录适用任务、目标、执行依据和当前状态。内容失效后应及时更新或清理，避免将过期信息继续作为执行依据。
-
-## 当前状态索引
-
-| 内容 | 状态 | 说明 |
+| 子域 | 语义 | 生命周期 |
 |---|---|---|
-| Milestone 0 公共实验基础设施 | 已完成并归档 | 实现、回归和验收已完成，见 `done/milestone0_summary.md` |
-| 本轮 M1 优化与科研决策整理 | 已关闭并归档 | 仅表示本轮规则审核和决策确认结束，见 `done/m1_optimization_closure.md` |
-| Plan 0 环境、算法和场景冻结 | 未执行 | `plan0721.md` 中的后续执行计划，不得因 M1 优化关闭而视为完成 |
-| Plan 1 启动能力与 Pilot | 已完成 | append-only trajectory、固定评估/checkpoint 和作图能力已通过，见 `plan1_support_and_pilot.md` |
-| Plan 1 四场景正式 Online DQN | 已通过 | 20 次正式运行和 Plan 2 trajectory 白名单均已验收，见 `plan1_formal_online_dqn.md` |
-| Plan 1 后验适应性诊断（A–F） | 已通过 | 结果包位于 `data/output_data/analysis/plan1/s1_s4_adaptation_diagnostics_20260723/`；冻结重评估包位于 `data/output_data/evaluations/plan1/s1_s4_adaptation_diagnostics_20260723/` |
-| Plan 2 纯 Offline DQN 工程支持 | 已实现，正式实验未启动 | 算法梯度、schema v2、resume、SUMO 清理、严格汇总及 8/16 并发 I/O 门禁已通过，见 `plan2_offline_support.md` |
-| Plan 3～Plan 4 双预算 Sequential DQN | 正式实验执行中 | b400/b100 工程支持与三策略真实 SUMO Pilot 已通过；两个 60-run 正式批次正在共享总并发 8 下执行，120/120 强验收前不得标记通过，见 `plan0721.md` |
-| Task G episode-100 场景对门禁 | 已完成并按协议停止 | high/low 分离未达到预注册门槛，原定定向 G1 未执行；证据位于 `data/output_data/analysis/plan34/episode100_pair_gate_20260723/` |
-| 半离线跨算法实验 | 进行中 | DQN、Double DQN、Dueling Double DQN 的 12-run Pilot 与 240-run 正式矩阵，见 `plan_cross_algorithm_semi_offline.md` |
+| `docs/plan*.md` 等计划文档 | 与用户讨论形成的方案/goal，执行期参考 | 失效即更新或清理，不作长期执行依据 |
+| `docs/experiments/` | **实验记录**——每次实验一份固定格式文档（见下） | 长期保留，否决/归档实验只改状态不删 |
+| `docs/done/` | 里程碑验收、决策登记等归档 | 冻结，只追加不修改 |
 
-状态解释：
+## 实验记录规则（`docs/experiments/`，强制）
 
-- “已关闭”用于表示一次讨论、审核或优化工作不再继续扩展；
-- “已完成”只用于已经实现并通过验收的里程碑；
-- “未执行”表示文档仍是计划或执行依据，不能作为已产生实验结果的证据。
+一次实验 = 「实验相关记录 + 相关改动」的整体，必须回答四问：**改动意图、
+改动模块、实验设计、实验结果**。
 
-## 目录约定
+- **E1 一实验一档**：`docs/experiments/YYYY-MM-DD_<slug>.md`，模板用
+  `TEMPLATE.md`；slug 确定后不改名。
+- **E2 四节必填**：意图 / 模块 / 设计 / 结果。发起时先写前三节，
+  收割后补结果与结论；任何一节空缺 = 记录未完成。
+- **E3 延续即更新**：同一实验的延续迭代更新同一文档并刷新
+  「最近更新」日期；研究问题变了 → 开新文档。
+- **E4 分工不重复**：docs/experiments = 叙事层（为什么/怎么设计/结论）；
+  `ledger/runs.jsonl` = 机读事实；`EXPERIMENTS/` = 台账自动索引层
+  （`dev/ledger/gen_experiments.py` 重生成）。实验文档引用 run_id/
+  campaign，不复制指标全表。
+- **E5 随码入库**：实验文档与对应代码/配置改动同批 commit。
+- **E6 否决保留**：被否决或归档的实验文档改状态保留，不删除——
+  负结论也是证据。
 
-- `docs/` 根目录只保留仍在使用、尚未执行或需要继续维护的 plan、goal 和执行依据；
-- 已完成或已关闭、且不再作为当前活动执行入口的材料统一移动到 `docs/done/`；
-- 归档时必须同步更新仓库内引用，保留原有子目录结构，避免证据链断裂；
-- 如果归档内容需要重新执行，应先恢复为活动状态并移出 `docs/done/`，不能直接把归档记录当作新的执行依据。
+## 计划文档规则
 
-## 主要文档
-
-- `semi_offline_cross_algorithm_reproduction.md`：当前半离线实验设计、正式结果边界、跨算法验证建议，以及其他服务器的代码/数据迁移与快速启动指南；
-- `plan_cross_algorithm_semi_offline.md`：当前半离线跨算法实验的研究意图、冻结协议、实现进度、执行入口和持续维护记录；
-- `plan0721.md`：Online、Offline 和 Sequential 实验总体计划及持续状态；
-- `plan2_offline_support.md`：Plan 2 工程架构、入口隔离、数据/训练/恢复/汇总协议和验证记录；
-- `done/research_decision_register.md`：已归档的科研语义决定及其状态；
-- `done/online_offline_experiment_execution_contract.md`：已归档的 Milestone 0 实施与语义保护契约；
-- `done/milestone0_summary.md`：Milestone 0 已完成内容和后续进入条件；
-- `done/m1_optimization_closure.md`：本轮 M1 优化关闭边界；
-- `done/verification/milestone0/`：Milestone 0 功能验证证据。
+- 仅放与用户确认过的方案/goal 类文件；
+- 失效内容及时标注或移入 `done/`，避免过期方案继续被当执行依据。

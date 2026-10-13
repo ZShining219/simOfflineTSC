@@ -125,7 +125,7 @@ data/output_data/ha_sodqn/               # HA-SODQN engineering / 正式运行 /
 | GOVERNANCE.md、EXPERIMENTS.md、EXPERIMENTS/、ledger/ | 实验治理规范、台账索引与各 campaign 明细、机读台账 |
 | bench/ | 正式验收口径（BENCH.md + profiles） |
 | dev/ | 一次性脚本唯一合法堆放处 + INDEX.md 登记 |
-| docs/ | Plan、goal 及专项支持说明等阶段性参考文件 |
+| docs/ | 计划文档 + **实验记录**（`docs/experiments/`，每实验一份固定格式，规则见 `docs/README.md`）+ 里程碑归档 `docs/done/` |
 | scripts/ | 辅助脚本（如 run 配置比对） |
 | tools/、tests/ | 分析与可视化工具（见下节）、最小回归测试 |
 
@@ -147,9 +147,21 @@ data/output_data/ha_sodqn/               # HA-SODQN engineering / 正式运行 /
 
   转播层另注册了场景引导调度控制器 `dsp` / `dspconcat` / `dspself`（`hitl/live/controllers.py` 的 `DispatchController`）：内部按 120 s 窗口在候选控制器间选接管臂，调度轨迹通过事件流透出。
 
-## 研究线：场景引导注意力调度（scene_attention）
+## 三条研究线
 
-`scene_attention/` 方法包（升格自 `dev/takeover_probe`，方法卡见其 README）：事件播报文本编码为场景 query，引导对车道状态 token 的交叉注意力，产出浓缩场景表征注入信号控制。当前主线为单层场景条件控制器 `SceneJointPolicy`（dqn_s1 底座 + sga 注意力 + 门控有界残差），训练链路 adapter 教师蒸馏→原装 reward RL 微调→意图编译层；历史探索期对照臂（自注意力/无注意力 concat/state-only 消融）已从维护面移除（git 历史可查），SMDP Router 双层架构已否决（归档 `_legacy/router/`）。配套配对目标翻转评测、文本消融与注意力-标注一致性度量，均已接入上述转播服务可在线演示。
+本仓在 LibSignal 基座（`agent/`+`world/`+`trainer/`+`run.py`）之上并行推进三条研究线，均为 Route A 包形状（`python -m <pkg>` 打面表，方法卡见各自 README）：
+
+### 1. 半离线 / 持续学习（`sequential/`）
+
+从在线交互到离线/半离线训练的迁移线：Plan 2 纯离线（白名单 run→只读轨迹索引→离线训练，`python -m sequential.offline`）、manifest 驱动的持续学习与 HA-SODQN 半离线训练（`python -m sequential` 39 子命令）、HITL 采集数据回流训练。产物 `data/output_data/{offline_tsc,offline_datasets,sequential,ha_sodqn}/`。
+
+### 2. 人在回路（`hitl/`）
+
+实时播报→人判→回注控制的通道线（非 train/eval 型包）：`hitl.serve` 实时转播服务（libsumo 步进+SSE+接管控制）、`hitl.pipeline` 会话打包/特征生成、`hitl.plans` 轮次 plan 生成、`hitl.probe`/`hitl.audit` 探针与审计。训练态归 sequential，本包无 train 面。产物 `data/output_data/hitl_probe/`。
+
+### 3. 场景引导注意力调度（`scene_attention/`）
+
+事件播报文本编码为场景 query，引导对车道状态 token 的交叉注意力，产出浓缩场景表征注入信号控制。当前主线为单层场景条件控制器 `SceneJointPolicy`（dqn_s1 底座 + sga 注意力 + 门控有界残差），训练链路 adapter 教师蒸馏→原装 reward RL 微调→意图编译层；历史对照臂（selfattn/concat/state-only 消融）已从维护面移除（git 可查），SMDP Router 双层架构已否决（归档 `_legacy/router/`）。机制谱系与产物映射见其 README。产物 `data/output_data/dev_takeover_probe/`（沿用旧桶名）。
 
 历史注记：控制器注册表与场景编码器解耦的 `DispatchRouter` 双层架构已被否决（上层动作空间退化为控制器选择），实现留存于 `scene_attention/_legacy/router/`（附死因 README）；编码器活组件（`CompositeSceneEncoder` 等）在 `scene_attention/dispatch_model.py`。
 
@@ -160,6 +172,7 @@ Git 只同步代码、配置与场景；trajectory、checkpoint、dataset index 
 ## 开发约定
 
 - 新实验优先通过 configs/ 管理参数，避免硬编码；四类入口不混用。
+- **每次实验（含相关改动）在 `docs/experiments/` 建档**：一份固定格式文档回答改动意图/改动模块/实验设计/实验结果，模板 `docs/experiments/TEMPLATE.md`，规则见 `docs/README.md` 与 `GOVERNANCE.md` §4.5。
 - 修改智能体或训练流程后，至少运行一个受影响仿真器的最小代表性实验，并记录仿真器、agent、网络、随机种子和完整命令；正式实验另记 Order/Archive/seed/manifest hash 与恢复链。
 - 不提交 `data/output_data/`、checkpoint、缓存等可再生成产物；大规模数据用外部存储并在文档中给出校验信息。
 - 实验相关的一次性脚本放 `dev/<topic>/` 并在 `dev/INDEX.md` 登记。

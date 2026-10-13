@@ -156,7 +156,7 @@ Agent 应帮助降低后续任务成本，而不仅是完成当前指令。
 
 1. 读 `EXPERIMENTS.md` 顶部「当前面板」（现状/当前设计栈/代号地图）→ 本文件；`GOVERNANCE.md` 按需查节；campaign 明细在 `EXPERIMENTS/<campaign>.md`（勿通读索引层以外内容）；机读事实源 `ledger/runs.jsonl`。
 2. 认领登记见 `artifacts/wiki_claims/`（历史追溯登记不进 claims）。
-3. 新实验：设计定稿→台账 REGISTERED→SMOKE→远端 tmux 自治派发→收割三指标+过程记录→回填台账。正式 run 只允许 队列 runner + `run_queue_*.json` 或 `bench/` profile 两条路径；禁止新写一次性驱动脚本直拉正式 run（一次性件归 `dev/<topic>/` 并登 `dev/INDEX.md`）。
+3. 新实验：设计定稿→台账 REGISTERED→SMOKE→远端 tmux 自治派发→收割三指标+过程记录→回填台账；**同时在 `docs/experiments/` 按模板建/更实验叙事记录**（四节必填：意图/模块/设计/结果，规则见 `docs/README.md` 与 GOVERNANCE §4.5）。正式 run 只允许 队列 runner + `run_queue_*.json` 或 `bench/` profile 两条路径；禁止新写一次性驱动脚本直拉正式 run（一次性件归 `dev/<topic>/` 并登 `dev/INDEX.md`）。
 4. 注意力线口径：三指标（travel_time/throughput/unfinished_vehicles）强制同报 + 事件窗分层 + 四层判定（表征/优化/语义效用/闭环）；阶段①分类关卡不过线不进阶段②，见 `bench/BENCH.md`。
 5. 本仓 GitHub public：入库文件禁写内网 IP/主机名/跳板拓扑/绝对路径，机器用代号 34/73，路径一律仓内相对路径。
 6. 拿不准 → 记"受阻"+原因，等裁决，不猜。

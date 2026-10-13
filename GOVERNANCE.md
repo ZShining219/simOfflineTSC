@@ -120,6 +120,16 @@ superseded_by runtime_env
 同配置不同 seed 终值指标完全相同 → flag 并记入 campaign 备注。
 追溯批已执行一次：DONE 训练行按 (campaign,arm) 分组比对，未发现触发（见 EXPERIMENTS.md 附注）。
 
+### 4.5 实验叙事记录（`docs/experiments/`，强制）
+
+每次实验（含实验相关的代码/配置改动）对应一份固定格式记录，必须回答四问：
+**改动意图、改动模块、实验设计、实验结果**。模板 `docs/experiments/TEMPLATE.md`。
+六条规则（E1 一实验一档 / E2 四节必填 / E3 延续即更新 / E4 分工不重复 /
+E5 随码入库 / E6 否决保留）全文见 `docs/README.md`。
+
+三层分工：docs/experiments = 叙事层；ledger/runs.jsonl = 机读事实源；
+EXPERIMENTS/ = 台账自动索引层。叙事层引用 run_id 与 campaign，不复制指标全表。
+
 ## 5. 注意力线口径（本仓硬约定）
 
 ### 5.1 三指标强制
@@ -214,7 +224,7 @@ superseded_by runtime_env
 ## 12. 新 agent 上手 checklist
 
 1. 读 `AGENTS.md` → `EXPERIMENTS.md` 顶部「当前面板」（现状）；`GOVERNANCE.md` 按需查节（新 run 流程看 §3-4，状态语义 §2，本仓硬约定 §5）；campaign 明细只读 `EXPERIMENTS/<相关campaign>.md`。
-2. 认领登记（`artifacts/wiki_claims/`）→ 台账 REGISTERED → §6 合法路径执行 → §4 回填。
+2. 认领登记（`artifacts/wiki_claims/`）→ 台账 REGISTERED → §6 合法路径执行 → §4 回填；同时按 §4.5 在 `docs/experiments/` 建/更实验记录（四节必填）。
 3. 改架构 = commit + 变更日志；改判据/口径属变更，台账开新 campaign，新旧口径不混排。
 4. 拿不准 → "受阻"+原因，等裁决。
 

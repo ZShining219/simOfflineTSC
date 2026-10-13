@@ -54,7 +54,7 @@ SCENE_ALIASES = {
 }
 DEFAULT_S2_FIXEDTIME_INPUT = (
     Path(__file__).resolve().parents[1]
-    / "output_data/evaluations/plan1/"
+    / "data/output_data/evaluations/plan1/"
       "plan1_best_checkpoint_reevaluation_v1_20260723/records.jsonl"
 )
 

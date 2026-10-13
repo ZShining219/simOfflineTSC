@@ -12,7 +12,7 @@
 用法（repo 根，conda env: colight）：
 
     python hitl/probe/rm_env_corr.py \
-        --out output_data/hitl_probe/reward_model_v1/rm_env_corr.json
+        --out data/output_data/hitl_probe/reward_model_v1/rm_env_corr.json
 """
 
 from __future__ import annotations
@@ -31,12 +31,12 @@ from hitl.pipeline.segments import (  # noqa: E402
     load_context, load_episode, segment_episode, step_features)
 
 POOLS = {
-    'expert': 'output_data/hitl_probe/pools/expert_ep50_big',
-    'student': 'output_data/hitl_probe/pools/student_ep50_big',
-    'hitl': 'output_data/hitl_probe/pools/hitl_ep50_big',
+    'expert': 'data/output_data/hitl_probe/pools/expert_ep50_big',
+    'student': 'data/output_data/hitl_probe/pools/student_ep50_big',
+    'hitl': 'data/output_data/hitl_probe/pools/hitl_ep50_big',
 }
 TOPOLOGY = 'hitl/topology/topology_sumohz1x1.json'
-MODEL = 'output_data/hitl_probe/reward_model_v1/reward_model.pt'
+MODEL = 'data/output_data/hitl_probe/reward_model_v1/reward_model.pt'
 
 
 def _episodes(archive_dir):

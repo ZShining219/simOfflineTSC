@@ -75,7 +75,7 @@ dev/_legacy/<date>/      # 历史散件归档（移动非删除）
 
 约束：
 
-- 包只许依赖下层契约（`world/`、`common/`、`dataset/`、`utils/` 与自身内部件）；禁跨包 import 内部实现。
+- 包只许依赖下层契约（`world/`、`common/`、`data/dataset/`、`utils/` 与自身内部件）；禁跨包 import 内部实现。
 - 工单放 `configs/<pkg>/`；实验参数禁内嵌在脚本里。
 - 老根级入口只许留薄 shim（deprecation 提示后转发 `-m` 面），下一版本清理。
 - 出图/一次性件不进面，按 dev/ 规则登记或归 `<pkg>/figs/`。

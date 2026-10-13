@@ -18,7 +18,7 @@
 
     python hitl/plans/build_r3_plan.py
 
-产物：``output_data/hitl_probe/pilot5/plan_r3.json``（60 children）
+产物：``data/output_data/hitl_probe/pilot5/plan_r3.json``（60 children）
 """
 
 from __future__ import annotations
@@ -29,8 +29,8 @@ import json
 from pathlib import Path
 
 _REPO = Path(__file__).resolve().parents[2]
-PILOT = _REPO / 'output_data/hitl_probe/pilot5'
-CATALOG = (_REPO / 'output_data/ha_sodqn/engineering_20260726/'
+PILOT = _REPO / 'data/output_data/hitl_probe/pilot5'
+CATALOG = (_REPO / 'data/output_data/ha_sodqn/engineering_20260726/'
            'initial_state_catalog.json')
 OUT = PILOT / 'plan_r3.json'
 
@@ -55,7 +55,7 @@ TEMPLATES = {
 
 def _ep0_path(network: str, seed: int, want_sha: str) -> Path:
     """seed0 有 _r2 重复 run 目录（ep0 内容不同）——按 catalog sha 选。"""
-    pat = (str(_REPO / 'output_data/tsc/sumo_dqn' / network /
+    pat = (str(_REPO / 'data/output_data/tsc/sumo_dqn' / network /
                f'p1_formal_dqn_{network}_seed{seed}_400ep_*' /
                'checkpoints/resumable/episode_0000.pt'))
     hits = sorted(glob.glob(pat))
@@ -105,12 +105,12 @@ def main() -> None:
                 if 'demo_pretrain' in child:
                     dp = dict(child['demo_pretrain'])
                     dp['demo_data'] = str(
-                        _REPO / 'output_data/hitl_probe/demos'
+                        _REPO / 'data/output_data/hitl_probe/demos'
                         / f'demo_expert_ep50_{tag.lower()}.npz')
                     child['demo_pretrain'] = dp
                 if 'expert_pool_manifest' in child:
                     child['expert_pool_manifest'] = str(
-                        _REPO / 'output_data/hitl_probe/pools'
+                        _REPO / 'data/output_data/hitl_probe/pools'
                         / f'hitl_ep50_{tag.lower()}'
                         / 'expert_pool_manifest.json')
                 children.append(child)

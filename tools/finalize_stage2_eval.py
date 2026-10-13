@@ -5,7 +5,7 @@ import polars as pl
 import numpy as np
 from scipy.stats import spearmanr
 
-ROOT=Path(__file__).resolve().parents[1]; V1=ROOT/'output_data/analysis/plan_ha_analysis_bundle_v1'; OUT=ROOT/'output_data/analysis/ANALYSIS_BUNDLE_V2_MECHANISM_COMPLETION'
+ROOT=Path(__file__).resolve().parents[1]; V1=ROOT/'data/output_data/analysis/plan_ha_analysis_bundle_v1'; OUT=ROOT/'data/output_data/analysis/ANALYSIS_BUNDLE_V2_MECHANISM_COMPLETION'
 EPS=[0,1,5,10,25,50,75,100]
 
 def aliases(path):
@@ -19,7 +19,7 @@ def manifest(run): return json.loads((run/'attempts/attempt_1/child_run_manifest
 
 def main():
  v1p=pl.read_csv(V1/'plan34_temporal/plan34_frozen_eval_timeseries.csv',infer_schema_length=100000); newp=aliases(OUT/'02_PLAN34_STAGE2_FROZEN_TIMELINE/eval_cache/plan34_formal_protocol')
- rows=[]; root=ROOT/'output_data/sequential/plan34_b100_formal_60_20260723'
+ rows=[]; root=ROOT/'data/output_data/sequential/plan34_b100_formal_60_20260723'
  for run in sorted(root.glob('plan34_b100_O*_seed*_*')):
   m=manifest(run); logical=m['logical_run_id']; old,current=m['networks'][:2]
   for ep in EPS:
@@ -44,7 +44,7 @@ def main():
  hrows=[]
  for pair in pairs.iter_rows(named=True):
   for method,logical in [('CONT',pair['cont_logical_run_id']),('DHOA',pair['dhoa_logical_run_id'])]:
-   m=manifest(ROOT/'output_data/ha_sodqn/formal_e7705f7_20260726'/logical); old,current=m['networks'][:2]
+   m=manifest(ROOT/'data/output_data/ha_sodqn/formal_e7705f7_20260726'/logical); old,current=m['networks'][:2]
    for ep in EPS:
     for role,net in [('old',old),('current',current)]:
      if role=='old' and ep>0:r=newh.get((logical,ep))

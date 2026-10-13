@@ -27,7 +27,7 @@ need no changes.
 
 Demo:
     python -m scene_attention.nl_scene \
-        --out output_data/dev_takeover_probe/nl_scene_v1
+        --out data/output_data/dev_takeover_probe/nl_scene_v1
 """
 
 from __future__ import annotations

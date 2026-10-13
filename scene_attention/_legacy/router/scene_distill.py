@@ -31,8 +31,8 @@ Tasks on z
 
 Usage:
     python -m scene_attention._legacy.router.scene_distill \
-        --dump output_data/dev_takeover_probe/scene_dump/scene_dump.npz \
-        --out  output_data/dev_takeover_probe/scene_distill/
+        --dump data/output_data/dev_takeover_probe/scene_dump/scene_dump.npz \
+        --out  data/output_data/dev_takeover_probe/scene_distill/
 """
 
 from __future__ import annotations

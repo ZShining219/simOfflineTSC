@@ -28,9 +28,9 @@
 
 ## 产物约定
 
-- 根：`output_data/hitl_probe/`（存量 24 桶不动，桶地图见其 README）；
-- 会话录制落 `output_data/hitl_probe/sessions/`（勿再默认 /tmp）；
-- 新产出按 `output_data/hitl_probe/<stage>/` 分区；台账新 run 用 `line=hitl`。
+- 根：`data/output_data/hitl_probe/`（存量 24 桶不动，桶地图见其 README）；
+- 会话录制落 `data/output_data/hitl_probe/sessions/`（勿再默认 /tmp）；
+- 新产出按 `data/output_data/hitl_probe/<stage>/` 分区；台账新 run 用 `line=hitl`。
 
 ## 入口面表（`python -m hitl.<face>`，统一包形状 GOVERNANCE §3.1）
 

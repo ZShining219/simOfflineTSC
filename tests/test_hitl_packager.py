@@ -16,7 +16,7 @@ import numpy as np
 from hitl.pipeline.package import (
     PackagingError, _AUTHORSHIP_ORDER, package_session,
 )
-from dataset.offline_trajectory_dataset import (
+from data.dataset.offline_trajectory_dataset import (
     OfflineTrajectoryDataset, validate_offline_dataset,
 )
 

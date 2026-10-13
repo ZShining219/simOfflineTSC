@@ -1,7 +1,7 @@
 """Render presentation figures from dev_takeover_probe eval artifacts.
 
 Reads the obj3 evaluation directories (frozen checkpoints, held-out seeds)
-and emits PNGs into ``output_data/dev_takeover_probe/figs/``:
+and emits PNGs into ``data/output_data/dev_takeover_probe/figs/``:
 
     fig1_oracle_regret.png   paired-flip oracle regret, 3 variants
     fig2_p2_holdout.png      P2 holdout queue integral, all arms
@@ -22,7 +22,7 @@ Curves are seed-mean +- sample SD over the 3 held-out seeds; fig11 shows
 seed s0 rows with mean switches annotated.
 
 Usage:
-    python -m scene_attention._legacy.router.make_figs --root output_data/dev_takeover_probe
+    python -m scene_attention._legacy.router.make_figs --root data/output_data/dev_takeover_probe
 """
 
 from __future__ import annotations
@@ -603,7 +603,7 @@ def fig7(root, out, plt):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument('--root', default='output_data/dev_takeover_probe')
+    ap.add_argument('--root', default='data/output_data/dev_takeover_probe')
     args = ap.parse_args()
     root = Path(args.root)
     out = root / 'figs'

@@ -25,12 +25,12 @@
 
 | 工作 | 面 | 配置 | 产物 |
 | --- | --- | --- | --- |
-| Online/传统 TSC（fixedtime/dqn/colight 等） | `python run.py` | `configs/tsc/` | `output_data/tsc/` |
-| Plan 2 纯 Offline DQN | `python -m sequential.offline train` | `configs/offline_tsc/` | `output_data/offline_tsc/` |
-| Plan 3/4 Sequential / HA-SODQN / HITL 通道训练 | `python -m sequential <verb>`（manifest 驱动） | `configs/sequential/` | `output_data/{sequential,ha_sodqn,hitl_probe}/` |
-| 场景引导注意力训练/评测 | `python -m scene_attention.train` / `.eval` | `scene_attention/events.py` 常量源 | `output_data/dev_takeover_probe/` |
-| HITL 实时服务 | `python -m hitl.serve` | `--scene/--dispatch/--gate/--record` | `output_data/hitl_probe/sessions/` |
-| HITL 数据面/plan/探针/审计 | `python -m hitl.pipeline <stage>` / `hitl.plans build --round <r>` / `hitl.probe.<x>` / `hitl.audit.<x>` | 见 `hitl/README.md` | `output_data/hitl_probe/` |
+| Online/传统 TSC（fixedtime/dqn/colight 等） | `python run.py` | `configs/tsc/` | `data/output_data/tsc/` |
+| Plan 2 纯 Offline DQN | `python -m sequential.offline train` | `configs/offline_tsc/` | `data/output_data/offline_tsc/` |
+| Plan 3/4 Sequential / HA-SODQN / HITL 通道训练 | `python -m sequential <verb>`（manifest 驱动） | `configs/sequential/` | `data/output_data/{sequential,ha_sodqn,hitl_probe}/` |
+| 场景引导注意力训练/评测 | `python -m scene_attention.train` / `.eval` | `scene_attention/events.py` 常量源 | `data/output_data/dev_takeover_probe/` |
+| HITL 实时服务 | `python -m hitl.serve` | `--scene/--dispatch/--gate/--record` | `data/output_data/hitl_probe/sessions/` |
+| HITL 数据面/plan/探针/审计 | `python -m hitl.pipeline <stage>` / `hitl.plans build --round <r>` / `hitl.probe.<x>` / `hitl.audit.<x>` | 见 `hitl/README.md` | `data/output_data/hitl_probe/` |
 
 兼容 shim（过渡，将移除）：`python sequential_run.py`→`-m sequential`，`python offline_run.py`→`-m sequential.offline`。
 
@@ -105,7 +105,7 @@ data/output_data/sequential/             # Sequential DQN
 data/output_data/ha_sodqn/               # HA-SODQN engineering / 正式运行 / 分析
 ```
 
-`data/output_data/`、根目录 `output_data/`、`analysis/`、`tmp/` 以及 checkpoint/日志/图像类文件均已在 `.gitignore` 中忽略，可再生成的大型产物不提交 Git。
+`data/output_data/`、根目录 `data/output_data/`、`analysis/`、`tmp/` 以及 checkpoint/日志/图像类文件均已在 `.gitignore` 中忽略，可再生成的大型产物不提交 Git。
 
 ## 项目结构
 
@@ -117,8 +117,8 @@ data/output_data/ha_sodqn/               # HA-SODQN engineering / 正式运行 /
 | world/ | CityFlow、SUMO 等仿真器适配层 |
 | trainer/、task/ | 训练评估流程与任务编排 |
 | configs/{tsc,offline_tsc,sequential,sim,evaluation} | 智能体、离线、顺序/半离线、仿真器及评估配置 |
-| data/raw_data/ | 路网、交通流和信号方案数据 |
-| common/、generator/、dataset/ | 注册器与配置加载、特征生成器、数据集接口 |
+| data/ | 数据层：`raw_data/`（路网输入，只读）、`output_data/`（run 产物证据桶，gitignore）、`dataset/`（数据集接口代码） |
+| common/、generator/ | 注册器与配置加载、特征生成器 |
 | sequential/ | 方法包：持续学习+半离线训练（manifest 驱动，`python -m sequential`；README 方法卡） |
 | scene_attention/ | 方法包：场景引导注意力主线（`python -m scene_attention`；README 方法卡） |
 | hitl/ | 通道包：人在回路实时+数据面（`python -m hitl`；README 通道卡与边界） |

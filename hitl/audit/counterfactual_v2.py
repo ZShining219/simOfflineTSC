@@ -57,18 +57,18 @@ REWARD_SCALE = 12.0
 SCENE_LIST = cf.SCENES
 DEFAULT_MANIFEST = (
     REPO_ROOT
-    / "output_data"
+    / "data/output_data"
     / "allocation_accuracy_formal_state"
     / "allocation_accuracy_state_manifest.csv"
 )
-INDEP_ROOT = REPO_ROOT / "output_data" / "tsc" / "sumo_dqn"
-DEFAULT_OUT = REPO_ROOT / "output_data" / "action_ranking_audit" / "v2_rollouts"
+INDEP_ROOT = REPO_ROOT / "data/output_data" / "tsc" / "sumo_dqn"
+DEFAULT_OUT = REPO_ROOT / "data/output_data" / "action_ranking_audit" / "v2_rollouts"
 
 
 def remap_path(value: Optional[str]) -> Optional[str]:
     if not value:
         return value
-    return value.replace("/data/output_data/", "/output_data/")
+    return value.replace("/data/output_data/", "/data/output_data/")
 
 
 def independent_checkpoint(scene: str, seed: int) -> Optional[Path]:
@@ -332,9 +332,9 @@ def main() -> int:
     parser.add_argument("--min-gap", type=float, default=0.30)
     parser.add_argument("--max-pair-states", type=int, default=80)
     parser.add_argument("--rollouts-csv", type=Path,
-                        default=REPO_ROOT / "output_data" / "allocation_accuracy_formal_cf" / "allocation_accuracy_all_action_rollouts.csv")
+                        default=REPO_ROOT / "data/output_data" / "allocation_accuracy_formal_cf" / "allocation_accuracy_all_action_rollouts.csv")
     parser.add_argument("--predictions-csv", type=Path,
-                        default=REPO_ROOT / "output_data" / "allocation_accuracy_formal_cf" / "allocation_accuracy_agent_predictions.csv")
+                        default=REPO_ROOT / "data/output_data" / "allocation_accuracy_formal_cf" / "allocation_accuracy_agent_predictions.csv")
     parser.add_argument("--shard", type=int, default=0)
     parser.add_argument("--nshards", type=int, default=1)
     parser.add_argument("--limit", type=int, default=0, help="cap tasks for smoke runs")

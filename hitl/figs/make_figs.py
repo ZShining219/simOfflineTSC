@@ -23,7 +23,7 @@ sessions/*/interventions.jsonl + transitions.jsonl），产出
 
 用法：
 
-    python hitl/figs/make_figs.py --run-dir output_data/hitl_probe/run1
+    python hitl/figs/make_figs.py --run-dir data/output_data/hitl_probe/run1
 """
 
 from __future__ import annotations

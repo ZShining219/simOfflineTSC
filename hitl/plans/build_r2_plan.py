@@ -22,10 +22,10 @@ initial_state/digest——直接把 pilot5 已验证的 child 当模板克隆，
 用法：
 
     python hitl/plans/build_r2_plan.py \
-        --pilot5-dir output_data/hitl_probe/pilot5 \
-        --expert-pool output_data/hitl_probe/pools/hitl_ep50_big/expert_pool_manifest.json \
-        --demo-data output_data/hitl_probe/demos/demo_expert_ep50_big.npz \
-        --out output_data/hitl_probe/pilot5/plan_r2.json
+        --pilot5-dir data/output_data/hitl_probe/pilot5 \
+        --expert-pool data/output_data/hitl_probe/pools/hitl_ep50_big/expert_pool_manifest.json \
+        --demo-data data/output_data/hitl_probe/demos/demo_expert_ep50_big.npz \
+        --out data/output_data/hitl_probe/pilot5/plan_r2.json
 """
 
 from __future__ import annotations

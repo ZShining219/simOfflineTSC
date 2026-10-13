@@ -249,13 +249,13 @@ def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--scene', default='S2')
     p.add_argument('--attn-ckpt',
-                   default='output_data/dev_takeover_probe/'
+                   default='data/output_data/dev_takeover_probe/'
                            'router_attn_obj3/router_attn.pt')
     p.add_argument('--selfattn-ckpt',
-                   default='output_data/dev_takeover_probe/'
+                   default='data/output_data/dev_takeover_probe/'
                            'router_selfattn_obj3/router_selfattn.pt')
     p.add_argument('--concat-ckpt',
-                   default='output_data/dev_takeover_probe/'
+                   default='data/output_data/dev_takeover_probe/'
                            'router_concat_obj3/router_concat.pt')
     p.add_argument('--dqn-s1', default=str(DEFAULT_DQN_S1))
     p.add_argument('--test-seed-base', type=int, default=5000)

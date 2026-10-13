@@ -12,10 +12,10 @@
 
 用法：
     python hitl/pipeline/build_pairs.py \
-        --archive HITL=output_data/hitl_probe/pools/hitl_ep50 \
-        --archive DEMO=output_data/hitl_probe/pools/expert_ep50 \
+        --archive HITL=data/output_data/hitl_probe/pools/hitl_ep50 \
+        --archive DEMO=data/output_data/hitl_probe/pools/expert_ep50 \
         --topology hitl/topology/topology_sumohz1x1.json \
-        --window 6 --out output_data/hitl_probe/pairs_pilot
+        --window 6 --out data/output_data/hitl_probe/pairs_pilot
 """
 
 from __future__ import annotations

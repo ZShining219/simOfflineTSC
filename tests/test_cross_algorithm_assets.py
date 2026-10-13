@@ -20,7 +20,7 @@ class CrossAlgorithmAssetPlanTests(unittest.TestCase):
             result = validate_historical_asset_plan(output)
             self.assertEqual(payload['protocol_id'], 'ha_cross_algorithm_assets_v1')
             self.assertEqual(result['source_count'], 20)
-            self.assertEqual(result['missing_path_count'], 7)
+            self.assertEqual(result['missing_path_count'], 6)
 
     def test_asset_plan_digest_detects_edit(self):
         with tempfile.TemporaryDirectory() as directory:

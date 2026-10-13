@@ -10,8 +10,8 @@ sig15 系列的模块有效性证据，不再跑仿真。
 用法::
 
     python -m scene_attention.evidence_fig \
-        --root output_data/dev_takeover_probe \
-        --out output_data/dev_takeover_probe/evidence_fig/evidence.png
+        --root data/output_data/dev_takeover_probe \
+        --out data/output_data/dev_takeover_probe/evidence_fig/evidence.png
 """
 
 from __future__ import annotations
@@ -34,7 +34,7 @@ def load_probe(root: Path, name: str) -> dict:
 
 def main():
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument('--root', default='output_data/dev_takeover_probe')
+    p.add_argument('--root', default='data/output_data/dev_takeover_probe')
     p.add_argument('--out', required=True)
     args = p.parse_args()
     root = Path(args.root)

@@ -24,10 +24,10 @@ import pandas as pd
 from scipy import stats
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_V2 = REPO_ROOT / "output_data" / "action_ranking_audit" / "v2_rollouts"
-DEFAULT_CF = REPO_ROOT / "output_data" / "allocation_accuracy_formal_cf"
+DEFAULT_V2 = REPO_ROOT / "data/output_data" / "action_ranking_audit" / "v2_rollouts"
+DEFAULT_CF = REPO_ROOT / "data/output_data" / "allocation_accuracy_formal_cf"
 DEFAULT_MANIFEST = (
-    REPO_ROOT / "output_data" / "allocation_accuracy_formal_state" / "allocation_accuracy_state_manifest.csv"
+    REPO_ROOT / "data/output_data" / "allocation_accuracy_formal_state" / "allocation_accuracy_state_manifest.csv"
 )
 ACTIONS = list(range(8))
 HORIZON_CYCLES = {30: 3, 60: 6, 90: 9}
@@ -329,7 +329,7 @@ def main() -> int:
     parser.add_argument("--v2-dir", type=Path, default=DEFAULT_V2)
     parser.add_argument("--cf-dir", type=Path, default=DEFAULT_CF)
     parser.add_argument("--manifest", type=Path, default=DEFAULT_MANIFEST)
-    parser.add_argument("--out", type=Path, default=REPO_ROOT / "output_data" / "action_ranking_audit")
+    parser.add_argument("--out", type=Path, default=REPO_ROOT / "data/output_data" / "action_ranking_audit")
     parser.add_argument("--seed", type=int, default=0)
     args = parser.parse_args()
     rng = np.random.default_rng(args.seed)

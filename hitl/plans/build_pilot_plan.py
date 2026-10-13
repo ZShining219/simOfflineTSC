@@ -15,11 +15,11 @@
 
 用法：
     python hitl/plans/build_pilot_plan.py \
-        --expert-pool output_data/hitl_probe/pools/hitl_ep50/expert_pool_manifest.json \
-        --ctrl-pool   output_data/hitl_probe/pools/student_ep50/expert_pool_manifest.json \
-        --demo-pool   output_data/hitl_probe/pools/expert_ep50/expert_pool_manifest.json \
+        --expert-pool data/output_data/hitl_probe/pools/hitl_ep50/expert_pool_manifest.json \
+        --ctrl-pool   data/output_data/hitl_probe/pools/student_ep50/expert_pool_manifest.json \
+        --demo-pool   data/output_data/hitl_probe/pools/expert_ep50/expert_pool_manifest.json \
         --episodes 20 --expert-ratio 0.25 --seed 0 \
-        --out output_data/hitl_probe/pilot/plan.json
+        --out data/output_data/hitl_probe/pilot/plan.json
 """
 
 from __future__ import annotations

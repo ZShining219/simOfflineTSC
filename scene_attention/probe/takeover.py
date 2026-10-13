@@ -53,7 +53,7 @@ SUBSCRIBE = [
 # plan1_dqn 正式批 S1 源模型（seed0_r2，ep400 final eval checkpoint）
 DEFAULT_DQN_S1 = (
     _REPO_ROOT
-    / 'output_data/tsc/sumo_dqn/sumohz1x1_config2'
+    / 'data/output_data/tsc/sumo_dqn/sumohz1x1_config2'
     / 'p1_formal_dqn_sumohz1x1_config2_seed0_400ep_20260722_r2'
     / 'checkpoints/evaluation/episode_0400.pt'
 )

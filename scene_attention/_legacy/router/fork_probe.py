@@ -12,7 +12,7 @@ Usage:
         --router <ckpt> --extra-model dhoa=<ckpt> \
         --event 'surge:road_2_1_2:road_1_2_1:900:750:3' --seed 5000 \
         --fork 2160=maxpressure --fork 2280=maxpressure \
-        --out output_data/dev_takeover_probe/fork_dqn1680
+        --out data/output_data/dev_takeover_probe/fork_dqn1680
 """
 
 from __future__ import annotations

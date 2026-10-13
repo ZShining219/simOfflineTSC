@@ -12,7 +12,7 @@ swapped, so all panels below share identical lane states:
   row 5  per-edge attention mass across the three text conditions
 
     python -m scene_attention.joint_attn_fig \
-        --joint output_data/.../agent.pt --out outdir
+        --joint data/output_data/.../agent.pt --out outdir
 """
 
 from __future__ import annotations

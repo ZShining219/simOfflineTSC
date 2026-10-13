@@ -5,7 +5,7 @@
 
     python -m scene_attention.plot_scene_effect \
         --event surge:road_1_0_1:road_1_1_2:300:600:4 --seed 9004 \
-        --encoder output_data/dev_takeover_probe/sig5_sga/agent.pt \
+        --encoder data/output_data/dev_takeover_probe/sig5_sga/agent.pt \
         --out /tmp/scene_effect.png
 
 两条曲线：vanilla 底座（等价于 notext 消融——绑不上播报时逐位相同）

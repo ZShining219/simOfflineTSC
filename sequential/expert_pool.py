@@ -16,7 +16,7 @@ The adapter exposes the minimal surface that
 
 import os
 
-from dataset.offline_trajectory_dataset import OfflineTrajectoryDataset
+from data.dataset.offline_trajectory_dataset import OfflineTrajectoryDataset
 
 from .historical_archive import VisibleArchiveView, derive_rng_seed
 from .io import read_json, sha256_file

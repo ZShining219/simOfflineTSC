@@ -35,9 +35,9 @@ Conditions, identity layout:
 No SUMO, no retraining — encoder forward passes only.
 Usage:
     python -m scene_attention._legacy.router.channel_ablate \
-        --dump output_data/dev_takeover_probe/probe_repr/z_dump.npz \
-        --records-dir output_data/dev_takeover_probe/eval_p2_obj3 \
-        --out output_data/dev_takeover_probe/probe_repr
+        --dump data/output_data/dev_takeover_probe/probe_repr/z_dump.npz \
+        --records-dir data/output_data/dev_takeover_probe/eval_p2_obj3 \
+        --out data/output_data/dev_takeover_probe/probe_repr
 """
 
 from __future__ import annotations
@@ -199,15 +199,15 @@ def encode(router, snap):
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--dump',
-                   default='output_data/dev_takeover_probe/'
+                   default='data/output_data/dev_takeover_probe/'
                            'probe_repr/z_dump.npz')
     p.add_argument('--records-dir',
-                   default='output_data/dev_takeover_probe/eval_p2_obj3')
+                   default='data/output_data/dev_takeover_probe/eval_p2_obj3')
     p.add_argument('--ckpt', action='append', default=[],
                    help='NAME=PATH override/add router arms '
                         '(default: the three obj3 checkpoints)')
     p.add_argument('--out',
-                   default='output_data/dev_takeover_probe/probe_repr')
+                   default='data/output_data/dev_takeover_probe/probe_repr')
     args = p.parse_args()
 
     lanes = lane_order(args.records_dir)
@@ -238,7 +238,7 @@ def main():
             arm_order.append(nm)
     else:
         for name in ARMS3:
-            ck = (f'output_data/dev_takeover_probe/router_{name}_obj3/'
+            ck = (f'data/output_data/dev_takeover_probe/router_{name}_obj3/'
                   f'router_{name}.pt')
             routers[name], _ = DispatchRouter.load(ck)
 

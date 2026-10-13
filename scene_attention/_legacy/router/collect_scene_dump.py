@@ -165,7 +165,7 @@ def main():
     p.add_argument('--scene', default='S2')
     p.add_argument('--dqn-s1', default=str(DEFAULT_DQN_S1))
     p.add_argument('--meta-ckpt',
-                   default='output_data/dev_takeover_probe/'
+                   default='data/output_data/dev_takeover_probe/'
                            'router_id_attn/router_attn.pt',
                    help='identity-layout router ckpt; only its feature '
                         'meta is used to build the FeatureBuilder')

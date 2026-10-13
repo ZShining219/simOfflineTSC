@@ -20,8 +20,8 @@ the frozen-autonomous metrics.  Figures:
                               loss_expert trajectory
 
 Usage:
-    python hitl/figs/curve_figs.py --root output_data/hitl_probe/pilot \
-        --teacher-tt 83.72 --out output_data/hitl_probe/pilot/figs
+    python hitl/figs/curve_figs.py --root data/output_data/hitl_probe/pilot \
+        --teacher-tt 83.72 --out data/output_data/hitl_probe/pilot/figs
 """
 
 from __future__ import annotations

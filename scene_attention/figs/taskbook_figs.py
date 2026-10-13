@@ -20,8 +20,8 @@
 用法::
 
     python -m scene_attention.taskbook_figs \
-        --root output_data/dev_takeover_probe \
-        --out  output_data/dev_takeover_probe/taskbook_figs
+        --root data/output_data/dev_takeover_probe \
+        --out  data/output_data/dev_takeover_probe/taskbook_figs
 """
 
 from __future__ import annotations
@@ -574,8 +574,8 @@ def fig6(root, out):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument('--root', default='output_data/dev_takeover_probe')
-    ap.add_argument('--out', default='output_data/dev_takeover_probe/'
+    ap.add_argument('--root', default='data/output_data/dev_takeover_probe')
+    ap.add_argument('--out', default='data/output_data/dev_takeover_probe/'
                                     'taskbook_figs')
     args = ap.parse_args()
     root, out = Path(args.root), Path(args.out)

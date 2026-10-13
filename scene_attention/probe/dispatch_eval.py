@@ -21,7 +21,7 @@ carry the counterfactuals):
 
 Usage:
     python -m scene_attention.probe.dispatch_eval \
-        --out output_data/dev_takeover_probe/dispatch_gate_v1
+        --out data/output_data/dev_takeover_probe/dispatch_gate_v1
 """
 
 from __future__ import annotations
@@ -55,7 +55,7 @@ from scene_attention.events import (  # noqa: E402
 from scene_attention.eval import spec_list  # noqa: E402
 from hitl.live.injects import parse_injects  # noqa: E402
 
-SIG9 = 'output_data/dev_takeover_probe/sig9_joint_bc/agent.pt'
+SIG9 = 'data/output_data/dev_takeover_probe/sig9_joint_bc/agent.pt'
 
 
 class _EncoderShim:

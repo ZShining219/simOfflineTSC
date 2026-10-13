@@ -9,8 +9,8 @@
 用法::
 
     python -m scene_attention.report_effect_fig \
-        --policy output_data/dev_takeover_probe/sig15_corrload/agent.pt \
-        --out output_data/dev_takeover_probe/evidence_fig/report_effect.png
+        --policy data/output_data/dev_takeover_probe/sig15_corrload/agent.pt \
+        --out data/output_data/dev_takeover_probe/evidence_fig/report_effect.png
 """
 
 from __future__ import annotations

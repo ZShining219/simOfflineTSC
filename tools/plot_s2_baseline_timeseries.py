@@ -24,11 +24,11 @@ import numpy as np
 
 
 DEFAULT_SOURCE = Path(
-    "output_data/evaluations/plan1/"
+    "data/output_data/evaluations/plan1/"
     "plan1_best_checkpoint_reevaluation_v1_20260723/records.jsonl"
 )
 DEFAULT_OUTPUT = Path(
-    "output_data/analysis/plan1/s2_maxpressure_fixedtime_timeseries_20260804"
+    "data/output_data/analysis/plan1/s2_maxpressure_fixedtime_timeseries_20260804"
 )
 CONTROLLERS = {
     "maxpressure_sumohz1x1": ("MaxPressure", "#0072B2"),

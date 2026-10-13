@@ -36,7 +36,7 @@ import matplotlib.pyplot as plt  # noqa: E402
 
 from hitl.probe import paired_bootstrap as pb  # noqa: E402
 
-ROOT = _REPO_ROOT / 'output_data/hitl_probe'
+ROOT = _REPO_ROOT / 'data/output_data/hitl_probe'
 PILOT = ROOT / 'pilot5'
 OUT = PILOT / 'figs_deck'
 

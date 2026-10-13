@@ -11,7 +11,7 @@ lanes — small weight, skipped for the concat baseline (no attention).
 
 Usage:
     python -m scene_attention._legacy.router.train_router --variant attn \
-        --episodes 40 --out output_data/dev_takeover_probe/router_attn
+        --episodes 40 --out data/output_data/dev_takeover_probe/router_attn
 """
 
 from __future__ import annotations

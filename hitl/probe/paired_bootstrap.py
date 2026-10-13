@@ -8,9 +8,9 @@
 
 用法：
     python hitl/probe/paired_bootstrap.py \
-        --root output_data/hitl_probe/pilot5 \
-        --plan output_data/hitl_probe/pilot5/plan.json \
-        --out output_data/hitl_probe/pilot5/stats/
+        --root data/output_data/hitl_probe/pilot5 \
+        --plan data/output_data/hitl_probe/pilot5/plan.json \
+        --out data/output_data/hitl_probe/pilot5/stats/
 """
 
 from __future__ import annotations

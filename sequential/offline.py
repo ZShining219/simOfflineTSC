@@ -15,7 +15,7 @@ import time
 import subprocess
 from concurrent.futures import ProcessPoolExecutor
 
-from dataset.offline_trajectory_dataset import (
+from data.dataset.offline_trajectory_dataset import (
     prepare_plan2_datasets,
     validate_offline_dataset,
 )
@@ -58,7 +58,7 @@ def _git_commit():
 
 
 def _benchmark_dataset_worker(arguments):
-    from dataset.offline_trajectory_dataset import OfflineTrajectoryDataset
+    from data.dataset.offline_trajectory_dataset import OfflineTrajectoryDataset
     manifest, source_root, seed, batch_size, sample_batches = arguments
     dataset = OfflineTrajectoryDataset(
         manifest, seed=seed, source_root=source_root
@@ -146,7 +146,7 @@ class OfflineRunner:
     def __init__(self, args):
         # Imports are delayed so preparation and validation never initialize SUMO.
         import agent  # noqa: F401
-        import dataset  # noqa: F401
+        import data.dataset  # noqa: F401
         import task  # noqa: F401
         import trainer  # noqa: F401
         import world  # noqa: F401

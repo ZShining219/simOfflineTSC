@@ -6,8 +6,8 @@ attention weight vectors.  Output feeds ``make_figs.fig7``.
 
 Usage:
     python -m scene_attention._legacy.router.collect_attn_trace \
-        --ckpt output_data/dev_takeover_probe/router_attn_obj3/router_attn.pt \
-        --out output_data/dev_takeover_probe/figs/attn_trace
+        --ckpt data/output_data/dev_takeover_probe/router_attn_obj3/router_attn.pt \
+        --out data/output_data/dev_takeover_probe/figs/attn_trace
 """
 
 from __future__ import annotations

@@ -15,7 +15,7 @@
 - common/、utils/ 和 generator/：共享配置、日志、指标和特征生成工具。
 - configs/：仿真器与交通信号控制实验配置。
 - data/raw_data/：路网和交通流输入数据。
-- dataset/：数据集接口与实现。
+- data/dataset/：数据集接口与实现。
 - docs/：存放 plan、goal 及其他阶段性执行参考文件。
 - final_result/：结果处理工具或实验产物。
 
@@ -170,3 +170,4 @@ Agent 应帮助降低后续任务成本，而不仅是完成当前指令。
 | 2026-10-07 | gov/experiment-governance r3 | EXPERIMENTS.md 顶部加「当前面板」人工维护区（gen_experiments.py 重生成时保留）；dev/checks/no_symlinks.sh 修正并入树（.gitignore 加例外）；AGENTS.md 记录 codex 分支代码收编（c8be158..32d3e18 + merge 70f3dbf，注意力线代码首次入库） | 落实「GitHub 唯一事实源」：main 合并治理层后可一眼定位当前状态 | 规范/台账层 |
 | 2026-10-07 | gov r4/main | EXPERIMENTS 面板补「当前有效设计栈+代号地图」：现行设计=scene_attention+tarl（z_task+aux）@codex 分支，历史代际 002/003/复现线标注完结 | 消歧：现状表述锚定当前代际，跨代对比须显式声明 | 规范/台账层 |
 | 2026-10-07 | gov r5/main | 台账改两层结构：EXPERIMENTS.md=索引（面板+总览+索引表），EXPERIMENTS/<campaign>.md=明细；gen_experiments.py 改仓根相对路径+双层输出；GOVERNANCE §4.2/上手清单改按需取读 | 长文本通读 token 开销过大 | 规范/台账层 |
+| 2026-10-13 | main | 数据层归一：根 `output_data/`（522G 证据桶）迁入 `data/output_data/`，`dataset/`（接口代码）迁入 `data/dataset/`；`data/`=输入 raw_data + 产物 output_data + 接口 dataset 三层意图分区；全仓 `output_data/` 引用改 `data/output_data/`（含台账 3108 处），import 改 `data.dataset.*`；`configs/*/base.yml` 的 `data_dir` 保持 `dataset/`（其语义为 run 内相对子目录） | 统一 data/dataset/output_data 三语义撞名；证据路径仅前缀迁移、桶名不变 | 全仓链路；smoke_fixedtime_hz1x1 冒烟复验通过 |

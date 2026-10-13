@@ -12,7 +12,7 @@ lanes — same as the router trainer.
 
 Usage:
     python -m scene_attention.train --variant sga \
-        --episodes 100 --out output_data/dev_takeover_probe/sig_sga
+        --episodes 100 --out data/output_data/dev_takeover_probe/sig_sga
 """
 
 from __future__ import annotations

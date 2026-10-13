@@ -10,8 +10,8 @@ split 按 episode 划分（防泄漏）：fit=episode 训练集、val=留出集�
 
 用法：
     python hitl/pipeline/train_reward.py \
-        --pairs output_data/hitl_probe/pairs_pilot \
-        --out output_data/hitl_probe/reward_model_v1 --seed 11
+        --pairs data/output_data/hitl_probe/pairs_pilot \
+        --out data/output_data/hitl_probe/reward_model_v1 --seed 11
 """
 
 from __future__ import annotations

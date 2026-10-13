@@ -26,10 +26,10 @@ import pandas as pd
 from scipy import stats
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_V2 = REPO_ROOT / "output_data" / "action_ranking_audit" / "v2_rollouts"
+DEFAULT_V2 = REPO_ROOT / "data/output_data" / "action_ranking_audit" / "v2_rollouts"
 DEFAULT_PRED = (
     REPO_ROOT
-    / "output_data"
+    / "data/output_data"
     / "allocation_accuracy_formal_cf"
     / "allocation_accuracy_agent_predictions.csv"
 )
@@ -74,7 +74,7 @@ def main() -> int:
     parser.add_argument("--v2-dir", type=Path, default=DEFAULT_V2)
     parser.add_argument("--predictions", type=Path, default=DEFAULT_PRED)
     parser.add_argument("--out", type=Path,
-                        default=REPO_ROOT / "output_data" / "action_ranking_audit")
+                        default=REPO_ROOT / "data/output_data" / "action_ranking_audit")
     args = parser.parse_args()
 
     boundary = load_jsonl_dir(args.v2_dir / "boundary")

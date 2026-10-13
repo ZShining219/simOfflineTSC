@@ -24,7 +24,7 @@ and whether the router's dominant choice matches the member winner.
 
 Usage:
     python -m scene_attention._legacy.router.eval_objective \
-        --router output_data/dev_takeover_probe/routerX/router_attn.pt \
+        --router data/output_data/dev_takeover_probe/routerX/router_attn.pt \
         --out <dir>
 """
 from __future__ import annotations

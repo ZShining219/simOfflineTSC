@@ -66,7 +66,7 @@ def arrow(ax, xy, xytext, color='#444', lw=1.5, ls='-', label=None,
 
 
 def main():
-    out = Path('output_data/hitl_probe/pilot5/figs_deck')
+    out = Path('data/output_data/hitl_probe/pilot5/figs_deck')
     out.mkdir(parents=True, exist_ok=True)
 
     fig, ax = plt.subplots(figsize=(16, 10))

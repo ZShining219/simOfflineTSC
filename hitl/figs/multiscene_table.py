@@ -25,7 +25,7 @@ sys.path.insert(0, str(_REPO_ROOT))
 
 from hitl.probe import paired_bootstrap as pb  # noqa: E402
 
-ROOT = _REPO_ROOT / 'output_data/hitl_probe'
+ROOT = _REPO_ROOT / 'data/output_data/hitl_probe'
 PLAN = ROOT / 'pilot5/plan_r3.json'
 SCENES = {'qc': 'qc-yn (1417veh)', 'kn': 'kn-hz (743veh)',
           'sb': 'sb-sx (1671veh)'}

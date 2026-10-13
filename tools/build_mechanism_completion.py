@@ -25,10 +25,10 @@ from scipy.stats import wilcoxon
 
 
 ROOT = Path(__file__).resolve().parents[1]
-V1 = ROOT / "output_data/analysis/plan_ha_analysis_bundle_v1"
-OUT = ROOT / "output_data/analysis/ANALYSIS_BUNDLE_V2_MECHANISM_COMPLETION"
-PLAN34_ROOT = ROOT / "output_data/sequential/plan34_b100_formal_60_20260723"
-HA_ROOT = ROOT / "output_data/ha_sodqn/formal_e7705f7_20260726"
+V1 = ROOT / "data/output_data/analysis/plan_ha_analysis_bundle_v1"
+OUT = ROOT / "data/output_data/analysis/ANALYSIS_BUNDLE_V2_MECHANISM_COMPLETION"
+PLAN34_ROOT = ROOT / "data/output_data/sequential/plan34_b100_formal_60_20260723"
+HA_ROOT = ROOT / "data/output_data/ha_sodqn/formal_e7705f7_20260726"
 STATE_COLUMNS = [f"state_{index}" for index in range(8)]
 WINDOWS = ((1, 5), (1, 10), (1, 25), (26, 50), (51, 75), (76, 100))
 METRIC_SAMPLE_LIMIT = 64

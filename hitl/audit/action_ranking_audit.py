@@ -23,8 +23,8 @@ import pandas as pd
 from scipy import stats
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_SOURCE = REPO_ROOT / "output_data" / "allocation_accuracy_formal_cf"
-DEFAULT_OUT = REPO_ROOT / "output_data" / "action_ranking_audit"
+DEFAULT_SOURCE = REPO_ROOT / "data/output_data" / "allocation_accuracy_formal_cf"
+DEFAULT_OUT = REPO_ROOT / "data/output_data" / "action_ranking_audit"
 
 ACTION_COUNT = 8
 PRIMARY_HORIZON = 60

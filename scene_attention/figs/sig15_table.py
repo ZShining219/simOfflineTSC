@@ -7,7 +7,7 @@
 用法::
 
     python -m scene_attention.sig15_table \
-        --root output_data/dev_takeover_probe
+        --root data/output_data/dev_takeover_probe
 """
 
 from __future__ import annotations
@@ -61,7 +61,7 @@ def wilcoxon(a, b):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument('--root', default='output_data/dev_takeover_probe')
+    ap.add_argument('--root', default='data/output_data/dev_takeover_probe')
     ap.add_argument('--main', default='sig15_eval_main8')
     args = ap.parse_args()
     root = Path(args.root)

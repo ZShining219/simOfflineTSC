@@ -67,7 +67,7 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
 - `dev/_legacy/20261007/`：见 `dev/_legacy/20261007/README.md`。
 - `dev/takeover_probe/`：**已升格** `scene_attention/`（2026-10-13，方法包，
   面表见其 README）；本条目下各文件路径已迁，产物桶
-  `output_data/dev_takeover_probe/` 沿用旧名不动。
+  `data/output_data/dev_takeover_probe/` 沿用旧名不动。
   **当前主线（2026-10 定型）**：单层场景条件信号控制器——
   `SceneJointPolicy`（signal_model.py canonical 标记）：dqn_s1
   底座图内保留（ckpt 初始化 + `--base-lr` 微调）+ sga 编码器
@@ -93,7 +93,7 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
   discharge，`--p-corridor`，文本臂在走廊指标上分化）。
   入口：`python -m scene_attention.train`/`python -m scene_attention.eval`；
   `env.py`（原 signal_runtime.py）为 10s 决策粒度 episode 驱动器。
-  产物 `output_data/dev_takeover_probe/`（不入库）：sig5_*
+  产物 `data/output_data/dev_takeover_probe/`（不入库）：sig5_*
   编码器消融 / sig6* from-scratch 信号 agent（学不会驾驶，
   已弃） / sig7_res_* 冻结底座学习残差（+0.7%，被 joint
   取代） / sig8_joint_sga 错 reward 联合微调（+9%，灾难性
@@ -121,7 +121,7 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
   质量、w-θ_watch 余弦对齐（`align_true/lie/none`、谎报对谎
   走廊 `align_lie_on_liewatch`）、w-L1 文本敏感度、残差幅度、
   动作翻转率；`--corridor` 复现训练场景。产物
-  `output_data/dev_takeover_probe/attn_probe_c2/`：sga15 谎报
+  `data/output_data/dev_takeover_probe/attn_probe_c2/`：sga15 谎报
   对齐谎报走廊 0.42>真 0.35（注意力跟报告所指）；sga16(aux=0)
   对齐全平、w-L1 0.03——θ_watch 监督是可审计契约非性能件。
 - `scene_attention/figs/joint_attn_fig.py`：反事实注意力热力图
@@ -187,13 +187,13 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
   sa_sal）+ text->lane 交叉注意力热力图（报告臂 vs 盲化臂同标尺）
   + 全边 mass 束/接管曲线（fig_attn.png）；gate 聚合出 base vs
   Scene-Guided Attention 归一化优化柱状（fig_bars.png）。产物在
-  `output_data/dev_takeover_probe/dispatch_figs_v1/`。
+  `data/output_data/dev_takeover_probe/dispatch_figs_v1/`。
 - `scene_attention/nl_scene.py`：自然语言播报→场景字段结构化
   前端（探索件）。`nl_render` 把播报字段渲染成多模板 NL 句式
   （模拟异构上报），`NLSceneParser`（hash n-gram 线性分类器 +
   边名字面提取）按"模板留出"训练评估；`NLDispatchAgent` 在 act
   内完成 NL→字段→text_vec 重建，下游注意力绑定/规则派发零改动。
-  演示 `output_data/dev_takeover_probe/nl_scene_v1/nl_demo.json`：
+  演示 `data/output_data/dev_takeover_probe/nl_scene_v1/nl_demo.json`：
   留出话术 acc≈0.71（硬负例/未见过恢复句式仍误）、NL 臂接管
   72 tick 与结构化臂逐位一致，命中未见过恢复句式的变体仅丢尾段
   接管（60 tick）——优雅降级而非误派发。
@@ -213,7 +213,7 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
   [--session <session_dir>...] --out <archive_dir> --network <name>
   [--seed N] [--strict]`（多会话合并：episode 全局重编号、global_step
   连续化、归属记 labels/source_shards；另发 `expert_pool_manifest.json`
-  供 sequential 专家腿消费）。产物 `output_data/hitl_archives/`（不入库）。
+  供 sequential 专家腿消费）。产物 `data/output_data/hitl_archives/`（不入库）。
 - `hitl/probe/paired_probe.py`：三臂（student/hitl/expert）同 seed 配对
   运行时探针——第 0 层"专家资格体检"工具。
 - `hitl/figs/make_figs.py`：probe 佐证图（排队轨迹+gate 标记/终端三指标/
@@ -289,7 +289,7 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
   （专家/学生/hitl）片段打分 vs 同段平均环境奖励：Pearson
   0.34~0.53（专家集最强）、Spearman 0.20~0.37——编码了交通
   语义排序但不等价重构真奖励。产 `reward_model_v1/rm_env_corr.json`。
-  配套终局基线采集：`output_data/hitl_probe/baseline_{fixedtime,
+  配套终局基线采集：`data/output_data/hitl_probe/baseline_{fixedtime,
   sotl}`（各 10 seed live，ft tt=175.6/sotl 103.6/mp 83.4）+
   `hitl_probe/_meta/hitl_cost_table.json`（问人成本与数据资产表）。
 - `hitl/figs/multiscene_table.py`：r3 多场景汇总（探索件）。
@@ -301,7 +301,7 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
   4 指标 AULC delta + 95% CI + 显著性星标，按 A/B/B'/C 通道
   着色；含文档未载的 EXPC(r=.125)/EXPD(衰减)/EXPF(gateq 池)
   及 r2 增补 6 臂（BPT/BPM/BPQ/EXPB/EXPL/APIQB，共 21 臂）。
-  产物 `output_data/hitl_probe/pilot5/figs_ALL/hitl_score.png`。
+  产物 `data/output_data/hitl_probe/pilot5/figs_ALL/hitl_score.png`。
 - `hitl/pipeline/dump_lane_topology.py`：场景车道拓扑转储（in_lanes 顺序、
   车道长度→容量、相位→服务车道映射），B 通道特征/教师分的 ctx 来源。
 - `hitl/pipeline/segments.py`：B 通道片段切割 + 确定性教师分
@@ -350,25 +350,25 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
 - `hitl/probe/calibrate_adjudication.py`：B′ 判官面板逐判官归一化
   校准——在 expert_pool_manifest 列表上逐转移算各判官 raw 分，回填
   spec 的 mu/sigma/calibration_count 产冻结 manifest
-  （`output_data/hitl_probe/adjudication/manifest_v1_calibrated.json`）。
+  （`data/output_data/hitl_probe/adjudication/manifest_v1_calibrated.json`）。
   已跑：hitl_ep50+student_ep50+expert_ep50 三池 731 转移校准一版。
 - `hitl/plans/build_pilot_plan.py` 增 `--bprime-arms`/`--bpc-arms`
   + `--adjudication-manifest`/`--adjudication-ctx`：HITL_BP（纯在线
   统一裁定）/ HITL_BPC（裁定+专家腿，旧 B 不能表达的组合）两臂。
 - `hitl/audit/action_ranking_audit.py`：动作排序误排审计
-  （纯事后分析，不跑仿真）——读 `output_data/allocation_accuracy_formal_cf/`
+  （纯事后分析，不跑仿真）——读 `data/output_data/allocation_accuracy_formal_cf/`
   的 Q 预测 + 8 动作反事实推演 + oracle 标签，按 (method,scene,state) 计算
   Q 序 vs 实际回报序的 Spearman/Kendall/成对反序率/选中动作真实名次，以及
   chosen−oracle 的归一化 regret 与 Δqueue AUC/Δreal_delay/Δthroughput 原始
   交通损失；含方法内汇总与 R25/R50 对 CONT 的同状态配对 bootstrap。
-  产物写 `output_data/action_ranking_audit/`。
+  产物写 `data/output_data/action_ranking_audit/`。
 - `hitl/audit/counterfactual_v2.py`：v2 严格反事实推演器
   （fresh world + loadState + 固定 --seed → 同后续实现；逐决策记录原 DQN
   reward、γ=0.95 折现回报与交通指标）。模式：`continuations`（indep/cont
   双接管 90s）、`multiseed`（高 gap 对 × 多未来 seed）、`boundary`（在
   30/60/90s 决策点记录 obs+两套 Q 向量，供 bootstrap 修正）、`episodes`
   （推演至 episode 终止 3600s 求全回报近似）。产物
-  `output_data/action_ranking_audit/v2_rollouts/`。
+  `data/output_data/action_ranking_audit/v2_rollouts/`。
 - `hitl/audit/analyze_v2.py`：v2 四任务分析——训练奖励口径
   回报排序、indep-vs-cont 配对敏感性、多种子稳定性、场景/负载/相位/时段
   分层。产物 `v2_*.csv` + `v2_action_ranking_report.md`。

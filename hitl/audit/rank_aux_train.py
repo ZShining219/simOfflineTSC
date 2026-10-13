@@ -15,7 +15,7 @@ offline gradient updates on a checkpoint plus frozen evaluation.
 Usage (pilot):
     python hitl/audit/rank_aux_train.py \
         --checkpoint <src.pt> --scene sumohz1x1 --pairs preference_pairs.json \
-        --td-dir output_data/tsc/sumo_dqn/sumohz1x1/<run>/trajectory/episodes \
+        --td-dir data/output_data/tsc/sumo_dqn/sumohz1x1/<run>/trajectory/episodes \
         --lam 1.0 --steps 3000
 """
 
@@ -174,8 +174,8 @@ def main() -> int:
     p.add_argument("--pairs", type=Path, required=True)
     p.add_argument("--td-dir", type=Path, required=True)
     p.add_argument("--v2-dir", type=Path,
-                   default=REPO_ROOT / "output_data" / "action_ranking_audit" / "v2_rollouts")
-    p.add_argument("--manifest", type=Path, default=REPO_ROOT / "output_data"
+                   default=REPO_ROOT / "data/output_data" / "action_ranking_audit" / "v2_rollouts")
+    p.add_argument("--manifest", type=Path, default=REPO_ROOT / "data/output_data"
                    / "allocation_accuracy_formal_state" / "allocation_accuracy_state_manifest.csv")
     p.add_argument("--lam", type=float, default=1.0)
     p.add_argument("--steps", type=int, default=3000)

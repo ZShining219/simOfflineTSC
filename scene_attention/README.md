@@ -37,7 +37,7 @@
 
 ## 机制谱系与产物映射
 
-代际链（输出均落 `output_data/dev_takeover_probe/`，~168 目录）：
+代际链（输出均落 `data/output_data/dev_takeover_probe/`，~168 目录）：
 
 | 代际 | 机制 | 产物前缀 | 件数/时段 | 状态 |
 |---|---|---|---|---|
@@ -53,7 +53,7 @@
 ## 工单与产物
 
 - 事件常量：`scene_attention/events.py`（采样空间单源；`configs/scene_attention/` 工单覆盖为下一步）；
-- 产物桶沿用 `output_data/dev_takeover_probe/`（证据路径冻结，不改名）；
+- 产物桶沿用 `data/output_data/dev_takeover_probe/`（证据路径冻结，不改名）；
 - campaign 明细：`EXPERIMENTS/takeover_probe_sig15.md`、台账 `line=takeover_probe`。
 
 ## 边界

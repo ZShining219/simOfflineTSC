@@ -15,7 +15,7 @@ event creates a control problem at all).
 
 Usage:
     python -m scene_attention._legacy.router.stage1_event_physics --seed 5200 \
-        --out output_data/dev_takeover_probe/stage1_physics
+        --out data/output_data/dev_takeover_probe/stage1_physics
 """
 
 from __future__ import annotations

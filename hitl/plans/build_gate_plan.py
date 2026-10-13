@@ -12,7 +12,7 @@ HITL_EXPB（大池 r=0.25）模板，逐模式把 expert_pool_manifest
 用法：
 
     python hitl/plans/build_gate_plan.py \
-        --out output_data/hitl_probe/pilot5/plan_gate.json
+        --out data/output_data/hitl_probe/pilot5/plan_gate.json
 """
 
 from __future__ import annotations
@@ -37,9 +37,9 @@ def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument(
         '--template', default=str(
-            _REPO / 'output_data/hitl_probe/pilot5/plan_r2.json'))
+            _REPO / 'data/output_data/hitl_probe/pilot5/plan_r2.json'))
     ap.add_argument('--pools-root', default=str(
-        _REPO / 'output_data/hitl_probe/pools'))
+        _REPO / 'data/output_data/hitl_probe/pools'))
     ap.add_argument('--out', required=True)
     args = ap.parse_args(argv)
 

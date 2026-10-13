@@ -15,7 +15,7 @@
 用法（repo 根，conda env: colight）：
 
     python hitl/figs/gate_modes_table.py \
-        --out output_data/hitl_probe/gate_modes/gate_modes_table.json
+        --out data/output_data/hitl_probe/gate_modes/gate_modes_table.json
 """
 
 from __future__ import annotations
@@ -30,11 +30,11 @@ _REPO = Path(__file__).resolve().parents[2]
 WINDOW = (300.0, 600.0)
 
 SOURCES = {
-    'on_demand': _REPO / 'output_data/hitl_probe/gate_modes/on_demand',
-    'random': _REPO / 'output_data/hitl_probe/gate_modes/random',
-    'margin': _REPO / 'output_data/hitl_probe/gate_modes/margin',
-    'periodic': _REPO / 'output_data/hitl_probe/gate_modes/periodic',
-    'window': _REPO / 'output_data/hitl_probe/gate_modes/window',
+    'on_demand': _REPO / 'data/output_data/hitl_probe/gate_modes/on_demand',
+    'random': _REPO / 'data/output_data/hitl_probe/gate_modes/random',
+    'margin': _REPO / 'data/output_data/hitl_probe/gate_modes/margin',
+    'periodic': _REPO / 'data/output_data/hitl_probe/gate_modes/periodic',
+    'window': _REPO / 'data/output_data/hitl_probe/gate_modes/window',
 }
 
 

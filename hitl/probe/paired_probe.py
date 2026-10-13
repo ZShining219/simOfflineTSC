@@ -22,7 +22,7 @@ manifest；跑完收集终端三指标（travel_time/throughput/unfinished）+
         --scene S2 --student snap_sumohz1x1 --expert maxpressure \
         --seeds 0 1 --horizon 1200 --speed 96 \
         --inject surge:road_0_1_0:road_1_2_3:300:600:20 \
-        --out output_data/hitl_probe/run1 --package
+        --out data/output_data/hitl_probe/run1 --package
 
 产物（``--out`` 下）：
 
@@ -269,7 +269,7 @@ def main(argv=None):
                              'B=floor(0.1*horizon/action_interval)')
     parser.add_argument('--gate-cooldown', type=int, default=3)
     parser.add_argument('--models-dir',
-                        default=str(_REPO_ROOT / 'output_data' /
+                        default=str(_REPO_ROOT / 'data/output_data' /
                                     'sequential'))
     parser.add_argument('--model', action='append', default=[],
                         metavar='NAME=PATH',

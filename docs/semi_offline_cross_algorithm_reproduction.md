@@ -290,7 +290,7 @@ data/output_data/offline_datasets/plan2/plan2_formal_v2_a3a66e8_20260723/
 data/output_data/ha_sodqn/engineering_<date>/
 ```
 
-当前工作站的大型结果曾被重定位到根目录 `output_data/`，但旧 manifest 内记录的仍是 `/projects/simOfflineTSC/data/output_data/` 绝对路径。若目标 checkout 也固定为 `/projects/simOfflineTSC`，可迁移完整源资产并先用 validator 核对；若目标绝对路径不同，不要直接复制旧 archive/initial catalog 后手工搜索替换，应从 Plan 1 source runs 重建 run-list、Plan 2 index、archive 和 initial catalog，以便重新计算绝对路径和哈希。
+当前工作站的大型结果曾被重定位到根目录 `data/output_data/`，但旧 manifest 内记录的仍是 `/projects/simOfflineTSC/data/output_data/` 绝对路径。若目标 checkout 也固定为 `/projects/simOfflineTSC`，可迁移完整源资产并先用 validator 核对；若目标绝对路径不同，不要直接复制旧 archive/initial catalog 后手工搜索替换，应从 Plan 1 source runs 重建 run-list、Plan 2 index、archive 和 initial catalog，以便重新计算绝对路径和哈希。
 
 推荐用 `rsync`、对象存储或共享文件系统迁移数据，不通过 Git 提交 trajectory/checkpoint。迁移前后都生成 SHA256 清单并核对。示意命令中的主机和目录必须替换为实际值：
 
@@ -439,9 +439,9 @@ python -m sequential audit-ha \
 - 顺序 runtime/checkpoint/launcher：`sequential/runtime.py`、`sequential/checkpoint.py`、`sequential/launcher.py`
 - validator/analysis：`sequential/validation.py`、`sequential/ha_analysis.py`
 - 当前 DQN target 证据：`sequential/agent.py` 和 `sequential/ha_agent.py` 中的 target 计算；均为 plain DQN max-target，而不是 Double DQN。
-- 本机正式完成审计：`output_data/ha_sodqn/engineering_20260726/E0_E4_completion_audit_20260730.json`（不在 Git）
-- 本机 E4 效应表：`output_data/ha_sodqn/analysis_e7705f7/E4/paired_effects.csv`（不在 Git）
-- 补充机制证据与限制：`output_data/analysis/ANALYSIS_BUNDLE_V2_MECHANISM_COMPLETION/99_REPORT/`（不在 Git）
+- 本机正式完成审计：`data/output_data/ha_sodqn/engineering_20260726/E0_E4_completion_audit_20260730.json`（不在 Git）
+- 本机 E4 效应表：`data/output_data/ha_sodqn/analysis_e7705f7/E4/paired_effects.csv`（不在 Git）
+- 补充机制证据与限制：`data/output_data/analysis/ANALYSIS_BUNDLE_V2_MECHANISM_COMPLETION/99_REPORT/`（不在 Git）
 - E4 manifest 冻结训练 commit：`cdcd3d7`；恢复审计使用后续 commit `664ac2a`；最终 E0～E4 completion audit 记录的代码 head 为 `125f9d7`。三者均位于当前分支历史中，不能用当前 HEAD 字符串替代旧运行实际记录。
 
 本文记录的是当前已验证状态和下一阶段跨算法建议。新增算法实现完成后，应更新“当前算法支持边界”、实际命令、冻结环境、正式 manifest identity 和验证证据；不要让建议矩阵长期被误读成已执行实验。

@@ -39,7 +39,7 @@
   A 通道：MP 控盘 episode → （状态, 专家动作） 序列
   C 通道：被纠偏区间的执行转移（只学 accepted_action）
         ↓
-  打包 = 与 dataset/offline_trajectory_dataset 同 schema 的只读档案 + manifest + hash
+  打包 = 与 data/dataset/offline_trajectory_dataset 同 schema 的只读档案 + manifest + hash
         ↓
   sequential 新臂：原配方 + 专家池第三条腿（独立配比，不进 offline_ratio 语义）
         ↓
@@ -190,7 +190,7 @@ plan 侧：`build_pilot_plan.py --bprime-arms/--bpc-arms` +
 hitl_ep50+student_ep50+expert_ep50 三池 731 转移上离线校准
 （`calibrate_adjudication.py`，terms μ=-0.78/σ=0.30、RM μ=-1.03/σ=0.84、
 qgap μ=-6.69/σ=9.34，与 B 通道 h/f̂ 校准互相印证）；manifest
-`output_data/hitl_probe/adjudication/manifest_v1_calibrated.json`，
+`data/output_data/hitl_probe/adjudication/manifest_v1_calibrated.json`，
 判官表=terms(w1.0)+RM(w1.0)+qgap(ep400收敛档,w0.5)。10 run
 （BP/BPC×5 seed，同 ep0/seed/20ep 预算）全部 rc=0；21600 个更新窗
 裁定块覆盖率 100%，missing_features=0、judge_fallbacks=0；expert

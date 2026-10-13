@@ -22,7 +22,7 @@ LibSignal 基线之上的两个研究问题：
 ## 工单与产物
 
 - 工单：`configs/sequential/*.yml`（plan34/ha_sodqn_b100 等）、`configs/offline_tsc/`
-- 产物：`output_data/sequential/`、`output_data/ha_sodqn/`、`output_data/offline_tsc/`、`output_data/hitl_probe/`（HITL 轮次训练）
+- 产物：`data/output_data/sequential/`、`data/output_data/ha_sodqn/`、`data/output_data/offline_tsc/`、`data/output_data/hitl_probe/`（HITL 轮次训练）
 
 ## 边界
 
@@ -31,4 +31,4 @@ LibSignal 基线之上的两个研究问题：
 
 ## 与基线层的关系
 
-复用 LibSignal `agent/`（DQNNet 等）、`world/`、`common/`、`dataset/`、`utils/`；`run.py` 在线入口与本包互不调用，靠 `offline.py` 的延迟 import 保持基线 import 图不变。
+复用 LibSignal `agent/`（DQNNet 等）、`world/`、`common/`、`data/dataset/`、`utils/`；`run.py` 在线入口与本包互不调用，靠 `offline.py` 的延迟 import 保持基线 import 图不变。

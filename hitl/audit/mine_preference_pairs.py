@@ -35,14 +35,14 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--multiseed-dir", type=Path, required=True, action="append",
                         help="dir containing branches_shard*.jsonl (repeatable)")
-    parser.add_argument("--manifest", type=Path, default=REPO_ROOT / "output_data"
+    parser.add_argument("--manifest", type=Path, default=REPO_ROOT / "data/output_data"
                         / "allocation_accuracy_formal_state" / "allocation_accuracy_state_manifest.csv")
     parser.add_argument("--min-seeds", type=int, default=4,
                         help="minimum evaluated seeds for a pair to count")
     parser.add_argument("--min-win-rate", type=float, default=0.8,
                         help="a+ must win on at least this fraction of seeds")
     parser.add_argument("--horizon", type=int, default=60)
-    parser.add_argument("--predictions", type=Path, default=REPO_ROOT / "output_data"
+    parser.add_argument("--predictions", type=Path, default=REPO_ROOT / "data/output_data"
                         / "allocation_accuracy_formal_cf" / "allocation_accuracy_agent_predictions.csv")
     parser.add_argument("--out", type=Path, required=True)
     args = parser.parse_args()

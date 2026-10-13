@@ -270,7 +270,7 @@ def main():
     p.add_argument('--t-fixed', type=int, default=30)
     p.add_argument('--t-min', type=int, default=10)
     p.add_argument('--gate-json',
-                   default='output_data/dev_takeover_probe/'
+                   default='data/output_data/dev_takeover_probe/'
                            'dispatch_gate_v1/results.json')
     p.add_argument('--out', required=True)
     args = p.parse_args()

@@ -8,8 +8,8 @@ MP 控盘池（expert_ep50）——偏差记入实验记录，不报等效。
 
 用法：
     python hitl/pipeline/build_demos.py \
-        --archive output_data/hitl_probe/pools/expert_ep50 \
-        --out output_data/hitl_probe/demos/demo_expert_ep50.npz
+        --archive data/output_data/hitl_probe/pools/expert_ep50 \
+        --out data/output_data/hitl_probe/demos/demo_expert_ep50.npz
 """
 
 from __future__ import annotations

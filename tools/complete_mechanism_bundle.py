@@ -21,8 +21,8 @@ from scipy.stats import spearmanr, wilcoxon
 
 
 ROOT = Path(__file__).resolve().parents[1]
-V1 = ROOT / "output_data/analysis/plan_ha_analysis_bundle_v1"
-OUT = ROOT / "output_data/analysis/ANALYSIS_BUNDLE_V2_MECHANISM_COMPLETION"
+V1 = ROOT / "data/output_data/analysis/plan_ha_analysis_bundle_v1"
+OUT = ROOT / "data/output_data/analysis/ANALYSIS_BUNDLE_V2_MECHANISM_COMPLETION"
 EPS = [0, 1, 5, 10, 25, 50, 75, 100]
 WINDOWS = [(1, 5), (1, 10), (1, 25), (26, 50), (51, 75), (76, 100)]
 STATE_COLUMNS = [f"state_{i}" for i in range(8)]

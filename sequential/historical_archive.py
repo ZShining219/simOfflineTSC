@@ -14,7 +14,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from dataset.offline_trajectory_dataset import OfflineTrajectoryDataset
+from data.dataset.offline_trajectory_dataset import OfflineTrajectoryDataset
 
 from .io import atomic_json, read_json, sha256_file
 

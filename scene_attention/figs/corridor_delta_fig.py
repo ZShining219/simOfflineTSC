@@ -6,8 +6,8 @@
 用法::
 
     python -m scene_attention.corridor_delta_fig \
-        --results output_data/dev_takeover_probe/sig15_eval/results.json \
-        --out output_data/dev_takeover_probe/evidence_fig/corridor_delta.png
+        --results data/output_data/dev_takeover_probe/sig15_eval/results.json \
+        --out data/output_data/dev_takeover_probe/evidence_fig/corridor_delta.png
 """
 
 from __future__ import annotations

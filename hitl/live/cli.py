@@ -3,7 +3,7 @@
 Example:
     python -m hitl.live --scene S2 --port 8010
     python -m hitl.live --scene S4 \
-        --model dhoa=output_data/.../snapshots/sumohz1x1_config3.pt
+        --model dhoa=data/output_data/.../snapshots/sumohz1x1_config3.pt
 """
 
 from __future__ import annotations
@@ -41,14 +41,14 @@ DEFAULT_CHECKPOINT_MODELS = [
     (
         'dhoa',
         'DHOA · formal O2/SD0 ep400',
-        'output_data/ha_sodqn/formal_e7705f7_20260726/'
+        'data/output_data/ha_sodqn/formal_e7705f7_20260726/'
         'P1F-DHOA-R50-O2-SD0/attempts/attempt_1/checkpoints/online/'
         'stage_04_episode_0100.pt',
     ),
     (
         'cont',
         'CONT · formal O2/SD0 ep400',
-        'output_data/ha_sodqn/formal_e7705f7_20260726/'
+        'data/output_data/ha_sodqn/formal_e7705f7_20260726/'
         'CONT-FIFO-O2-SD0/attempts/attempt_1/checkpoints/online/'
         'stage_04_episode_0100.pt',
     ),
@@ -218,7 +218,7 @@ def build_parser():
         help='Register a Q-network snapshot/checkpoint under NAME; repeatable',
     )
     parser.add_argument(
-        '--models-dir', default=str(_REPO_ROOT / 'output_data' / 'sequential'),
+        '--models-dir', default=str(_REPO_ROOT / 'data/output_data' / 'sequential'),
         help='Directory scanned for scene-matched snapshot .pt files',
     )
     parser.add_argument(

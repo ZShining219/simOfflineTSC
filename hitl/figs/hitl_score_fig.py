@@ -6,8 +6,8 @@
 用法::
 
     python -m hitl.figs.hitl_score_fig \
-        --pilot output_data/hitl_probe/pilot5 \
-        --out output_data/hitl_probe/pilot5/figs_ALL/hitl_score.png
+        --pilot data/output_data/hitl_probe/pilot5 \
+        --out data/output_data/hitl_probe/pilot5/figs_ALL/hitl_score.png
 """
 
 from __future__ import annotations
@@ -71,7 +71,7 @@ def load_stats(pilot: Path):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument('--pilot', default='output_data/hitl_probe/pilot5')
+    ap.add_argument('--pilot', default='data/output_data/hitl_probe/pilot5')
     ap.add_argument('--out', required=True)
     args = ap.parse_args()
     merged = load_stats(Path(args.pilot))

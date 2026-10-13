@@ -7,7 +7,7 @@
 set -u
 cd "$(dirname "$0")/../.."
 PY="${PY:-python}"   # 需在项目运行环境（colight）下执行；PY= 可覆盖
-PLAN="${PLAN:-output_data/hitl_probe/pilot5/plan_r3.json}"
+PLAN="${PLAN:-data/output_data/hitl_probe/pilot5/plan_r3.json}"
 TAGS="${1:-all}"
 PAR="${2:-10}"
 [ "$TAGS" = all ] && TAGS="qc kn sb"
@@ -24,12 +24,12 @@ for c in p['children']:
         print(rid)
 EOF
 )
-  mkdir -p "output_data/hitl_probe/multiscene/$tag/runs" \
-          "output_data/hitl_probe/multiscene/$tag/logs"
+  mkdir -p "data/output_data/hitl_probe/multiscene/$tag/runs" \
+          "data/output_data/hitl_probe/multiscene/$tag/logs"
   echo "$ids" | xargs -P "$PAR" -I{} bash -c '
     id={}
-    out="output_data/hitl_probe/multiscene/'"$tag"'/runs/$id"
-    log="output_data/hitl_probe/multiscene/'"$tag"'/logs/$id.log"
+    out="data/output_data/hitl_probe/multiscene/'"$tag"'/runs/$id"
+    log="data/output_data/hitl_probe/multiscene/'"$tag"'/logs/$id.log"
     [ -f "$out/completed.json" ] && { echo "skip $id"; exit 0; }
     '"$PY"' sequential_run.py run-child \
       --manifest "'"$PLAN"'" \

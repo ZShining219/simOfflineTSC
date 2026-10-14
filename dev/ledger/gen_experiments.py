@@ -121,13 +121,16 @@ META = {
            "dev/cl_hz1x1/{build_queue,build_queue_so,build_queue_soa,harvest_matrix,harvest_soa,plot_so_compare,plot_soa_compare}.py；"
            "矩阵 artifacts/cl_hz1x1/matrix_report{,_so,_soa_soa1}.json；图 artifacts/cl_hz1x1/fig_{so,soa}_{retention_trajectory,worst_degradation}.png；"
            "锚定实现 agent/{dqn,frap}.py::_anchor_loss，诊断经 metrics schema v5 train_diagnostics 落盘",
- "conclusion": "cl1 1476/1476 + so1 612/612 + soa screen 306/306 + soa1 主矩阵 612/612 全 DONE。"
+ "conclusion": "cl1 1476/1476 + so1 612/612 + soa screen 306/306 + soa1 主矩阵 612/612 + soa3 复现 306/306 全 DONE。"
                "①ddqn/duel/frap 三骨干在 clear 下均崩（o2 最深退化 +597/+282/+140s），遗忘为 off-policy 机制性失败非实现特例；"
                "②结构调制易感性（duel>ddqn>frap）但不免疫；③25% 因果半离线三臂 18/18 链最深退化 ≤+9s，对角线新学习近似保持——"
                "结论=抗遗忘修复，非绝对性能提升。PPO 为 on-policy 未入 so 臂。"
                "④soa1（o2, n=3，口径=全部旧场景 cell 最深 ΔATT）：policy 锚 λ_π=1 把 worst 退化 ddqn 1.54→0.44s、duel 5.23→0.90s、frap 9.79→0.99s，"
                "对角线 ΔATT 均值变化 ≤0.4s 近似零塑性代价；λ_π=10 双指标恶化（筛除非单调剂量响应）；"
-               "+value 锚 λ_q=0.1 一致略逊于纯 policy 锚（同预算下钉旧 Q 值与 TD 拉扯）。216 行 SCOPE_DISCARD 为超范围裁决留档。",
+               "+value 锚 λ_q=0.1 一致略逊于纯 policy 锚（同预算下钉旧 Q 值与 TD 拉扯）。"
+               "⑤o3 复现（仅 +P 臂）：worst 退化 ddqn 3.91→0.35s、duel 5.96→0.56s、frap 0.73→−0.03s（全 cell 优于基线），"
+               "跨序一致；sd1 链 st3 对角线单点 +2.4s 为唯一塑性毛刺（臂均值仍 −0.10s）。"
+               "216 行 SCOPE_DISCARD 为超范围裁决留档。",
  "queues": "artifacts/cl_hz1x1/{run_queue_cl1.json, run_queue_so1.json, run_queue_soa_screen.json, run_queue_soa_main.json, run_queue_soa_main_o3.json}",
 },
 }

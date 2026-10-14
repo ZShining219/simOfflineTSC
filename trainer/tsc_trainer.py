@@ -19,6 +19,50 @@ from agent import utils as agent_utils
 from arterial.replay import HistoryArchiveWriter
 
 
+class EngineStateRecorder:
+    """Opt-in raw engine-state recorder for offline recovery-model training.
+
+    Enabled via env var TSC_STATE_REC_DIR. Records, per decision step:
+    lane vehicle counts, lane waiting counts, chosen actions, phases,
+    previous-decision reward and sim time. One npz per episode.
+    """
+
+    def __init__(self, out_dir, eng):
+        self.out_dir = out_dir
+        self._eng = eng
+        self._lane_ids = sorted(eng.get_lane_vehicle_count().keys())
+        os.makedirs(out_dir, exist_ok=True)
+        self._reset()
+
+    def _reset(self):
+        self.counts, self.waiting, self.actions = [], [], []
+        self.phases, self.rewards, self.times = [], [], []
+
+    def record(self, actions, phases, prev_rewards):
+        lvc = self._eng.get_lane_vehicle_count()
+        lwc = self._eng.get_lane_waiting_vehicle_count()
+        self.counts.append([lvc.get(l, 0) for l in self._lane_ids])
+        self.waiting.append([lwc.get(l, 0) for l in self._lane_ids])
+        self.actions.append(np.asarray(actions).copy())
+        self.phases.append(np.asarray(phases).copy())
+        self.rewards.append(
+            np.asarray(prev_rewards).copy() if prev_rewards is not None
+            else np.zeros(np.asarray(actions).shape, dtype=np.float32))
+        self.times.append(float(self._eng.get_current_time()))
+
+    def finish_episode(self, episode):
+        np.savez(
+            os.path.join(self.out_dir, 'ep%03d.npz' % episode),
+            lane_ids=np.asarray(self._lane_ids),
+            counts=np.asarray(self.counts, dtype=np.float32),
+            waiting=np.asarray(self.waiting, dtype=np.float32),
+            actions=np.asarray(self.actions),
+            phases=np.asarray(self.phases),
+            rewards=np.asarray(self.rewards, dtype=np.float32),
+            times=np.asarray(self.times, dtype=np.float32))
+        self._reset()
+
+
 def _state_values_equal(left, right):
     if isinstance(left, torch.Tensor) and isinstance(right, torch.Tensor):
         return torch.equal(left, right)
@@ -701,6 +745,11 @@ class TSCTrainer(BaseTrainer):
                  'target_update': 0.0, 'evaluation': 0.0}
         total_decision_num = self.global_decision_step
         flush = 0
+        _state_rec_dir = os.environ.get('TSC_STATE_REC_DIR')
+        _state_rec = (
+            EngineStateRecorder(_state_rec_dir, self.env.eng)
+            if _state_rec_dir and getattr(self.env, 'eng', None) is not None
+            else None)
         if not self.resume_episode and self._should_evaluate(0):
             self._run_scheduled_evaluation(0)
         if (self.resume_episode and self._should_evaluate(self.resume_episode)
@@ -775,6 +824,9 @@ class TSCTrainer(BaseTrainer):
                         episode=e + 1, simulation_step=i,
                         decision_step=self.metric.decision_num + 1,
                         actions=actions)
+                    if _state_rec is not None:
+                        _state_rec.record(actions, last_phase,
+                                          rewards if i > 0 else None)
 
                     actions_prob = []
                     for idx, ag in enumerate(self.agents):
@@ -892,6 +944,8 @@ class TSCTrainer(BaseTrainer):
                     break
             if self.trajectory_writer is not None:
                 self.trajectory_writer.finish_episode()
+            if _state_rec is not None:
+                _state_rec.finish_episode(e + 1)
             if self.history_archive_writer is not None:
                 self.history_archive_writer.append_episode(
                     e + 1, self.agents[0].drain_archive_records())
@@ -1754,7 +1808,7 @@ class TSCTrainer(BaseTrainer):
         is_shared = (len(self.agents) == 1
                      and hasattr(self.agents[0], 'intersection_ids'))
         record = {
-            'schema_version': 4 if is_shared else 3,
+            'schema_version': 4 if is_shared else 5,
             'record_type': record_type,
             'agent': command['agent'],
             'network': command['network'],
@@ -1819,12 +1873,14 @@ class TSCTrainer(BaseTrainer):
                     for item in replay_diagnostics
                 ) / sampled_transitions
             ),
+            'train_diagnostics': None,
         }
         shared_diagnostics = [
             agent.last_train_diagnostics for agent in self.agents
             if getattr(agent, 'last_train_diagnostics', None) is not None
         ]
         if is_shared:
+            record.pop('train_diagnostics')
             shared = self.agents[0]
             record.update({
                 'epsilon_start': getattr(self, '_episode_epsilon_start',
@@ -1841,6 +1897,9 @@ class TSCTrainer(BaseTrainer):
                     else _json_safe_value(shared_diagnostics[0])),
                 'replay_composition': None,
             })
+        elif len(shared_diagnostics) == 1 and record_type == 'TRAIN':
+            record['train_diagnostics'] = _json_safe_value(
+                shared_diagnostics[0])
         shared_compositions = [
             {
                 'scene_distribution': dict(sorted(Counter(

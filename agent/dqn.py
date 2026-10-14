@@ -120,6 +120,87 @@ class DQNAgent(RLAgent):
             raise ValueError(
                 'offline_ratio requires history_paths for the visible history set')
 
+        self.anchor_lambda_policy = float(
+            model_param.get('anchor_lambda_policy', 0.0))
+        self.anchor_lambda_value = float(
+            model_param.get('anchor_lambda_value', 0.0))
+        self.anchor_temperature = float(
+            model_param.get('anchor_temperature', 1.0))
+        self.anchor_teachers = {}
+        if self.anchor_lambda_policy or self.anchor_lambda_value:
+            teacher_paths = model_param.get('teacher_paths') or {}
+            missing = [scene for scene in self.visible_history_scenes
+                       if scene not in teacher_paths]
+            if self.visible_history_scenes and missing:
+                raise ValueError(
+                    'Anchor losses require teacher_paths covering every '
+                    f'visible history scene; missing: {missing}')
+            self.anchor_teachers = self._load_anchor_teachers(teacher_paths)
+
+    def _load_anchor_teachers(self, teacher_paths):
+        """Freeze stage-end online networks as per-scene anchor teachers."""
+        teachers = {}
+        rank = int(getattr(self, 'rank', 0))
+        for scene_id, path in teacher_paths.items():
+            payload = torch.load(str(path), map_location='cpu')
+            agents = payload.get('agents')
+            if agents:
+                state = agents[rank].get('online_model_state_dict')
+            else:
+                state = payload.get('online_model_state_dict')
+            if state is None:
+                raise ValueError(
+                    'Anchor teacher checkpoint lacks online_model_state_dict: '
+                    f'{path}')
+            net = self._build_model()
+            net.load_state_dict(state)
+            net.eval()
+            for param in net.parameters():
+                param.requires_grad_(False)
+            teachers[str(scene_id)] = net
+        return teachers
+
+    def _anchor_loss(self, b_t, q_pred, actions, anchor_groups):
+        """Output-anchoring losses on replayed historical states.
+
+        The TD term only constrains the executed action of each replayed
+        transition, so the remaining logits drift through shared weights.
+        For each source scene, the frozen stage-end teacher anchors the
+        softmax action distribution (policy anchor) and optionally the Q
+        values of the non-executed actions (value anchor, masked so it does
+        not fight the TD residual on the sampled action).
+        """
+        policy_sum = q_pred.new_zeros(())
+        value_sum = q_pred.new_zeros(())
+        total = 0
+        for scene_id, rows in anchor_groups.items():
+            teacher = self.anchor_teachers.get(str(scene_id))
+            if teacher is None:
+                raise RuntimeError(
+                    'Anchor loss enabled but no teacher for scene '
+                    f'{scene_id}')
+            idx = torch.as_tensor(rows, dtype=torch.long)
+            n = idx.numel()
+            total += n
+            q_cur = q_pred.index_select(0, idx)
+            with torch.no_grad():
+                q_ref = teacher(b_t.index_select(0, idx), train=False)
+            if self.anchor_lambda_policy:
+                temperature = self.anchor_temperature
+                logp = F.log_softmax(q_cur / temperature, dim=1)
+                p_ref = F.softmax(q_ref / temperature, dim=1)
+                policy_sum = policy_sum + n * F.kl_div(
+                    logp, p_ref, reduction='batchmean')
+            if self.anchor_lambda_value:
+                keep = torch.ones_like(q_cur, dtype=torch.bool)
+                keep.scatter_(
+                    1, actions.index_select(0, idx).view(n, 1), False)
+                value_sum = value_sum + n * F.smooth_l1_loss(
+                    q_cur.masked_select(keep).view(n, -1),
+                    q_ref.masked_select(keep).view(n, -1))
+        scale = max(total, 1)
+        return policy_sum / scale, value_sum / scale
+
     @staticmethod
     def _materialize_history(history_paths):
         """Load all archive shards eagerly.
@@ -508,6 +589,7 @@ class DQNAgent(RLAgent):
         online_needed = self.batch_size - offline_count
         if len(self.replay_buffer) < online_needed:
             return np.array(0.0, dtype=np.float32)
+        anchor_groups = {}
         if offline_count:
             if not (self.visible_history_scenes and self.offline_pool.records):
                 raise RuntimeError(
@@ -518,10 +600,15 @@ class DQNAgent(RLAgent):
                 self.batch_size, self.offline_ratio,
                 self.visible_history_scenes,
                 strategy=self.offline_sampling_strategy, rng=random)
-            samples = [
-                self._offline_to_sample(item) if source == 'offline_history'
-                else item for item, source in tagged
-            ]
+            samples = []
+            for index, (item, source) in enumerate(tagged):
+                if source == 'offline_history':
+                    samples.append(self._offline_to_sample(item))
+                    if self.anchor_teachers:
+                        anchor_groups.setdefault(
+                            item.metadata.scene_id, []).append(index)
+                else:
+                    samples.append(item)
             self._record_replay_samples(
                 [item for item, source in tagged if source == 'online_current'])
         else:
@@ -538,7 +625,18 @@ class DQNAgent(RLAgent):
         target_f = self.model(b_t, train=False)
         for i, action in enumerate(actions):
             target_f[i][action] = target[i]
-        loss = self.criterion(self.model(b_t, train=True), target_f)
+        pred = self.model(b_t, train=True)
+        td_loss = self.criterion(pred, target_f)
+        loss = td_loss
+        policy_anchor = None
+        value_anchor = None
+        if anchor_groups:
+            policy_anchor, value_anchor = self._anchor_loss(
+                b_t, pred, actions, anchor_groups)
+            if self.anchor_lambda_policy:
+                loss = loss + self.anchor_lambda_policy * policy_anchor
+            if self.anchor_lambda_value:
+                loss = loss + self.anchor_lambda_value * value_anchor
         self.optimizer.zero_grad()
         loss.backward()
         clip_grad_norm_(self.model.parameters(), self.grad_clip)
@@ -546,6 +644,17 @@ class DQNAgent(RLAgent):
         if self.epsilon > self.epsilon_min:
             self.epsilon *= self.epsilon_decay
         self.policy_version += 1
+        if self.anchor_teachers:
+            self.last_train_diagnostics = {
+                'td_loss': float(td_loss.detach()),
+                'anchor_policy_loss': (
+                    float(policy_anchor.detach())
+                    if policy_anchor is not None else 0.0),
+                'anchor_value_loss': (
+                    float(value_anchor.detach())
+                    if value_anchor is not None else 0.0),
+                'offline_count': offline_count,
+            }
         return loss.clone().detach().numpy()
 
     def is_training_ready(self):

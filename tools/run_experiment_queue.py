@@ -140,9 +140,31 @@ def main():
         save_state(args.state, args.queue, tasks)
 
         slots = args.parallel - len(running) - adopted
+        done_ids = {t['run_id'] for t in tasks if t['status'] == 'SUCCEEDED'}
+        failed_ids = {t['run_id'] for t in tasks if t['status'] == 'FAILED'}
         pending = sorted((t for t in tasks if t['status'] == 'PENDING'),
                          key=lambda t: t.get('priority', 0))
-        for t in pending[:max(slots, 0)]:
+        ready = []
+        for t in pending:
+            deps = t.get('depends_on') or []
+            if any(d in failed_ids for d in deps):
+                t.update(status='FAILED',
+                         end_time=time.strftime('%Y-%m-%dT%H:%M:%S'),
+                         failure_reason='dependency_failed')
+                continue
+            if not all(d in done_ids for d in deps):
+                continue
+            missing = [r['path'] for r in (t.get('requires') or [])
+                       if not Path(r['path']).exists()]
+            if missing:
+                if deps:
+                    t.update(status='FAILED',
+                             end_time=time.strftime('%Y-%m-%dT%H:%M:%S'),
+                             failure_reason='missing_requirement: '
+                                            + ','.join(missing))
+                continue
+            ready.append(t)
+        for t in ready[:max(slots, 0)]:
             log_path = log_dir / (t['run_id'].replace('/', '_') + '.log')
             env = {**__import__('os').environ, **(t.get('env') or {})}
             fh = open(log_path, 'ab')

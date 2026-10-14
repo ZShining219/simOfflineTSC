@@ -107,7 +107,15 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
   姊妹件 `build_queue_so.py` 产出 `run_queue_so1.json`（612 任务：半离线臂
   soddqn/soduel/sofrap × 2 序 × 3 种子，offline_ratio=0.25 因果历史，
   在线 buffer 随场景清空、历史包按 stage 归档 `history_archive/`）；
-  基线复用 cl1（offline_ratio=0 同码路）。收割/绘图件——
+  基线复用 cl1（offline_ratio=0 同码路）。
+  锚定件 `build_queue_soa.py`（argv: smoke|screen|main）产出
+  `run_queue_soa_<phase>.json`——与 so1 同协议但 stage>1 额外加载
+  `teacher_paths`（各可见场景的 stage 末冻结 ckpt）并在离线样本上加
+  输出锚定损失 `λ_π·KL(softmax(Q_teacher/T)‖softmax(Q_θ/T))`
+  +可选 `λ_q·Huber`（mask 已执行动作维）；锚定实现位于
+  `agent/dqn.py::_anchor_loss` 与 `agent/frap.py::_anchor_loss`，
+  诊断经 `train_diagnostics` 字段（metrics schema v5）落 records.jsonl。
+  收割/绘图件——
   `harvest_matrix.py` 产出 `matrix_report{,_so}.json`（下三角矩阵+最深退化汇总），
   `plot_so_compare.py` 产出 `fig_so_{retention_trajectory,worst_degradation}.png`
   （clear/fifo/半离线三条件对照，逐种子细线+均值粗线+基线虚线）。

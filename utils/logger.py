@@ -43,6 +43,9 @@ METRIC_FIELDS_V4 = METRIC_FIELDS_V3 + (
     'epsilon_start', 'epsilon_end', 'exploration_actions', 'greedy_actions',
     'shared_dqn_update', 'replay_composition',
 )
+METRIC_FIELDS_V5 = METRIC_FIELDS_V3 + (
+    'train_diagnostics',
+)
 
 SUMO_ENVIRONMENT_IDENTITY_FIELDS = (
     'network', 'dir', 'combined_file', 'roadnetFile', 'flowFile',
@@ -62,6 +65,8 @@ def metric_fields_for_schema(schema_version):
         return METRIC_FIELDS_V3
     if schema_version == 4:
         return METRIC_FIELDS_V4
+    if schema_version == 5:
+        return METRIC_FIELDS_V5
     raise ValueError(f'Unsupported metric schema_version: {schema_version}')
 
 

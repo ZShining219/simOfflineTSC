@@ -1,12 +1,12 @@
-# cl_hz1x1 同质单路口持续学习（cl1 主线 + so1 半离线）
+# cl_hz1x1 同质单路口持续学习（cl1 主线 + so1 半离线 + soa1 输出锚定）
 
 > 索引：[EXPERIMENTS.md](../EXPERIMENTS.md)；事实源 `ledger/runs.jsonl`
 
-- 假设：值迭代型 TSC-RL 在顺序场景训练下发生机制性灾难性遗忘；25% 因果历史离线混合应以架构无关方式消除遗忘且不损害新场景学习。
-- plan_id/队列：cl_hz1x1_v1
-- 设计稿/证据位置：artifacts/cl_hz1x1/{run_queue_cl1.json, run_queue_so1.json}；dev/cl_hz1x1/{build_queue,build_queue_so,harvest_matrix,plot_so_compare}.py；矩阵 artifacts/cl_hz1x1/matrix_report{,_so}.json；图 artifacts/cl_hz1x1/fig_so_{retention_trajectory,worst_degradation}.png
-- 结论：cl1 1476/1476 + so1 612/612 全 DONE。①ddqn/duel/frap 三骨干在 clear 下均崩（o2 最深退化 +597/+282/+140s），遗忘为 off-policy 机制性失败非实现特例；②结构调制易感性（duel>ddqn>frap）但不免疫；③25% 因果半离线三臂 18/18 链最深退化 ≤+9s，对角线新学习近似保持——结论=抗遗忘修复，非绝对性能提升。PPO 为 on-policy 未入 so 臂。216 行 SCOPE_DISCARD 为超范围裁决留档。
-- 登记单元 2440（train/eval/smoke/batch/calibration = 324/2116/0/0/0）（追溯登记 2026-10-07）
+- 假设：值迭代型 TSC-RL 在顺序场景训练下发生机制性灾难性遗忘；25% 因果历史离线混合应以架构无关方式消除遗忘且不损害新场景学习；在离线样本上加 stage 末教师输出锚定（CLEAR 式 policy cloning 的 DQN 移植）应在同回放预算下进一步压缩残余退化。
+- plan_id/队列：cl_hz1x1_v1 / cl_hz1x1_anchor_{screen,main,main_o3}
+- 设计稿/证据位置：artifacts/cl_hz1x1/{run_queue_cl1.json, run_queue_so1.json, run_queue_soa_*.json}；dev/cl_hz1x1/{build_queue,build_queue_so,build_queue_soa,harvest_matrix,harvest_soa,plot_so_compare,plot_soa_compare}.py；矩阵 artifacts/cl_hz1x1/matrix_report{,_so,_soa_soa1}.json；图 artifacts/cl_hz1x1/fig_{so,soa}_{retention_trajectory,worst_degradation}.png；锚定实现 agent/{dqn,frap}.py::_anchor_loss，诊断经 metrics schema v5 train_diagnostics 落盘
+- 结论：cl1 1476/1476 + so1 612/612 + soa screen 306/306 + soa1 主矩阵 612/612 全 DONE。①ddqn/duel/frap 三骨干在 clear 下均崩（o2 最深退化 +597/+282/+140s），遗忘为 off-policy 机制性失败非实现特例；②结构调制易感性（duel>ddqn>frap）但不免疫；③25% 因果半离线三臂 18/18 链最深退化 ≤+9s，对角线新学习近似保持——结论=抗遗忘修复，非绝对性能提升。PPO 为 on-policy 未入 so 臂。④soa1（o2, n=3，口径=全部旧场景 cell 最深 ΔATT）：policy 锚 λ_π=1 把 worst 退化 ddqn 1.54→0.44s、duel 5.23→0.90s、frap 9.79→0.99s，对角线 ΔATT 均值变化 ≤0.4s 近似零塑性代价；λ_π=10 双指标恶化（筛除非单调剂量响应）；+value 锚 λ_q=0.1 一致略逊于纯 policy 锚（同预算下钉旧 Q 值与 TD 拉扯）。216 行 SCOPE_DISCARD 为超范围裁决留档。
+- 登记单元 3772（train/eval/smoke/batch/calibration = 468/3304/0/0/0）（追溯登记 2026-10-07）
 
 | run_id | 臂/net/seed | ep | 状态 | 起始 | TT/th/unfinished | 产物路径 | 备注 |
 |---|---|---|---|---|---|---|---|
@@ -334,12 +334,156 @@
 | `so1_sofrap_o3_sd2_st2` | sofrap_so/sumohz1x1_config3/s2 | 100 | DONE | — | — | `—` | REGISTERED: cl_hz1x1 semi-offline train order_stage=o3/st2 offline_ratio=0.25 |
 | `so1_sofrap_o3_sd2_st3` | sofrap_so/sumohz1x1/s2 | 100 | DONE | — | — | `—` | REGISTERED: cl_hz1x1 semi-offline train order_stage=o3/st3 offline_ratio=0.25 |
 | `so1_sofrap_o3_sd2_st4` | sofrap_so/sumohz1x1_config4/s2 | 100 | DONE | — | — | `—` | REGISTERED: cl_hz1x1 semi-offline train order_stage=o3/st4 offline_ratio=0.25 |
+| `soa1_soddqnp_o2_sd0_st1` | soddqnp_soa/sumohz1x1/s0 | 100 | DONE | — | — | `data/output_data/tsc/sumo_dqn/sumohz1x1/soa1_soddqnp_o2_sd0_st1` | REGISTERED: cl_hz1x1 anchor main train order_stage=o2/st1 offline_ratio=0.25 |
+| `soa1_soddqnp_o2_sd0_st2` | soddqnp_soa/sumohz1x1_config4/s0 | 100 | DONE | — | — | `data/output_data/tsc/sumo_dqn/sumohz1x1_config4/soa1_soddqnp_o2_sd0_st2` | REGISTERED: cl_hz1x1 anchor main train order_stage=o2/st2 offline_ratio=0.25 |
+| `soa1_soddqnp_o2_sd0_st3` | soddqnp_soa/sumohz1x1_config2/s0 | 100 | DONE | — | — | `data/output_data/tsc/sumo_dqn/sumohz1x1_config2/soa1_soddqnp_o2_sd0_st3` | REGISTERED: cl_hz1x1 anchor main train order_stage=o2/st3 offline_ratio=0.25 |
+| `soa1_soddqnp_o2_sd0_st4` | soddqnp_soa/sumohz1x1_config3/s0 | 100 | DONE | — | — | `data/output_data/tsc/sumo_dqn/sumohz1x1_config3/soa1_soddqnp_o2_sd0_st4` | REGISTERED: cl_hz1x1 anchor main train order_stage=o2/st4 offline_ratio=0.25 |
+| `soa1_soddqnp_o2_sd1_st1` | soddqnp_soa/sumohz1x1/s1 | 100 | DONE | — | — | `data/output_data/tsc/sumo_dqn/sumohz1x1/soa1_soddqnp_o2_sd1_st1` | REGISTERED: cl_hz1x1 anchor main train order_stage=o2/st1 offline_ratio=0.25 |
+| `soa1_soddqnp_o2_sd1_st2` | soddqnp_soa/sumohz1x1_config4/s1 | 100 | DONE | — | — | `data/output_data/tsc/sumo_dqn/sumohz1x1_config4/soa1_soddqnp_o2_sd1_st2` | REGISTERED: cl_hz1x1 anchor main train order_stage=o2/st2 offline_ratio=0.25 |
+| `soa1_soddqnp_o2_sd1_st3` | soddqnp_soa/sumohz1x1_config2/s1 | 100 | DONE | — | — | `data/output_data/tsc/sumo_dqn/sumohz1x1_config2/soa1_soddqnp_o2_sd1_st3` | REGISTERED: cl_hz1x1 anchor main train order_stage=o2/st3 offline_ratio=0.25 |
+| `soa1_soddqnp_o2_sd1_st4` | soddqnp_soa/sumohz1x1_config3/s1 | 100 | DONE | — | — | `data/output_data/tsc/sumo_dqn/sumohz1x1_config3/soa1_soddqnp_o2_sd1_st4` | REGISTERED: cl_hz1x1 anchor main train order_stage=o2/st4 offline_ratio=0.25 |
+| `soa1_soddqnp_o2_sd2_st1` | soddqnp_soa/sumohz1x1/s2 | 100 | DONE | — | — | `data/output_data/tsc/sumo_dqn/sumohz1x1/soa1_soddqnp_o2_sd2_st1` | REGISTERED: cl_hz1x1 anchor main train order_stage=o2/st1 offline_ratio=0.25 |
+| `soa1_soddqnp_o2_sd2_st2` | soddqnp_soa/sumohz1x1_config4/s2 | 100 | DONE | — | — | `data/output_data/tsc/sumo_dqn/sumohz1x1_config4/soa1_soddqnp_o2_sd2_st2` | REGISTERED: cl_hz1x1 anchor main train order_stage=o2/st2 offline_ratio=0.25 |
+| `soa1_soddqnp_o2_sd2_st3` | soddqnp_soa/sumohz1x1_config2/s2 | 100 | DONE | — | — | `data/output_data/tsc/sumo_dqn/sumohz1x1_config2/soa1_soddqnp_o2_sd2_st3` | REGISTERED: cl_hz1x1 anchor main train order_stage=o2/st3 offline_ratio=0.25 |
+| `soa1_soddqnp_o2_sd2_st4` | soddqnp_soa/sumohz1x1_config3/s2 | 100 | DONE | — | — | `data/output_data/tsc/sumo_dqn/sumohz1x1_config3/soa1_soddqnp_o2_sd2_st4` | REGISTERED: cl_hz1x1 anchor main train order_stage=o2/st4 offline_ratio=0.25 |
+| `soa1_soddqnpv_o2_sd0_st1` | soddqnpv_soa/sumohz1x1/s0 | 100 | DONE | — | — | `data/output_data/tsc/sumo_dqn/sumohz1x1/soa1_soddqnpv_o2_sd0_st1` | REGISTERED: cl_hz1x1 anchor main train order_stage=o2/st1 offline_ratio=0.25 |
+| `soa1_soddqnpv_o2_sd0_st2` | soddqnpv_soa/sumohz1x1_config4/s0 | 100 | DONE | — | — | `data/output_data/tsc/sumo_dqn/sumohz1x1_config4/soa1_soddqnpv_o2_sd0_st2` | REGISTERED: cl_hz1x1 anchor main train order_stage=o2/st2 offline_ratio=0.25 |
+| `soa1_soddqnpv_o2_sd0_st3` | soddqnpv_soa/sumohz1x1_config2/s0 | 100 | DONE | — | — | `data/output_data/tsc/sumo_dqn/sumohz1x1_config2/soa1_soddqnpv_o2_sd0_st3` | REGISTERED: cl_hz1x1 anchor main train order_stage=o2/st3 offline_ratio=0.25 |
+| `soa1_soddqnpv_o2_sd0_st4` | soddqnpv_soa/sumohz1x1_config3/s0 | 100 | DONE | — | — | `data/output_data/tsc/sumo_dqn/sumohz1x1_config3/soa1_soddqnpv_o2_sd0_st4` | REGISTERED: cl_hz1x1 anchor main train order_stage=o2/st4 offline_ratio=0.25 |
+| `soa1_soddqnpv_o2_sd1_st1` | soddqnpv_soa/sumohz1x1/s1 | 100 | DONE | — | — | `data/output_data/tsc/sumo_dqn/sumohz1x1/soa1_soddqnpv_o2_sd1_st1` | REGISTERED: cl_hz1x1 anchor main train order_stage=o2/st1 offline_ratio=0.25 |
+| `soa1_soddqnpv_o2_sd1_st2` | soddqnpv_soa/sumohz1x1_config4/s1 | 100 | DONE | — | — | `data/output_data/tsc/sumo_dqn/sumohz1x1_config4/soa1_soddqnpv_o2_sd1_st2` | REGISTERED: cl_hz1x1 anchor main train order_stage=o2/st2 offline_ratio=0.25 |
+| `soa1_soddqnpv_o2_sd1_st3` | soddqnpv_soa/sumohz1x1_config2/s1 | 100 | DONE | — | — | `data/output_data/tsc/sumo_dqn/sumohz1x1_config2/soa1_soddqnpv_o2_sd1_st3` | REGISTERED: cl_hz1x1 anchor main train order_stage=o2/st3 offline_ratio=0.25 |
+| `soa1_soddqnpv_o2_sd1_st4` | soddqnpv_soa/sumohz1x1_config3/s1 | 100 | DONE | — | — | `data/output_data/tsc/sumo_dqn/sumohz1x1_config3/soa1_soddqnpv_o2_sd1_st4` | REGISTERED: cl_hz1x1 anchor main train order_stage=o2/st4 offline_ratio=0.25 |
+| `soa1_soddqnpv_o2_sd2_st1` | soddqnpv_soa/sumohz1x1/s2 | 100 | DONE | — | — | `data/output_data/tsc/sumo_dqn/sumohz1x1/soa1_soddqnpv_o2_sd2_st1` | REGISTERED: cl_hz1x1 anchor main train order_stage=o2/st1 offline_ratio=0.25 |
+| `soa1_soddqnpv_o2_sd2_st2` | soddqnpv_soa/sumohz1x1_config4/s2 | 100 | DONE | — | — | `data/output_data/tsc/sumo_dqn/sumohz1x1_config4/soa1_soddqnpv_o2_sd2_st2` | REGISTERED: cl_hz1x1 anchor main train order_stage=o2/st2 offline_ratio=0.25 |
+| `soa1_soddqnpv_o2_sd2_st3` | soddqnpv_soa/sumohz1x1_config2/s2 | 100 | DONE | — | — | `data/output_data/tsc/sumo_dqn/sumohz1x1_config2/soa1_soddqnpv_o2_sd2_st3` | REGISTERED: cl_hz1x1 anchor main train order_stage=o2/st3 offline_ratio=0.25 |
+| `soa1_soddqnpv_o2_sd2_st4` | soddqnpv_soa/sumohz1x1_config3/s2 | 100 | DONE | — | — | `data/output_data/tsc/sumo_dqn/sumohz1x1_config3/soa1_soddqnpv_o2_sd2_st4` | REGISTERED: cl_hz1x1 anchor main train order_stage=o2/st4 offline_ratio=0.25 |
+| `soa1_soduelp_o2_sd0_st1` | soduelp_soa/sumohz1x1/s0 | 100 | DONE | — | — | `data/output_data/tsc/sumo_dqn/sumohz1x1/soa1_soduelp_o2_sd0_st1` | REGISTERED: cl_hz1x1 anchor main train order_stage=o2/st1 offline_ratio=0.25 |
+| `soa1_soduelp_o2_sd0_st2` | soduelp_soa/sumohz1x1_config4/s0 | 100 | DONE | — | — | `data/output_data/tsc/sumo_dqn/sumohz1x1_config4/soa1_soduelp_o2_sd0_st2` | REGISTERED: cl_hz1x1 anchor main train order_stage=o2/st2 offline_ratio=0.25 |
+| `soa1_soduelp_o2_sd0_st3` | soduelp_soa/sumohz1x1_config2/s0 | 100 | DONE | — | — | `data/output_data/tsc/sumo_dqn/sumohz1x1_config2/soa1_soduelp_o2_sd0_st3` | REGISTERED: cl_hz1x1 anchor main train order_stage=o2/st3 offline_ratio=0.25 |
+| `soa1_soduelp_o2_sd0_st4` | soduelp_soa/sumohz1x1_config3/s0 | 100 | DONE | — | — | `data/output_data/tsc/sumo_dqn/sumohz1x1_config3/soa1_soduelp_o2_sd0_st4` | REGISTERED: cl_hz1x1 anchor main train order_stage=o2/st4 offline_ratio=0.25 |
+| `soa1_soduelp_o2_sd1_st1` | soduelp_soa/sumohz1x1/s1 | 100 | DONE | — | — | `data/output_data/tsc/sumo_dqn/sumohz1x1/soa1_soduelp_o2_sd1_st1` | REGISTERED: cl_hz1x1 anchor main train order_stage=o2/st1 offline_ratio=0.25 |
+| `soa1_soduelp_o2_sd1_st2` | soduelp_soa/sumohz1x1_config4/s1 | 100 | DONE | — | — | `data/output_data/tsc/sumo_dqn/sumohz1x1_config4/soa1_soduelp_o2_sd1_st2` | REGISTERED: cl_hz1x1 anchor main train order_stage=o2/st2 offline_ratio=0.25 |
+| `soa1_soduelp_o2_sd1_st3` | soduelp_soa/sumohz1x1_config2/s1 | 100 | DONE | — | — | `data/output_data/tsc/sumo_dqn/sumohz1x1_config2/soa1_soduelp_o2_sd1_st3` | REGISTERED: cl_hz1x1 anchor main train order_stage=o2/st3 offline_ratio=0.25 |
+| `soa1_soduelp_o2_sd1_st4` | soduelp_soa/sumohz1x1_config3/s1 | 100 | DONE | — | — | `data/output_data/tsc/sumo_dqn/sumohz1x1_config3/soa1_soduelp_o2_sd1_st4` | REGISTERED: cl_hz1x1 anchor main train order_stage=o2/st4 offline_ratio=0.25 |
+| `soa1_soduelp_o2_sd2_st1` | soduelp_soa/sumohz1x1/s2 | 100 | DONE | — | — | `data/output_data/tsc/sumo_dqn/sumohz1x1/soa1_soduelp_o2_sd2_st1` | REGISTERED: cl_hz1x1 anchor main train order_stage=o2/st1 offline_ratio=0.25 |
+| `soa1_soduelp_o2_sd2_st2` | soduelp_soa/sumohz1x1_config4/s2 | 100 | DONE | — | — | `data/output_data/tsc/sumo_dqn/sumohz1x1_config4/soa1_soduelp_o2_sd2_st2` | REGISTERED: cl_hz1x1 anchor main train order_stage=o2/st2 offline_ratio=0.25 |
+| `soa1_soduelp_o2_sd2_st3` | soduelp_soa/sumohz1x1_config2/s2 | 100 | DONE | — | — | `data/output_data/tsc/sumo_dqn/sumohz1x1_config2/soa1_soduelp_o2_sd2_st3` | REGISTERED: cl_hz1x1 anchor main train order_stage=o2/st3 offline_ratio=0.25 |
+| `soa1_soduelp_o2_sd2_st4` | soduelp_soa/sumohz1x1_config3/s2 | 100 | DONE | — | — | `data/output_data/tsc/sumo_dqn/sumohz1x1_config3/soa1_soduelp_o2_sd2_st4` | REGISTERED: cl_hz1x1 anchor main train order_stage=o2/st4 offline_ratio=0.25 |
+| `soa1_soduelpv_o2_sd0_st1` | soduelpv_soa/sumohz1x1/s0 | 100 | DONE | — | — | `data/output_data/tsc/sumo_dqn/sumohz1x1/soa1_soduelpv_o2_sd0_st1` | REGISTERED: cl_hz1x1 anchor main train order_stage=o2/st1 offline_ratio=0.25 |
+| `soa1_soduelpv_o2_sd0_st2` | soduelpv_soa/sumohz1x1_config4/s0 | 100 | DONE | — | — | `data/output_data/tsc/sumo_dqn/sumohz1x1_config4/soa1_soduelpv_o2_sd0_st2` | REGISTERED: cl_hz1x1 anchor main train order_stage=o2/st2 offline_ratio=0.25 |
+| `soa1_soduelpv_o2_sd0_st3` | soduelpv_soa/sumohz1x1_config2/s0 | 100 | DONE | — | — | `data/output_data/tsc/sumo_dqn/sumohz1x1_config2/soa1_soduelpv_o2_sd0_st3` | REGISTERED: cl_hz1x1 anchor main train order_stage=o2/st3 offline_ratio=0.25 |
+| `soa1_soduelpv_o2_sd0_st4` | soduelpv_soa/sumohz1x1_config3/s0 | 100 | DONE | — | — | `data/output_data/tsc/sumo_dqn/sumohz1x1_config3/soa1_soduelpv_o2_sd0_st4` | REGISTERED: cl_hz1x1 anchor main train order_stage=o2/st4 offline_ratio=0.25 |
+| `soa1_soduelpv_o2_sd1_st1` | soduelpv_soa/sumohz1x1/s1 | 100 | DONE | — | — | `data/output_data/tsc/sumo_dqn/sumohz1x1/soa1_soduelpv_o2_sd1_st1` | REGISTERED: cl_hz1x1 anchor main train order_stage=o2/st1 offline_ratio=0.25 |
+| `soa1_soduelpv_o2_sd1_st2` | soduelpv_soa/sumohz1x1_config4/s1 | 100 | DONE | — | — | `data/output_data/tsc/sumo_dqn/sumohz1x1_config4/soa1_soduelpv_o2_sd1_st2` | REGISTERED: cl_hz1x1 anchor main train order_stage=o2/st2 offline_ratio=0.25 |
+| `soa1_soduelpv_o2_sd1_st3` | soduelpv_soa/sumohz1x1_config2/s1 | 100 | DONE | — | — | `data/output_data/tsc/sumo_dqn/sumohz1x1_config2/soa1_soduelpv_o2_sd1_st3` | REGISTERED: cl_hz1x1 anchor main train order_stage=o2/st3 offline_ratio=0.25 |
+| `soa1_soduelpv_o2_sd1_st4` | soduelpv_soa/sumohz1x1_config3/s1 | 100 | DONE | — | — | `data/output_data/tsc/sumo_dqn/sumohz1x1_config3/soa1_soduelpv_o2_sd1_st4` | REGISTERED: cl_hz1x1 anchor main train order_stage=o2/st4 offline_ratio=0.25 |
+| `soa1_soduelpv_o2_sd2_st1` | soduelpv_soa/sumohz1x1/s2 | 100 | DONE | — | — | `data/output_data/tsc/sumo_dqn/sumohz1x1/soa1_soduelpv_o2_sd2_st1` | REGISTERED: cl_hz1x1 anchor main train order_stage=o2/st1 offline_ratio=0.25 |
+| `soa1_soduelpv_o2_sd2_st2` | soduelpv_soa/sumohz1x1_config4/s2 | 100 | DONE | — | — | `data/output_data/tsc/sumo_dqn/sumohz1x1_config4/soa1_soduelpv_o2_sd2_st2` | REGISTERED: cl_hz1x1 anchor main train order_stage=o2/st2 offline_ratio=0.25 |
+| `soa1_soduelpv_o2_sd2_st3` | soduelpv_soa/sumohz1x1_config2/s2 | 100 | DONE | — | — | `data/output_data/tsc/sumo_dqn/sumohz1x1_config2/soa1_soduelpv_o2_sd2_st3` | REGISTERED: cl_hz1x1 anchor main train order_stage=o2/st3 offline_ratio=0.25 |
+| `soa1_soduelpv_o2_sd2_st4` | soduelpv_soa/sumohz1x1_config3/s2 | 100 | DONE | — | — | `data/output_data/tsc/sumo_dqn/sumohz1x1_config3/soa1_soduelpv_o2_sd2_st4` | REGISTERED: cl_hz1x1 anchor main train order_stage=o2/st4 offline_ratio=0.25 |
+| `soa1_sofrapp_o2_sd0_st1` | sofrapp_soa/sumohz1x1/s0 | 100 | DONE | — | — | `data/output_data/tsc/sumo_frap/sumohz1x1/soa1_sofrapp_o2_sd0_st1` | REGISTERED: cl_hz1x1 anchor main train order_stage=o2/st1 offline_ratio=0.25 |
+| `soa1_sofrapp_o2_sd0_st2` | sofrapp_soa/sumohz1x1_config4/s0 | 100 | DONE | — | — | `data/output_data/tsc/sumo_frap/sumohz1x1_config4/soa1_sofrapp_o2_sd0_st2` | REGISTERED: cl_hz1x1 anchor main train order_stage=o2/st2 offline_ratio=0.25 |
+| `soa1_sofrapp_o2_sd0_st3` | sofrapp_soa/sumohz1x1_config2/s0 | 100 | DONE | — | — | `data/output_data/tsc/sumo_frap/sumohz1x1_config2/soa1_sofrapp_o2_sd0_st3` | REGISTERED: cl_hz1x1 anchor main train order_stage=o2/st3 offline_ratio=0.25 |
+| `soa1_sofrapp_o2_sd0_st4` | sofrapp_soa/sumohz1x1_config3/s0 | 100 | DONE | — | — | `data/output_data/tsc/sumo_frap/sumohz1x1_config3/soa1_sofrapp_o2_sd0_st4` | REGISTERED: cl_hz1x1 anchor main train order_stage=o2/st4 offline_ratio=0.25 |
+| `soa1_sofrapp_o2_sd1_st1` | sofrapp_soa/sumohz1x1/s1 | 100 | DONE | — | — | `data/output_data/tsc/sumo_frap/sumohz1x1/soa1_sofrapp_o2_sd1_st1` | REGISTERED: cl_hz1x1 anchor main train order_stage=o2/st1 offline_ratio=0.25 |
+| `soa1_sofrapp_o2_sd1_st2` | sofrapp_soa/sumohz1x1_config4/s1 | 100 | DONE | — | — | `data/output_data/tsc/sumo_frap/sumohz1x1_config4/soa1_sofrapp_o2_sd1_st2` | REGISTERED: cl_hz1x1 anchor main train order_stage=o2/st2 offline_ratio=0.25 |
+| `soa1_sofrapp_o2_sd1_st3` | sofrapp_soa/sumohz1x1_config2/s1 | 100 | DONE | — | — | `data/output_data/tsc/sumo_frap/sumohz1x1_config2/soa1_sofrapp_o2_sd1_st3` | REGISTERED: cl_hz1x1 anchor main train order_stage=o2/st3 offline_ratio=0.25 |
+| `soa1_sofrapp_o2_sd1_st4` | sofrapp_soa/sumohz1x1_config3/s1 | 100 | DONE | — | — | `data/output_data/tsc/sumo_frap/sumohz1x1_config3/soa1_sofrapp_o2_sd1_st4` | REGISTERED: cl_hz1x1 anchor main train order_stage=o2/st4 offline_ratio=0.25 |
+| `soa1_sofrapp_o2_sd2_st1` | sofrapp_soa/sumohz1x1/s2 | 100 | DONE | — | — | `data/output_data/tsc/sumo_frap/sumohz1x1/soa1_sofrapp_o2_sd2_st1` | REGISTERED: cl_hz1x1 anchor main train order_stage=o2/st1 offline_ratio=0.25 |
+| `soa1_sofrapp_o2_sd2_st2` | sofrapp_soa/sumohz1x1_config4/s2 | 100 | DONE | — | — | `data/output_data/tsc/sumo_frap/sumohz1x1_config4/soa1_sofrapp_o2_sd2_st2` | REGISTERED: cl_hz1x1 anchor main train order_stage=o2/st2 offline_ratio=0.25 |
+| `soa1_sofrapp_o2_sd2_st3` | sofrapp_soa/sumohz1x1_config2/s2 | 100 | DONE | — | — | `data/output_data/tsc/sumo_frap/sumohz1x1_config2/soa1_sofrapp_o2_sd2_st3` | REGISTERED: cl_hz1x1 anchor main train order_stage=o2/st3 offline_ratio=0.25 |
+| `soa1_sofrapp_o2_sd2_st4` | sofrapp_soa/sumohz1x1_config3/s2 | 100 | DONE | — | — | `data/output_data/tsc/sumo_frap/sumohz1x1_config3/soa1_sofrapp_o2_sd2_st4` | REGISTERED: cl_hz1x1 anchor main train order_stage=o2/st4 offline_ratio=0.25 |
+| `soa1_sofrappv_o2_sd0_st1` | sofrappv_soa/sumohz1x1/s0 | 100 | DONE | — | — | `data/output_data/tsc/sumo_frap/sumohz1x1/soa1_sofrappv_o2_sd0_st1` | REGISTERED: cl_hz1x1 anchor main train order_stage=o2/st1 offline_ratio=0.25 |
+| `soa1_sofrappv_o2_sd0_st2` | sofrappv_soa/sumohz1x1_config4/s0 | 100 | DONE | — | — | `data/output_data/tsc/sumo_frap/sumohz1x1_config4/soa1_sofrappv_o2_sd0_st2` | REGISTERED: cl_hz1x1 anchor main train order_stage=o2/st2 offline_ratio=0.25 |
+| `soa1_sofrappv_o2_sd0_st3` | sofrappv_soa/sumohz1x1_config2/s0 | 100 | DONE | — | — | `data/output_data/tsc/sumo_frap/sumohz1x1_config2/soa1_sofrappv_o2_sd0_st3` | REGISTERED: cl_hz1x1 anchor main train order_stage=o2/st3 offline_ratio=0.25 |
+| `soa1_sofrappv_o2_sd0_st4` | sofrappv_soa/sumohz1x1_config3/s0 | 100 | DONE | — | — | `data/output_data/tsc/sumo_frap/sumohz1x1_config3/soa1_sofrappv_o2_sd0_st4` | REGISTERED: cl_hz1x1 anchor main train order_stage=o2/st4 offline_ratio=0.25 |
+| `soa1_sofrappv_o2_sd1_st1` | sofrappv_soa/sumohz1x1/s1 | 100 | DONE | — | — | `data/output_data/tsc/sumo_frap/sumohz1x1/soa1_sofrappv_o2_sd1_st1` | REGISTERED: cl_hz1x1 anchor main train order_stage=o2/st1 offline_ratio=0.25 |
+| `soa1_sofrappv_o2_sd1_st2` | sofrappv_soa/sumohz1x1_config4/s1 | 100 | DONE | — | — | `data/output_data/tsc/sumo_frap/sumohz1x1_config4/soa1_sofrappv_o2_sd1_st2` | REGISTERED: cl_hz1x1 anchor main train order_stage=o2/st2 offline_ratio=0.25 |
+| `soa1_sofrappv_o2_sd1_st3` | sofrappv_soa/sumohz1x1_config2/s1 | 100 | DONE | — | — | `data/output_data/tsc/sumo_frap/sumohz1x1_config2/soa1_sofrappv_o2_sd1_st3` | REGISTERED: cl_hz1x1 anchor main train order_stage=o2/st3 offline_ratio=0.25 |
+| `soa1_sofrappv_o2_sd1_st4` | sofrappv_soa/sumohz1x1_config3/s1 | 100 | DONE | — | — | `data/output_data/tsc/sumo_frap/sumohz1x1_config3/soa1_sofrappv_o2_sd1_st4` | REGISTERED: cl_hz1x1 anchor main train order_stage=o2/st4 offline_ratio=0.25 |
+| `soa1_sofrappv_o2_sd2_st1` | sofrappv_soa/sumohz1x1/s2 | 100 | DONE | — | — | `data/output_data/tsc/sumo_frap/sumohz1x1/soa1_sofrappv_o2_sd2_st1` | REGISTERED: cl_hz1x1 anchor main train order_stage=o2/st1 offline_ratio=0.25 |
+| `soa1_sofrappv_o2_sd2_st2` | sofrappv_soa/sumohz1x1_config4/s2 | 100 | DONE | — | — | `data/output_data/tsc/sumo_frap/sumohz1x1_config4/soa1_sofrappv_o2_sd2_st2` | REGISTERED: cl_hz1x1 anchor main train order_stage=o2/st2 offline_ratio=0.25 |
+| `soa1_sofrappv_o2_sd2_st3` | sofrappv_soa/sumohz1x1_config2/s2 | 100 | DONE | — | — | `data/output_data/tsc/sumo_frap/sumohz1x1_config2/soa1_sofrappv_o2_sd2_st3` | REGISTERED: cl_hz1x1 anchor main train order_stage=o2/st3 offline_ratio=0.25 |
+| `soa1_sofrappv_o2_sd2_st4` | sofrappv_soa/sumohz1x1_config3/s2 | 100 | DONE | — | — | `data/output_data/tsc/sumo_frap/sumohz1x1_config3/soa1_sofrappv_o2_sd2_st4` | REGISTERED: cl_hz1x1 anchor main train order_stage=o2/st4 offline_ratio=0.25 |
+| `soa3_soddqnp_o3_sd0_st1` | soddqnp_soa/sumohz1x1_config2/s0 | 100 | REGISTERED | — | — | `—` | REGISTERED: cl_hz1x1 anchor main_o3 train order_stage=o3/st1 offline_ratio=0.25 |
+| `soa3_soddqnp_o3_sd0_st2` | soddqnp_soa/sumohz1x1_config3/s0 | 100 | REGISTERED | — | — | `—` | REGISTERED: cl_hz1x1 anchor main_o3 train order_stage=o3/st2 offline_ratio=0.25 |
+| `soa3_soddqnp_o3_sd0_st3` | soddqnp_soa/sumohz1x1/s0 | 100 | REGISTERED | — | — | `—` | REGISTERED: cl_hz1x1 anchor main_o3 train order_stage=o3/st3 offline_ratio=0.25 |
+| `soa3_soddqnp_o3_sd0_st4` | soddqnp_soa/sumohz1x1_config4/s0 | 100 | REGISTERED | — | — | `—` | REGISTERED: cl_hz1x1 anchor main_o3 train order_stage=o3/st4 offline_ratio=0.25 |
+| `soa3_soddqnp_o3_sd1_st1` | soddqnp_soa/sumohz1x1_config2/s1 | 100 | REGISTERED | — | — | `—` | REGISTERED: cl_hz1x1 anchor main_o3 train order_stage=o3/st1 offline_ratio=0.25 |
+| `soa3_soddqnp_o3_sd1_st2` | soddqnp_soa/sumohz1x1_config3/s1 | 100 | REGISTERED | — | — | `—` | REGISTERED: cl_hz1x1 anchor main_o3 train order_stage=o3/st2 offline_ratio=0.25 |
+| `soa3_soddqnp_o3_sd1_st3` | soddqnp_soa/sumohz1x1/s1 | 100 | REGISTERED | — | — | `—` | REGISTERED: cl_hz1x1 anchor main_o3 train order_stage=o3/st3 offline_ratio=0.25 |
+| `soa3_soddqnp_o3_sd1_st4` | soddqnp_soa/sumohz1x1_config4/s1 | 100 | REGISTERED | — | — | `—` | REGISTERED: cl_hz1x1 anchor main_o3 train order_stage=o3/st4 offline_ratio=0.25 |
+| `soa3_soddqnp_o3_sd2_st1` | soddqnp_soa/sumohz1x1_config2/s2 | 100 | REGISTERED | — | — | `—` | REGISTERED: cl_hz1x1 anchor main_o3 train order_stage=o3/st1 offline_ratio=0.25 |
+| `soa3_soddqnp_o3_sd2_st2` | soddqnp_soa/sumohz1x1_config3/s2 | 100 | REGISTERED | — | — | `—` | REGISTERED: cl_hz1x1 anchor main_o3 train order_stage=o3/st2 offline_ratio=0.25 |
+| `soa3_soddqnp_o3_sd2_st3` | soddqnp_soa/sumohz1x1/s2 | 100 | REGISTERED | — | — | `—` | REGISTERED: cl_hz1x1 anchor main_o3 train order_stage=o3/st3 offline_ratio=0.25 |
+| `soa3_soddqnp_o3_sd2_st4` | soddqnp_soa/sumohz1x1_config4/s2 | 100 | REGISTERED | — | — | `—` | REGISTERED: cl_hz1x1 anchor main_o3 train order_stage=o3/st4 offline_ratio=0.25 |
+| `soa3_soduelp_o3_sd0_st1` | soduelp_soa/sumohz1x1_config2/s0 | 100 | REGISTERED | — | — | `—` | REGISTERED: cl_hz1x1 anchor main_o3 train order_stage=o3/st1 offline_ratio=0.25 |
+| `soa3_soduelp_o3_sd0_st2` | soduelp_soa/sumohz1x1_config3/s0 | 100 | REGISTERED | — | — | `—` | REGISTERED: cl_hz1x1 anchor main_o3 train order_stage=o3/st2 offline_ratio=0.25 |
+| `soa3_soduelp_o3_sd0_st3` | soduelp_soa/sumohz1x1/s0 | 100 | REGISTERED | — | — | `—` | REGISTERED: cl_hz1x1 anchor main_o3 train order_stage=o3/st3 offline_ratio=0.25 |
+| `soa3_soduelp_o3_sd0_st4` | soduelp_soa/sumohz1x1_config4/s0 | 100 | REGISTERED | — | — | `—` | REGISTERED: cl_hz1x1 anchor main_o3 train order_stage=o3/st4 offline_ratio=0.25 |
+| `soa3_soduelp_o3_sd1_st1` | soduelp_soa/sumohz1x1_config2/s1 | 100 | REGISTERED | — | — | `—` | REGISTERED: cl_hz1x1 anchor main_o3 train order_stage=o3/st1 offline_ratio=0.25 |
+| `soa3_soduelp_o3_sd1_st2` | soduelp_soa/sumohz1x1_config3/s1 | 100 | REGISTERED | — | — | `—` | REGISTERED: cl_hz1x1 anchor main_o3 train order_stage=o3/st2 offline_ratio=0.25 |
+| `soa3_soduelp_o3_sd1_st3` | soduelp_soa/sumohz1x1/s1 | 100 | REGISTERED | — | — | `—` | REGISTERED: cl_hz1x1 anchor main_o3 train order_stage=o3/st3 offline_ratio=0.25 |
+| `soa3_soduelp_o3_sd1_st4` | soduelp_soa/sumohz1x1_config4/s1 | 100 | REGISTERED | — | — | `—` | REGISTERED: cl_hz1x1 anchor main_o3 train order_stage=o3/st4 offline_ratio=0.25 |
+| `soa3_soduelp_o3_sd2_st1` | soduelp_soa/sumohz1x1_config2/s2 | 100 | REGISTERED | — | — | `—` | REGISTERED: cl_hz1x1 anchor main_o3 train order_stage=o3/st1 offline_ratio=0.25 |
+| `soa3_soduelp_o3_sd2_st2` | soduelp_soa/sumohz1x1_config3/s2 | 100 | REGISTERED | — | — | `—` | REGISTERED: cl_hz1x1 anchor main_o3 train order_stage=o3/st2 offline_ratio=0.25 |
+| `soa3_soduelp_o3_sd2_st3` | soduelp_soa/sumohz1x1/s2 | 100 | REGISTERED | — | — | `—` | REGISTERED: cl_hz1x1 anchor main_o3 train order_stage=o3/st3 offline_ratio=0.25 |
+| `soa3_soduelp_o3_sd2_st4` | soduelp_soa/sumohz1x1_config4/s2 | 100 | REGISTERED | — | — | `—` | REGISTERED: cl_hz1x1 anchor main_o3 train order_stage=o3/st4 offline_ratio=0.25 |
+| `soa3_sofrapp_o3_sd0_st1` | sofrapp_soa/sumohz1x1_config2/s0 | 100 | REGISTERED | — | — | `—` | REGISTERED: cl_hz1x1 anchor main_o3 train order_stage=o3/st1 offline_ratio=0.25 |
+| `soa3_sofrapp_o3_sd0_st2` | sofrapp_soa/sumohz1x1_config3/s0 | 100 | REGISTERED | — | — | `—` | REGISTERED: cl_hz1x1 anchor main_o3 train order_stage=o3/st2 offline_ratio=0.25 |
+| `soa3_sofrapp_o3_sd0_st3` | sofrapp_soa/sumohz1x1/s0 | 100 | REGISTERED | — | — | `—` | REGISTERED: cl_hz1x1 anchor main_o3 train order_stage=o3/st3 offline_ratio=0.25 |
+| `soa3_sofrapp_o3_sd0_st4` | sofrapp_soa/sumohz1x1_config4/s0 | 100 | REGISTERED | — | — | `—` | REGISTERED: cl_hz1x1 anchor main_o3 train order_stage=o3/st4 offline_ratio=0.25 |
+| `soa3_sofrapp_o3_sd1_st1` | sofrapp_soa/sumohz1x1_config2/s1 | 100 | REGISTERED | — | — | `—` | REGISTERED: cl_hz1x1 anchor main_o3 train order_stage=o3/st1 offline_ratio=0.25 |
+| `soa3_sofrapp_o3_sd1_st2` | sofrapp_soa/sumohz1x1_config3/s1 | 100 | REGISTERED | — | — | `—` | REGISTERED: cl_hz1x1 anchor main_o3 train order_stage=o3/st2 offline_ratio=0.25 |
+| `soa3_sofrapp_o3_sd1_st3` | sofrapp_soa/sumohz1x1/s1 | 100 | REGISTERED | — | — | `—` | REGISTERED: cl_hz1x1 anchor main_o3 train order_stage=o3/st3 offline_ratio=0.25 |
+| `soa3_sofrapp_o3_sd1_st4` | sofrapp_soa/sumohz1x1_config4/s1 | 100 | REGISTERED | — | — | `—` | REGISTERED: cl_hz1x1 anchor main_o3 train order_stage=o3/st4 offline_ratio=0.25 |
+| `soa3_sofrapp_o3_sd2_st1` | sofrapp_soa/sumohz1x1_config2/s2 | 100 | REGISTERED | — | — | `—` | REGISTERED: cl_hz1x1 anchor main_o3 train order_stage=o3/st1 offline_ratio=0.25 |
+| `soa3_sofrapp_o3_sd2_st2` | sofrapp_soa/sumohz1x1_config3/s2 | 100 | REGISTERED | — | — | `—` | REGISTERED: cl_hz1x1 anchor main_o3 train order_stage=o3/st2 offline_ratio=0.25 |
+| `soa3_sofrapp_o3_sd2_st3` | sofrapp_soa/sumohz1x1/s2 | 100 | REGISTERED | — | — | `—` | REGISTERED: cl_hz1x1 anchor main_o3 train order_stage=o3/st3 offline_ratio=0.25 |
+| `soa3_sofrapp_o3_sd2_st4` | sofrapp_soa/sumohz1x1_config4/s2 | 100 | REGISTERED | — | — | `—` | REGISTERED: cl_hz1x1 anchor main_o3 train order_stage=o3/st4 offline_ratio=0.25 |
+| `soas_soddqnp_l10_o2_sd0_st1` | soddqnp_l10_soa/sumohz1x1/s0 | 100 | DONE | — | — | `data/output_data/tsc/sumo_dqn/sumohz1x1/soas_soddqnp_l10_o2_sd0_st1` | REGISTERED: cl_hz1x1 anchor screen train order_stage=o2/st1 offline_ratio=0.25 |
+| `soas_soddqnp_l10_o2_sd0_st2` | soddqnp_l10_soa/sumohz1x1_config4/s0 | 100 | DONE | — | — | `data/output_data/tsc/sumo_dqn/sumohz1x1_config4/soas_soddqnp_l10_o2_sd0_st2` | REGISTERED: cl_hz1x1 anchor screen train order_stage=o2/st2 offline_ratio=0.25 |
+| `soas_soddqnp_l10_o2_sd0_st3` | soddqnp_l10_soa/sumohz1x1_config2/s0 | 100 | DONE | — | — | `data/output_data/tsc/sumo_dqn/sumohz1x1_config2/soas_soddqnp_l10_o2_sd0_st3` | REGISTERED: cl_hz1x1 anchor screen train order_stage=o2/st3 offline_ratio=0.25 |
+| `soas_soddqnp_l10_o2_sd0_st4` | soddqnp_l10_soa/sumohz1x1_config3/s0 | 100 | DONE | — | — | `data/output_data/tsc/sumo_dqn/sumohz1x1_config3/soas_soddqnp_l10_o2_sd0_st4` | REGISTERED: cl_hz1x1 anchor screen train order_stage=o2/st4 offline_ratio=0.25 |
+| `soas_soddqnp_l10_o2_sd1_st1` | soddqnp_l10_soa/sumohz1x1/s1 | 100 | DONE | — | — | `data/output_data/tsc/sumo_dqn/sumohz1x1/soas_soddqnp_l10_o2_sd1_st1` | REGISTERED: cl_hz1x1 anchor screen train order_stage=o2/st1 offline_ratio=0.25 |
+| `soas_soddqnp_l10_o2_sd1_st2` | soddqnp_l10_soa/sumohz1x1_config4/s1 | 100 | DONE | — | — | `data/output_data/tsc/sumo_dqn/sumohz1x1_config4/soas_soddqnp_l10_o2_sd1_st2` | REGISTERED: cl_hz1x1 anchor screen train order_stage=o2/st2 offline_ratio=0.25 |
+| `soas_soddqnp_l10_o2_sd1_st3` | soddqnp_l10_soa/sumohz1x1_config2/s1 | 100 | DONE | — | — | `data/output_data/tsc/sumo_dqn/sumohz1x1_config2/soas_soddqnp_l10_o2_sd1_st3` | REGISTERED: cl_hz1x1 anchor screen train order_stage=o2/st3 offline_ratio=0.25 |
+| `soas_soddqnp_l10_o2_sd1_st4` | soddqnp_l10_soa/sumohz1x1_config3/s1 | 100 | DONE | — | — | `data/output_data/tsc/sumo_dqn/sumohz1x1_config3/soas_soddqnp_l10_o2_sd1_st4` | REGISTERED: cl_hz1x1 anchor screen train order_stage=o2/st4 offline_ratio=0.25 |
+| `soas_soddqnp_l10_o2_sd2_st1` | soddqnp_l10_soa/sumohz1x1/s2 | 100 | DONE | — | — | `data/output_data/tsc/sumo_dqn/sumohz1x1/soas_soddqnp_l10_o2_sd2_st1` | REGISTERED: cl_hz1x1 anchor screen train order_stage=o2/st1 offline_ratio=0.25 |
+| `soas_soddqnp_l10_o2_sd2_st2` | soddqnp_l10_soa/sumohz1x1_config4/s2 | 100 | DONE | — | — | `data/output_data/tsc/sumo_dqn/sumohz1x1_config4/soas_soddqnp_l10_o2_sd2_st2` | REGISTERED: cl_hz1x1 anchor screen train order_stage=o2/st2 offline_ratio=0.25 |
+| `soas_soddqnp_l10_o2_sd2_st3` | soddqnp_l10_soa/sumohz1x1_config2/s2 | 100 | DONE | — | — | `data/output_data/tsc/sumo_dqn/sumohz1x1_config2/soas_soddqnp_l10_o2_sd2_st3` | REGISTERED: cl_hz1x1 anchor screen train order_stage=o2/st3 offline_ratio=0.25 |
+| `soas_soddqnp_l10_o2_sd2_st4` | soddqnp_l10_soa/sumohz1x1_config3/s2 | 100 | DONE | — | — | `data/output_data/tsc/sumo_dqn/sumohz1x1_config3/soas_soddqnp_l10_o2_sd2_st4` | REGISTERED: cl_hz1x1 anchor screen train order_stage=o2/st4 offline_ratio=0.25 |
+| `soas_soddqnp_l1_o2_sd0_st1` | soddqnp_l1_soa/sumohz1x1/s0 | 100 | DONE | — | — | `data/output_data/tsc/sumo_dqn/sumohz1x1/soas_soddqnp_l1_o2_sd0_st1` | REGISTERED: cl_hz1x1 anchor screen train order_stage=o2/st1 offline_ratio=0.25 |
+| `soas_soddqnp_l1_o2_sd0_st2` | soddqnp_l1_soa/sumohz1x1_config4/s0 | 100 | DONE | — | — | `data/output_data/tsc/sumo_dqn/sumohz1x1_config4/soas_soddqnp_l1_o2_sd0_st2` | REGISTERED: cl_hz1x1 anchor screen train order_stage=o2/st2 offline_ratio=0.25 |
+| `soas_soddqnp_l1_o2_sd0_st3` | soddqnp_l1_soa/sumohz1x1_config2/s0 | 100 | DONE | — | — | `data/output_data/tsc/sumo_dqn/sumohz1x1_config2/soas_soddqnp_l1_o2_sd0_st3` | REGISTERED: cl_hz1x1 anchor screen train order_stage=o2/st3 offline_ratio=0.25 |
+| `soas_soddqnp_l1_o2_sd0_st4` | soddqnp_l1_soa/sumohz1x1_config3/s0 | 100 | DONE | — | — | `data/output_data/tsc/sumo_dqn/sumohz1x1_config3/soas_soddqnp_l1_o2_sd0_st4` | REGISTERED: cl_hz1x1 anchor screen train order_stage=o2/st4 offline_ratio=0.25 |
+| `soas_soddqnp_l1_o2_sd1_st1` | soddqnp_l1_soa/sumohz1x1/s1 | 100 | DONE | — | — | `data/output_data/tsc/sumo_dqn/sumohz1x1/soas_soddqnp_l1_o2_sd1_st1` | REGISTERED: cl_hz1x1 anchor screen train order_stage=o2/st1 offline_ratio=0.25 |
+| `soas_soddqnp_l1_o2_sd1_st2` | soddqnp_l1_soa/sumohz1x1_config4/s1 | 100 | DONE | — | — | `data/output_data/tsc/sumo_dqn/sumohz1x1_config4/soas_soddqnp_l1_o2_sd1_st2` | REGISTERED: cl_hz1x1 anchor screen train order_stage=o2/st2 offline_ratio=0.25 |
+| `soas_soddqnp_l1_o2_sd1_st3` | soddqnp_l1_soa/sumohz1x1_config2/s1 | 100 | DONE | — | — | `data/output_data/tsc/sumo_dqn/sumohz1x1_config2/soas_soddqnp_l1_o2_sd1_st3` | REGISTERED: cl_hz1x1 anchor screen train order_stage=o2/st3 offline_ratio=0.25 |
+| `soas_soddqnp_l1_o2_sd1_st4` | soddqnp_l1_soa/sumohz1x1_config3/s1 | 100 | DONE | — | — | `data/output_data/tsc/sumo_dqn/sumohz1x1_config3/soas_soddqnp_l1_o2_sd1_st4` | REGISTERED: cl_hz1x1 anchor screen train order_stage=o2/st4 offline_ratio=0.25 |
+| `soas_soddqnp_l1_o2_sd2_st1` | soddqnp_l1_soa/sumohz1x1/s2 | 100 | DONE | — | — | `data/output_data/tsc/sumo_dqn/sumohz1x1/soas_soddqnp_l1_o2_sd2_st1` | REGISTERED: cl_hz1x1 anchor screen train order_stage=o2/st1 offline_ratio=0.25 |
+| `soas_soddqnp_l1_o2_sd2_st2` | soddqnp_l1_soa/sumohz1x1_config4/s2 | 100 | DONE | — | — | `data/output_data/tsc/sumo_dqn/sumohz1x1_config4/soas_soddqnp_l1_o2_sd2_st2` | REGISTERED: cl_hz1x1 anchor screen train order_stage=o2/st2 offline_ratio=0.25 |
+| `soas_soddqnp_l1_o2_sd2_st3` | soddqnp_l1_soa/sumohz1x1_config2/s2 | 100 | DONE | — | — | `data/output_data/tsc/sumo_dqn/sumohz1x1_config2/soas_soddqnp_l1_o2_sd2_st3` | REGISTERED: cl_hz1x1 anchor screen train order_stage=o2/st3 offline_ratio=0.25 |
+| `soas_soddqnp_l1_o2_sd2_st4` | soddqnp_l1_soa/sumohz1x1_config3/s2 | 100 | DONE | — | — | `data/output_data/tsc/sumo_dqn/sumohz1x1_config3/soas_soddqnp_l1_o2_sd2_st4` | REGISTERED: cl_hz1x1 anchor screen train order_stage=o2/st4 offline_ratio=0.25 |
+| `soas_soddqnpv_probe_o2_sd0_st1` | soddqnpv_probe_soa/sumohz1x1/s0 | 100 | DONE | — | — | `data/output_data/tsc/sumo_dqn/sumohz1x1/soas_soddqnpv_probe_o2_sd0_st1` | REGISTERED: cl_hz1x1 anchor screen train order_stage=o2/st1 offline_ratio=0.25 |
+| `soas_soddqnpv_probe_o2_sd0_st2` | soddqnpv_probe_soa/sumohz1x1_config4/s0 | 100 | DONE | — | — | `data/output_data/tsc/sumo_dqn/sumohz1x1_config4/soas_soddqnpv_probe_o2_sd0_st2` | REGISTERED: cl_hz1x1 anchor screen train order_stage=o2/st2 offline_ratio=0.25 |
+| `soas_soddqnpv_probe_o2_sd0_st3` | soddqnpv_probe_soa/sumohz1x1_config2/s0 | 100 | DONE | — | — | `data/output_data/tsc/sumo_dqn/sumohz1x1_config2/soas_soddqnpv_probe_o2_sd0_st3` | REGISTERED: cl_hz1x1 anchor screen train order_stage=o2/st3 offline_ratio=0.25 |
+| `soas_soddqnpv_probe_o2_sd0_st4` | soddqnpv_probe_soa/sumohz1x1_config3/s0 | 100 | DONE | — | — | `data/output_data/tsc/sumo_dqn/sumohz1x1_config3/soas_soddqnpv_probe_o2_sd0_st4` | REGISTERED: cl_hz1x1 anchor screen train order_stage=o2/st4 offline_ratio=0.25 |
+| `soas_soddqnpv_probe_o2_sd1_st1` | soddqnpv_probe_soa/sumohz1x1/s1 | 100 | DONE | — | — | `data/output_data/tsc/sumo_dqn/sumohz1x1/soas_soddqnpv_probe_o2_sd1_st1` | REGISTERED: cl_hz1x1 anchor screen train order_stage=o2/st1 offline_ratio=0.25 |
+| `soas_soddqnpv_probe_o2_sd1_st2` | soddqnpv_probe_soa/sumohz1x1_config4/s1 | 100 | DONE | — | — | `data/output_data/tsc/sumo_dqn/sumohz1x1_config4/soas_soddqnpv_probe_o2_sd1_st2` | REGISTERED: cl_hz1x1 anchor screen train order_stage=o2/st2 offline_ratio=0.25 |
+| `soas_soddqnpv_probe_o2_sd1_st3` | soddqnpv_probe_soa/sumohz1x1_config2/s1 | 100 | DONE | — | — | `data/output_data/tsc/sumo_dqn/sumohz1x1_config2/soas_soddqnpv_probe_o2_sd1_st3` | REGISTERED: cl_hz1x1 anchor screen train order_stage=o2/st3 offline_ratio=0.25 |
+| `soas_soddqnpv_probe_o2_sd1_st4` | soddqnpv_probe_soa/sumohz1x1_config3/s1 | 100 | DONE | — | — | `data/output_data/tsc/sumo_dqn/sumohz1x1_config3/soas_soddqnpv_probe_o2_sd1_st4` | REGISTERED: cl_hz1x1 anchor screen train order_stage=o2/st4 offline_ratio=0.25 |
+| `soas_soddqnpv_probe_o2_sd2_st1` | soddqnpv_probe_soa/sumohz1x1/s2 | 100 | DONE | — | — | `data/output_data/tsc/sumo_dqn/sumohz1x1/soas_soddqnpv_probe_o2_sd2_st1` | REGISTERED: cl_hz1x1 anchor screen train order_stage=o2/st1 offline_ratio=0.25 |
+| `soas_soddqnpv_probe_o2_sd2_st2` | soddqnpv_probe_soa/sumohz1x1_config4/s2 | 100 | DONE | — | — | `data/output_data/tsc/sumo_dqn/sumohz1x1_config4/soas_soddqnpv_probe_o2_sd2_st2` | REGISTERED: cl_hz1x1 anchor screen train order_stage=o2/st2 offline_ratio=0.25 |
+| `soas_soddqnpv_probe_o2_sd2_st3` | soddqnpv_probe_soa/sumohz1x1_config2/s2 | 100 | DONE | — | — | `data/output_data/tsc/sumo_dqn/sumohz1x1_config2/soas_soddqnpv_probe_o2_sd2_st3` | REGISTERED: cl_hz1x1 anchor screen train order_stage=o2/st3 offline_ratio=0.25 |
+| `soas_soddqnpv_probe_o2_sd2_st4` | soddqnpv_probe_soa/sumohz1x1_config3/s2 | 100 | DONE | — | — | `data/output_data/tsc/sumo_dqn/sumohz1x1_config3/soas_soddqnpv_probe_o2_sd2_st4` | REGISTERED: cl_hz1x1 anchor screen train order_stage=o2/st4 offline_ratio=0.25 |
 
-评估 attempt 共 2116 行，按包/来源聚合：
+评估 attempt 共 3304 行，按包/来源聚合：
 
 | 评估包/来源 | n DONE/FAILED/ABORTED | 条件集 | eval seeds |
 |---|---|---|---|
-| `ddqn_clear` | 180/0/0 | clear | — |
+| `ddqn_clear` | 234/0/0 | clear,drift_diag | 101,102,103 |
 | `ddqn_fifo` | 180/0/0 | fifo | — |
 | `ddqn_probe` | 16/0/0 | probe | — |
 | `duel_clear` | 180/0/0 | clear | — |
@@ -349,9 +493,19 @@
 | `ppo_clear` | 0/0/0 | clear | — |
 | `ppov2_clear` | 180/0/0 | clear | — |
 | `ppov2_sampled_eval` | 120/0/0 | probe | — |
+| `soddqn` | 54/0/0 | drift_diag | 101,102,103 |
 | `soddqn_so` | 180/0/0 | semi_offline | — |
+| `soddqnp_l10_soa` | 90/0/0 | semi_offline_anchor | — |
+| `soddqnp_l1_soa` | 90/0/0 | semi_offline_anchor | — |
+| `soddqnp_soa` | 90/0/0 | semi_offline_anchor | — |
+| `soddqnpv_probe_soa` | 90/0/0 | semi_offline_anchor | — |
+| `soddqnpv_soa` | 90/0/0 | semi_offline_anchor | — |
 | `soduel_so` | 180/0/0 | semi_offline | — |
+| `soduelp_soa` | 90/0/0 | semi_offline_anchor | — |
+| `soduelpv_soa` | 90/0/0 | semi_offline_anchor | — |
 | `sofrap_so` | 180/0/0 | semi_offline | — |
+| `sofrapp_soa` | 90/0/0 | semi_offline_anchor | — |
+| `sofrappv_soa` | 90/0/0 | semi_offline_anchor | — |
 
 <!-- EXTRA-BEGIN -->
 

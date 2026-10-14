@@ -19,6 +19,7 @@ Phases (argv[1], default 'screen'):
   screen  ddqn o2 seeds0-2: λ_π ∈ {1,10} plus one (λ_π=1, λ_q=0.1) pv probe —
           picks the anchor weight before the main matrix
   main    {ddqn,duel,frap} × {+policy, +policy+value} × o2 × seeds0-2,
+  main_o3 order-shift replication: {+policy} arms only × o3 × seeds0-2
           λ fixed by the screen outcome (edit LAMBDAS below)
 
 Outputs (all under gitignored artifacts/cl_hz1x1/):
@@ -364,5 +365,10 @@ if __name__ == '__main__':
     elif phase == 'main':
         main('main', ARMS_MAIN, {'o2': ORDERS['o2']}, SEEDS, EVAL_SEEDS,
              stage_episodes=100, eval_at=[0, 50, 100], prefix='soa1')
+    elif phase == 'main_o3':
+        # Order-shift replication of the winning (+P) arms only.
+        p_arms = {k: v for k, v in ARMS_MAIN.items() if not k.endswith('pv')}
+        main('main_o3', p_arms, {'o3': ORDERS['o3']}, SEEDS, EVAL_SEEDS,
+             stage_episodes=100, eval_at=[0, 50, 100], prefix='soa3')
     else:
         raise SystemExit(f'unknown phase: {phase}')

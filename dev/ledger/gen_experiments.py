@@ -130,8 +130,12 @@ META = {
                "+value 锚 λ_q=0.1 一致略逊于纯 policy 锚（同预算下钉旧 Q 值与 TD 拉扯）。"
                "⑤o3 复现（仅 +P 臂）：worst 退化 ddqn 3.91→0.35s、duel 5.96→0.56s、frap 0.73→−0.03s（全 cell 优于基线），"
                "跨序一致；sd1 链 st3 对角线单点 +2.4s 为唯一塑性毛刺（臂均值仍 −0.10s）。"
+               "⑥ρ 剂量-响应（soar, o2, n=3）：+P@0.25 全面优于 replay@0.5（0.17/0.39/0.65 vs 0.92/1.67/1.25）——"
+               "锚定一半预算胜过加倍回放；+P@0.125 对 frap/duel 压过 replay@0.5（frap 1.05 vs 1.25、duel 1.45 vs 1.67）"
+               "且远低于 replay@0.25 的 frap 7.03，ddqn 上则不及（1.48 vs 0.92）；+P 非单调——ρ=0.5 时 worst 回升（ddqn 0.17→1.00、duel 0.39→0.93），"
+               "历史占比过高稀释当前学习信号，ρ=0.25 为甜点；对角线全程 ≤0.4s。"
                "216 行 SCOPE_DISCARD 为超范围裁决留档。",
- "queues": "artifacts/cl_hz1x1/{run_queue_cl1.json, run_queue_so1.json, run_queue_soa_screen.json, run_queue_soa_main.json, run_queue_soa_main_o3.json}",
+ "queues": "artifacts/cl_hz1x1/{run_queue_cl1.json, run_queue_so1.json, run_queue_soa_screen.json, run_queue_soa_main.json, run_queue_soa_main_o3.json, run_queue_soa_rho.json}",
 },
 }
 
@@ -160,7 +164,7 @@ SHORT = {
 "milestone0_infra": "基础设施验证",
 "paper_infra_validation": "paper 基建验证",
 "misc_probes": "零散探针",
-"cl_hz1x1": "hz1x1 持续学习：三骨干证实 off-policy 机制性遗忘；25% 因果半离线消除主体（≤+9s）；+policy 锚 λπ=1 再压至 ≤1.0s（frap 9.79→0.99）近零塑性代价",
+"cl_hz1x1": "hz1x1 持续学习：off-policy 机制性遗忘三骨干证实；+policy 锚 λπ=1 把 worst 退化压至 ≤1.0s 近零塑性代价；ρ 剂量响应显示锚定可省回放预算且 ρ=0.25 为甜点",
 }
 
 camps = collections.Counter(r["campaign"] for r in ROWS)

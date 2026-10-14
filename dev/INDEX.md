@@ -122,7 +122,11 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
   `plot_so_compare.py` 产出 `fig_so_{retention_trajectory,worst_degradation}.png`
   （clear/fifo/半离线三条件对照，逐种子细线+均值粗线+基线虚线），
   `plot_soa_compare.py` 产出 `fig_soa_{retention_trajectory,worst_degradation}.png`
-  （o2 三条件对照：replay / +policy锚 / +policy+value锚）。
+  （o2 三条件对照：replay / +policy锚 / +policy+value锚），
+  `plot_soa_panels.py` 产出 `fig_soa_{cellmap,bars,diag}.png`
+  （逐 cell ΔATT 热力三角、o2+o3 双序 worst 柱状、锚定/TD 诊断曲线），
+  `plot_soa_rho.py` 产出 `fig_soa_rho.png`
+  （ρ∈{0.125,0.25,0.5} × {replay,+P} 剂量-响应：worst 退化 + 对角线塑性）。
   诊断件 `drift_diag.py`——历史策略/价值漂移诊断（冻结推理，不改 ckpt）：
   `pool` 用基准 ckpt 在 held-out sumo 种子上 greedy rollout 建场景公共
   参考状态池（~1500 态/场景，c4/c2 合并两臂基准并留 src 标签）；

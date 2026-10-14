@@ -21,6 +21,8 @@ Phases (argv[1], default 'screen'):
   main    {ddqn,duel,frap} × {+policy, +policy+value} × o2 × seeds0-2,
   main_o3 order-shift replication: {+policy} arms only × o3 × seeds0-2
           λ fixed by the screen outcome (edit LAMBDAS below)
+  rho     dose-response: {replay, +P} × ρ∈{0.125,0.5} × o2 × seeds0-2
+          (ρ=0.25 cells come from so1/soa1)
 
 Outputs (all under gitignored artifacts/cl_hz1x1/):
   overlays/<run_id>.yml          per-run experiment overlay consumed by run.py
@@ -113,6 +115,20 @@ ARMS_SMOKE = {
     'soddqnp': {'agent': 'dqn', 'model_extra': {
         'double_dqn': True, **SO_BASE, **anchor_p(1.0)}},
 }
+# Rho dose-response supplement: replay-only and +P at rho in {0.125, 0.5}.
+# Combined with the r=0.25 cells from so1/soa1 this yields a 3x2 grid per
+# backbone.  Arm names carry the ratio so run_ids stay unique.
+ARMS_RHO = {}
+for bb, agent, extra in (('soddqn', 'dqn', {'double_dqn': True}),
+                         ('soduel', 'dqn', {'double_dqn': True,
+                                            'dueling': True}),
+                         ('sofrap', 'frap', {})):
+    for tag, rho in (('r12', 0.125), ('r50', 0.5)):
+        ARMS_RHO[f'{bb}_{tag}'] = {'agent': agent, 'model_extra': {
+            **extra, **SO_BASE, 'offline_ratio': rho}}
+        ARMS_RHO[f'{bb}p_{tag}'] = {'agent': agent, 'model_extra': {
+            **extra, **SO_BASE, 'offline_ratio': rho,
+            **anchor_p(LAMBDA_POLICY_MAIN)}}
 SEEDS = [0, 1, 2]
 EVAL_SEEDS = [101, 102, 103]
 OFFLINE_RATIO = 0.25
@@ -166,7 +182,9 @@ def train_overlay(run_id, model_extra, stage_idx, nets, history_paths,
     me['scene_order'] = list(nets)
     # Stage 1 has no visible history: keep the archive writer on but run
     # purely online (offline_ratio=0), matching the shared_dqn convention.
-    me['offline_ratio'] = 0.0 if stage_idx == 0 else OFFLINE_RATIO
+    # Per-arm ratio override (rho dose-response arms); stage 1 always online.
+    me['offline_ratio'] = 0.0 if stage_idx == 0 else me.get(
+        'offline_ratio', OFFLINE_RATIO)
     if history_paths:
         me['history_paths'] = history_paths
     if stage_idx > 0:
@@ -190,7 +208,7 @@ def eval_overlay(run_id, model_extra, ckpt):
     me = dict(model_extra)
     # Eval cells never train: offline and anchor keys are dropped, matching
     # the cl1/so1 frozen-checkpoint evaluation protocol.
-    for key in (*SO_BASE, *ANCHOR_KEYS):
+    for key in (*SO_BASE, *ANCHOR_KEYS, 'offline_ratio'):
         me.pop(key, None)
     me.update({
         'stage_checkpoint': str(ckpt),
@@ -230,7 +248,7 @@ def main(phase, arms, orders, seeds, eval_seeds, stage_episodes, eval_at,
     tasks = []
     ledger = []
 
-    def add_ledger(run_id, arm, net, seed, kind, stage, episodes):
+    def add_ledger(run_id, arm, net, seed, kind, stage, episodes, rho):
         ledger.append({
             'run_id': run_id, 'line': 'cl_hz1x1', 'campaign': 'cl_hz1x1',
             'arm': f'{arm}_soa', 'alias_of': None,
@@ -244,7 +262,7 @@ def main(phase, arms, orders, seeds, eval_seeds, stage_episodes, eval_at,
             'behavior_source': None, 'metrics': {}, 'abort_reason': None,
             'error': None, 'evidence_lost': False,
             'notes': f'REGISTERED: cl_hz1x1 anchor {phase} {kind} '
-                     f'order_stage={stage} offline_ratio={OFFLINE_RATIO}',
+                     f'order_stage={stage} offline_ratio={rho}',
             'run_kind': kind, 'config_sha': None, 'sumo_seed_mode': None,
             'sumo_seed': None, 'eval_seed': None,
             'condition': 'semi_offline_anchor',
@@ -260,6 +278,7 @@ def main(phase, arms, orders, seeds, eval_seeds, stage_episodes, eval_at,
                 prev_run_id = None
                 history_paths = []
                 teacher_ckpts = {}
+                rho = spec['model_extra'].get('offline_ratio', OFFLINE_RATIO)
                 for st, net in enumerate(nets):
                     rid = f'{prefix}_{arm}_{order_name}_sd{seed}_st{st + 1}'
                     odir = out_dir(agent, net, rid)
@@ -295,7 +314,8 @@ def main(phase, arms, orders, seeds, eval_seeds, stage_episodes, eval_at,
                         task['requires'] = requires
                     tasks.append(task)
                     add_ledger(rid, arm, net, seed, 'train',
-                               f'{order_name}/st{st + 1}', stage_episodes)
+                               f'{order_name}/st{st + 1}', stage_episodes,
+                               0.0 if st == 0 else rho)
                     for enet in nets[:st + 1]:
                         for es in eval_seeds:
                             eid = (f'{prefix}_{arm}_{order_name}_sd{seed}'
@@ -321,7 +341,7 @@ def main(phase, arms, orders, seeds, eval_seeds, stage_episodes, eval_at,
                                 'run_kind': 'eval',
                             })
                             add_ledger(eid, arm, enet, seed, 'eval',
-                                       f'{order_name}/ev{st + 1}', 0)
+                                       f'{order_name}/ev{st + 1}', 0, rho)
                     history_paths.append(odir / 'history_archive')
                     teacher_ckpts[net] = ckpt
                     prev_ckpt, prev_run_id = ckpt, rid
@@ -333,6 +353,9 @@ def main(phase, arms, orders, seeds, eval_seeds, stage_episodes, eval_at,
         'orders': orders,
         'arms': list(arms),
         'offline_ratio': OFFLINE_RATIO,
+        'arm_offline_ratio': {
+            a: s['model_extra'].get('offline_ratio', OFFLINE_RATIO)
+            for a, s in arms.items()},
         'history_access_mode': 'causal',
         'replay_condition': 'clear_online_buffer',
         'anchor_loss': ('policy KL on softmax(Q/T) + optional masked value '
@@ -370,5 +393,9 @@ if __name__ == '__main__':
         p_arms = {k: v for k, v in ARMS_MAIN.items() if not k.endswith('pv')}
         main('main_o3', p_arms, {'o3': ORDERS['o3']}, SEEDS, EVAL_SEEDS,
              stage_episodes=100, eval_at=[0, 50, 100], prefix='soa3')
+    elif phase == 'rho':
+        # rho dose-response: {replay, +P} x rho in {0.125, 0.5} x o2.
+        main('rho', ARMS_RHO, {'o2': ORDERS['o2']}, SEEDS, EVAL_SEEDS,
+             stage_episodes=100, eval_at=[0, 50, 100], prefix='soar')
     else:
         raise SystemExit(f'unknown phase: {phase}')

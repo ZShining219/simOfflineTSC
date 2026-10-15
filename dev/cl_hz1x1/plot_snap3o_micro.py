@@ -94,7 +94,7 @@ def series_xy(rows, key):
 
 def fig_curves(series, key, ylabel, title, out_name):
     fig, axes = plt.subplots(len(CONDS), len(BBS), figsize=(13, 9),
-                             sharex=True)
+                             sharex=True, sharey=True)
     for r, (cond, clab) in enumerate(CONDS):
         for c, bb in enumerate(BBS):
             ax = axes[r][c]

@@ -465,7 +465,7 @@ class EvaluationManifestRunner:
             )
             self.package.write_attempt_metadata(attempt_dir, attempt_metadata)
             if controller['agent'] in {
-                'dqn', 'shared_dqn', 'colight', 'sga_colight',
+                'dqn', 'shared_dqn', 'frap', 'colight', 'sga_colight',
                 'concat_colight', 'sga_flx_colight',
                 'mplight', 'sga_mplight',
                 'tarl_sensor', 'tarl_gat', 'tarl_concat',

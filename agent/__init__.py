@@ -26,7 +26,15 @@ except ModuleNotFoundError as error:
         raise
 from .shared_dqn import SharedDQNAgent
 from . import tarl
-from .colight import SGAColightAgent, ConcatColightAgent
-from .mplight import SGAMPLightAgent
+try:
+    from .colight import SGAColightAgent, ConcatColightAgent
+except ModuleNotFoundError as error:
+    if error.name not in {'torch_scatter', 'torch_geometric'}:
+        raise
+try:
+    from .mplight import SGAMPLightAgent
+except ModuleNotFoundError as error:
+    if error.name not in {'torch_scatter', 'torch_geometric', 'pfrl'}:
+        raise
 
 # from .ppo_pfrl import IPPO_pfrl

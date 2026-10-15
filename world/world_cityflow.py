@@ -559,6 +559,25 @@ class World(object):
                 self.vehicle_waiting_time[vehicle] = 0
         return self.vehicle_waiting_time
 
+    def get_average_waiting_time(self):
+        """Mean per-vehicle waiting time (seconds), matching the SUMO world API."""
+        waiting = self.get_vehicle_waiting_time()
+        if not waiting:
+            return 0.0
+        return sum(waiting.values()) / len(waiting)
+
+    def get_lane_vehicle_count(self):
+        """Dict of per-lane vehicle counts (engine format), matching the SUMO world API."""
+        return self.eng.get_lane_vehicle_count()
+
+    def get_lane_waiting_vehicle_count(self):
+        """Dict of per-lane waiting vehicle counts, matching the SUMO world API."""
+        return self.eng.get_lane_waiting_vehicle_count()
+
+    def get_unfinished_vehicle_count(self):
+        """Vehicles departed but not yet arrived, matching the SUMO world API."""
+        return len(self.eng.get_vehicles(include_waiting=True))
+
     def get_lane_waiting_time_count(self):
         '''
         get_lane_waiting_time_count

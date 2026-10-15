@@ -1,0 +1,7 @@
+includes:
+  - configs/tsc/mplight.yml
+
+trainer:
+  episodes: 2
+  action_interval: 15
+  test_when_train: False

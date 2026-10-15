@@ -13,7 +13,30 @@ from torch.nn.utils import clip_grad_norm_
 from torch_geometric.nn import MessagePassing
 from torch_geometric.utils import add_self_loops
 from torch_geometric.data import Data, Batch
-import torch_scatter
+try:
+    import torch_scatter
+except ModuleNotFoundError:
+    class _TorchScatterFallback:
+        """Native-torch stand-in for the two ops used below (dim=-1 scatters)."""
+
+        @staticmethod
+        def scatter_max(src, index):
+            n = int(index.max()) + 1
+            idx = index.unsqueeze(0).expand(src.shape[0], -1)
+            out = torch.full((src.shape[0], n), float("-inf"),
+                             dtype=src.dtype, device=src.device)
+            out.scatter_reduce_(-1, idx, src, reduce="amax", include_self=False)
+            return out, None
+
+        @staticmethod
+        def scatter_sum(src, index):
+            n = int(index.max()) + 1
+            idx = index.unsqueeze(0).expand(src.shape[0], -1)
+            out = torch.zeros(src.shape[0], n, dtype=src.dtype, device=src.device)
+            out.scatter_add_(-1, idx, src)
+            return out
+
+    torch_scatter = _TorchScatterFallback()
 
 
 class Embedding_MLP(nn.Module):

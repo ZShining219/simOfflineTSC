@@ -8,6 +8,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from agent.scene_attention import SceneGuidedAttention
+
+_OBS_FEATURE = os.environ.get('MPLIGHT_OBS_FEATURE', 'lane_count')
 from common.registry import Registry
 import gym
 from generator import LaneVehicleGenerator, IntersectionPhaseGenerator, IntersectionVehicleGenerator
@@ -80,7 +82,7 @@ class MPLightAgent(RLAgent):
             node_id = inter.id
             node_idx = self.world.id2idx[node_id]
             node_obj = self.world.id2intersection[node_id]
-            tmp_generator = LaneVehicleGenerator(self.world, node_obj, ['lane_count'], in_only=True, average=None)
+            tmp_generator = LaneVehicleGenerator(self.world, node_obj, [_OBS_FEATURE], in_only=True, average=None)
             observation_generators.append((node_idx, tmp_generator))
         sorted(observation_generators, key=lambda x: x[0])  # now generator's order is according to its index in graph
         self.ob_generator = observation_generators
@@ -159,7 +161,7 @@ class MPLightAgent(RLAgent):
             node_id = inter.id
             node_idx = self.world.id2idx[node_id]
             node_obj = self.world.id2intersection[node_id]
-            tmp_generator = LaneVehicleGenerator(self.world, node_obj, ['lane_count'], in_only=True, average=None)
+            tmp_generator = LaneVehicleGenerator(self.world, node_obj, [_OBS_FEATURE], in_only=True, average=None)
             observation_generators.append((node_idx, tmp_generator))
         sorted(observation_generators, key=lambda x: x[0])  # now generator's order is according to its index in graph
         self.ob_generator = observation_generators

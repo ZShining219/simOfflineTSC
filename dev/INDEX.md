@@ -100,6 +100,12 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
 - `dev/scene_semantics/`：轨迹场景语义标注探索件（P0 窗口恢复/统计 → P2 事实描述+冻结编码 →
   P3 三层匹配验证），探索期实现；执行依据 `docs/plan_trajectory_scene_semantics.md`，
   产物落 `data/output_data/scene_semantics/`。
+- `dev/if_mask_eval/`：MPLight 方向掩码评测探索件——`eval_mplight_mask.py`
+  按 RobustLight Table-2 语义在 hz4x4_rl(5816) 上做 clean/sensorW/sensorW,E
+  评测；mask 只作用 agent 观测输入（`MPLIGHT_OBS_FEATURE` 环境变量配合）。
+- `dev/t34_stage1/`：t34/att004 stage-1 场景分类报告件——`scene_report.py`
+  从 `tools/run_tarl_struct_cf.py --dump_dir` 产出（ep*.npz + records）
+  拟合线性探针回答 stage-1 关卡问题。
 - `dev/cl_hz1x1/`：hz1x1 持续学习（sequential stage 链 + 冻结下三角评估矩阵）
   队列生成件——`build_queue.py` 产出 `artifacts/cl_hz1x1/run_queue_cl1.json`
   （1476 任务：ddqn/dueling_ddqn/frap×{clear,fifo}+ppo×{clear} 四阶段链 ×

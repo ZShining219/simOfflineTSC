@@ -1,0 +1,10 @@
+{
+  "cat": "dense",
+  "scale": 1.4,
+  "note": "总流入×1.40（~2800veh/h），逼近通行能力",
+  "pack": "dense_high",
+  "n_vehicles": 2771,
+  "seed": 3997483278,
+  "base": "hangzhou_1x1_bc-tyc_18041610_1h",
+  "horizon_s": 3600
+}

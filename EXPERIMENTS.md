@@ -67,6 +67,7 @@
 | `plan5_b100` | 68 | 68/0/0/0 | Plan5 b100 半离线批 | [明细](EXPERIMENTS/plan5_b100.md) |
 | `plan1_dqn` | 35 | 27/0/4/0 | Plan1 在线 DQN 基线 | [明细](EXPERIMENTS/plan1_dqn.md) |
 | `ha_sodqn` | 174 | 172/0/2/0 | 半离线主线：E4 正式批完成；历史利用降遗忘但有适应代价 | [明细](EXPERIMENTS/ha_sodqn.md) |
+| `seq8_demand` | 45 | 0/0/0/0 | SEQ8 语义需求包+8 段序列 pilot（进行中）：SELF 自产档案×DHOA/CQ | [明细](EXPERIMENTS/seq8_demand.md) |
 | `milestone0_infra` | 12 | 12/0/0/0 | 基础设施验证 | [明细](EXPERIMENTS/milestone0_infra.md) |
 | `paper_infra_validation` | 19 | 19/0/0/0 | paper 基建验证 | [明细](EXPERIMENTS/paper_infra_validation.md) |
 | `misc_probes` | 7 | 1/5/0/1 | 零散探针 | [明细](EXPERIMENTS/misc_probes.md) |

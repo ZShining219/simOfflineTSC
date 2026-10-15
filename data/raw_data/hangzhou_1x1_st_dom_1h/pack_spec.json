@@ -1,0 +1,10 @@
+{
+  "cat": "st",
+  "left": 0.05,
+  "note": "直行主导：全臂左转压至 5%",
+  "pack": "st_dom",
+  "n_vehicles": 2105,
+  "seed": 2723836349,
+  "base": "hangzhou_1x1_bc-tyc_18041610_1h",
+  "horizon_s": 3600
+}

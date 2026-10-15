@@ -1,0 +1,15 @@
+{
+  "cat": "asym",
+  "arm": {
+    "W": 3.0,
+    "E": 0.5,
+    "S": 0.5,
+    "N": 0.5
+  },
+  "note": "单臂集中：西臂×3.0，其余×0.5",
+  "pack": "asym_wonly",
+  "n_vehicles": 2597,
+  "seed": 102891658,
+  "base": "hangzhou_1x1_bc-tyc_18041610_1h",
+  "horizon_s": 3600
+}

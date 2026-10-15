@@ -1,0 +1,10 @@
+{
+  "cat": "lt",
+  "left": 0.35,
+  "note": "全臂左转占比 15%→35%，转向冲突加重",
+  "pack": "lt_high",
+  "n_vehicles": 2132,
+  "seed": 1769257288,
+  "base": "hangzhou_1x1_bc-tyc_18041610_1h",
+  "horizon_s": 3600
+}

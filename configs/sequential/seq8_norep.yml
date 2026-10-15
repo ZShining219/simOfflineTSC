@@ -1,0 +1,59 @@
+schema_version: 2
+protocol_id: seq8_norep_v1
+# 8 段无回访序列：每个 stage 换一个语义不同的需求包，相邻切换主轴轮换，
+# 对比度最大化。场景顺序：空载→脉冲→超高左转→单臂集中→过饱和→直行主导
+# →东西潮汐→爬坡。
+orders:
+  N1:
+    - sumohz1x1_sparse_ultra
+    - sumohz1x1_fluct_burst
+    - sumohz1x1_lt_extreme
+    - sumohz1x1_asym_wonly
+    - sumohz1x1_dense_extreme
+    - sumohz1x1_st_dom
+    - sumohz1x1_asym_we
+    - sumohz1x1_fluct_ramp
+training_seeds: [0, 1, 2, 3, 4]
+algorithm_id: independent_dqn
+owp_capacity: 5000
+alignment_warmup_episodes: 10
+conditions:
+  - archive_mode: NONE
+    method: CONT
+    offline_ratio: 0.0
+  - archive_mode: SELF
+    method: DHOA
+    offline_ratio: 0.5
+  - archive_mode: SELF
+    method: CQ
+    offline_ratio: 0.5
+trainer:
+  stage_episodes: [100, 100, 100, 100, 100, 100, 100, 100]
+  smoke_stage_episodes: [5, 5, 5, 5, 5, 5, 5, 5]
+  steps: 3600
+  test_steps: 3600
+  action_interval: 10
+  learning_start: 1000
+  buffer_size: 5000
+  batch_size: 64
+  update_model_rate: 1
+  target_update_interval: 10
+  evaluation_retries: 3
+  max_child_concurrency: 8
+  max_evaluator_concurrency: 8
+model:
+  learning_rate: 0.001
+  gamma: 0.95
+  epsilon_decay: 0.995
+  epsilon_min: 0.01
+  grad_clip: 5.0
+  phase: true
+  one_hot: true
+rng:
+  derivation_version: 1
+  algorithm: sha256_first_64_bits
+  streams: [model_action, online_replay_sampler, hoa_owp_sampler, evaluation]
+analysis:
+  seed: 20261015
+  resamples: 10000
+  primary_adaptation_metric: normalized_travel_time_aulc_0_100

@@ -1,0 +1,10 @@
+{
+  "cat": "sparse",
+  "scale": 0.18,
+  "note": "总流入×0.18（~360veh/h），近空载边界",
+  "pack": "sparse_ultra",
+  "n_vehicles": 342,
+  "seed": 1023208415,
+  "base": "hangzhou_1x1_bc-tyc_18041610_1h",
+  "horizon_s": 3600
+}

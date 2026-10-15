@@ -1,0 +1,10 @@
+{
+  "cat": "sparse",
+  "scale": 0.4,
+  "note": "总流入×0.40（~800veh/h），低密度常态",
+  "pack": "sparse_low",
+  "n_vehicles": 838,
+  "seed": 2577102527,
+  "base": "hangzhou_1x1_bc-tyc_18041610_1h",
+  "horizon_s": 3600
+}

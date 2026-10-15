@@ -1,0 +1,10 @@
+{
+  "cat": "lt",
+  "left": 0.55,
+  "note": "全臂左转占比→55%，超高左转",
+  "pack": "lt_extreme",
+  "n_vehicles": 1991,
+  "seed": 557175012,
+  "base": "hangzhou_1x1_bc-tyc_18041610_1h",
+  "horizon_s": 3600
+}

@@ -65,6 +65,21 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
   append_ha_sodqn.py + README），2026-10-07 裁决收仓长期维护；源自治理工作区
   govern_1007/scratch/。append_ha_sodqn.py（2026-10-15）定向补登 ha_sodqn 桶：
   152 train + 12 smoke + 10 batch，幂等追加，扫 logical_run_manifest 取字段。
+  append_seq8.py（2026-10-15）定向补登 seq8_* 桶（campaign=seq8_demand）：
+  扫 seq8_{norep,rep,drift}_{formal,smoke}* 桶的 logical_run_manifest，
+  幂等追加 train/smoke/batch 行，SELF 臂 notes 记 method/ratio。
+- `dev/plan34_viz/`：Plan 3/4 持续学习证据图（2026-10-15，一次性）：
+  `plot_stage_scene_recovery.py` 消费 plan34_b100_formal_60 的
+  stage_scene_evaluations + plan_ha bundle 的 frozen_eval_timeseries，
+  产学习趋势/stage×scene 横比图（fifo 口径），输出至
+  `data/output_data/analysis/plan34/stage_scene_recovery_view_20261015/`。
+- `dev/demand_packs/`：hz1x1 语义化流量需求包生成器（2026-10-15，一次性）：
+  `build_hz1x1_demands.py` 以 `hangzhou_1x1_bc-tyc_18041610_1h` 路网为基准，
+  按 4 大类 15 包（sparse/dense/lt+st/asym/fluct）改需求不改拓扑，
+  产出 `data/raw_data/hangzhou_1x1_<cat>_<sub>_1h/` + `configs/sim/
+  sumohz1x1_<cat>_<sub>.cfg` + 集合清单 `data/raw_data/
+  hangzhou_1x1_demand_packs.json`。硬约束：hz1x1 无右转连接，
+  高右转包不可表达。供持续学习/半离线扩展需求库。
 - `dev/govern_1007/`：本治理任务的授权暂存位（当前为空）。
 - `dev/_legacy/20261007/`：见 `dev/_legacy/20261007/README.md`。
 - `dev/takeover_probe/`：**已升格** `scene_attention/`（2026-10-13，方法包，

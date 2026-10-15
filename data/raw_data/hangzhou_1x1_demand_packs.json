@@ -1,0 +1,115 @@
+{
+  "schema_version": 1,
+  "collection": "hz1x1_demand_packs_v1",
+  "base_pack": "hangzhou_1x1_bc-tyc_18041610_1h",
+  "topology": "hz1x1（每臂 lane0=直行/lane1=左转，无右转连接）",
+  "caveat": "高右转需求在该拓扑物理不可表达，本批不含右转包",
+  "horizon_s": 3600,
+  "packs": [
+    {
+      "pack": "sparse_low",
+      "dir": "hangzhou_1x1_sparse_low_1h",
+      "cfg": "sumohz1x1_sparse_low",
+      "cat": "sparse",
+      "n_vehicles": 838
+    },
+    {
+      "pack": "sparse_ultra",
+      "dir": "hangzhou_1x1_sparse_ultra_1h",
+      "cfg": "sumohz1x1_sparse_ultra",
+      "cat": "sparse",
+      "n_vehicles": 342
+    },
+    {
+      "pack": "dense_high",
+      "dir": "hangzhou_1x1_dense_high_1h",
+      "cfg": "sumohz1x1_dense_high",
+      "cat": "dense",
+      "n_vehicles": 2771
+    },
+    {
+      "pack": "dense_extreme",
+      "dir": "hangzhou_1x1_dense_extreme_1h",
+      "cfg": "sumohz1x1_dense_extreme",
+      "cat": "dense",
+      "n_vehicles": 3638
+    },
+    {
+      "pack": "lt_high",
+      "dir": "hangzhou_1x1_lt_high_1h",
+      "cfg": "sumohz1x1_lt_high",
+      "cat": "lt",
+      "n_vehicles": 2132
+    },
+    {
+      "pack": "lt_extreme",
+      "dir": "hangzhou_1x1_lt_extreme_1h",
+      "cfg": "sumohz1x1_lt_extreme",
+      "cat": "lt",
+      "n_vehicles": 1991
+    },
+    {
+      "pack": "lt_wsing",
+      "dir": "hangzhou_1x1_lt_wsing_1h",
+      "cfg": "sumohz1x1_lt_wsing",
+      "cat": "lt",
+      "n_vehicles": 2064
+    },
+    {
+      "pack": "st_dom",
+      "dir": "hangzhou_1x1_st_dom_1h",
+      "cfg": "sumohz1x1_st_dom",
+      "cat": "st",
+      "n_vehicles": 2105
+    },
+    {
+      "pack": "asym_we",
+      "dir": "hangzhou_1x1_asym_we_1h",
+      "cfg": "sumohz1x1_asym_we",
+      "cat": "asym",
+      "n_vehicles": 2289
+    },
+    {
+      "pack": "asym_ns",
+      "dir": "hangzhou_1x1_asym_ns_1h",
+      "cfg": "sumohz1x1_asym_ns",
+      "cat": "asym",
+      "n_vehicles": 2251
+    },
+    {
+      "pack": "asym_wonly",
+      "dir": "hangzhou_1x1_asym_wonly_1h",
+      "cfg": "sumohz1x1_asym_wonly",
+      "cat": "asym",
+      "n_vehicles": 2597
+    },
+    {
+      "pack": "fluct_sin",
+      "dir": "hangzhou_1x1_fluct_sin_1h",
+      "cfg": "sumohz1x1_fluct_sin",
+      "cat": "fluct",
+      "n_vehicles": 2043
+    },
+    {
+      "pack": "fluct_burst",
+      "dir": "hangzhou_1x1_fluct_burst_1h",
+      "cfg": "sumohz1x1_fluct_burst",
+      "cat": "fluct",
+      "n_vehicles": 2094
+    },
+    {
+      "pack": "fluct_ramp",
+      "dir": "hangzhou_1x1_fluct_ramp_1h",
+      "cfg": "sumohz1x1_fluct_ramp",
+      "cat": "fluct",
+      "n_vehicles": 2045
+    },
+    {
+      "pack": "fluct_recede",
+      "dir": "hangzhou_1x1_fluct_recede_1h",
+      "cfg": "sumohz1x1_fluct_recede",
+      "cat": "fluct",
+      "n_vehicles": 2028
+    }
+  ]
+}

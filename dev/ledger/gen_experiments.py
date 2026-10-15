@@ -138,6 +138,10 @@ META = {
                "补跑 replay-only + +P 双臂及 12 个单场景基线后 worst 退化 2.55/3.62 → 0.46/0.78（5.5×），"
                "vanilla 的 max-target 偏置使纯回放退化大于 ddqn（2.55 vs 1.07），+P 同样压回 <1s——"
                "锚定收益对 double/dueling/FRAP/原始 DQN 四种输出结构一致成立。"
+               "⑧适应代价分析（plot_soa_adapt，复用既有 records 无新 run）：切换的入场冲击集中于 o3 st3(c3→s1)——"
+               "ddqn/duel 纯在线 ep0 冻结评估相对基线最差 +157/+104s、前10ep 训练 ATT +8.2s、20ep 超额成本 3-4×；"
+               "半离线将入场差距压回 ≤2s，+P 与其相当或略优；frap 同切换差异 <1s——"
+               "结论=半离线/锚定收益含'新场景入场可靠性'一层，但具顺序与骨干特异性，非普适加速。"
                "216 行 SCOPE_DISCARD 为超范围裁决留档。",
  "queues": "artifacts/cl_hz1x1/{run_queue_cl1.json, run_queue_so1.json, run_queue_soa_screen.json, run_queue_soa_main.json, run_queue_soa_main_o3.json, run_queue_soa_rho.json, run_queue_soa_vdqn.json, run_queue_soa_vdqnb.json}",
 },

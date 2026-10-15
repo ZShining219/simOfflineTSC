@@ -5,8 +5,8 @@
 - 假设：值迭代型 TSC-RL 在顺序场景训练下发生机制性灾难性遗忘；25% 因果历史离线混合应以架构无关方式消除遗忘且不损害新场景学习；在离线样本上加 stage 末教师输出锚定（CLEAR 式 policy cloning 的 DQN 移植）应在同回放预算下进一步压缩残余退化。
 - plan_id/队列：cl_hz1x1_v1 / cl_hz1x1_anchor_{screen,main,main_o3,rho,vdqn,vdqnb}
 - 设计稿/证据位置：artifacts/cl_hz1x1/{run_queue_cl1.json, run_queue_so1.json, run_queue_soa_*.json}；dev/cl_hz1x1/{build_queue,build_queue_so,build_queue_soa,harvest_matrix,harvest_soa,plot_so_compare,plot_soa_compare}.py；矩阵 artifacts/cl_hz1x1/matrix_report{,_so,_soa_soa1}.json；图 artifacts/cl_hz1x1/fig_{so,soa}_{retention_trajectory,worst_degradation}.png；锚定实现 agent/{dqn,frap}.py::_anchor_loss，诊断经 metrics schema v5 train_diagnostics 落盘
-- 结论：cl1 1476/1476 + so1 612/612 + soa screen 306/306 + soa1 主矩阵 612/612 + soa3 复现 306/306 + soar 1224/1224 + soav 204/204 + 基线 12/12 全 DONE。①ddqn/duel/frap 三骨干在 clear 下均崩（o2 最深退化 +597/+282/+140s），遗忘为 off-policy 机制性失败非实现特例；②结构调制易感性（duel>ddqn>frap）但不免疫；③25% 因果半离线三臂 18/18 链最深退化 ≤+9s，对角线新学习近似保持——结论=抗遗忘修复，非绝对性能提升。PPO 为 on-policy 未入 so 臂。④soa1（o2, n=3，口径=全部旧场景 cell 最深 ΔATT）：policy 锚 λ_π=1 把 worst 退化 ddqn 1.54→0.44s、duel 5.23→0.90s、frap 9.79→0.99s，对角线 ΔATT 均值变化 ≤0.4s 近似零塑性代价；λ_π=10 双指标恶化（筛除非单调剂量响应）；+value 锚 λ_q=0.1 一致略逊于纯 policy 锚（同预算下钉旧 Q 值与 TD 拉扯）。⑤o3 复现（仅 +P 臂）：worst 退化 ddqn 3.91→0.35s、duel 5.96→0.56s、frap 0.73→−0.03s（全 cell 优于基线），跨序一致；sd1 链 st3 对角线单点 +2.4s 为唯一塑性毛刺（臂均值仍 −0.10s）。⑥ρ 剂量-响应（soar, o2, n=3）：+P@0.25 全面优于 replay@0.5（0.17/0.39/0.65 vs 0.92/1.67/1.25）——锚定一半预算胜过加倍回放；+P@0.125 对 frap/duel 压过 replay@0.5（frap 1.05 vs 1.25、duel 1.45 vs 1.67）且远低于 replay@0.25 的 frap 7.03，ddqn 上则不及（1.48 vs 0.92）；+P 非单调——ρ=0.5 时 worst 回升（ddqn 0.17→1.00、duel 0.39→0.93），历史占比过高稀释当前学习信号，ρ=0.25 为甜点；对角线全程 ≤0.4s。⑦vanilla DQN 补格（soav, o2, n=3，double_dqn=false）：此前全部 dqn 臂实为 DDQN；补跑 replay-only + +P 双臂及 12 个单场景基线后 worst 退化 2.55/3.62 → 0.46/0.78（5.5×），vanilla 的 max-target 偏置使纯回放退化大于 ddqn（2.55 vs 1.07），+P 同样压回 <1s——锚定收益对 double/dueling/FRAP/原始 DQN 四种输出结构一致成立。216 行 SCOPE_DISCARD 为超范围裁决留档。
-- 登记单元 5212（train/eval/smoke/batch/calibration = 648/4564/0/0/0）（追溯登记 2026-10-07）
+- 结论：cl1 1476/1476 + so1 612/612 + soa screen 306/306 + soa1 主矩阵 612/612 + soa3 复现 306/306 + soar 1224/1224 + soav 204/204 + 基线 12/12 全 DONE。①ddqn/duel/frap 三骨干在 clear 下均崩（o2 最深退化 +597/+282/+140s），遗忘为 off-policy 机制性失败非实现特例；②结构调制易感性（duel>ddqn>frap）但不免疫；③25% 因果半离线三臂 18/18 链最深退化 ≤+9s，对角线新学习近似保持——结论=抗遗忘修复，非绝对性能提升。PPO 为 on-policy 未入 so 臂。④soa1（o2, n=3，口径=全部旧场景 cell 最深 ΔATT）：policy 锚 λ_π=1 把 worst 退化 ddqn 1.54→0.44s、duel 5.23→0.90s、frap 9.79→0.99s，对角线 ΔATT 均值变化 ≤0.4s 近似零塑性代价；λ_π=10 双指标恶化（筛除非单调剂量响应）；+value 锚 λ_q=0.1 一致略逊于纯 policy 锚（同预算下钉旧 Q 值与 TD 拉扯）。⑤o3 复现（仅 +P 臂）：worst 退化 ddqn 3.91→0.35s、duel 5.96→0.56s、frap 0.73→−0.03s（全 cell 优于基线），跨序一致；sd1 链 st3 对角线单点 +2.4s 为唯一塑性毛刺（臂均值仍 −0.10s）。⑥ρ 剂量-响应（soar, o2, n=3）：+P@0.25 全面优于 replay@0.5（0.17/0.39/0.65 vs 0.92/1.67/1.25）——锚定一半预算胜过加倍回放；+P@0.125 对 frap/duel 压过 replay@0.5（frap 1.05 vs 1.25、duel 1.45 vs 1.67）且远低于 replay@0.25 的 frap 7.03，ddqn 上则不及（1.48 vs 0.92）；+P 非单调——ρ=0.5 时 worst 回升（ddqn 0.17→1.00、duel 0.39→0.93），历史占比过高稀释当前学习信号，ρ=0.25 为甜点；对角线全程 ≤0.4s。⑦vanilla DQN 补格（soav, o2, n=3，double_dqn=false）：此前全部 dqn 臂实为 DDQN；补跑 replay-only + +P 双臂及 12 个单场景基线后 worst 退化 2.55/3.62 → 0.46/0.78（5.5×），vanilla 的 max-target 偏置使纯回放退化大于 ddqn（2.55 vs 1.07），+P 同样压回 <1s——锚定收益对 double/dueling/FRAP/原始 DQN 四种输出结构一致成立。⑧适应代价分析（plot_soa_adapt，复用既有 records 无新 run）：切换的入场冲击集中于 o3 st3(c3→s1)——ddqn/duel 纯在线 ep0 冻结评估相对基线最差 +157/+104s、前10ep 训练 ATT +8.2s、20ep 超额成本 3-4×；半离线将入场差距压回 ≤2s，+P 与其相当或略优；frap 同切换差异 <1s——结论=半离线/锚定收益含'新场景入场可靠性'一层，但具顺序与骨干特异性，非普适加速。⑨snap3 收敛探针（model_snapshot 新通道，324 eval 任务，o3 st3 ep5/10/15/20 快照评估）：确认纯在线入场冲击真实且恢复缓慢但可恢复——ddqn clear 最差种子 ep5-20 仍高于基线+5%、至 ep100 才稳定；但同时发现回放/锚定臂存在中段回弹（ddqn semi sd1 ep10=89.2s、+P sd1 ep15=86.1s、duel +P sd2 ep15-20≈83-84s），'settled'时点在三条件间交错，锚定在新场景轴上并非单调更优——诚实的口径是'可靠入场+偶发中段回弹'而非'更快收敛'。注：dqn 系 model/{e}_0.pt 为 target 快照（保守口径），frap 为 online 快照。⑩snap3o 微观解剖（18 复跑 + 126 controller eval-manifest，online 口径）：RNG 复现验证通过（抽样 3 run 100/100 episode 与原 run 逐位一致）；冲击的微观形态=慢性相位分配病理而非瞬时扰动——clear ep0 全网队列 ~5min 内堆至 110+veh 且全程不消退、吞吐缺口贯穿整 episode（-37%），逐lane 热力定位为单方向进口道全程饿死+对向周期性欠服务；恢复极快：online 口径 ep5 即回 ~80s 常态。target-snap 与 online 数值差 <1s——snap3 的 settled/回弹结论在 online 口径下成立。216 行 SCOPE_DISCARD 为超范围裁决留档。
+- 登记单元 5584（train/eval/smoke/batch/calibration = 666/4918/0/0/0）（追溯登记 2026-10-07）
 
 | run_id | 臂/net/seed | ep | 状态 | 起始 | TT/th/unfinished | 产物路径 | 备注 |
 |---|---|---|---|---|---|---|---|
@@ -274,6 +274,24 @@
 | `cl1_ppov2_clear_o3_sd2_st2` | ppov2_clear/sumohz1x1_config3/s2 | 100 | DONE | — | — | `—` | REGISTERED: cl_hz1x1 continual-learning train order_stage=o3/st2 |
 | `cl1_ppov2_clear_o3_sd2_st3` | ppov2_clear/sumohz1x1/s2 | 100 | DONE | — | — | `—` | REGISTERED: cl_hz1x1 continual-learning train order_stage=o3/st3 |
 | `cl1_ppov2_clear_o3_sd2_st4` | ppov2_clear/sumohz1x1_config4/s2 | 100 | DONE | — | — | `—` | REGISTERED: cl_hz1x1 continual-learning train order_stage=o3/st4 |
+| `snap3o_ddqn_clear_o3_sd0_st3` | snap3o_ddqn_clear_soa/sumohz1x1/s0 | 100 | DONE | — | — | `data/output_data/tsc/sumo_dqn/sumohz1x1/snap3o_ddqn_clear_o3_sd0_st3` | alias→cl1_ddqn_clear_o3_sd0_st3; REGISTERED: cl_hz1x1 snap3o online-fidelity rerun of cl1_ddqn_clear_o3_sd0_st3 w |
+| `snap3o_ddqn_clear_o3_sd1_st3` | snap3o_ddqn_clear_soa/sumohz1x1/s1 | 100 | DONE | — | — | `data/output_data/tsc/sumo_dqn/sumohz1x1/snap3o_ddqn_clear_o3_sd1_st3` | alias→cl1_ddqn_clear_o3_sd1_st3; REGISTERED: cl_hz1x1 snap3o online-fidelity rerun of cl1_ddqn_clear_o3_sd1_st3 w |
+| `snap3o_ddqn_clear_o3_sd2_st3` | snap3o_ddqn_clear_soa/sumohz1x1/s2 | 100 | DONE | — | — | `data/output_data/tsc/sumo_dqn/sumohz1x1/snap3o_ddqn_clear_o3_sd2_st3` | alias→cl1_ddqn_clear_o3_sd2_st3; REGISTERED: cl_hz1x1 snap3o online-fidelity rerun of cl1_ddqn_clear_o3_sd2_st3 w |
+| `snap3o_ddqn_p_o3_sd0_st3` | snap3o_ddqn_p_soa/sumohz1x1/s0 | 100 | DONE | — | — | `data/output_data/tsc/sumo_dqn/sumohz1x1/snap3o_ddqn_p_o3_sd0_st3` | alias→soa3_soddqnp_o3_sd0_st3; REGISTERED: cl_hz1x1 snap3o online-fidelity rerun of soa3_soddqnp_o3_sd0_st3 wit |
+| `snap3o_ddqn_p_o3_sd1_st3` | snap3o_ddqn_p_soa/sumohz1x1/s1 | 100 | DONE | — | — | `data/output_data/tsc/sumo_dqn/sumohz1x1/snap3o_ddqn_p_o3_sd1_st3` | alias→soa3_soddqnp_o3_sd1_st3; REGISTERED: cl_hz1x1 snap3o online-fidelity rerun of soa3_soddqnp_o3_sd1_st3 wit |
+| `snap3o_ddqn_p_o3_sd2_st3` | snap3o_ddqn_p_soa/sumohz1x1/s2 | 100 | DONE | — | — | `data/output_data/tsc/sumo_dqn/sumohz1x1/snap3o_ddqn_p_o3_sd2_st3` | alias→soa3_soddqnp_o3_sd2_st3; REGISTERED: cl_hz1x1 snap3o online-fidelity rerun of soa3_soddqnp_o3_sd2_st3 wit |
+| `snap3o_ddqn_semi_o3_sd0_st3` | snap3o_ddqn_semi_soa/sumohz1x1/s0 | 100 | DONE | — | — | `data/output_data/tsc/sumo_dqn/sumohz1x1/snap3o_ddqn_semi_o3_sd0_st3` | alias→so1_soddqn_o3_sd0_st3; REGISTERED: cl_hz1x1 snap3o online-fidelity rerun of so1_soddqn_o3_sd0_st3 with  |
+| `snap3o_ddqn_semi_o3_sd1_st3` | snap3o_ddqn_semi_soa/sumohz1x1/s1 | 100 | DONE | — | — | `data/output_data/tsc/sumo_dqn/sumohz1x1/snap3o_ddqn_semi_o3_sd1_st3` | alias→so1_soddqn_o3_sd1_st3; REGISTERED: cl_hz1x1 snap3o online-fidelity rerun of so1_soddqn_o3_sd1_st3 with  |
+| `snap3o_ddqn_semi_o3_sd2_st3` | snap3o_ddqn_semi_soa/sumohz1x1/s2 | 100 | DONE | — | — | `data/output_data/tsc/sumo_dqn/sumohz1x1/snap3o_ddqn_semi_o3_sd2_st3` | alias→so1_soddqn_o3_sd2_st3; REGISTERED: cl_hz1x1 snap3o online-fidelity rerun of so1_soddqn_o3_sd2_st3 with  |
+| `snap3o_duel_clear_o3_sd0_st3` | snap3o_duel_clear_soa/sumohz1x1/s0 | 100 | DONE | — | — | `data/output_data/tsc/sumo_dqn/sumohz1x1/snap3o_duel_clear_o3_sd0_st3` | alias→cl1_duel_clear_o3_sd0_st3; REGISTERED: cl_hz1x1 snap3o online-fidelity rerun of cl1_duel_clear_o3_sd0_st3 w |
+| `snap3o_duel_clear_o3_sd1_st3` | snap3o_duel_clear_soa/sumohz1x1/s1 | 100 | DONE | — | — | `data/output_data/tsc/sumo_dqn/sumohz1x1/snap3o_duel_clear_o3_sd1_st3` | alias→cl1_duel_clear_o3_sd1_st3; REGISTERED: cl_hz1x1 snap3o online-fidelity rerun of cl1_duel_clear_o3_sd1_st3 w |
+| `snap3o_duel_clear_o3_sd2_st3` | snap3o_duel_clear_soa/sumohz1x1/s2 | 100 | DONE | — | — | `data/output_data/tsc/sumo_dqn/sumohz1x1/snap3o_duel_clear_o3_sd2_st3` | alias→cl1_duel_clear_o3_sd2_st3; REGISTERED: cl_hz1x1 snap3o online-fidelity rerun of cl1_duel_clear_o3_sd2_st3 w |
+| `snap3o_duel_p_o3_sd0_st3` | snap3o_duel_p_soa/sumohz1x1/s0 | 100 | DONE | — | — | `data/output_data/tsc/sumo_dqn/sumohz1x1/snap3o_duel_p_o3_sd0_st3` | alias→soa3_soduelp_o3_sd0_st3; REGISTERED: cl_hz1x1 snap3o online-fidelity rerun of soa3_soduelp_o3_sd0_st3 wit |
+| `snap3o_duel_p_o3_sd1_st3` | snap3o_duel_p_soa/sumohz1x1/s1 | 100 | DONE | — | — | `data/output_data/tsc/sumo_dqn/sumohz1x1/snap3o_duel_p_o3_sd1_st3` | alias→soa3_soduelp_o3_sd1_st3; REGISTERED: cl_hz1x1 snap3o online-fidelity rerun of soa3_soduelp_o3_sd1_st3 wit |
+| `snap3o_duel_p_o3_sd2_st3` | snap3o_duel_p_soa/sumohz1x1/s2 | 100 | DONE | — | — | `data/output_data/tsc/sumo_dqn/sumohz1x1/snap3o_duel_p_o3_sd2_st3` | alias→soa3_soduelp_o3_sd2_st3; REGISTERED: cl_hz1x1 snap3o online-fidelity rerun of soa3_soduelp_o3_sd2_st3 wit |
+| `snap3o_duel_semi_o3_sd0_st3` | snap3o_duel_semi_soa/sumohz1x1/s0 | 100 | DONE | — | — | `data/output_data/tsc/sumo_dqn/sumohz1x1/snap3o_duel_semi_o3_sd0_st3` | alias→so1_soduel_o3_sd0_st3; REGISTERED: cl_hz1x1 snap3o online-fidelity rerun of so1_soduel_o3_sd0_st3 with  |
+| `snap3o_duel_semi_o3_sd1_st3` | snap3o_duel_semi_soa/sumohz1x1/s1 | 100 | DONE | — | — | `data/output_data/tsc/sumo_dqn/sumohz1x1/snap3o_duel_semi_o3_sd1_st3` | alias→so1_soduel_o3_sd1_st3; REGISTERED: cl_hz1x1 snap3o online-fidelity rerun of so1_soduel_o3_sd1_st3 with  |
+| `snap3o_duel_semi_o3_sd2_st3` | snap3o_duel_semi_soa/sumohz1x1/s2 | 100 | DONE | — | — | `data/output_data/tsc/sumo_dqn/sumohz1x1/snap3o_duel_semi_o3_sd2_st3` | alias→so1_soduel_o3_sd2_st3; REGISTERED: cl_hz1x1 snap3o online-fidelity rerun of so1_soduel_o3_sd2_st3 with  |
 | `so1_soddqn_o2_sd0_st1` | soddqn_so/sumohz1x1/s0 | 100 | DONE | — | — | `—` | REGISTERED: cl_hz1x1 semi-offline train order_stage=o2/st1 offline_ratio=0.25 |
 | `so1_soddqn_o2_sd0_st2` | soddqn_so/sumohz1x1_config4/s0 | 100 | DONE | — | — | `—` | REGISTERED: cl_hz1x1 semi-offline train order_stage=o2/st2 offline_ratio=0.25 |
 | `so1_soddqn_o2_sd0_st3` | soddqn_so/sumohz1x1_config2/s0 | 100 | DONE | — | — | `—` | REGISTERED: cl_hz1x1 semi-offline train order_stage=o2/st3 offline_ratio=0.25 |
@@ -659,20 +677,73 @@
 | `soav_sodqnp_o2_sd2_st3` | sodqnp_soa/sumohz1x1_config2/s2 | 100 | DONE | — | — | `data/output_data/tsc/sumo_dqn/sumohz1x1_config2/soav_sodqnp_o2_sd2_st3` | REGISTERED: cl_hz1x1 anchor vdqn train order_stage=o2/st3 offline_ratio=0.25 |
 | `soav_sodqnp_o2_sd2_st4` | sodqnp_soa/sumohz1x1_config3/s2 | 100 | DONE | — | — | `data/output_data/tsc/sumo_dqn/sumohz1x1_config3/soav_sodqnp_o2_sd2_st4` | REGISTERED: cl_hz1x1 anchor vdqn train order_stage=o2/st4 offline_ratio=0.25 |
 
-评估 attempt 共 4564 行，按包/来源聚合：
+评估 attempt 共 4918 行，按包/来源聚合：
 
 | 评估包/来源 | n DONE/FAILED/ABORTED | 条件集 | eval seeds |
 |---|---|---|---|
+| `data/output_data/tsc/sumo_dqn/sumohz1x1/cl1_duel_base_s1_sd2` | 1/0/0 | micro_timeseries | 101 |
+| `data/output_data/tsc/sumo_dqn/sumohz1x1/snap3o_ddqn_clear_o3` | 7/0/0 | micro_timeseries | 101 |
+| `data/output_data/tsc/sumo_dqn/sumohz1x1/snap3o_ddqn_clear_o3` | 7/0/0 | micro_timeseries | 101 |
+| `data/output_data/tsc/sumo_dqn/sumohz1x1/snap3o_ddqn_clear_o3` | 7/0/0 | micro_timeseries | 101 |
+| `data/output_data/tsc/sumo_dqn/sumohz1x1/snap3o_ddqn_p_o3_sd0` | 7/0/0 | micro_timeseries | 101 |
+| `data/output_data/tsc/sumo_dqn/sumohz1x1/snap3o_ddqn_p_o3_sd1` | 7/0/0 | micro_timeseries | 101 |
+| `data/output_data/tsc/sumo_dqn/sumohz1x1/snap3o_ddqn_p_o3_sd2` | 7/0/0 | micro_timeseries | 101 |
+| `data/output_data/tsc/sumo_dqn/sumohz1x1/snap3o_ddqn_semi_o3_` | 7/0/0 | micro_timeseries | 101 |
+| `data/output_data/tsc/sumo_dqn/sumohz1x1/snap3o_ddqn_semi_o3_` | 7/0/0 | micro_timeseries | 101 |
+| `data/output_data/tsc/sumo_dqn/sumohz1x1/snap3o_ddqn_semi_o3_` | 7/0/0 | micro_timeseries | 101 |
+| `data/output_data/tsc/sumo_dqn/sumohz1x1/snap3o_duel_clear_o3` | 7/0/0 | micro_timeseries | 101 |
+| `data/output_data/tsc/sumo_dqn/sumohz1x1/snap3o_duel_clear_o3` | 7/0/0 | micro_timeseries | 101 |
+| `data/output_data/tsc/sumo_dqn/sumohz1x1/snap3o_duel_clear_o3` | 7/0/0 | micro_timeseries | 101 |
+| `data/output_data/tsc/sumo_dqn/sumohz1x1/snap3o_duel_p_o3_sd0` | 7/0/0 | micro_timeseries | 101 |
+| `data/output_data/tsc/sumo_dqn/sumohz1x1/snap3o_duel_p_o3_sd1` | 7/0/0 | micro_timeseries | 101 |
+| `data/output_data/tsc/sumo_dqn/sumohz1x1/snap3o_duel_p_o3_sd2` | 7/0/0 | micro_timeseries | 101 |
+| `data/output_data/tsc/sumo_dqn/sumohz1x1/snap3o_duel_semi_o3_` | 7/0/0 | micro_timeseries | 101 |
+| `data/output_data/tsc/sumo_dqn/sumohz1x1/snap3o_duel_semi_o3_` | 7/0/0 | micro_timeseries | 101 |
+| `data/output_data/tsc/sumo_dqn/sumohz1x1/snap3o_duel_semi_o3_` | 7/0/0 | micro_timeseries | 101 |
+| `data/output_data/tsc/sumo_dqn/sumohz1x1/so1_soduel_o2_sd2_st` | 1/0/0 | micro_timeseries | 101 |
+| `data/output_data/tsc/sumo_dqn/sumohz1x1/soa1_soduelp_o2_sd2_` | 1/0/0 | micro_timeseries | 101 |
+| `data/output_data/tsc/sumo_dqn/sumohz1x1_config2/so1_soduel_o` | 3/0/0 | micro_timeseries | 101 |
+| `data/output_data/tsc/sumo_dqn/sumohz1x1_config2/soa1_soduelp` | 3/0/0 | micro_timeseries | 101 |
+| `data/output_data/tsc/sumo_dqn/sumohz1x1_config3/so1_soduel_o` | 1/0/0 | micro_timeseries | 101 |
+| `data/output_data/tsc/sumo_dqn/sumohz1x1_config3/soa1_soduelp` | 1/0/0 | micro_timeseries | 101 |
+| `data/output_data/tsc/sumo_dqn/sumohz1x1_config4/so1_soduel_o` | 1/0/0 | micro_timeseries | 101 |
+| `data/output_data/tsc/sumo_dqn/sumohz1x1_config4/soa1_soduelp` | 1/0/0 | micro_timeseries | 101 |
+| `data/output_data/tsc/sumo_frap/sumohz1x1/cl1_frap_base_s1_sd` | 1/0/0 | micro_timeseries | 101 |
+| `data/output_data/tsc/sumo_frap/sumohz1x1/cl1_frap_base_s1_sd` | 1/0/0 | micro_timeseries | 101 |
+| `data/output_data/tsc/sumo_frap/sumohz1x1/so1_sofrap_o2_sd0_s` | 1/0/0 | micro_timeseries | 101 |
+| `data/output_data/tsc/sumo_frap/sumohz1x1/so1_sofrap_o2_sd1_s` | 1/0/0 | micro_timeseries | 101 |
+| `data/output_data/tsc/sumo_frap/sumohz1x1/soa1_sofrapp_o2_sd0` | 1/0/0 | micro_timeseries | 101 |
+| `data/output_data/tsc/sumo_frap/sumohz1x1/soa1_sofrapp_o2_sd1` | 1/0/0 | micro_timeseries | 101 |
+| `data/output_data/tsc/sumo_frap/sumohz1x1_config2/so1_sofrap_` | 1/0/0 | micro_timeseries | 101 |
+| `data/output_data/tsc/sumo_frap/sumohz1x1_config2/so1_sofrap_` | 1/0/0 | micro_timeseries | 101 |
+| `data/output_data/tsc/sumo_frap/sumohz1x1_config2/soa1_sofrap` | 1/0/0 | micro_timeseries | 101 |
+| `data/output_data/tsc/sumo_frap/sumohz1x1_config2/soa1_sofrap` | 1/0/0 | micro_timeseries | 101 |
+| `data/output_data/tsc/sumo_frap/sumohz1x1_config3/so1_sofrap_` | 3/0/0 | micro_timeseries | 101 |
+| `data/output_data/tsc/sumo_frap/sumohz1x1_config3/so1_sofrap_` | 3/0/0 | micro_timeseries | 101 |
+| `data/output_data/tsc/sumo_frap/sumohz1x1_config3/soa1_sofrap` | 3/0/0 | micro_timeseries | 101 |
+| `data/output_data/tsc/sumo_frap/sumohz1x1_config3/soa1_sofrap` | 3/0/0 | micro_timeseries | 101 |
+| `data/output_data/tsc/sumo_frap/sumohz1x1_config4/so1_sofrap_` | 1/0/0 | micro_timeseries | 101 |
+| `data/output_data/tsc/sumo_frap/sumohz1x1_config4/so1_sofrap_` | 1/0/0 | micro_timeseries | 101 |
+| `data/output_data/tsc/sumo_frap/sumohz1x1_config4/soa1_sofrap` | 1/0/0 | micro_timeseries | 101 |
+| `data/output_data/tsc/sumo_frap/sumohz1x1_config4/soa1_sofrap` | 1/0/0 | micro_timeseries | 101 |
 | `ddqn_clear` | 234/0/0 | clear,drift_diag | 101,102,103 |
 | `ddqn_fifo` | 180/0/0 | fifo | — |
-| `ddqn_probe` | 16/0/0 | probe | — |
+| `ddqn_probe` | 1/0/0 | probe | — |
 | `duel_clear` | 180/0/0 | clear | — |
 | `duel_fifo` | 180/0/0 | fifo | — |
 | `frap_clear` | 180/0/0 | clear | — |
 | `frap_fifo` | 180/0/0 | fifo | — |
 | `ppo_clear` | 0/0/0 | clear | — |
 | `ppov2_clear` | 180/0/0 | clear | — |
-| `ppov2_sampled_eval` | 120/0/0 | probe | — |
+| `snap3_ddqn_clear_soa` | 36/0/0 | semi_offline_anchor | 101,102,103 |
+| `snap3_ddqn_p_soa` | 36/0/0 | semi_offline_anchor | 101,102,103 |
+| `snap3_ddqn_semi_soa` | 36/0/0 | semi_offline_anchor | 101,102,103 |
+| `snap3_duel_clear_soa` | 36/0/0 | semi_offline_anchor | 101,102,103 |
+| `snap3_duel_p_soa` | 36/0/0 | semi_offline_anchor | 101,102,103 |
+| `snap3_duel_semi_soa` | 36/0/0 | semi_offline_anchor | 101,102,103 |
+| `snap3_frap_clear_soa` | 36/0/0 | semi_offline_anchor | 101,102,103 |
+| `snap3_frap_p_soa` | 36/0/0 | semi_offline_anchor | 101,102,103 |
+| `snap3_frap_semi_soa` | 36/0/0 | semi_offline_anchor | 101,102,103 |
 | `soddqn` | 54/0/0 | drift_diag | 101,102,103 |
 | `soddqn_r12_soa` | 90/0/0 | semi_offline_anchor | — |
 | `soddqn_r50_soa` | 90/0/0 | semi_offline_anchor | — |
@@ -760,5 +831,20 @@
 - 队列：`artifacts/cl_hz1x1/run_queue_cl1.json`、`run_queue_so1.json`
 - 生成/收割/绘图：`dev/cl_hz1x1/{build_queue,build_queue_so,harvest_matrix,plot_so_compare}.py`
 - 归档机制：`arterial/replay.py`（HistoricalPool/mixed_batch/HistoryArchiveWriter）+ `agent/{dqn,frap}.py` 移植接入
+
+### 7. soa1 输出锚定战役（增补，叙事见 `docs/experiments/2026-10-14_cl_hz1x1_qanchor.md`）
+
+- 批次：soas(306 筛 λπ∈{1,10}) + soa1(612 主矩阵 o2) + soa3(306 o3 复现)
+  + soar(1224 ρ∈{0.125,0.25,0.5} 剂量) + soav(204+12 vanilla DQN 对照)
+  + snap3(324 快照收敛探针) + snap3o(18 复跑 + 126 manifest 微观 eval)
+  + forget_eval(39 manifest 微观 eval) + drift(108 漂移补评)，全 DONE。
+- 结论：+P（λπ=1 策略锚 @ρ0.25）把 worst 旧场景退化压至 **≤+0.99s**
+  （+P+V ≤+1.5s），对角线 ≤+1.4s；o3 复现 worst ≤+0.56s；
+  ρ=0.25 为剂量甜点。微观：入场冲击=单方向相位饿死整 episode
+  （吞吐 −37%），遗忘=stage 内侵蚀（st4 前 50ep 内 +9.6s）的进口组
+  平衡漂移（吞吐无损）；锚定消除前者灾难、把后者压平。
+- 边界：锚定在新场景轴有中段回弹；去中心化 qc_l1 两臂接近（回放
+  压住漂移幅度与翻转率，非消除形状漂移）；shared_dqn 未接 anchor；
+  结论限 hz1x1 同质拓扑。
 
 <!-- EXTRA-END -->

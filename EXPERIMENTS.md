@@ -23,7 +23,7 @@
 
 ## 0. 总览
 
-登记 run 总数：**11793**（train 1224、eval attempt 10368、smoke 128、calibration 18、batch 29）
+登记 run 总数：**12513**（train 1472、eval attempt 10740、smoke 128、calibration 18、batch 30）
 
 | campaign | DONE | FAILED | ABORTED | SUPERSEDED | REGISTERED | SCOPE_DISCARD | LEGACY_UNCLEAR | 合计 |
 |---|---|---|---|---|---|---|---|---|
@@ -38,9 +38,18 @@
 | milestone0_infra | 12 | 0 | 0 | 0 | 0 | 0 | 0 | 12 |
 | paper_infra_validation | 19 | 0 | 0 | 0 | 0 | 0 | 0 | 19 |
 | misc_probes | 1 | 5 | 0 | 0 | 0 | 1 | 0 | 7 |
-| cl_hz1x1 | 4996 | 0 | 0 | 0 | 0 | 216 | 0 | 5212 |
+| cl_hz1x1 | 5368 | 0 | 0 | 0 | 0 | 216 | 0 | 5584 |
+| hitl_live_ab | 6 | 0 | 0 | 0 | 0 | 0 | 0 | 6 |
+| hitl_live_baseline | 2 | 0 | 0 | 0 | 0 | 0 | 0 | 2 |
+| hitl_live_gate | 30 | 0 | 0 | 0 | 0 | 0 | 0 | 30 |
+| hitl_live_pilot5 | 75 | 0 | 0 | 0 | 0 | 0 | 0 | 75 |
+| hitl_live_pseudo | 11 | 0 | 0 | 0 | 0 | 0 | 0 | 11 |
+| hitl_live_r2 | 30 | 0 | 0 | 0 | 0 | 0 | 0 | 30 |
+| hitl_live_r3 | 150 | 0 | 0 | 0 | 0 | 0 | 0 | 150 |
+| hitl_live_r4 | 20 | 0 | 0 | 0 | 0 | 0 | 0 | 20 |
 | signal_control_v1 | 0 | 0 | 0 | 0 | 4 | 0 | 0 | 4 |
-| **合计** | 11220 | 243 | 93 | 4 | 4 | 228 | 0 | **11793** |
+| takeover_probe_sig15 | 24 | 0 | 0 | 0 | 0 | 0 | 0 | 24 |
+| **合计** | 11940 | 243 | 93 | 4 | 4 | 228 | 0 | **12513** |
 
 状态语义见 GOVERNANCE.md §2。LEGACY_UNCLEAR=0 表示全部可识别 run 均通过队列/状态文件/目录归属证据还原出 campaign；个别 run 的臂内身份仍以命名约定为据，已在 notes 标注处保持保守。
 
@@ -59,8 +68,17 @@
 | `milestone0_infra` | 12 | 12/0/0/0 | 基础设施验证 | [明细](EXPERIMENTS/milestone0_infra.md) |
 | `paper_infra_validation` | 19 | 19/0/0/0 | paper 基建验证 | [明细](EXPERIMENTS/paper_infra_validation.md) |
 | `misc_probes` | 7 | 1/5/0/1 | 零散探针 | [明细](EXPERIMENTS/misc_probes.md) |
-| `cl_hz1x1` | 5212 | 4996/0/0/216 | hz1x1 持续学习：off-policy 机制性遗忘三骨干证实；+policy 锚 λπ=1 把 worst 退化压至 ≤1.0s 近零塑性代价；ρ 剂量响应显示锚定可省回放预算且 ρ=0.25 为甜点 | [明细](EXPERIMENTS/cl_hz1x1.md) |
+| `cl_hz1x1` | 5584 | 5368/0/0/216 | hz1x1 持续学习：off-policy 机制性遗忘三骨干证实；+policy 锚 λπ=1 把 worst 退化压至 ≤1.0s 近零塑性代价；ρ 剂量响应显示锚定可省回放预算且 ρ=0.25 为甜点 | [明细](EXPERIMENTS/cl_hz1x1.md) |
+| `hitl_live_ab` | 6 | 6/0/0/0 | — | [明细](EXPERIMENTS/hitl_live_ab.md) |
+| `hitl_live_baseline` | 2 | 2/0/0/0 | — | [明细](EXPERIMENTS/hitl_live_baseline.md) |
+| `hitl_live_gate` | 30 | 30/0/0/0 | — | [明细](EXPERIMENTS/hitl_live_gate.md) |
+| `hitl_live_pilot5` | 75 | 75/0/0/0 | — | [明细](EXPERIMENTS/hitl_live_pilot5.md) |
+| `hitl_live_pseudo` | 11 | 11/0/0/0 | — | [明细](EXPERIMENTS/hitl_live_pseudo.md) |
+| `hitl_live_r2` | 30 | 30/0/0/0 | — | [明细](EXPERIMENTS/hitl_live_r2.md) |
+| `hitl_live_r3` | 150 | 150/0/0/0 | — | [明细](EXPERIMENTS/hitl_live_r3.md) |
+| `hitl_live_r4` | 20 | 20/0/0/0 | — | [明细](EXPERIMENTS/hitl_live_r4.md) |
 | `signal_control_v1` | 4 | 0/0/0/0 | — | [明细](EXPERIMENTS/signal_control_v1.md) |
+| `takeover_probe_sig15` | 24 | 24/0/0/0 | — | [明细](EXPERIMENTS/takeover_probe_sig15.md) |
 
 ## 附：追溯口径说明
 

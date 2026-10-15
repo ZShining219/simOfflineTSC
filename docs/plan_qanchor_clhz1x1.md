@@ -1,6 +1,8 @@
 # cl_hz1x1 Q-锚定（Q-Anchor）半离线实验计划
 
-状态：执行中（screen 阶段）。设计定稿 2026-10-14，与用户确认λ筛选={1,10}两档、o2 先行。
+状态：已收官（screen/main/o3/ρ/vdqn/snap3/snap3o/forget 全批次 DONE）。
+设计定稿 2026-10-14，与用户确认λ筛选={1,10}两档、o2 先行。
+正式实验记录见 `docs/experiments/2026-10-14_cl_hz1x1_qanchor.md`。
 
 ## 动机
 

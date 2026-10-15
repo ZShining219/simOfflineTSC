@@ -23,16 +23,16 @@ import numpy as np
 
 
 ROOT = Path(__file__).resolve().parents[1]
-OUTPUT = ROOT / "output_data" / "国重项目中期汇报_260804"
+OUTPUT = ROOT / "data/output_data" / "国重项目中期汇报_260804"
 RESOURCE_CSV = (
     ROOT
-    / "output_data"
+    / "data/output_data"
     / "resource_efficiency_ha_vs_continuous"
     / "resource_efficiency_episode_level.csv"
 )
 BASELINE_RECORDS = (
     ROOT
-    / "output_data"
+    / "data/output_data"
     / "evaluations"
     / "plan1"
     / "plan1_best_checkpoint_reevaluation_v1_20260723"
@@ -40,7 +40,7 @@ BASELINE_RECORDS = (
 )
 FORGETTING_CSV = (
     ROOT
-    / "output_data"
+    / "data/output_data"
     / "resource_efficiency_ha_vs_continuous"
     / "forgetting_episode_level.csv"
 )
@@ -93,7 +93,7 @@ def resolve_source_path(value: str | Path) -> Path:
     text = str(path)
     candidates = []
     if "/data/output_data/" in text:
-        candidates.append(Path(text.replace("/data/output_data/", "/output_data/")))
+        candidates.append(Path(text.replace("/data/output_data/", "/data/output_data/")))
     if text.startswith("data/output_data/"):
         candidates.append(ROOT / text[len("data/") :])
     if not path.is_absolute():

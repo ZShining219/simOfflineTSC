@@ -19,6 +19,9 @@ class TrainingPayload:
     next_phase: object
     terminated: bool = False
     truncated: bool = False
+    # Optional aux dict for HITL reward shaping: keeps r_base alongside the
+    # shaped reward so replay payloads stay auditable (spec §5.4 r_base/r_train).
+    aux: object = None
 
     @classmethod
     def from_legacy(cls, payload):
@@ -51,6 +54,10 @@ class ReplayMetadata:
     training_seed: object = None
     age_at_sampling: object = None
     written_stage: object = None
+    # Optional HITL reward-shaping audit carried from the payload (B channel):
+    # diagnostics aggregates it per episode; the npz trajectory stays the
+    # environment-truth r_base reward.
+    reward_aux: object = None
 
 
 @dataclasses.dataclass(frozen=True)

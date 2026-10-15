@@ -160,6 +160,50 @@ class InferenceOnlyDQN:
         return np.argmax(values.cpu().numpy(), axis=1)
 
 
+def _rrt_block(tripinfo_path, route_path, horizon):
+    """Spec-§11.2 RRT: (1/N_due) Σ_v [min(arrival_v, T) − planned_depart_v].
+
+    planned departs come from the route file; arrival/insertion outcomes come
+    from tripinfo.xml (written by the eval-only --tripinfo-output flag).
+    Vehicles that never arrived (still running or never entered) count as T.
+    """
+    import xml.etree.ElementTree as ET
+
+    planned = {}
+    if os.path.isfile(route_path):
+        for obj in ET.parse(route_path).getroot().iter('vehicle'):
+            try:
+                depart = float(obj.attrib['depart'])
+            except (KeyError, ValueError):
+                continue
+            if depart < horizon:
+                planned[obj.attrib['id']] = depart
+    arrived = {}
+    inserted = 0
+    if os.path.isfile(tripinfo_path):
+        for obj in ET.parse(tripinfo_path).getroot().iter('tripinfo'):
+            vid = obj.attrib.get('id')
+            if vid is None:
+                continue
+            inserted += 1
+            arrival = float(obj.attrib.get('arrival', '-1'))
+            if arrival >= 0:
+                arrived[vid] = arrival
+    n_due = len(planned)
+    if n_due == 0:
+        return {'rrt': None, 'n_due': 0, 'arrived': 0, 'inserted': 0}
+    total = 0.0
+    for vid, depart in planned.items():
+        total += min(arrived.get(vid, float(horizon)), horizon) - depart
+    return {
+        'rrt': total / n_due,
+        'n_due': n_due,
+        'arrived': len(arrived),
+        'inserted': inserted,
+        'never_arrived': n_due - len(arrived),
+    }
+
+
 def _write_jsonl_atomic(path, records):
     directory = os.path.dirname(os.path.abspath(path))
     os.makedirs(directory, exist_ok=True)
@@ -326,6 +370,20 @@ def _evaluation_worker(request_path):
             },
             'wall_time_seconds': time.perf_counter() - started,
         }
+        # tripinfo.xml is only flushed when the engine closes; every metric
+        # call above still needs the live engine, so close comes last.
+        horizon = int(request['decision_count']) * int(
+            request['action_interval'])
+        close_report = world.close()
+        rrt = _rrt_block(
+            os.path.join(attempt_dir, 'tripinfo.xml'), world.route, horizon)
+        summary.update({
+            'rrt': rrt['rrt'],
+            'rrt_due_vehicles': rrt['n_due'],
+            'rrt_arrived_vehicles': rrt['arrived'],
+            'rrt_never_arrived': rrt.get('never_arrived', 0),
+            'world_close_report': close_report,
+        })
         _write_jsonl_atomic(os.path.join(attempt_dir, 'decisions.jsonl'), decisions)
         atomic_json(os.path.join(attempt_dir, 'summary.json'), summary)
         atomic_json(os.path.join(attempt_dir, 'success.json'), {

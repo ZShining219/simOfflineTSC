@@ -2,7 +2,7 @@ import task
 import trainer
 import agent
 import agent.offline_dqn  # register Batch-DQN/CQL-DQN evaluators
-import dataset
+import data.dataset
 from common.registry import Registry
 from common import interface
 from common.utils import *

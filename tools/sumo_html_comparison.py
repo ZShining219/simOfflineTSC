@@ -49,10 +49,12 @@ SCENE_ALIASES = {
     "S2": "sumohz1x1",
     "S3": "sumohz1x1_config4",
     "S4": "sumohz1x1_config3",
+    "S5": "sumohz4x4",
+    "S6": "sumohz4x4_hetero",
 }
 DEFAULT_S2_FIXEDTIME_INPUT = (
     Path(__file__).resolve().parents[1]
-    / "output_data/evaluations/plan1/"
+    / "data/output_data/evaluations/plan1/"
       "plan1_best_checkpoint_reevaluation_v1_20260723/records.jsonl"
 )
 

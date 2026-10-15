@@ -16,27 +16,33 @@
 
 - 支持 CityFlow 与 SUMO 交通仿真器（libsumo / traci 接口）。
 - 传统控制：FixedTime、SOTL、MaxPressure；强化学习：DQN、FRAP、CoLight、PressLight、MPLight、MADDPG、MAGD、PPO 等。
-- 四类互不混用的实验入口：`run.py`（Online/传统）、`offline_run.py`（纯 Offline）、`sequential_run.py`（Sequential / HA-SODQN 半离线）。
+- 统一包形状入口：`python run.py`（Online/传统）+ `python -m <pkg>[.<face>]`（sequential 半离线、scene_attention 注意力、hitl 通道；见「实验入口边界」）。
 - 配套工具：路网与交通流格式转换、SUMO HTML 回放对比、浏览器实时转播（见「工具与可视化」）。
 
-## 实验入口边界
+## 实验入口边界（统一包形状，GOVERNANCE §3.1）
 
-| 项目 | Online/传统 TSC | Plan 2 纯 Offline DQN | Plan 3/4 Sequential DQN | HA-SODQN 半离线 |
-| --- | --- | --- | --- | --- |
-| 正确入口 | `run.py` | `offline_run.py` | `sequential_run.py` | `sequential_run.py` 的 HA 子命令 |
-| 主要配置 | `configs/tsc/` | `configs/offline_tsc/` | `configs/sequential/plan34*.yml` | `configs/sequential/ha_sodqn_b100.yml` |
-| 当前支持 | 传统控制、DQN、PPO 等既有 agent | `batch_dqn`、`cql_dqn` | Independent DQN | Independent DQN + 静态历史混合采样 |
-| 训练数据 | 仿真中在线生成 | 冻结的 Plan 1 trajectory | 四场景顺序在线交互 | 顺序在线交互 + Plan 1 静态档案 |
-| 主要输出 | `data/output_data/tsc/` | `data/output_data/offline_tsc/` | `data/output_data/sequential/` | `data/output_data/ha_sodqn/` |
-| 额外依赖 | 核心依赖和对应 agent/仿真器 | 另加 `requirements-offline.txt` | PyTorch、SUMO | PyTorch、SUMO 和已验收历史资产 |
+拉起语法统一为 **`python -m <pkg>[.<face>] [args]`**；`python -m <pkg>` 打印该包面表。
+
+| 工作 | 面 | 配置 | 产物 |
+| --- | --- | --- | --- |
+| Online/传统 TSC（fixedtime/dqn/colight 等） | `python run.py` | `configs/tsc/` | `data/output_data/tsc/` |
+| Plan 2 纯 Offline DQN | `python -m sequential.offline train` | `configs/offline_tsc/` | `data/output_data/offline_tsc/` |
+| Plan 3/4 Sequential / HA-SODQN / HITL 通道训练 | `python -m sequential <verb>`（manifest 驱动） | `configs/sequential/` | `data/output_data/{sequential,ha_sodqn,hitl_probe}/` |
+| 场景引导注意力训练/评测 | `python -m scene_attention.train` / `.eval` | `scene_attention/events.py` 常量源 | `data/output_data/dev_takeover_probe/` |
+| HITL 实时服务 | `python -m hitl.serve` | `--scene/--dispatch/--gate/--record` | `data/output_data/hitl_probe/sessions/` |
+| HITL 数据面/plan/探针/审计 | `python -m hitl.pipeline <stage>` / `hitl.plans build --round <r>` / `hitl.probe.<x>` / `hitl.audit.<x>` | 见 `hitl/README.md` | `data/output_data/hitl_probe/` |
+
+兼容 shim（过渡，将移除）：`python sequential_run.py`→`-m sequential`，`python offline_run.py`→`-m sequential.offline`。
 
 调用规则：
 
-- 四类入口必须使用各自命令，不能用相似参数名替代实验语义：不要通过 `run.py --agent batch_dqn` 启动 Offline，也不要通过 `offline_run.py` 启动 Online/传统实验。
-- `offline_run.py` 训练期间不会向数据集追加 transition，也不会修改源 Plan 1 NPZ。
+- 各面必须使用各自命令，不能用相似参数名替代实验语义：不要通过 `run.py --agent batch_dqn` 启动 Offline，也不要通过 `-m sequential.offline` 启动 Online/传统实验。
+- `-m sequential.offline` 训练期间不会向数据集追加 transition，也不会修改源 Plan 1 NPZ。
 - HA-SODQN 不能通过修改 YAML 直接切换为 Double DQN 或 PPO；跨算法验证需要先增加算法 identity、训练 target/loss、checkpoint 和 evaluator 适配。
+- 正式 run 只走两条路径：队列 runner（`tools/run_experiment_queue.py`+`run_queue_*.json`）或 `bench/` profile；一次性件归 `dev/<topic>/` 并登 `dev/INDEX.md`。
+- 出图/表格脚本（`<pkg>/figs/` 等）为产物件不是入口。
 
-详细手册：Offline 数据门禁与恢复见 [Plan 2 支持说明](docs/plan2_offline_support.md)；半离线科学设计、结果边界与迁移步骤见 [半离线实验总结与跨算法复现实用指南](docs/semi_offline_cross_algorithm_reproduction.md)。
+详细手册：Offline 数据门禁与恢复见 [Plan 2 支持说明](docs/plan2_offline_support.md)；半离线科学设计、结果边界与迁移步骤见 [半离线实验总结与跨算法复现实用指南](docs/semi_offline_cross_algorithm_reproduction.md)；HITL 通道与边界见 [hitl/README.md](hitl/README.md)；注意力线见 [scene_attention/README.md](scene_attention/README.md)。
 
 ## 研究线：半离线实验链（Plan 1–4 / HA-SODQN）
 
@@ -99,26 +105,27 @@ data/output_data/sequential/             # Sequential DQN
 data/output_data/ha_sodqn/               # HA-SODQN engineering / 正式运行 / 分析
 ```
 
-`data/output_data/`、根目录 `output_data/`、`analysis/`、`tmp/` 以及 checkpoint/日志/图像类文件均已在 `.gitignore` 中忽略，可再生成的大型产物不提交 Git。
+`data/output_data/`、根目录 `data/output_data/`、`analysis/`、`tmp/` 以及 checkpoint/日志/图像类文件均已在 `.gitignore` 中忽略，可再生成的大型产物不提交 Git。
 
 ## 项目结构
 
 | 路径 | 说明 |
 | --- | --- |
-| run.py / offline_run.py / sequential_run.py | 三类实验入口（见「实验入口边界」） |
+| run.py | Online/传统实验入口（offline_run.py/sequential_run.py 为过渡 shim） |
 | environment.py | 环境探测辅助 |
 | agent/ | 传统控制及强化学习智能体 |
 | world/ | CityFlow、SUMO 等仿真器适配层 |
 | trainer/、task/ | 训练评估流程与任务编排 |
 | configs/{tsc,offline_tsc,sequential,sim,evaluation} | 智能体、离线、顺序/半离线、仿真器及评估配置 |
-| data/raw_data/ | 路网、交通流和信号方案数据 |
-| common/、generator/、dataset/ | 注册器与配置加载、特征生成器、数据集接口 |
-| sequential/ | 顺序训练 agent、runtime、历史档案、恢复、验证和分析实现 |
+| data/ | 数据层：`raw_data/`（路网输入，只读）、`output_data/`（run 产物证据桶，gitignore）、`dataset/`（数据集接口代码） |
+| common/、generator/ | 注册器与配置加载、特征生成器 |
+| sequential/ | 方法包：持续学习+半离线训练（manifest 驱动，`python -m sequential`；README 方法卡） |
+| scene_attention/ | 方法包：场景引导注意力主线（`python -m scene_attention`；README 方法卡） |
+| hitl/ | 通道包：人在回路实时+数据面（`python -m hitl`；README 通道卡与边界） |
 | GOVERNANCE.md、EXPERIMENTS.md、EXPERIMENTS/、ledger/ | 实验治理规范、台账索引与各 campaign 明细、机读台账 |
 | bench/ | 正式验收口径（BENCH.md + profiles） |
 | dev/ | 一次性脚本唯一合法堆放处 + INDEX.md 登记 |
-| docs/ | Plan、goal 及专项支持说明等阶段性参考文件 |
-| scripts/ | 辅助脚本（如 run 配置比对） |
+| docs/ | 计划文档 + **实验记录**（`docs/experiments/`，每实验一份固定格式，规则见 `docs/README.md`）+ 里程碑归档 `docs/done/` |
 | tools/、tests/ | 分析与可视化工具（见下节）、最小回归测试 |
 
 ## 工具与可视化
@@ -135,7 +142,27 @@ data/output_data/ha_sodqn/               # HA-SODQN engineering / 正式运行 /
   ```
 
   辅助实现 `tools/sumo_gui_comparison.py`（SUMO-GUI/TraCI 截图或 GIF 回放）；页面产物输出到 `/tmp` 等产物目录，不提交 Git。
-- **`tools/sumo_live_broadcast/`**：浏览器实时转播服务（libsumo 实时步进，SSE 收帧 + HTTP POST 控制）。支持运行时切换 FixedTime/MaxPressure/SOTL/DQN 快照/人工接管、相位卡片点击接管、变速与决策点等待确认。最小示例 `python -m tools.sumo_live_broadcast --scene S2 --port 8010`；常驻托管脚本 `supervise.sh` 遵循仓库 `*.sh` 约定不入 Git。回归测试 `tests/test_sumo_live_broadcast.py`。
+- **`hitl/live/`（原 `tools/sumo_live_broadcast/`）**：浏览器实时转播服务（libsumo 实时步进，SSE 收帧 + HTTP POST 控制）。支持运行时切换 FixedTime/MaxPressure/SOTL/DQN 快照/人工接管、相位卡片点击接管、变速与决策点等待确认；多路口场景（如 S5=sumohz4x4）下控制器逐路口决策，相位面板可通过下拉或点击地图路口切换。地图渲染可插拔：默认 deck.gl WebGL 渲染（`static/vendor/deck.min.js`，MIT），`?renderer=canvas` 可切回无依赖 Canvas 实现，两者实现同一契约（`static/js/renderer.js`）。最小示例 `python -m hitl.serve --scene S2 --port 8010`；常驻托管脚本 `hitl/live/supervise.sh`。回归测试 `tests/test_sumo_live_broadcast.py`。
+
+  转播层另注册了场景引导调度控制器 `dsp` / `dspconcat` / `dspself`（`hitl/live/controllers.py` 的 `DispatchController`）：内部按 120 s 窗口在候选控制器间选接管臂，调度轨迹通过事件流透出。
+
+## 三条研究线
+
+本仓在 LibSignal 基座（`agent/`+`world/`+`trainer/`+`run.py`）之上并行推进三条研究线，均为 Route A 包形状（`python -m <pkg>` 打面表，方法卡见各自 README）：
+
+### 1. 半离线 / 持续学习（`sequential/`）
+
+从在线交互到离线/半离线训练的迁移线：Plan 2 纯离线（白名单 run→只读轨迹索引→离线训练，`python -m sequential.offline`）、manifest 驱动的持续学习与 HA-SODQN 半离线训练（`python -m sequential` 39 子命令）、HITL 采集数据回流训练。产物 `data/output_data/{offline_tsc,offline_datasets,sequential,ha_sodqn}/`。
+
+### 2. 人在回路（`hitl/`）
+
+实时播报→人判→回注控制的通道线（非 train/eval 型包）：`hitl.serve` 实时转播服务（libsumo 步进+SSE+接管控制）、`hitl.pipeline` 会话打包/特征生成、`hitl.plans` 轮次 plan 生成、`hitl.probe`/`hitl.audit` 探针与审计。训练态归 sequential，本包无 train 面。产物 `data/output_data/hitl_probe/`。
+
+### 3. 场景引导注意力调度（`scene_attention/`）
+
+事件播报文本编码为场景 query，引导对车道状态 token 的交叉注意力，产出浓缩场景表征注入信号控制。当前主线为单层场景条件控制器 `SceneJointPolicy`（dqn_s1 底座 + sga 注意力 + 门控有界残差），训练链路 adapter 教师蒸馏→原装 reward RL 微调→意图编译层；历史对照臂（selfattn/concat/state-only 消融）已从维护面移除（git 可查），SMDP Router 双层架构已否决（归档 `_legacy/router/`）。机制谱系与产物映射见其 README。产物 `data/output_data/dev_takeover_probe/`（沿用旧桶名）。
+
+历史注记：控制器注册表与场景编码器解耦的 `DispatchRouter` 双层架构已被否决（上层动作空间退化为控制器选择），实现留存于 `scene_attention/_legacy/router/`（附死因 README）；编码器活组件（`CompositeSceneEncoder` 等）在 `scene_attention/dispatch_model.py`。
 
 ## 在其他服务器复现
 
@@ -144,6 +171,7 @@ Git 只同步代码、配置与场景；trajectory、checkpoint、dataset index 
 ## 开发约定
 
 - 新实验优先通过 configs/ 管理参数，避免硬编码；四类入口不混用。
+- **每次实验（含相关改动）在 `docs/experiments/` 建档**：一份固定格式文档回答改动意图/改动模块/实验设计/实验结果，模板 `docs/experiments/TEMPLATE.md`，规则见 `docs/README.md` 与 `GOVERNANCE.md` §4.5。
 - 修改智能体或训练流程后，至少运行一个受影响仿真器的最小代表性实验，并记录仿真器、agent、网络、随机种子和完整命令；正式实验另记 Order/Archive/seed/manifest hash 与恢复链。
 - 不提交 `data/output_data/`、checkpoint、缓存等可再生成产物；大规模数据用外部存储并在文档中给出校验信息。
 - 实验相关的一次性脚本放 `dev/<topic>/` 并在 `dev/INDEX.md` 登记。

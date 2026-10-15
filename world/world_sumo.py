@@ -743,6 +743,9 @@ class World(object):
             command += [
                 '--log', os.path.join(self.evaluation_output_dir, 'sumo.log'),
                 '--error-log', os.path.join(self.evaluation_output_dir, 'sumo.stderr.log'),
+                '--tripinfo-output',
+                os.path.join(self.evaluation_output_dir, 'tripinfo.xml'),
+                '--tripinfo-output.write-unfinished', 'true',
             ]
             if not self.interface_flag:
                 self._sumo_stdout_handle = open(

@@ -9,7 +9,7 @@ from agent.offline_dqn import (
     BatchDQNAgent, CQLDQNAgent, build_full_q_mse_target,
     compute_offline_loss_tensors,
 )
-from dataset.offline_trajectory_dataset import OfflineBatch
+from data.dataset.offline_trajectory_dataset import OfflineBatch
 from trainer.offline_tsc_trainer import should_update_target
 
 

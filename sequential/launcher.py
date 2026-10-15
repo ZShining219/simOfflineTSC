@@ -683,7 +683,7 @@ class SequentialLauncher:
                     stdout = open(stdout_path, 'ab', buffering=0)
                     stderr = open(stderr_path, 'ab', buffering=0)
                     command = [
-                        self.python_executable, 'sequential_run.py', child_command,
+                        self.python_executable, '-m', 'sequential', child_command,
                         '--manifest', self.manifest_path,
                         '--logical-run-id', logical_id,
                         '--attempt-dir', attempt['attempt_dir'],

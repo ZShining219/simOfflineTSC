@@ -4,7 +4,7 @@ import unittest
 
 import numpy as np
 
-from dataset.offline_trajectory_dataset import OfflineBatch
+from data.dataset.offline_trajectory_dataset import OfflineBatch
 from sequential.historical_archive import (
     HistoricalArchive, derive_rng_seed, stable_digest,
 )

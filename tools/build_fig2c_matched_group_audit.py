@@ -9,7 +9,7 @@ OUT=ROOT/'analysis/FIG2C_MATCHED_GROUP_BELLMAN_AUDIT'; OUT.mkdir(parents=True,ex
 SCENES=['sumohz1x1_config2','sumohz1x1','sumohz1x1_config4','sumohz1x1_config3']
 ALIAS=dict(zip(SCENES,['S1','S2','S3','S4']))
 PAIRS=[(SCENES[i],SCENES[j]) for i in range(4) for j in range(i+1,4)]
-RUNROOT=ROOT/'output_data/tsc/sumo_dqn'
+RUNROOT=ROOT/'data/output_data/tsc/sumo_dqn'
 
 def load():
  rows=[]
@@ -71,7 +71,7 @@ def main():
  runs_n = pd.concat([B.source_run_i, B.source_run_j]).nunique()
  (OUT/'07_pseudoreplication_audit.md').write_text(f'# Pseudoreplication audit\n\nUnique exact keys: {B.observation_key.nunique()}; matched transition pairs/groups: {len(B)}; evaluator rows: {len(E)}; source runs: {runs_n}; source episodes: {episodes_n}; evaluators: {E.evaluator_id.nunique()}. Evaluator rows are learned-Q evaluations, not independent environment samples. Pairing is deterministic one-to-one zip within each exact key after sorting; no Cartesian product.\n',encoding='utf-8')
  (OUT/'00_README.md').write_text('# FIG2C matched-group Bellman audit\n\nScope: HOA_USED_100 = formal DQN episodes 1-100, time_control=none. Observation is 8 lane-count fields plus current phase one-hot (16-D DQN input); exact key includes all 8 counts, phase, action. Reward is saved training reward (mean over ten 1-s simulator steps), gamma=0.95. Existing formal evaluator uses target network max Q(next observation, action), no Double-DQN selection/evaluation split, and no terminal mask. Scenes: S1=sumohz1x1_config2, S2=base (raw sumohz1x1), S3=sumohz1x1_config4, S4=sumohz1x1_config3. One-to-one deterministic pairing within key avoids Cartesian expansion.\n',encoding='utf-8')
- (OUT/'01_provenance_audit.csv').write_text('artifact,source\nrunlist,output_data/analysis/plan1/p1_formal_20_runlist_20260722.csv\nmatching_logic,tools/plan1_observation_conditioned_outcomes.py\ntransition_source,output_data/tsc/sumo_dqn/*/trajectory/episodes/episode_*.npz\nevaluator_source,output_data/tsc/sumo_dqn/*/checkpoints/resumable/episode_0400.pt\n',encoding='utf-8')
+ (OUT/'01_provenance_audit.csv').write_text('artifact,source\nrunlist,data/output_data/analysis/plan1/p1_formal_20_runlist_20260722.csv\nmatching_logic,tools/plan1_observation_conditioned_outcomes.py\ntransition_source,data/output_data/tsc/sumo_dqn/*/trajectory/episodes/episode_*.npz\nevaluator_source,data/output_data/tsc/sumo_dqn/*/checkpoints/resumable/episode_0400.pt\n',encoding='utf-8')
  finite_ok = np.isfinite(E.select_dtypes('number').to_numpy()).all()
  (OUT/'08_validation_report.md').write_text(f'# Validation\n\nExact observation/action match enforced by key; next observation equality retained. Evaluators: {E.evaluator_id.nunique()} (expected 20). Bellman identity max error: {np.max(np.abs(E.delta_target_signed-(E.delta_reward_signed+E.delta_bootstrap_signed))):.3g}. NaN/inf present: {not finite_ok}.\n',encoding='utf-8')
 if __name__=='__main__': main()

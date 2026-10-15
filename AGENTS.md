@@ -15,7 +15,7 @@
 - common/、utils/ 和 generator/：共享配置、日志、指标和特征生成工具。
 - configs/：仿真器与交通信号控制实验配置。
 - data/raw_data/：路网和交通流输入数据。
-- dataset/：数据集接口与实现。
+- data/dataset/：数据集接口与实现。
 - docs/：存放 plan、goal 及其他阶段性执行参考文件。
 - final_result/：结果处理工具或实验产物。
 
@@ -156,7 +156,7 @@ Agent 应帮助降低后续任务成本，而不仅是完成当前指令。
 
 1. 读 `EXPERIMENTS.md` 顶部「当前面板」（现状/当前设计栈/代号地图）→ 本文件；`GOVERNANCE.md` 按需查节；campaign 明细在 `EXPERIMENTS/<campaign>.md`（勿通读索引层以外内容）；机读事实源 `ledger/runs.jsonl`。
 2. 认领登记见 `artifacts/wiki_claims/`（历史追溯登记不进 claims）。
-3. 新实验：设计定稿→台账 REGISTERED→SMOKE→远端 tmux 自治派发→收割三指标+过程记录→回填台账。正式 run 只允许 队列 runner + `run_queue_*.json` 或 `bench/` profile 两条路径；禁止新写一次性驱动脚本直拉正式 run（一次性件归 `dev/<topic>/` 并登 `dev/INDEX.md`）。
+3. 新实验：设计定稿→台账 REGISTERED→SMOKE→远端 tmux 自治派发→收割三指标+过程记录→回填台账；**同时在 `docs/experiments/` 按模板建/更实验叙事记录**（四节必填：意图/模块/设计/结果，规则见 `docs/README.md` 与 GOVERNANCE §4.5）。正式 run 只允许 队列 runner + `run_queue_*.json` 或 `bench/` profile 两条路径；禁止新写一次性驱动脚本直拉正式 run（一次性件归 `dev/<topic>/` 并登 `dev/INDEX.md`）。
 4. 注意力线口径：三指标（travel_time/throughput/unfinished_vehicles）强制同报 + 事件窗分层 + 四层判定（表征/优化/语义效用/闭环）；阶段①分类关卡不过线不进阶段②，见 `bench/BENCH.md`。
 5. 本仓 GitHub public：入库文件禁写内网 IP/主机名/跳板拓扑/绝对路径，机器用代号 34/73，路径一律仓内相对路径。
 6. 拿不准 → 记"受阻"+原因，等裁决，不猜。
@@ -173,3 +173,4 @@ Agent 应帮助降低后续任务成本，而不仅是完成当前指令。
 | 2026-10-07 | 3a04dad feat/w34-eval-v2-closure | eval_v2 协议：`world_sumo.set_episode_seed`+`PlanController.episode_seed_base`+`trainer.sumo_seed_per_episode`+`run_tarl_struct_cf --eval_protocol`（plan 集 e 用 base+e 种子，eval_v1 口径并存）；closure_bind：`TextEntityBinder(closure_binding='nearest_upstream')` 把不可特征绑定的 road_closure 报告经拓扑 BFS 绑到最近受控上游节点，`Gnode.node_fallback_mask` 独立承载 | t34_cc 定位 eval 有效样本≈1（SUMO 种子 run 级不变）；t34_devin 定位 road_closure 边界边覆盖缺口 | 评估协议 eval_v1/eval_v2；closure_bind 臂（closure_binding 默认 None，其余臂逐位不变） |
 | 2026-10-08 | 18af0e3+5a7e34e feat/w34-eval-v2-closure | 治理层工作区副本对账入库（台账补登 w34 共 40 run、dev/INDEX 补 w34 probes+scene_semantics、att004 补 eval_v2/w34_3 批次）后合并 origin/main（至 f838b62）：带入 §5.5 语义变更通道、fixG 收官判读、门户 README、tools/sumo_live_broadcast 实时转播模块+回归测试；冲突口径=README 取 main 门户版、runs.jsonl/INDEX/AGENTS 取本地超集、att004 取并集 | 消除 feat 线与 main 的治理文件双轨分叉，w34 后续工作在最新治理口径上进行 | 规范/台账层 + tools 新增转播模块；不动任何臂/profile/产物语义 |
 | 2026-10-08 | feat/w34-eval-v2-closure | `TSCTrainer.create_world` 增加可选 `trainer.signal_control` 安装（SUMO 限定 + `action_interval>yellow_seconds` 守卫，复用 `install_signal_control`）；新臂配置 `configs/tsc/dqn_gy5.yml` + 冒烟 `dqn_gy5_smoke.yml` | 让 run.py 主线（dqn/tarl_* 等）具备与 paper_* 线相同的修正黄灯过渡能力；语义变更显性化——带过渡 run 与历史无过渡 run 指标不可比 | 新臂 dqn_gy5（过渡语义变更）；不配 signal_control 的既有臂逐位不变 |
+| 2026-10-13 | main | 数据层归一：根 `output_data/`（522G 证据桶）迁入 `data/output_data/`，`dataset/`（接口代码）迁入 `data/dataset/`；`data/`=输入 raw_data + 产物 output_data + 接口 dataset 三层意图分区；全仓 `output_data/` 引用改 `data/output_data/`（含台账 3108 处），import 改 `data.dataset.*`；`configs/*/base.yml` 的 `data_dir` 保持 `dataset/`（其语义为 run 内相对子目录） | 统一 data/dataset/output_data 三语义撞名；证据路径仅前缀迁移、桶名不变 | 全仓链路；smoke_fixedtime_hz1x1 冒烟复验通过 |

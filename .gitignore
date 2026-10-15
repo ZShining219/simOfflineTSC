@@ -3,8 +3,6 @@ __pycache__/
 .idea/
 .vscode/
 data/output_data/
-/artifacts/
-/output_data/
 /analysis/
 /tmp/
 *.ipynb
@@ -41,3 +39,9 @@ data/output_data/
 !dev/checks/*.sh
 *.ipynb
 /.secrets/
+
+# Runtime coordination artifacts (queues / claims / eval bundles) — runtime state, not versioned.
+/artifacts/*
+!/artifacts/wiki_claims/
+/artifacts/wiki_claims/*
+!/artifacts/wiki_claims/README.md

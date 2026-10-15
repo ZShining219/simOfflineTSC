@@ -45,7 +45,7 @@ class OfflineSampler:
         )
 
 
-def agent(ratio=0.0):
+def agent(ratio=0.0, expert_ratio=0.0):
     result = HASODQNAgent.__new__(HASODQNAgent)
     result.model = torch.nn.Linear(16, 8)
     result.target_model = torch.nn.Linear(16, 8)
@@ -75,6 +75,14 @@ def agent(ratio=0.0):
     result.historical_sampler = None if ratio == 0 else OfflineSampler()
     result.online_rng = random.Random(11)
     result.hoa_rng = random.Random(12)
+    result.expert_pool_manifest = (
+        'pool-manifest.json' if expert_ratio else None)
+    result.expert_ratio = expert_ratio
+    result.expert_capacity = 5000
+    result.expert_archive = object() if expert_ratio else None
+    result.expert_view = None
+    result.expert_sampler = OfflineSampler() if expert_ratio else None
+    result.expert_rng = random.Random(13)
     result.alignment_observations = []
     result.current_stage_index = 1
     result.current_network = 'current'
@@ -137,6 +145,35 @@ class HASODQNAgentTest(unittest.TestCase):
         update = subject.successful_gradient_update()
         self.assertEqual(0, update['offline_count'])
         self.assertEqual(64, update['online_count'])
+
+    def test_expert_leg_quota_and_weighted_loss(self):
+        subject = agent(0.25, expert_ratio=0.125)
+        update = subject.successful_gradient_update()
+        self.assertEqual(8, update['expert_count'])
+        self.assertEqual(16, update['offline_count'])
+        self.assertEqual(40, update['online_count'])
+        self.assertEqual([8], subject.expert_sampler.counts)
+        self.assertEqual(
+            ['online'] * 40 + ['offline'] * 16 + ['expert'] * 8,
+            update['sample_source_kinds'],
+        )
+        self.assertEqual(8, len(update['expert_transition_ids']))
+        self.assertEqual(
+            64, len(update['sample_transition_ids']))
+        expected = (
+            (40 / 64) * update['loss_online']
+            + (16 / 64) * update['loss_offline']
+            + (8 / 64) * update['loss_expert']
+        )
+        self.assertAlmostEqual(update['loss'], expected, places=6)
+
+    def test_expert_leg_disabled_by_default(self):
+        subject = agent(0.0)
+        update = subject.successful_gradient_update()
+        self.assertEqual(0, update['expert_count'])
+        self.assertIsNone(update['loss_expert'])
+        self.assertEqual(0.0, update['actual_expert_ratio'])
+        self.assertEqual([], update['expert_transition_ids'])
 
     def test_episode_zero_path_restores_plan1_random_action_warmup(self):
         subject = agent(0.0)

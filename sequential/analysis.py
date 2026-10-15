@@ -4,6 +4,8 @@ from concurrent.futures import ProcessPoolExecutor
 
 import numpy as np
 
+_trapz = getattr(np, 'trapezoid', None) or np.trapz
+
 from .io import atomic_json, read_json
 from .validation import compare_recovery_pair, validate_attempt
 
@@ -15,7 +17,7 @@ def normalized_auc(travel_times, baseline, horizon=None):
     horizon = len(values) - 1 if horizon is None else int(horizon)
     if len(values) != horizon + 1 or horizon <= 0 or baseline <= 0:
         raise ValueError('AUC series, horizon, or baseline is invalid')
-    return float(np.trapz(values / float(baseline), dx=1.0) / horizon)
+    return float(_trapz(values / float(baseline), dx=1.0) / horizon)
 
 
 def raw_auc(values, horizon=None):
@@ -25,7 +27,7 @@ def raw_auc(values, horizon=None):
     horizon = len(values) - 1 if horizon is None else int(horizon)
     if len(values) != horizon + 1 or horizon <= 0:
         raise ValueError('AUC series or horizon is invalid')
-    return float(np.trapz(values, dx=1.0) / horizon)
+    return float(_trapz(values, dx=1.0) / horizon)
 
 
 def exact_sign_flip_test(paired_differences):

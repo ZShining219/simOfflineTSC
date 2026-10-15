@@ -17,9 +17,9 @@ Git 只同步代码、配置、四个 SUMO 场景及工具。Plan 1 trajectory�
 | 实验族 | 训练期间环境交互 | 历史数据 | 当前状态 | 正确入口 |
 | --- | ---: | --- | --- | --- |
 | Plan 1 Online DQN | 有 | 无 | 20 个正式运行已完成；也是历史数据和初始化来源 | `run.py` |
-| Plan 2 pure Offline DQN | 0 | Plan 1 冻结 trajectory | Batch-DQN/CQL-DQN 共 160 个正式运行已完成 | `offline_run.py` |
-| Plan 3/4 Sequential DQN | 有 | 当前顺序运行生成的 replay | clear/FIFO/fifo_matched_wait；用于分析切换和遗忘 | `sequential_run.py` |
-| HA-SODQN 半离线 | 有 | Plan 1 Episode 1–100 静态档案 | E0～E4 正式实验已完成 | `sequential_run.py` 的 HA 子命令 |
+| Plan 2 pure Offline DQN | 0 | Plan 1 冻结 trajectory | Batch-DQN/CQL-DQN 共 160 个正式运行已完成 | `python -m sequential.offline` |
+| Plan 3/4 Sequential DQN | 有 | 当前顺序运行生成的 replay | clear/FIFO/fifo_matched_wait；用于分析切换和遗忘 | `python -m sequential` |
+| HA-SODQN 半离线 | 有 | Plan 1 Episode 1–100 静态档案 | E0～E4 正式实验已完成 | `python -m sequential` 的 HA 子命令 |
 
 此外，`CS-HR` 原型位于 `sequential/hybrid.py` 和 `sequential/hybrid_agent.py`。它冻结当前顺序运行中已经完成的 stage 数据作为历史池；HA-SODQN 的 HOA 则只来自运行开始前就固定的 Plan 1 数据。两者的数据因果边界不同，不应合并成同一方法。
 
@@ -163,7 +163,7 @@ E4 复用了 O2 的 25 个既有身份，新运行 75 个身份。E0～E4 按阶
 | Independent DQN | 是 | 是 | 当前正式半离线算法 |
 | Double DQN | 否 | 否 | 当前 target 使用 target network 上的直接 max，需要新增 online argmax + target gather |
 | Dueling DQN/DDQN | 否 | 否 | 需要新增网络结构、checkpoint identity 和 evaluator 构建逻辑 |
-| Batch-DQN/CQL-DQN | 是，仅 Plan 2 pure Offline | 否 | `offline_run.py` 的算法和 trainer 与 sequential/HA 隔离 |
+| Batch-DQN/CQL-DQN | 是，仅 Plan 2 pure Offline | 否 | `python -m sequential.offline` 的算法和 trainer 与 sequential/HA 隔离 |
 | PPO | 是，普通 Online | 否 | 当前 PPO 不是 HA runtime/checkpoint/evaluator 支持对象；算法也是 on-policy |
 | FRAP/PressLight/CoLight | 是 | 否 | 虽含 value update，但状态/网络结构和多智能体语义未接入 HA runtime |
 
@@ -266,7 +266,7 @@ python --version
 python -c "import torch, gym, numpy, pandas, yaml; print(torch.__version__, gym.__version__, numpy.__version__)"
 sumo --version
 python -c "import libsumo, traci, sumolib; print('SUMO Python API OK')"
-python sequential_run.py --help
+python -m sequential --help
 ```
 
 应把 `conda list --explicit` 或 environment export、SUMO version、GPU/driver 信息放入实验外部资产包或 run metadata，不把机器相关环境文件未经审核直接覆盖仓库配置。
@@ -290,7 +290,7 @@ data/output_data/offline_datasets/plan2/plan2_formal_v2_a3a66e8_20260723/
 data/output_data/ha_sodqn/engineering_<date>/
 ```
 
-当前工作站的大型结果曾被重定位到根目录 `output_data/`，但旧 manifest 内记录的仍是 `/projects/simOfflineTSC/data/output_data/` 绝对路径。若目标 checkout 也固定为 `/projects/simOfflineTSC`，可迁移完整源资产并先用 validator 核对；若目标绝对路径不同，不要直接复制旧 archive/initial catalog 后手工搜索替换，应从 Plan 1 source runs 重建 run-list、Plan 2 index、archive 和 initial catalog，以便重新计算绝对路径和哈希。
+当前工作站的大型结果曾被重定位到根目录 `data/output_data/`，但旧 manifest 内记录的仍是 `/projects/simOfflineTSC/data/output_data/` 绝对路径。若目标 checkout 也固定为 `/projects/simOfflineTSC`，可迁移完整源资产并先用 validator 核对；若目标绝对路径不同，不要直接复制旧 archive/initial catalog 后手工搜索替换，应从 Plan 1 source runs 重建 run-list、Plan 2 index、archive 和 initial catalog，以便重新计算绝对路径和哈希。
 
 推荐用 `rsync`、对象存储或共享文件系统迁移数据，不通过 Git 提交 trajectory/checkpoint。迁移前后都生成 SHA256 清单并核对。示意命令中的主机和目录必须替换为实际值：
 
@@ -310,7 +310,7 @@ awk -v root="$(pwd)" 'BEGIN{FS=OFS=","} NR==1{print; next} {sub("^/projects/simO
   data/output_data/analysis/plan1/p1_formal_20_trajectory_whitelist_20260722.csv \
   > data/output_data/analysis/plan1/p1_formal_20_trajectory_whitelist_target.csv
 
-python offline_run.py prepare-plan2 \
+python -m sequential.offline prepare-plan2 \
   --run-list data/output_data/analysis/plan1/p1_formal_20_trajectory_whitelist_target.csv \
   --dataset-id plan2_cross_algorithm_target \
   --output-root data/output_data/offline_datasets/plan2 \
@@ -318,7 +318,7 @@ python offline_run.py prepare-plan2 \
   --source-root-id plan1_formal_target
 
 for network in sumohz1x1_config2 sumohz1x1 sumohz1x1_config4 sumohz1x1_config3; do
-  python offline_run.py validate-dataset \
+  python -m sequential.offline validate-dataset \
     --manifest "data/output_data/offline_datasets/plan2/plan2_cross_algorithm_target/datasets/${network}/Q1/manifest.json"
 done
 ```
@@ -347,29 +347,29 @@ archive:
 ```bash
 conda activate colight
 
-python sequential_run.py build-ha-initial-catalog \
+python -m sequential build-ha-initial-catalog \
   --whitelist data/output_data/analysis/plan1/p1_formal_20_trajectory_whitelist_target.csv \
   --config data/output_data/ha_sodqn/engineering_target/ha_sodqn_target.yml \
   --output data/output_data/ha_sodqn/engineering_target/initial_state_catalog.json
 
-python sequential_run.py build-ha-reproduction-audit \
+python -m sequential build-ha-reproduction-audit \
   --config data/output_data/ha_sodqn/engineering_target/ha_sodqn_target.yml \
   --order O2 \
   --training-seed 0 \
   --output data/output_data/ha_sodqn/engineering_target/behavior_seed_audit_manifest.json
 
-python sequential_run.py launch \
+python -m sequential launch \
   --manifest data/output_data/ha_sodqn/engineering_target/behavior_seed_audit_manifest.json \
   --output-root data/output_data/ha_sodqn/behavior_seed_audit_target \
   --max-child 4
 
-python sequential_run.py compare-ha-reproduction-audit \
+python -m sequential compare-ha-reproduction-audit \
   --source-run data/output_data/tsc/sumo_dqn/sumohz1x1/p1_formal_dqn_sumohz1x1_seed0_400ep_20260722_r2 \
   --attempt-dir data/output_data/ha_sodqn/behavior_seed_audit_target/CONT-FIFO-O2-SD0/attempts/attempt_1 \
   --episode-count 4 \
   --output data/output_data/ha_sodqn/engineering_target/behavior_seed_audit.json
 
-python sequential_run.py build-ha-archive \
+python -m sequential build-ha-archive \
   --dataset-root data/output_data/offline_datasets/plan2/plan2_cross_algorithm_target \
   --audit-report data/output_data/ha_sodqn/engineering_target/behavior_seed_audit.json \
   --output data/output_data/ha_sodqn/engineering_target/archive_root_manifest.json
@@ -384,24 +384,24 @@ python sequential_run.py build-ha-archive \
 当前 DQN 线路的参考命令：
 
 ```bash
-python sequential_run.py build-ha-plan \
+python -m sequential build-ha-plan \
   --stage smoke \
   --config data/output_data/ha_sodqn/engineering_target/ha_sodqn_target.yml \
   --output data/output_data/ha_sodqn/engineering_target/smoke_manifest.json
 
-python sequential_run.py validate-ha-plan \
+python -m sequential validate-ha-plan \
   --plan data/output_data/ha_sodqn/engineering_target/smoke_manifest.json
 
-python sequential_run.py launch \
+python -m sequential launch \
   --manifest data/output_data/ha_sodqn/engineering_target/smoke_manifest.json \
   --output-root data/output_data/ha_sodqn/smoke_target \
   --max-child 4
 
-python sequential_run.py status \
+python -m sequential status \
   --manifest data/output_data/ha_sodqn/engineering_target/smoke_manifest.json \
   --output-root data/output_data/ha_sodqn/smoke_target
 
-python sequential_run.py audit-ha \
+python -m sequential audit-ha \
   --plan data/output_data/ha_sodqn/engineering_target/smoke_manifest.json \
   --output-root data/output_data/ha_sodqn/smoke_target \
   --output data/output_data/ha_sodqn/engineering_target/smoke_audit.json
@@ -431,7 +431,7 @@ python sequential_run.py audit-ha \
 
 - 半离线冻结配置：`configs/sequential/ha_sodqn_b100.yml`
 - 总体设计与 E0～E4 预注册：`docs/plan0726.md`
-- CLI：`sequential/cli.py`、`sequential_run.py`
+- CLI：`sequential/cli.py`、`python -m sequential`
 - HA agent 和 mixed loss：`sequential/ha_agent.py`
 - 静态历史档案与 P1C/P1F：`sequential/historical_archive.py`
 - OWP：`sequential/owp.py`
@@ -439,9 +439,9 @@ python sequential_run.py audit-ha \
 - 顺序 runtime/checkpoint/launcher：`sequential/runtime.py`、`sequential/checkpoint.py`、`sequential/launcher.py`
 - validator/analysis：`sequential/validation.py`、`sequential/ha_analysis.py`
 - 当前 DQN target 证据：`sequential/agent.py` 和 `sequential/ha_agent.py` 中的 target 计算；均为 plain DQN max-target，而不是 Double DQN。
-- 本机正式完成审计：`output_data/ha_sodqn/engineering_20260726/E0_E4_completion_audit_20260730.json`（不在 Git）
-- 本机 E4 效应表：`output_data/ha_sodqn/analysis_e7705f7/E4/paired_effects.csv`（不在 Git）
-- 补充机制证据与限制：`output_data/analysis/ANALYSIS_BUNDLE_V2_MECHANISM_COMPLETION/99_REPORT/`（不在 Git）
+- 本机正式完成审计：`data/output_data/ha_sodqn/engineering_20260726/E0_E4_completion_audit_20260730.json`（不在 Git）
+- 本机 E4 效应表：`data/output_data/ha_sodqn/analysis_e7705f7/E4/paired_effects.csv`（不在 Git）
+- 补充机制证据与限制：`data/output_data/analysis/ANALYSIS_BUNDLE_V2_MECHANISM_COMPLETION/99_REPORT/`（不在 Git）
 - E4 manifest 冻结训练 commit：`cdcd3d7`；恢复审计使用后续 commit `664ac2a`；最终 E0～E4 completion audit 记录的代码 head 为 `125f9d7`。三者均位于当前分支历史中，不能用当前 HEAD 字符串替代旧运行实际记录。
 
 本文记录的是当前已验证状态和下一阶段跨算法建议。新增算法实现完成后，应更新“当前算法支持边界”、实际命令、冻结环境、正式 manifest identity 和验证证据；不要让建议矩阵长期被误读成已执行实验。

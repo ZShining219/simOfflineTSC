@@ -6,12 +6,12 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-OUT = ROOT / "output_data/analysis/ANALYSIS_BUNDLE_V2_MECHANISM_COMPLETION/02_PLAN34_STAGE2_FROZEN_TIMELINE/eval_cache"
+OUT = ROOT / "data/output_data/analysis/ANALYSIS_BUNDLE_V2_MECHANISM_COMPLETION/02_PLAN34_STAGE2_FROZEN_TIMELINE/eval_cache"
 EPISODES = (0, 1, 5, 10, 25, 50, 75, 100)
 SUMO_HOME = "/home/dev/miniforge3/envs/colight/lib/python3.10/site-packages/sumo"
 
 def plan_jobs():
-    root = ROOT / "output_data/sequential/plan34_b100_formal_60_20260723"
+    root = ROOT / "data/output_data/sequential/plan34_b100_formal_60_20260723"
     for run in sorted(root.glob("plan34_b100_O*_seed*_*") ): # 60 runs
         manifest = json.loads((run / "attempts/attempt_1/child_run_manifest.json").read_text())
         order, seed = manifest["order_id"], int(manifest["training_seed"])
@@ -24,9 +24,9 @@ def plan_jobs():
                 yield ("Plan3/4", run.name, order, seed, ep, old, networks[1], snap)
 
 def ha_jobs():
-    root = ROOT / "output_data/ha_sodqn/formal_e7705f7_20260726"
+    root = ROOT / "data/output_data/ha_sodqn/formal_e7705f7_20260726"
     pairs = []
-    pair_file = ROOT / "output_data/analysis/plan_ha_analysis_bundle_v1/ha/ha_cont_dhoa_pair_index.csv"
+    pair_file = ROOT / "data/output_data/analysis/plan_ha_analysis_bundle_v1/ha/ha_cont_dhoa_pair_index.csv"
     import csv
     with pair_file.open() as f:
         for row in csv.DictReader(f):

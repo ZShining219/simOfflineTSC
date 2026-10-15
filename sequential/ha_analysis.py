@@ -6,6 +6,8 @@ import os
 
 import numpy as np
 
+_trapz = getattr(np, 'trapezoid', None) or np.trapz
+
 from .analysis import exact_sign_flip_test, paired_bootstrap
 from .io import atomic_json, read_json
 from .validation import validate_ha_attempt
@@ -117,7 +119,7 @@ def _series_auc(values):
         return None
     if len(values) == 1:
         return float(values[0])
-    return float(np.trapz(values, dx=1.0) / (len(values) - 1))
+    return float(_trapz(values, dx=1.0) / (len(values) - 1))
 
 
 def summarize_ha_run(validated, references):

@@ -55,6 +55,31 @@ dev/                     # 一次性脚本唯一合法堆放处 + INDEX.md
 dev/_legacy/<date>/      # 历史散件归档（移动非删除）
 ```
 
+### 3.1 包形状约定（Route A：统一形状取代统一入口）
+
+正式能力一律收进包，拉起语法统一为 **`python -m <pkg>[.<face>] [args]`**；`python -m <pkg>` 打开包门面（子命令集或面表卡，见各包 README）。禁止新写根级 `*_run.py` 入口。
+
+**方法包**（`sequential/`、`scene_attention/`、后续新算法）固定槽位：
+
+```
+<pkg>/README.md   方法卡：问什么/入口面表/当前结论/变体状态/证据指针
+<pkg>/__main__.py python -m <pkg> 的包门面
+<pkg>/env.py      env 构造与 wrapper（或声明复用下层契约）
+<pkg>/model*.py   策略/网络实现（可目录化）
+<pkg>/probe/      可选：已登记探针（python -m <pkg>.probe.<x>）
+<pkg>/figs/       可选：出图件（产物件，不算入口）
+<pkg>/_legacy/    可选：死代际归档（附死因 README）
+```
+
+**通道包**（`hitl/`）槽位按职责命名：`serve`（`python -m hitl.serve`）、`pipeline/<stage>`、`plans`、`probe`、`audit`；HITL 训练态一律走 `sequential`（`mode=hitl_channel`），本包不开 train 面。
+
+约束：
+
+- 包只许依赖下层契约（`world/`、`common/`、`data/dataset/`、`utils/` 与自身内部件）；禁跨包 import 内部实现。
+- 工单放 `configs/<pkg>/`；实验参数禁内嵌在脚本里。
+- 老根级入口只许留薄 shim（deprecation 提示后转发 `-m` 面），下一版本清理。
+- 出图/一次性件不进面，按 dev/ 规则登记或归 `<pkg>/figs/`。
+
 ## 4. 台账（两级，强制）
 
 ### 4.1 `ledger/runs.jsonl` 字段口径
@@ -94,6 +119,16 @@ superseded_by runtime_env
 
 同配置不同 seed 终值指标完全相同 → flag 并记入 campaign 备注。
 追溯批已执行一次：DONE 训练行按 (campaign,arm) 分组比对，未发现触发（见 EXPERIMENTS.md 附注）。
+
+### 4.5 实验叙事记录（`docs/experiments/`，强制）
+
+每次实验（含实验相关的代码/配置改动）对应一份固定格式记录，必须回答四问：
+**改动意图、改动模块、实验设计、实验结果**。模板 `docs/experiments/TEMPLATE.md`。
+六条规则（E1 一实验一档 / E2 四节必填 / E3 延续即更新 / E4 分工不重复 /
+E5 随码入库 / E6 否决保留）全文见 `docs/README.md`。
+
+三层分工：docs/experiments = 叙事层；ledger/runs.jsonl = 机读事实源；
+EXPERIMENTS/ = 台账自动索引层。叙事层引用 run_id 与 campaign，不复制指标全表。
 
 ## 5. 注意力线口径（本仓硬约定）
 
@@ -189,7 +224,7 @@ superseded_by runtime_env
 ## 12. 新 agent 上手 checklist
 
 1. 读 `AGENTS.md` → `EXPERIMENTS.md` 顶部「当前面板」（现状）；`GOVERNANCE.md` 按需查节（新 run 流程看 §3-4，状态语义 §2，本仓硬约定 §5）；campaign 明细只读 `EXPERIMENTS/<相关campaign>.md`。
-2. 认领登记（`artifacts/wiki_claims/`）→ 台账 REGISTERED → §6 合法路径执行 → §4 回填。
+2. 认领登记（`artifacts/wiki_claims/`）→ 台账 REGISTERED → §6 合法路径执行 → §4 回填；同时按 §4.5 在 `docs/experiments/` 建/更实验记录（四节必填）。
 3. 改架构 = commit + 变更日志；改判据/口径属变更，台账开新 campaign，新旧口径不混排。
 4. 拿不准 → "受阻"+原因，等裁决。
 

@@ -69,9 +69,9 @@ ACTION_INTERVAL = 10
 PRIMARY_HORIZON = 60
 LABEL_HORIZONS = (30, 60, 90)
 HIGH_CONFIDENCE_MARGIN = 0.05
-OUTPUT_DEFAULT = REPO_ROOT / "data" / "output_data" / "allocation_accuracy"
-FORMAL_ROOT = REPO_ROOT / "data" / "output_data" / "ha_sodqn" / "formal_e7705f7_20260726"
-INDEPENDENT_ROOT = REPO_ROOT / "data" / "output_data" / "tsc" / "sumo_dqn"
+OUTPUT_DEFAULT = REPO_ROOT / "data" / "data/output_data" / "allocation_accuracy"
+FORMAL_ROOT = REPO_ROOT / "data" / "data/output_data" / "ha_sodqn" / "formal_e7705f7_20260726"
+INDEPENDENT_ROOT = REPO_ROOT / "data" / "data/output_data" / "tsc" / "sumo_dqn"
 
 
 def sha256_file(path: Path) -> str:

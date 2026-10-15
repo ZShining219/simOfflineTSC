@@ -7,7 +7,8 @@ import numpy as np
 import torch
 
 from sequential.checkpoint import (
-    RollingRecoveryManager, build_resume_validation, load_full_checkpoint,
+    RollingRecoveryManager, atomic_torch_save, build_resume_validation,
+    load_full_checkpoint,
 )
 from sequential.core import canonical_digest, capture_rng_state
 from sequential.io import atomic_json
@@ -224,6 +225,105 @@ class SequentialRecoveryTests(unittest.TestCase):
             )
             self.assertEqual(baseline_state, recovered_state)
             self.assertEqual(recovered_agent.value, 3)
+
+
+class CheckpointWireEncodingTests(unittest.TestCase):
+    def _ha_payload(self, reuse_counts):
+        agent_state = {
+            'schema_version': 3,
+            'online_model_state_dict': {'weight': torch.tensor([1.0])},
+            'ha_sodqn': {
+                'method': 'DHOA',
+                'historical_sampler_state': {
+                    'schema_version': 1,
+                    'method': 'DHOA',
+                    'reuse_counts': reuse_counts,
+                },
+            },
+        }
+        return {
+            'schema_version': 1,
+            'checkpoint_type': 'episode_committed',
+            'identity': {'stage_index': 4, 'local_episode': 100},
+            'agent_state': agent_state,
+            'canonical_state_digest': canonical_digest(agent_state),
+        }
+
+    def test_reuse_counts_columns_round_trip_preserves_digest(self):
+        reuse_counts = {
+            f'tsc/sumo_dqn/net/run{seed}:{"a" * 64}:'
+            f'episode{episode:04d}:decision{decision:04d}': seed + episode
+            for seed in range(2)
+            for episode in range(3)
+            for decision in range(4)
+        }
+        reuse_counts['unstructured-id'] = 7
+        with tempfile.TemporaryDirectory() as directory:
+            path = os.path.join(directory, 'committed.pt')
+            payload = self._ha_payload(reuse_counts)
+            atomic_torch_save(payload, path)
+
+            wire = torch.load(path, map_location='cpu')
+            wire_sampler = wire['agent_state']['ha_sodqn'][
+                'historical_sampler_state'
+            ]
+            self.assertEqual(wire_sampler['schema_version'], 2)
+            self.assertEqual(
+                wire_sampler['reuse_counts']['encoding'], 'reuse_columns_v1'
+            )
+            self.assertEqual(
+                payload['agent_state']['ha_sodqn'][
+                    'historical_sampler_state'
+                ]['reuse_counts'],
+                reuse_counts,
+            )
+
+            loaded = load_full_checkpoint(path)
+            sampler = loaded['agent_state']['ha_sodqn'][
+                'historical_sampler_state'
+            ]
+            self.assertEqual(sampler['schema_version'], 1)
+            self.assertEqual(sampler['reuse_counts'], reuse_counts)
+            self.assertEqual(
+                loaded['canonical_state_digest'],
+                canonical_digest(loaded['agent_state']),
+            )
+            self.assertEqual(
+                loaded['canonical_state_digest'],
+                payload['canonical_state_digest'],
+            )
+
+    def test_packed_reuse_counts_file_is_smaller_than_plain_dict(self):
+        reuse_counts = {
+            f'tsc/sumo_dqn/net/run{seed}:{"b" * 64}:'
+            f'episode{episode:04d}:decision{decision:04d}': episode
+            for seed in range(5)
+            for episode in range(100)
+            for decision in range(360)
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            payload = self._ha_payload(reuse_counts)
+            packed_path = os.path.join(directory, 'packed.pt')
+            plain_path = os.path.join(directory, 'plain.pt')
+            atomic_torch_save(payload, packed_path)
+            torch.save(payload, plain_path)
+            self.assertLess(
+                os.path.getsize(packed_path) * 4,
+                os.path.getsize(plain_path),
+            )
+
+    def test_plain_dict_checkpoint_loads_unchanged(self):
+        reuse_counts = {'legacy-id': 3}
+        with tempfile.TemporaryDirectory() as directory:
+            path = os.path.join(directory, 'legacy.pt')
+            torch.save(self._ha_payload(reuse_counts), path)
+            loaded = load_full_checkpoint(path)
+            self.assertEqual(
+                loaded['agent_state']['ha_sodqn'][
+                    'historical_sampler_state'
+                ]['reuse_counts'],
+                reuse_counts,
+            )
 
 
 if __name__ == '__main__':

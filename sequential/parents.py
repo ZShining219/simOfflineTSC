@@ -7,7 +7,7 @@ from dataclasses import dataclass
 import torch
 import yaml
 
-from dataset.offline_trajectory_dataset import _validate_source_run
+from data.dataset.offline_trajectory_dataset import _validate_source_run
 
 from .config import FORMAL_NETWORKS, load_sequential_config
 from .core import (

@@ -13,7 +13,7 @@ import yaml
 
 from agent.dqn import DQNNet
 from agent.offline_dqn import BatchDQNAgent, CQLDQNAgent
-from dataset.offline_trajectory_dataset import (
+from data.dataset.offline_trajectory_dataset import (
     OfflineBatch,
     OfflineTrajectoryDataset,
     prepare_plan2_datasets,

@@ -17,7 +17,7 @@ class RunStateTest(unittest.TestCase):
             'world': {'dir': self.temporary_directory.name},
         }
         self.output = os.path.join(
-            self.temporary_directory.name, 'output_data', 'tsc', 'sumo_dqn',
+            self.temporary_directory.name, 'data/output_data', 'tsc', 'sumo_dqn',
             'sumohz1x1', 'state-test',
         )
         self.config_path = os.path.join(self.output, 'config')

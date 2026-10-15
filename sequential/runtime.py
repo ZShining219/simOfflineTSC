@@ -15,6 +15,7 @@ from .checkpoint import (
     load_full_checkpoint, save_stage_checkpoint,
 )
 from .config import simulator_config_path
+from .demo_ac import DemoACAgent
 from .diagnostics import ReplayDiagnostics
 from .evaluator import IndependentEvaluator, save_online_snapshot
 from .io import atomic_json, read_json, sha256_file
@@ -62,7 +63,11 @@ class SequentialChildRunner:
         self.training_seed = int(self.child['training_seed'])
         # Cross-algorithm pilot manifests use a separate protocol identity but
         # the same HA-SODQN runtime semantics and policy marker.
-        self.is_ha_sodqn = self.policy == 'ha_sodqn'
+        self.is_demo_ac = self.policy == 'demo_ac'
+        # demo_ac arms use the same episode-0 initial-state path as
+        # ha_sodqn (checkpoint + digests + RNG); only the agent class and
+        # the per-decision update rule differ.
+        self.is_ha_sodqn = self.policy in ('ha_sodqn', 'demo_ac')
         self.parent_manifest = (
             None if self.is_ha_sodqn
             else read_json(self.child['parent_import_manifest'])
@@ -73,6 +78,11 @@ class SequentialChildRunner:
             self._validate_parent_binding()
         self.model_config = self.plan['model']
         self.trainer_config = dict(self.plan['trainer'])
+        # Per-child trainer overrides (e.g. HITL B-channel reward_mode):
+        # a nested 'trainer_overrides' dict on the child merges last.
+        overrides = self.child.get('trainer_overrides')
+        if overrides:
+            self.trainer_config.update(overrides)
         self.interface = self.child.get('interface', 'libsumo')
         self.world = None
         self.agent = None
@@ -223,6 +233,7 @@ class SequentialChildRunner:
         network = self.networks[stage_index - 1]
         self.world = self._create_world(network)
         agent_cls = (
+            DemoACAgent if self.is_demo_ac else
             HASODQNAgent if self.is_ha_sodqn else
             HybridDQNAgent if self.policy == 'hybrid' else SequentialDQNAgent
         )
@@ -236,7 +247,12 @@ class SequentialChildRunner:
             }
         if agent_cls is SequentialDQNAgent and self.child.get('condition') in {'M0', 'M1'}:
             hybrid_kwargs['skip_replay_digest'] = True
-        if agent_cls is HASODQNAgent:
+        if agent_cls is DemoACAgent:
+            self.agent = agent_cls.from_initial_state(
+                self.world, 0, self.model_config, self.trainer_config,
+                self.child['initial_state'],
+            )
+        elif agent_cls is HASODQNAgent:
             self.agent = agent_cls.from_initial_state(
                 self.world, 0, self.model_config, self.trainer_config,
                 self.child['initial_state'],
@@ -254,6 +270,9 @@ class SequentialChildRunner:
                     self.child['alignment_warmup_episodes']
                 ),
                 algorithm_id=self.child.get('algorithm_id', 'independent_dqn'),
+                expert_pool_manifest=self.child.get('expert_pool_manifest'),
+                expert_ratio=float(self.child.get('expert_ratio', 0.0)),
+                expert_capacity=int(self.child.get('expert_capacity', 5000)),
             )
         else:
             self.agent = agent_cls.from_parent(
@@ -273,6 +292,26 @@ class SequentialChildRunner:
             extra = self.resume_payload.get('extra_state', {})
             if 'replay_diagnostics' in extra:
                 self.diagnostics.load_state_dict(extra['replay_diagnostics'])
+        # A-channel: demonstration pretraining happens once after agent
+        # construction and before the online stage begins (begin_stage
+        # resets optimizers and copies the critic into the target net).
+        demo_cfg = self.child.get('demo_pretrain')
+        if (self.is_demo_ac and demo_cfg and self.resume_path is None
+                and not self.agent._pretrain_done.get('_completed')):
+            import numpy as _np
+            blob = _np.load(os.path.abspath(demo_cfg['demo_data']))
+            self.agent.load_demos({k: blob[k] for k in blob.files})
+            pretrain_log = self.agent.pretrain(
+                int(demo_cfg.get('steps', 2000)),
+                pretrain_actor=bool(demo_cfg.get('actor', True)),
+                pretrain_critic=bool(demo_cfg.get('critic', True)),
+                seed=self.training_seed,
+            )
+            self.agent._pretrain_done['_completed'] = True
+            atomic_json(
+                os.path.join(self.attempt_dir, 'pretrain_log.json'),
+                {k: v for k, v in pretrain_log.items()},
+            )
         self.trainer = SequentialStageTrainer(
             self.agent, self.world, self.trainer_config,
             decision_hook=self._decision_progress_hook,

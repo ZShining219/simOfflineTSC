@@ -148,6 +148,12 @@ META = {
                "+P sd1 ep15=86.1s、duel +P sd2 ep15-20≈83-84s），'settled'时点在三条件间交错，"
                "锚定在新场景轴上并非单调更优——诚实的口径是'可靠入场+偶发中段回弹'而非'更快收敛'。"
                "注：dqn 系 model/{e}_0.pt 为 target 快照（保守口径），frap 为 online 快照。"
+               "⑩snap3o 微观解剖（18 复跑 + 126 controller eval-manifest，online 口径）："
+               "RNG 复现验证通过（抽样 3 run 100/100 episode 与原 run 逐位一致）；"
+               "冲击的微观形态=慢性相位分配病理而非瞬时扰动——clear ep0 全网队列 ~5min 内堆至 110+veh 且"
+               "全程不消退、吞吐缺口贯穿整 episode（-37%），逐lane 热力定位为单方向进口道全程饿死+"
+               "对向周期性欠服务；恢复极快：online 口径 ep5 即回 ~80s 常态。"
+               "target-snap 与 online 数值差 <1s——snap3 的 settled/回弹结论在 online 口径下成立。"
                "216 行 SCOPE_DISCARD 为超范围裁决留档。",
  "queues": "artifacts/cl_hz1x1/{run_queue_cl1.json, run_queue_so1.json, run_queue_soa_screen.json, run_queue_soa_main.json, run_queue_soa_main_o3.json, run_queue_soa_rho.json, run_queue_soa_vdqn.json, run_queue_soa_vdqnb.json, run_queue_soa_snap3.json}",
 },

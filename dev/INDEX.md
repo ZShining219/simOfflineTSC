@@ -136,7 +136,12 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
   `plot_soa_snap.py` 产出 `fig_soa_snap_convergence.png` +
   `snap3_metrics.json`（o3 st3 收敛探针：model/{e}_0.pt 快照冻结评估
   ep5/10/15/20 + ev3(ep100) + in-train ep0/50，"达标时点"=之后所有测点
-  ≤基线+5%；dqn 系快照为 target 网、frap 为 online 网）。
+  ≤基线+5%；dqn 系快照为 target 网、frap 为 online 网），
+  `build_snap3o_manifest.py` + `plot_snap3o_micro.py` 产出
+  `fig_snap3o_{queue,throughput,laneheat,conv}.png`
+  （o3 st3 复跑 + eval-manifest 微观解剖：RNG 复现式重跑取 online 权重
+  resumable{0,5,10,15,20,50,100}，同 eval seed 同交通实现下逐 10s
+  queue/吞吐/逐lane 热力；frap 不在 manifest loader 白名单仅 ddqn/duel）。
   诊断件 `drift_diag.py`——历史策略/价值漂移诊断（冻结推理，不改 ckpt）：
   `pool` 用基准 ckpt 在 held-out sumo 种子上 greedy rollout 建场景公共
   参考状态池（~1500 态/场景，c4/c2 合并两臂基准并留 src 标签）；

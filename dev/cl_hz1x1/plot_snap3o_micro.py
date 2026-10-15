@@ -33,7 +33,8 @@ import matplotlib.colors as mcolors
 import numpy as np
 
 ROOT = Path(__file__).resolve().parents[2]
-PKG = ROOT / 'artifacts' / 'cl_hz1x1' / 'snap3o_eval' / 'package'
+PKG_ROOT = ROOT / 'artifacts' / 'cl_hz1x1' / 'snap3o_eval'
+PKGS = [PKG_ROOT / p for p in ('package', 'package_b', 'package_c')]
 ART = ROOT / 'artifacts' / 'cl_hz1x1'
 EPS = (0, 5, 10, 15, 20, 50, 100)
 CONDS = [('clear', 'pure online'), ('semi', 'semi-offline r=0.25'),
@@ -45,26 +46,36 @@ EVAL_SEED = 101
 
 
 def load_records():
-    """{(controller_id): sorted list of DECISION_METRICS rows}."""
-    path = PKG / 'records.jsonl'
+    """{(controller_id): sorted list of DECISION_METRICS rows}.
+
+    The 126-controller collection ran across three packages (package plus
+    the package_b/package_c split); merge by controller_id, first wins.
+    """
     series = defaultdict(list)
-    for line in path.read_text(encoding='utf-8').splitlines():
-        r = json.loads(line)
-        if r.get('record_type') != 'DECISION_METRICS':
+    for pkg in PKGS:
+        path = pkg / 'records.jsonl'
+        if not path.exists():
             continue
-        series[r['controller_id']].append(r)
+        for line in path.read_text(encoding='utf-8').splitlines():
+            r = json.loads(line)
+            if r.get('record_type') != 'DECISION_METRICS':
+                continue
+            series[r['controller_id']].append(r)
     for rows in series.values():
         rows.sort(key=lambda r: r['simulation_time_seconds'])
     return series
 
 
 def load_summary():
-    """{(controller_id, evaluation_seed): summary row dict}."""
-    path = PKG / 'summary.csv'
+    """{controller_id: summary row dict} merged across packages."""
     out = {}
-    with open(path, newline='', encoding='utf-8') as handle:
-        for row in csv.DictReader(handle):
-            out[row['controller_id']] = row
+    for pkg in PKGS:
+        path = pkg / 'summary.csv'
+        if not path.exists():
+            continue
+        with open(path, newline='', encoding='utf-8') as handle:
+            for row in csv.DictReader(handle):
+                out.setdefault(row['controller_id'], row)
     return out
 
 
@@ -145,7 +156,8 @@ def fig_convergence(summary):
     fig, axes = plt.subplots(1, len(BBS), figsize=(12, 4.5), sharey=True)
     colmap = {'clear': '#d62728', 'semi': '#1f77b4', 'p': '#2ca02c'}
     for ax, bb in zip(axes, BBS):
-        for cond, col, _ in [(c, m, l) for (c, m, l) in CONDS]:
+        for cond, _ in CONDS:
+            col = colmap[cond]
             xs, ys = [], []
             for sd in (0, 1, 2):
                 for ep in EPS:

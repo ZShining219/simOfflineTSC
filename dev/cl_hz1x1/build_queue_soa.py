@@ -34,6 +34,8 @@ import json
 import sys
 from pathlib import Path
 
+import yaml
+
 ROOT = Path(__file__).resolve().parents[2]
 ART = ROOT / 'artifacts' / 'cl_hz1x1'
 OVERLAYS = ART / 'overlays'
@@ -573,6 +575,109 @@ def main_snap(eval_seeds=EVAL_SEEDS):
         print('  missing:', m)
 
 
+SNAP3O_EPS = [0, 5, 10, 15, 20, 50, 100]
+# Online-fidelity rerun of o3 st3: resumable checkpoints at the dense grid
+# hold TRUE online weights (model/{e}_0.pt only stores the target net for
+# dqn-family).  RNG restoration via stage_checkpoint reproduces the original
+# trajectory bit-exactly (verified: 25/25 train records identical).
+# frap is excluded: the eval-manifest loader whitelist has no frap branch,
+# and its shock cell is negligible anyway (settles by ep5).
+SNAP3O_CELLS = {
+    'ddqn': ('dqn', {'clear': 'cl1_ddqn_clear_o3',
+                    'semi': 'so1_soddqn_o3',
+                    'p': 'soa3_soddqnp_o3'}),
+    'duel': ('dqn', {'clear': 'cl1_duel_clear_o3',
+                    'semi': 'so1_soduel_o3',
+                    'p': 'soa3_soduelp_o3'}),
+}
+
+
+def main_snap3o(seeds=SEEDS):
+    """Stage-3 reruns with dense resumable grid for online-net snapshot evals."""
+    OVERLAYS.mkdir(parents=True, exist_ok=True)
+    tasks, ledger, missing = [], [], []
+    for bb, (agent, prefixes) in SNAP3O_CELLS.items():
+        for cond, prefix in prefixes.items():
+            for seed in seeds:
+                src_rid = f'{prefix}_sd{seed}_st3'
+                src_overlay = overlay_path(src_rid)
+                if not src_overlay.exists():
+                    missing.append(str(src_overlay))
+                    continue
+                src = yaml.safe_load(
+                    src_overlay.read_text(encoding='utf-8'))
+                rid = f'snap3o_{bb}_{cond}_o3_sd{seed}_st3'
+                odir = out_dir(agent, NETS['s1'], rid)
+                me = dict(src.get('model') or {})
+                te = {
+                    'episodes': 100,
+                    'evaluation_episodes': SNAP3O_EPS,
+                    'resumable_checkpoint_episodes': SNAP3O_EPS,
+                    'test_when_train': False,
+                }
+                ov = write_overlay(rid, me, te)
+                tasks.append({
+                    'run_id': rid,
+                    'command': cmd(agent, NETS['s1'], rid, ov, seed, 0),
+                    'cwd': str(ROOT), 'env': dict(ENV),
+                    'output_path': str(odir),
+                    'completion': completion(odir),
+                    'requires': [{'path': me['stage_checkpoint']}],
+                    'campaign': 'cl_hz1x1',
+                    'arm': f'snap3o_{bb}_{cond}',
+                    'order': 'o3', 'stage': 3, 'scene': NETS['s1'],
+                    'training_seed': seed,
+                    'replay_condition': 'semi_offline_anchor',
+                    'episode_budget': 100,
+                })
+                ledger.append({
+                    'run_id': rid, 'line': 'cl_hz1x1',
+                    'campaign': 'cl_hz1x1', 'arm': f'snap3o_{bb}_{cond}_soa',
+                    'alias_of': src_rid, 'net': NETS['s1'], 'seed': seed,
+                    'episodes_total': 100, 'episodes_increment': 100,
+                    'resume_from': me['stage_checkpoint'], 'ngpu': -1,
+                    'status': 'REGISTERED',
+                    'plan_id': 'cl_hz1x1_snap3o_online',
+                    'code_commit': None, 'dirty': None,
+                    'queue_file': 'artifacts/cl_hz1x1/'
+                                  'run_queue_soa_snap3o.json',
+                    'run_dir': None, 'tmux': None, 'started': None,
+                    'eval_mode': None, 'behavior_source': None,
+                    'metrics': {}, 'abort_reason': None, 'error': None,
+                    'evidence_lost': False,
+                    'notes': f'REGISTERED: cl_hz1x1 snap3o online-fidelity '
+                             f'rerun of {src_rid} with resumable grid '
+                             f'{SNAP3O_EPS} (RNG-restored, trajectory '
+                             f'identical)',
+                    'run_kind': 'train', 'config_sha': None,
+                    'sumo_seed_mode': None, 'sumo_seed': 0,
+                    'eval_seed': None,
+                    'condition': 'semi_offline_anchor',
+                    'superseded_by': None, 'runtime_env': 'colight',
+                    'end_time': None,
+                })
+    manifest = {
+        'schema_version': 1,
+        'plan': 'cl_hz1x1_snap3o_online',
+        'expected_tasks': len(tasks),
+        'note': ('o3 st3 reruns with resumable ckpts at ep0/5/10/15/20/50/100 '
+                 'so frozen evals measure the ONLINE net; deterministic '
+                 'reproduction via RNG-restoring stage_checkpoint'),
+        'episodes': SNAP3O_EPS,
+        'training_seeds': list(seeds),
+        'tasks': tasks,
+    }
+    (ART / 'run_queue_soa_snap3o.json').write_text(
+        json.dumps(manifest, indent=1, ensure_ascii=False), encoding='utf-8')
+    (ART / 'ledger_rows_soa_snap3o.jsonl').write_text(
+        '\n'.join(json.dumps(r, ensure_ascii=False) for r in ledger) + '\n',
+        encoding='utf-8')
+    print(f'phase=snap3o tasks={len(tasks)} ledger_rows={len(ledger)} '
+          f'missing={len(missing)}')
+    for m in missing:
+        print('  missing:', m)
+
+
 if __name__ == '__main__':
     phase = sys.argv[1] if len(sys.argv) > 1 else 'screen'
     if phase == 'smoke':
@@ -603,5 +708,8 @@ if __name__ == '__main__':
     elif phase == 'snap3':
         # Snapshot-policy convergence probe on the o3 st3 shock cell.
         main_snap()
+    elif phase == 'snap3o':
+        # Online-fidelity reruns of o3 st3 with dense resumable grid.
+        main_snap3o()
     else:
         raise SystemExit(f'unknown phase: {phase}')

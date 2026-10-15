@@ -61,8 +61,10 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
 
 ## dev/ 现状
 
-- `dev/ledger/`：台账构建器（inventory.py / build_ledger.py / gen_experiments.py +
-  README），2026-10-07 裁决收仓长期维护；源自治理工作区 govern_1007/scratch/。
+- `dev/ledger/`：台账构建器（inventory.py / build_ledger.py / gen_experiments.py /
+  append_ha_sodqn.py + README），2026-10-07 裁决收仓长期维护；源自治理工作区
+  govern_1007/scratch/。append_ha_sodqn.py（2026-10-15）定向补登 ha_sodqn 桶：
+  152 train + 12 smoke + 10 batch，幂等追加，扫 logical_run_manifest 取字段。
 - `dev/govern_1007/`：本治理任务的授权暂存位（当前为空）。
 - `dev/_legacy/20261007/`：见 `dev/_legacy/20261007/README.md`。
 - `dev/takeover_probe/`：**已升格** `scene_attention/`（2026-10-13，方法包，
@@ -398,6 +400,23 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
   未来 seed，复用 counterfactual_v2.run_branch。产物 `divergence_bc/cf*/`。
 - `hitl/audit/analyze_divergence.py`：分歧率画像 +
   分歧动作反事实差值统计（C 方向归一化：Δ>0 即 C 的动作为优）。
+- `hitl_warmstart/convert_warm_init.py`：resumable ep-N 档 → ep0 语义
+  warm-init 初始态档（探索件）。「已有模型+专家介入数据续训」验证链
+  （campaign=hitl_warmloop，产物 `data/output_data/hitl_probe/warmloop/`）
+  的唯一新件：episode/三级计数器清零、replay_state.items 置空（对齐 ep0
+  的 orb empty 约定），weights/optimizer/epsilon/RNG 原样保留，追加
+  `warm_source` 溯源块（源路径/源 episode/源 sha256）写进工件本体；
+  --sidecar 产可直接贴进 plan child `initial_state` 的 dict（digest 复用
+  `sequential.core` 四摘要函数）。消费端零改动：`from_initial_state`
+  只校验档内 episode==0+counters==0。链式用法：phase0 短程 ep0 run 产
+  M₀ → paired_probe student 臂冻结基线 → hitl 臂同档介入采集 →
+  package/filter_pool 建 per-seed 池 → warm-init 续训（expert_pool
+  消费）→ student 臂复评 M₁ → 配对比较三指标。
+- `hitl_warmstart/fig_queue_compare.py`：warmloop 三臂 queue 轨迹图
+  （探索件）。消费 paired_probe runs.json['series']（probe 内建逐决策
+  过程量），把 eval_m0/eval_expert/eval_m1 三批 run_dir 的曲线插值
+  对齐后绘 mean±SEM，终端 tt 均值作角注。产物
+  `data/output_data/hitl_probe/warmloop/figs/fig_queue_three_arm.png`。
 
 ## 已裁决归档（2026-10-07 Z 裁）
 

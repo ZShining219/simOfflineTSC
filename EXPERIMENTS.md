@@ -15,15 +15,16 @@
   - `att_entity_002` = SGA/concat/MPLight 文本注入矩阵（完结：H2 支持、H3 否）
   - `att_entity_003` = TARL 对齐/传感矩阵 flx（完结）
   - `att_entity_004` = **当前主线**（z_task+aux+反事实）；`sga_gb` 梯度门线 pilot 负结果已停
+  - `ha_sodqn` = **半离线主线**（hz1x1，Plan1→HOA→DHOA/OWP 历史采样矩阵，E4=100 身份正式批已收官）
   - `arterial_1x6`/`plan5_b100` = 半离线线（技术点3，独立于注意力线）
 - **最新结论**：z_task 语义保真达标、held-out 证实文本携场景身份（t34_devin）；"canonical≈empty"修正为"事件窗内小幅净负"（t34_cc，配对 n=59）；road_closure 覆盖缺口待裁决修复。
 - **接管测试**：t34_devin / t34_cc 均 DONE（test/t34_* 分支）。
-- **证据完整性**：台账 6516 行，evidence_lost=0。
+- **证据完整性**：台账 7066 行（2026-10-15 补登 ha_sodqn 174 单元），evidence_lost=0。
 <!-- PANEL-END -->
 
 ## 0. 总览
 
-登记 run 总数：**6516**（train 571、eval attempt 5771、smoke 127、calibration 18、batch 29）
+登记 run 总数：**7066**（train 978、eval attempt 5789、smoke 139、calibration 18、batch 40）
 
 | campaign | DONE | FAILED | ABORTED | SUPERSEDED | REGISTERED | SCOPE_DISCARD | LEGACY_UNCLEAR | 合计 |
 |---|---|---|---|---|---|---|---|---|
@@ -35,10 +36,21 @@
 | tarl_v21_formal | 15 | 0 | 0 | 0 | 0 | 0 | 0 | 15 |
 | plan5_b100 | 68 | 0 | 0 | 0 | 0 | 0 | 0 | 68 |
 | plan1_dqn | 27 | 0 | 4 | 4 | 0 | 0 | 0 | 35 |
+| ha_sodqn | 172 | 0 | 2 | 0 | 0 | 0 | 0 | 174 |
 | milestone0_infra | 12 | 0 | 0 | 0 | 0 | 0 | 0 | 12 |
 | paper_infra_validation | 19 | 0 | 0 | 0 | 0 | 0 | 0 | 19 |
 | misc_probes | 1 | 5 | 0 | 0 | 0 | 1 | 0 | 7 |
-| **合计** | 6165 | 243 | 93 | 4 | 0 | 11 | 0 | **6516** |
+| hitl_live_ab | 6 | 0 | 0 | 0 | 0 | 0 | 0 | 6 |
+| hitl_live_baseline | 2 | 0 | 0 | 0 | 0 | 0 | 0 | 2 |
+| hitl_live_gate | 30 | 0 | 0 | 0 | 0 | 0 | 0 | 30 |
+| hitl_live_pilot5 | 75 | 0 | 0 | 0 | 0 | 0 | 0 | 75 |
+| hitl_live_pseudo | 11 | 0 | 0 | 0 | 0 | 0 | 0 | 11 |
+| hitl_live_r2 | 30 | 0 | 0 | 0 | 0 | 0 | 0 | 30 |
+| hitl_live_r3 | 150 | 0 | 0 | 0 | 0 | 0 | 0 | 150 |
+| hitl_live_r4 | 20 | 0 | 0 | 0 | 0 | 0 | 0 | 20 |
+| hitl_warmloop | 26 | 0 | 0 | 0 | 2 | 0 | 0 | 28 |
+| takeover_probe_sig15 | 24 | 0 | 0 | 0 | 0 | 0 | 0 | 24 |
+| **合计** | 6711 | 243 | 95 | 4 | 2 | 11 | 0 | **7066** |
 
 状态语义见 GOVERNANCE.md §2。LEGACY_UNCLEAR=0 表示全部可识别 run 均通过队列/状态文件/目录归属证据还原出 campaign；个别 run 的臂内身份仍以命名约定为据，已在 notes 标注处保持保守。
 
@@ -54,9 +66,20 @@
 | `tarl_v21_formal` | 15 | 15/0/0/0 | TARL v2.1 正式评估（完结） | [明细](EXPERIMENTS/tarl_v21_formal.md) |
 | `plan5_b100` | 68 | 68/0/0/0 | Plan5 b100 半离线批 | [明细](EXPERIMENTS/plan5_b100.md) |
 | `plan1_dqn` | 35 | 27/0/4/0 | Plan1 在线 DQN 基线 | [明细](EXPERIMENTS/plan1_dqn.md) |
+| `ha_sodqn` | 174 | 172/0/2/0 | 半离线主线：E4 正式批完成；历史利用降遗忘但有适应代价 | [明细](EXPERIMENTS/ha_sodqn.md) |
 | `milestone0_infra` | 12 | 12/0/0/0 | 基础设施验证 | [明细](EXPERIMENTS/milestone0_infra.md) |
 | `paper_infra_validation` | 19 | 19/0/0/0 | paper 基建验证 | [明细](EXPERIMENTS/paper_infra_validation.md) |
 | `misc_probes` | 7 | 1/5/0/1 | 零散探针 | [明细](EXPERIMENTS/misc_probes.md) |
+| `hitl_live_ab` | 6 | 6/0/0/0 | — | [明细](EXPERIMENTS/hitl_live_ab.md) |
+| `hitl_live_baseline` | 2 | 2/0/0/0 | — | [明细](EXPERIMENTS/hitl_live_baseline.md) |
+| `hitl_live_gate` | 30 | 30/0/0/0 | — | [明细](EXPERIMENTS/hitl_live_gate.md) |
+| `hitl_live_pilot5` | 75 | 75/0/0/0 | — | [明细](EXPERIMENTS/hitl_live_pilot5.md) |
+| `hitl_live_pseudo` | 11 | 11/0/0/0 | — | [明细](EXPERIMENTS/hitl_live_pseudo.md) |
+| `hitl_live_r2` | 30 | 30/0/0/0 | — | [明细](EXPERIMENTS/hitl_live_r2.md) |
+| `hitl_live_r3` | 150 | 150/0/0/0 | — | [明细](EXPERIMENTS/hitl_live_r3.md) |
+| `hitl_live_r4` | 20 | 20/0/0/0 | — | [明细](EXPERIMENTS/hitl_live_r4.md) |
+| `hitl_warmloop` | 28 | 26/0/0/0 | — | [明细](EXPERIMENTS/hitl_warmloop.md) |
+| `takeover_probe_sig15` | 24 | 24/0/0/0 | — | [明细](EXPERIMENTS/takeover_probe_sig15.md) |
 
 ## 附：追溯口径说明
 

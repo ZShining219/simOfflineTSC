@@ -234,6 +234,24 @@ def eval_overlay(run_id, model_extra, ckpt):
     return write_overlay(run_id, me, te)
 
 
+def snap_overlay(run_id, model_extra, snap):
+    """Eval-only cell loading a bare model/{e}_0.pt snapshot (no resumable)."""
+    me = dict(model_extra)
+    for key in (*SO_BASE, *ANCHOR_KEYS, 'offline_ratio'):
+        me.pop(key, None)
+    me.update({
+        'model_snapshot': str(snap),
+        'epsilon_mode': 'fixed_low',
+    })
+    te = {
+        'episodes': 0,
+        'evaluation_episodes': [0],
+        'resumable_checkpoint_episodes': [0],
+        'test_when_train': False,
+    }
+    return write_overlay(run_id, me, te)
+
+
 def cmd(agent, net, prefix, overlay, seed, sumo_seed):
     return [
         PY, 'run.py', '-w', 'sumo', '-a', agent, '-n', net,
@@ -452,6 +470,109 @@ def main_vbase(stage_episodes=100, eval_at=(0, 50, 100)):
     print(f'phase=vdqnb tasks={len(tasks)} ledger_rows={len(ledger)}')
 
 
+SNAP_EPS = (5, 10, 15, 20)
+# Convergence-time probe for the strongest measured entry shock:
+# order o3 stage 3 (c3 -> s1). Each cell loads model/{e}_0.pt of a finished
+# stage-3 run via model_snapshot (target-net snapshot for dqn-family,
+# online-net for frap) and runs the standard frozen-eval protocol.
+SNAP_CELLS = {
+    'ddqn': ('dqn', {'double_dqn': True},
+             {'clear': 'cl1_ddqn_clear_o3', 'semi': 'so1_soddqn_o3',
+              'p': 'soa3_soddqnp_o3'}),
+    'duel': ('dqn', {'double_dqn': True, 'dueling': True},
+             {'clear': 'cl1_duel_clear_o3', 'semi': 'so1_soduel_o3',
+              'p': 'soa3_soduelp_o3'}),
+    'frap': ('frap', {},
+             {'clear': 'cl1_frap_clear_o3', 'semi': 'so1_sofrap_o3',
+              'p': 'soa3_sofrapp_o3'}),
+}
+
+
+def main_snap(eval_seeds=EVAL_SEEDS):
+    """Snapshot-policy eval cells at ep5/10/15/20 of o3 st3 (new scene s1)."""
+    OVERLAYS.mkdir(parents=True, exist_ok=True)
+    tasks, ledger, missing = [], [], []
+    net = NETS['s1']
+    for bb, (agent, mextra, prefixes) in SNAP_CELLS.items():
+        for cond, prefix in prefixes.items():
+            for seed in SEEDS:
+                src = out_dir(agent, net, f'{prefix}_sd{seed}_st3')
+                for ep in SNAP_EPS:
+                    snap = src / 'model' / f'{ep}_0.pt'
+                    if not snap.exists():
+                        missing.append(str(snap))
+                        continue
+                    for es in eval_seeds:
+                        rid = (f'snap3_{bb}_{cond}_o3_sd{seed}'
+                               f'_e{ep}_es{es}')
+                        eov = snap_overlay(rid, mextra, snap)
+                        tasks.append({
+                            'run_id': rid,
+                            'command': cmd(agent, net, rid, eov, seed, es),
+                            'cwd': str(ROOT), 'env': dict(ENV),
+                            'output_path': str(out_dir(agent, net, rid)),
+                            'completion': completion(
+                                out_dir(agent, net, rid)),
+                            'requires': [{'path': str(snap)}],
+                            'campaign': 'cl_hz1x1',
+                            'arm': f'snap3_{bb}_{cond}',
+                            'order': 'o3', 'stage': 3, 'scene': net,
+                            'training_seed': seed, 'eval_sumo_seed': es,
+                            'checkpoint_path': str(snap),
+                            'run_kind': 'eval',
+                            'snapshot_episode': ep,
+                        })
+                        ledger.append({
+                            'run_id': rid, 'line': 'cl_hz1x1',
+                            'campaign': 'cl_hz1x1',
+                            'arm': f'snap3_{bb}_{cond}_soa',
+                            'alias_of': None, 'net': net, 'seed': seed,
+                            'episodes_total': 0, 'episodes_increment': 0,
+                            'resume_from': None, 'ngpu': -1,
+                            'status': 'REGISTERED',
+                            'plan_id': 'cl_hz1x1_snap3_convergence',
+                            'code_commit': None, 'dirty': None,
+                            'queue_file': 'artifacts/cl_hz1x1/'
+                                          'run_queue_soa_snap3.json',
+                            'run_dir': None, 'tmux': None, 'started': None,
+                            'eval_mode': 'frozen_snapshot',
+                            'behavior_source': None, 'metrics': {},
+                            'abort_reason': None, 'error': None,
+                            'evidence_lost': False,
+                            'notes': f'REGISTERED: cl_hz1x1 snap3 '
+                                     f'{bb}/{cond} o3/st3 snapshot ep{ep} '
+                                     f'(target-net snapshot for dqn, '
+                                     f'online-net for frap)',
+                            'run_kind': 'eval', 'config_sha': None,
+                            'sumo_seed_mode': None, 'sumo_seed': None,
+                            'eval_seed': es,
+                            'condition': 'semi_offline_anchor',
+                            'superseded_by': None,
+                            'runtime_env': 'colight', 'end_time': None,
+                        })
+    manifest = {
+        'schema_version': 1,
+        'plan': 'cl_hz1x1_snap3_convergence',
+        'expected_tasks': len(tasks),
+        'note': ('o3 st3 (c3->s1) snapshot-policy evals at ep5/10/15/20; '
+                 'dqn-family model/{e}_0.pt holds target_model weights, '
+                 'frap holds online weights — convergent-time estimates are '
+                 'therefore conservative for dqn-family arms'),
+        'episodes': list(SNAP_EPS),
+        'training_seeds': SEEDS, 'eval_sumo_seeds': list(eval_seeds),
+        'tasks': tasks,
+    }
+    (ART / 'run_queue_soa_snap3.json').write_text(
+        json.dumps(manifest, indent=1, ensure_ascii=False), encoding='utf-8')
+    (ART / 'ledger_rows_soa_snap3.jsonl').write_text(
+        '\n'.join(json.dumps(r, ensure_ascii=False) for r in ledger) + '\n',
+        encoding='utf-8')
+    print(f'phase=snap3 tasks={len(tasks)} ledger_rows={len(ledger)} '
+          f'missing={len(missing)}')
+    for m in missing:
+        print('  missing:', m)
+
+
 if __name__ == '__main__':
     phase = sys.argv[1] if len(sys.argv) > 1 else 'screen'
     if phase == 'smoke':
@@ -479,5 +600,8 @@ if __name__ == '__main__':
     elif phase == 'vdqnb':
         # Vanilla DQN single-scene baselines for ΔATT denominators.
         main_vbase()
+    elif phase == 'snap3':
+        # Snapshot-policy convergence probe on the o3 st3 shock cell.
+        main_snap()
     else:
         raise SystemExit(f'unknown phase: {phase}')

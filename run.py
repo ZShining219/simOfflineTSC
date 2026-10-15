@@ -244,6 +244,12 @@ class Runner:
                     epsilon_mode=model_settings.get('epsilon_mode', 'reset_schedule'),
                     load_optimizer=model_settings.get('stage_load_optimizer', True),
                 )
+            model_snapshot = model_settings.get('model_snapshot')
+            if model_snapshot:
+                self.trainer.load_model_snapshot(
+                    model_snapshot,
+                    epsilon_mode=model_settings.get('epsilon_mode', 'fixed_low'),
+                )
             if not self.resume:
                 self.model_archive_path = archive_runtime_model(
                     self.config_archive_path, self.trainer,

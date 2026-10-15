@@ -1437,6 +1437,26 @@ class TSCTrainer(BaseTrainer):
             torch.cuda.set_rng_state_all(payload['torch_cuda_rng_states'])
         return payload
 
+    def load_model_snapshot(self, path, epsilon_mode='fixed_low'):
+        """Load a bare ``model/{e}_{rank}.pt`` state_dict for eval-only runs.
+
+        Snapshot convention differs by agent: dqn-family ``save_model``
+        writes *target_model* weights (lagging the online net by one target
+        update), while frap writes the online model. Evaluations on these
+        files therefore measure a 'snapshot policy', not the exact online
+        network at that episode — report them as such. Intended for
+        episodes:0 eval cells; does not touch replay, optimizer or counters.
+        """
+        if len(self.agents) != 1:
+            raise ValueError(
+                'model snapshot eval requires one shared controller')
+        agent = self.agents[0]
+        state = torch.load(path, map_location='cpu')
+        agent.model.load_state_dict(state)
+        agent.target_model.load_state_dict(state)
+        agent.reset_epsilon(epsilon_mode)
+        return state
+
     def _evaluation_timeseries_record(
         self, context, decision_step, rewards, actions, previous_throughput,
         state_observations=None, state_phases=None, state_time_seconds=None,

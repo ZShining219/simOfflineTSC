@@ -24,13 +24,17 @@ ART = ROOT / 'artifacts' / 'cl_hz1x1'
 cl1 = json.loads((ART / 'matrix_report.json').read_text())
 so = json.loads((ART / 'matrix_report_so_recomputed.json').read_text())
 soa = json.loads((ART / 'matrix_report_soa_soa1.json').read_text())
+soav_path = ART / 'matrix_report_soa_soav.json'
+soav = (json.loads(soav_path.read_text())
+        if soav_path.exists() else {})
 
 ORDER = 'o2'
 NETS = ['s1', 'c4', 'c2', 'c3']
 BACKBONES = {
-    'dqn':  {'replay': 'soddqn',  'p': 'soddqnp',  'pv': 'soddqnpv'},
+    'ddqn': {'replay': 'soddqn',  'p': 'soddqnp',  'pv': 'soddqnpv'},
     'duel': {'replay': 'soduel',  'p': 'soduelp',  'pv': 'soduelpv'},
     'frap': {'replay': 'sofrap',  'p': 'sofrapp',  'pv': 'sofrappv'},
+    'vdqn': {'replay': 'sodqn',   'p': 'sodqnp'},
 }
 COND_STYLE = {
     'replay': {'c': '#1f77b4', 'm': 'o', 'label': 'replay only (r=0.25)'},
@@ -38,7 +42,7 @@ COND_STYLE = {
     'pv':     {'c': '#9467bd', 'm': 's', 'label': 'replay + policy + value anchor'},
 }
 SEEDS = [0, 1, 2]
-ARM_BASE = {'dqn': 'ddqn', 'duel': 'duel', 'frap': 'frap'}
+ARM_BASE = {'ddqn': 'ddqn', 'duel': 'duel', 'frap': 'frap', 'vdqn': 'dqn'}
 
 baseline_att = {}
 for key, vals in cl1['baselines'].items():
@@ -48,10 +52,15 @@ baseline_att = {k: sum(v) / len(v) for k, v in baseline_att.items()}
 
 
 SOA_ARMS = {'soddqnp', 'soddqnpv', 'soduelp', 'soduelpv', 'sofrapp', 'sofrappv'}
+SOAV_ARMS = {'sodqn', 'sodqnp'}
 
 
 def report(arm):
-    return soa if arm in SOA_ARMS else so
+    if arm in SOA_ARMS:
+        return soa
+    if arm in SOAV_ARMS:
+        return soav
+    return so
 
 
 def cell_att(arm, seed, stage, col):
@@ -73,8 +82,8 @@ def chain_worst(arm, seed):
 
 
 # ---------- Figure A: first-scene (s1) retention trajectories ----------
-fig, axes = plt.subplots(1, 3, figsize=(15, 4.5), sharex=True)
-for c, BB in enumerate(['dqn', 'duel', 'frap']):
+fig, axes = plt.subplots(1, 4, figsize=(19, 4.5), sharex=True)
+for c, BB in enumerate(BACKBONES):
     ax = axes[c]
     base = baseline_att[(ARM_BASE[BB], 's1')]
     ax.axhline(base, ls='--', c='gray', lw=1, label='single-task baseline')
@@ -97,8 +106,8 @@ fig.savefig(ART / 'fig_soa_retention_trajectory.png', dpi=150)
 plt.close(fig)
 
 # ---------- Figure B: worst old-scene degradation ----------
-fig, axes = plt.subplots(1, 3, figsize=(15, 4.5), sharey=True)
-for c, BB in enumerate(['dqn', 'duel', 'frap']):
+fig, axes = plt.subplots(1, 4, figsize=(19, 4.5), sharey=True)
+for c, BB in enumerate(BACKBONES):
     ax = axes[c]
     conds = list(BACKBONES[BB])
     x = np.arange(len(conds))

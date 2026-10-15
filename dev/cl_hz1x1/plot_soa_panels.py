@@ -27,18 +27,23 @@ cl1 = json.loads((ART / 'matrix_report.json').read_text())
 so = json.loads((ART / 'matrix_report_so_recomputed.json').read_text())
 soa1 = json.loads((ART / 'matrix_report_soa_soa1.json').read_text())
 soa3 = json.loads((ART / 'matrix_report_soa_soa3.json').read_text())
+soav_path = ART / 'matrix_report_soa_soav.json'
+soav = (json.loads(soav_path.read_text())
+        if soav_path.exists() else {})
 
 ORDERS = {'o2': ['s1', 'c4', 'c2', 'c3'], 'o3': ['c2', 'c3', 's1', 'c4']}
 NETS = {'s1': 'sumohz1x1', 'c4': 'sumohz1x1_config4', 'c2': 'sumohz1x1_config2',
         'c3': 'sumohz1x1_config3'}
-BACKBONES = {'dqn': 'ddqn', 'duel': 'duel', 'frap': 'frap'}
+BACKBONES = {'dqn': 'ddqn', 'duel': 'duel', 'frap': 'frap', 'vdqn': 'dqn'}
 ARMS = {
     'dqn':  {'replay': 'soddqn', 'p': 'soddqnp', 'pv': 'soddqnpv'},
     'duel': {'replay': 'soduel', 'p': 'soduelp', 'pv': 'soduelpv'},
     'frap': {'replay': 'sofrap', 'p': 'sofrapp', 'pv': 'sofrappv'},
+    'vdqn': {'replay': 'sodqn', 'p': 'sodqnp'},
 }
 SEEDS = [0, 1, 2]
 REP = {'replay': so, 'p': soa1, 'pv': soa1}
+SOAV_ARMS = {'sodqn', 'sodqnp'}
 
 baseline_att = {}
 for key, vals in cl1['baselines'].items():
@@ -49,9 +54,12 @@ baseline_att = {k: np.mean(v) for k, v in baseline_att.items()}
 
 def cell_delta(cond, bb, order, seed, stage, col):
     """ΔATT of eval cell (stage row, scene col) vs baseline, or None."""
-    arm = ARMS[bb][cond]
-    rep = soa3 if (order == 'o3' and cond in ('p', 'replay') and
-                   f'{arm}_o3_sd{seed}' in soa3) else REP[cond]
+    arm = ARMS[bb].get(cond)
+    if arm is None:
+        return None
+    rep = (soav if arm in SOAV_ARMS else
+           soa3 if (order == 'o3' and cond in ('p', 'replay') and
+                    f'{arm}_o3_sd{seed}' in soa3) else REP[cond])
     net = ORDERS[order][col]
     blk = rep.get(f'{arm}_{order}_sd{seed}', {})
     cell = blk.get(str(stage), {}).get(net)
@@ -69,9 +77,10 @@ def seed_mean_cell(cond, bb, order, stage, col):
 # ================= Figure 1: per-cell ΔATT heat triangles =================
 CONDS = [('replay', 'replay r=0.25'), ('p', '+policy anchor'),
          ('pv', '+policy+value')]
-fig, axes = plt.subplots(3, 3, figsize=(13, 12))
+BB_ROWS = ['dqn', 'duel', 'frap', 'vdqn']
+fig, axes = plt.subplots(len(BB_ROWS), 3, figsize=(13, 15))
 vmax = 6.0
-for r, bb in enumerate(['dqn', 'duel', 'frap']):
+for r, bb in enumerate(BB_ROWS):
     for c, (cond, label) in enumerate(CONDS):
         ax = axes[r][c]
         M = np.full((4, 4), np.nan)
@@ -121,16 +130,19 @@ def worst(rep, arm, order, seed):
     return max(vals) if vals else None
 
 
-fig, axes = plt.subplots(1, 3, figsize=(16, 4.5), sharey=True)
+fig, axes = plt.subplots(1, 4, figsize=(19, 4.5), sharey=True)
 STYLE = {'replay': ('#1f77b4', 'replay'), 'p': ('#2ca02c', '+P'),
          'pv': ('#9467bd', '+P+V')}
-for c, bb in enumerate(['dqn', 'duel', 'frap']):
+for c, bb in enumerate(BB_ROWS):
     ax = axes[c]
     groups = [('o2', 'replay', so), ('o2', 'p', soa1), ('o2', 'pv', soa1),
               ('o3', 'replay', so), ('o3', 'p', soa3)]
     xpos = np.arange(len(groups))
     for i, (order, cond, rep) in enumerate(groups):
-        arm = ARMS[bb][cond]
+        arm = ARMS[bb].get(cond)
+        if arm is None:
+            continue
+        rep = soav if arm in SOAV_ARMS else rep
         vals = [worst(rep, arm, order, sd) for sd in SEEDS]
         vals = [v for v in vals if v is not None]
         if not vals:

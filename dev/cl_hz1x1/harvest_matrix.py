@@ -23,7 +23,8 @@ ORDERS = {
     'o2': [NETS['s1'], NETS['c4'], NETS['c2'], NETS['c3']],
     'o3': [NETS['c2'], NETS['c3'], NETS['s1'], NETS['c4']],
 }
-ARMS = {'ddqn': 'dqn', 'duel': 'dqn', 'frap': 'frap', 'ppov2': 'ppo_pfrl'}
+ARMS = {'ddqn': 'dqn', 'duel': 'dqn', 'frap': 'frap', 'ppov2': 'ppo_pfrl',
+        'dqn': 'dqn'}
 CONDS = {'clear': ['ddqn', 'duel', 'frap', 'ppov2'],
          'fifo': ['ddqn', 'duel', 'frap']}
 SEEDS = [0, 1, 2]

@@ -36,7 +36,7 @@ SEEDS = [0, 1, 2]
 METRICS = ['travel_time', 'throughput', 'unfinished_vehicles', 'queue']
 # anchor arm -> (backbone for baseline lookup, agent dir suffix)
 BACKBONE = {'soddqn': ('ddqn', 'dqn'), 'soduel': ('duel', 'dqn'),
-            'sofrap': ('frap', 'frap')}
+            'sofrap': ('frap', 'frap'), 'sodqn': ('dqn', 'dqn')}
 
 
 def arm_backbone(arm):

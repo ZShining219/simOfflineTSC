@@ -108,7 +108,7 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
   soddqn/soduel/sofrap × 2 序 × 3 种子，offline_ratio=0.25 因果历史，
   在线 buffer 随场景清空、历史包按 stage 归档 `history_archive/`）；
   基线复用 cl1（offline_ratio=0 同码路）。
-  锚定件 `build_queue_soa.py`（argv: smoke|screen|main）产出
+  锚定件 `build_queue_soa.py`（argv: smoke|screen|main|main_o3|rho|vdqn|vdqnb）产出
   `run_queue_soa_<phase>.json`——与 so1 同协议但 stage>1 额外加载
   `teacher_paths`（各可见场景的 stage 末冻结 ckpt）并在离线样本上加
   输出锚定损失 `λ_π·KL(softmax(Q_teacher/T)‖softmax(Q_θ/T))`
@@ -126,7 +126,9 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
   `plot_soa_panels.py` 产出 `fig_soa_{cellmap,bars,diag}.png`
   （逐 cell ΔATT 热力三角、o2+o3 双序 worst 柱状、锚定/TD 诊断曲线），
   `plot_soa_rho.py` 产出 `fig_soa_rho.png`
-  （ρ∈{0.125,0.25,0.5} × {replay,+P} 剂量-响应：worst 退化 + 对角线塑性）。
+  （ρ∈{0.125,0.25,0.5} × {replay,+P} 剂量-响应：worst 退化 + 对角线塑性），
+  `plot_soa_episodes.py` 产出 `fig_soa_episodes.png`
+  （逐 episode 训练曲线：3/4 骨干 × st1-4 面板，replay vs +P 种子均值带）。
   诊断件 `drift_diag.py`——历史策略/价值漂移诊断（冻结推理，不改 ckpt）：
   `pool` 用基准 ckpt 在 held-out sumo 种子上 greedy rollout 建场景公共
   参考状态池（~1500 态/场景，c4/c2 合并两臂基准并留 src 标签）；

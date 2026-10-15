@@ -22,6 +22,7 @@ Phases (argv[1], default 'screen'):
   main_o3 order-shift replication: {+policy} arms only × o3 × seeds0-2
           λ fixed by the screen outcome (edit LAMBDAS below)
   rho     dose-response: {replay, +P} × ρ∈{0.125,0.5} × o2 × seeds0-2
+  vdqn    vanilla DQN pair (double_dqn=false): {replay, +P} × o2 × seeds0-2
           (ρ=0.25 cells come from so1/soa1)
 
 Outputs (all under gitignored artifacts/cl_hz1x1/):
@@ -129,6 +130,14 @@ for bb, agent, extra in (('soddqn', 'dqn', {'double_dqn': True}),
         ARMS_RHO[f'{bb}p_{tag}'] = {'agent': agent, 'model_extra': {
             **extra, **SO_BASE, 'offline_ratio': rho,
             **anchor_p(LAMBDA_POLICY_MAIN)}}
+# Vanilla (non-double) DQN pair: the whole campaign used double_dqn=True,
+# so the plain DQN cell needs both its replay baseline and +P arm.
+ARMS_VDQN = {
+    'sodqn': {'agent': 'dqn', 'model_extra': {
+        'double_dqn': False, **SO_BASE}},
+    'sodqnp': {'agent': 'dqn', 'model_extra': {
+        'double_dqn': False, **SO_BASE, **anchor_p(LAMBDA_POLICY_MAIN)}},
+}
 SEEDS = [0, 1, 2]
 EVAL_SEEDS = [101, 102, 103]
 OFFLINE_RATIO = 0.25
@@ -377,6 +386,72 @@ def main(phase, arms, orders, seeds, eval_seeds, stage_episodes, eval_at,
           f'eval={len(tasks) - n_train} ledger_rows={len(ledger)}')
 
 
+def main_vbase(stage_episodes=100, eval_at=(0, 50, 100)):
+    """Vanilla-DQN single-scene baselines (cl1_* naming convention).
+
+    matrix_report.json baselines are keyed '{backbone}_{tag}_sd{seed}' read
+    from ``cl1_{arm}_base_{tag}_sd{seed}`` runs; every existing backbone had a
+    base run except plain DQN, so emit the 4-scene x 3-seed grid here.
+    """
+    OVERLAYS.mkdir(parents=True, exist_ok=True)
+    tasks, ledger = [], []
+    for tag, net in NETS.items():
+        for seed in SEEDS:
+            rid = f'cl1_dqn_base_{tag}_sd{seed}'
+            ov = write_overlay(rid, {'double_dqn': False}, {
+                'episodes': stage_episodes,
+                'evaluation_episodes': list(eval_at),
+                'resumable_checkpoint_episodes': list(eval_at),
+                'test_when_train': False})
+            odir = out_dir('dqn', net, rid)
+            tasks.append({
+                'run_id': rid,
+                'command': cmd('dqn', net, rid, ov, seed, 0),
+                'cwd': str(ROOT), 'env': dict(ENV),
+                'output_path': str(odir),
+                'completion': completion(odir),
+                'campaign': 'cl_hz1x1', 'arm': 'dqn_base',
+                'scene': net, 'training_seed': seed,
+                'run_kind': 'train',
+                'episode_budget': stage_episodes,
+            })
+            ledger.append({
+                'run_id': rid, 'line': 'cl_hz1x1', 'campaign': 'cl_hz1x1',
+                'arm': 'dqn_base', 'alias_of': None, 'net': net, 'seed': seed,
+                'episodes_total': stage_episodes,
+                'episodes_increment': stage_episodes, 'resume_from': None,
+                'ngpu': -1, 'status': 'REGISTERED',
+                'plan_id': 'cl_hz1x1_anchor_vdqnb', 'code_commit': None,
+                'dirty': None,
+                'queue_file': 'artifacts/cl_hz1x1/run_queue_soa_vdqnb.json',
+                'run_dir': None, 'tmux': None, 'started': None,
+                'eval_mode': None, 'behavior_source': None, 'metrics': {},
+                'abort_reason': None, 'error': None, 'evidence_lost': False,
+                'notes': 'REGISTERED: cl_hz1x1 vanilla dqn single-scene '
+                         'baseline (mirror of cl1_{arm}_base runs)',
+                'run_kind': 'train', 'config_sha': None,
+                'sumo_seed_mode': None, 'sumo_seed': None, 'eval_seed': None,
+                'condition': 'single_scene_baseline', 'superseded_by': None,
+                'runtime_env': 'colight', 'end_time': None,
+            })
+    manifest = {
+        'schema_version': 1,
+        'plan': 'cl_hz1x1_anchor_vdqnb',
+        'expected_tasks': len(tasks),
+        'note': 'vanilla DQN (double_dqn=false) single-scene baselines, '
+                'cl1_* naming for harvest_matrix baseline lookup',
+        'training_seeds': SEEDS,
+        'stage_episodes': stage_episodes,
+        'tasks': tasks,
+    }
+    (ART / 'run_queue_soa_vdqnb.json').write_text(
+        json.dumps(manifest, indent=1, ensure_ascii=False), encoding='utf-8')
+    (ART / 'ledger_rows_soa_vdqnb.jsonl').write_text(
+        '\n'.join(json.dumps(r, ensure_ascii=False) for r in ledger) + '\n',
+        encoding='utf-8')
+    print(f'phase=vdqnb tasks={len(tasks)} ledger_rows={len(ledger)}')
+
+
 if __name__ == '__main__':
     phase = sys.argv[1] if len(sys.argv) > 1 else 'screen'
     if phase == 'smoke':
@@ -397,5 +472,12 @@ if __name__ == '__main__':
         # rho dose-response: {replay, +P} x rho in {0.125, 0.5} x o2.
         main('rho', ARMS_RHO, {'o2': ORDERS['o2']}, SEEDS, EVAL_SEEDS,
              stage_episodes=100, eval_at=[0, 50, 100], prefix='soar')
+    elif phase == 'vdqn':
+        # Vanilla DQN pair (replay-only baseline + +P), o2 only.
+        main('vdqn', ARMS_VDQN, {'o2': ORDERS['o2']}, SEEDS, EVAL_SEEDS,
+             stage_episodes=100, eval_at=[0, 50, 100], prefix='soav')
+    elif phase == 'vdqnb':
+        # Vanilla DQN single-scene baselines for ΔATT denominators.
+        main_vbase()
     else:
         raise SystemExit(f'unknown phase: {phase}')

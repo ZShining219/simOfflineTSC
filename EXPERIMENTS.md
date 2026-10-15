@@ -23,7 +23,7 @@
 
 ## 0. 总览
 
-登记 run 总数：**11577**（train 1188、eval attempt 10188、smoke 128、calibration 18、batch 29）
+登记 run 总数：**11793**（train 1224、eval attempt 10368、smoke 128、calibration 18、batch 29）
 
 | campaign | DONE | FAILED | ABORTED | SUPERSEDED | REGISTERED | SCOPE_DISCARD | LEGACY_UNCLEAR | 合计 |
 |---|---|---|---|---|---|---|---|---|
@@ -38,9 +38,9 @@
 | milestone0_infra | 12 | 0 | 0 | 0 | 0 | 0 | 0 | 12 |
 | paper_infra_validation | 19 | 0 | 0 | 0 | 0 | 0 | 0 | 19 |
 | misc_probes | 1 | 5 | 0 | 0 | 0 | 1 | 0 | 7 |
-| cl_hz1x1 | 4780 | 0 | 0 | 0 | 0 | 216 | 0 | 4996 |
+| cl_hz1x1 | 4996 | 0 | 0 | 0 | 0 | 216 | 0 | 5212 |
 | signal_control_v1 | 0 | 0 | 0 | 0 | 4 | 0 | 0 | 4 |
-| **合计** | 11004 | 243 | 93 | 4 | 4 | 228 | 0 | **11577** |
+| **合计** | 11220 | 243 | 93 | 4 | 4 | 228 | 0 | **11793** |
 
 状态语义见 GOVERNANCE.md §2。LEGACY_UNCLEAR=0 表示全部可识别 run 均通过队列/状态文件/目录归属证据还原出 campaign；个别 run 的臂内身份仍以命名约定为据，已在 notes 标注处保持保守。
 
@@ -59,7 +59,7 @@
 | `milestone0_infra` | 12 | 12/0/0/0 | 基础设施验证 | [明细](EXPERIMENTS/milestone0_infra.md) |
 | `paper_infra_validation` | 19 | 19/0/0/0 | paper 基建验证 | [明细](EXPERIMENTS/paper_infra_validation.md) |
 | `misc_probes` | 7 | 1/5/0/1 | 零散探针 | [明细](EXPERIMENTS/misc_probes.md) |
-| `cl_hz1x1` | 4996 | 4780/0/0/216 | hz1x1 持续学习：off-policy 机制性遗忘三骨干证实；+policy 锚 λπ=1 把 worst 退化压至 ≤1.0s 近零塑性代价；ρ 剂量响应显示锚定可省回放预算且 ρ=0.25 为甜点 | [明细](EXPERIMENTS/cl_hz1x1.md) |
+| `cl_hz1x1` | 5212 | 4996/0/0/216 | hz1x1 持续学习：off-policy 机制性遗忘三骨干证实；+policy 锚 λπ=1 把 worst 退化压至 ≤1.0s 近零塑性代价；ρ 剂量响应显示锚定可省回放预算且 ρ=0.25 为甜点 | [明细](EXPERIMENTS/cl_hz1x1.md) |
 | `signal_control_v1` | 4 | 0/0/0/0 | — | [明细](EXPERIMENTS/signal_control_v1.md) |
 
 ## 附：追溯口径说明

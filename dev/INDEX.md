@@ -147,6 +147,11 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
   （遗忘侧微观解剖：o2 链各 stage 末 + 侵蚀 stage 内 {0,50,100} resumable
   ckpt 回评旧场景 s1@es101，39 controller 同交通实现逐 10s 时序；
   配套把 frap 补进 run.py/logger.py 的 manifest loader 白名单）。
+  `plot_motivation.py` 产出 `fig_cl_motivation.png`
+  （论文动机四联图：(a) so1_soddqn_o2_sd0 各 stage archive 真实
+  (state,phase) 对 PCA 按场景着色；(b) drift_s1_rows 公共池 |ΔQ|1
+  沿链漂移 clear vs so；(c) PC1 边际密度 + buffer 并集 cover；
+  (d) drift_s1_tt stage 末冻结 ATT，clear 爆 so 平；全部存量数据零新 run）。
   诊断件 `drift_diag.py`——历史策略/价值漂移诊断（冻结推理，不改 ckpt）：
   `pool` 用基准 ckpt 在 held-out sumo 种子上 greedy rollout 建场景公共
   参考状态池（~1500 态/场景，c4/c2 合并两臂基准并留 src 标签）；

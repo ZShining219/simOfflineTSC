@@ -132,7 +132,11 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
   `plot_soa_adapt.py` 产出 `fig_soa_adapt_{main,all,tradeoff}.png` +
   `adapt_metrics.json`
   （切换适应代价分析：clear/semi/+P 三条件逐 episode 对比、入场差距/
-  超额成本/最差窗口/去趋势波动/反弹指标、稳定-塑性二维散点）。
+  超额成本/最差窗口/去趋势波动/反弹指标、稳定-塑性二维散点），
+  `plot_soa_snap.py` 产出 `fig_soa_snap_convergence.png` +
+  `snap3_metrics.json`（o3 st3 收敛探针：model/{e}_0.pt 快照冻结评估
+  ep5/10/15/20 + ev3(ep100) + in-train ep0/50，"达标时点"=之后所有测点
+  ≤基线+5%；dqn 系快照为 target 网、frap 为 online 网）。
   诊断件 `drift_diag.py`——历史策略/价值漂移诊断（冻结推理，不改 ckpt）：
   `pool` 用基准 ckpt 在 held-out sumo 种子上 greedy rollout 建场景公共
   参考状态池（~1500 态/场景，c4/c2 合并两臂基准并留 src 标签）；

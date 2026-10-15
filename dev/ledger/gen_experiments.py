@@ -142,8 +142,14 @@ META = {
                "ddqn/duel 纯在线 ep0 冻结评估相对基线最差 +157/+104s、前10ep 训练 ATT +8.2s、20ep 超额成本 3-4×；"
                "半离线将入场差距压回 ≤2s，+P 与其相当或略优；frap 同切换差异 <1s——"
                "结论=半离线/锚定收益含'新场景入场可靠性'一层，但具顺序与骨干特异性，非普适加速。"
+               "⑨snap3 收敛探针（model_snapshot 新通道，324 eval 任务，o3 st3 ep5/10/15/20 快照评估）："
+               "确认纯在线入场冲击真实且恢复缓慢但可恢复——ddqn clear 最差种子 ep5-20 仍高于基线+5%、"
+               "至 ep100 才稳定；但同时发现回放/锚定臂存在中段回弹（ddqn semi sd1 ep10=89.2s、"
+               "+P sd1 ep15=86.1s、duel +P sd2 ep15-20≈83-84s），'settled'时点在三条件间交错，"
+               "锚定在新场景轴上并非单调更优——诚实的口径是'可靠入场+偶发中段回弹'而非'更快收敛'。"
+               "注：dqn 系 model/{e}_0.pt 为 target 快照（保守口径），frap 为 online 快照。"
                "216 行 SCOPE_DISCARD 为超范围裁决留档。",
- "queues": "artifacts/cl_hz1x1/{run_queue_cl1.json, run_queue_so1.json, run_queue_soa_screen.json, run_queue_soa_main.json, run_queue_soa_main_o3.json, run_queue_soa_rho.json, run_queue_soa_vdqn.json, run_queue_soa_vdqnb.json}",
+ "queues": "artifacts/cl_hz1x1/{run_queue_cl1.json, run_queue_so1.json, run_queue_soa_screen.json, run_queue_soa_main.json, run_queue_soa_main_o3.json, run_queue_soa_rho.json, run_queue_soa_vdqn.json, run_queue_soa_vdqnb.json, run_queue_soa_snap3.json}",
 },
 }
 

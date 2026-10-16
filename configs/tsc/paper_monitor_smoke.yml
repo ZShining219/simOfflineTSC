@@ -1,0 +1,19 @@
+# Overlay for the new tools.run_paper_baseline entry, not a formal experiment.
+command:
+  sumo_seed: 7
+trainer:
+  episodes: 2
+  steps: 300
+  test_steps: 300
+  learning_start: 5
+  buffer_size: 100
+  evaluation_episodes: [0, 2]
+  resumable_checkpoint_episodes: [0, 2]
+  action_interval: 10
+  event_schedule: configs/events/hz4x4.yml
+model:
+  batch_size: 4
+world:
+  saveReplay: false
+logger:
+  save_rate: 1

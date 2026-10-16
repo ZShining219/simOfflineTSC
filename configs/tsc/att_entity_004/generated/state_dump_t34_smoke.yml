@@ -1,0 +1,41 @@
+# t34_devin stage-1 gate probe — SMOKE config (episodes=2, held-out plan t3).
+# Schema identical to state_dump_a3s.yml (att004 state-lib dump family):
+# policy frozen via probe (argmax, model.eval); learning_start huge -> no
+# gradient updates. Train-role episodes consume plan rows 0..1; eval@0/2 use
+# the plan's eval composite.
+model:
+  name: tarl_attention
+  train_model: True
+  tarl_impl: paper
+  one_hot: True
+  phase: True
+  batch_size: 128
+  gamma: 0.99
+  learning_rate: 0.0001
+  epsilon: 0.8
+  epsilon_decay: 0.99995
+  epsilon_min: 0.05
+  grad_clip: 5.0
+  event_input: structured
+  semantic_aux:
+    enabled: true
+    lambda: 1.0
+  grad_ledger: true
+  grad_probe_interval: 0
+
+trainer:
+  episodes: 2
+  steps: 3600
+  test_steps: 3600
+  learning_start: 1000000000
+  buffer_size: 50000
+  action_interval: 10
+  update_model_rate: 1
+  update_target_rate: 200
+  test_when_train: false
+  evaluation_episodes: [0, 2]
+  resumable_checkpoint_episodes: [0, 2]
+  event_schedule_plan: configs/events/plans/att004_t3_train_v1.yml
+
+logger:
+  save_rate: 25

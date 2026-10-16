@@ -1,0 +1,5 @@
+includes:
+  - configs/tsc/presslight.yml
+model:
+  name: paper_presslight
+  reward_profile: configs/rewards/presslight.yml

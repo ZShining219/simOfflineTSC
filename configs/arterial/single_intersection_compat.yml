@@ -1,0 +1,16 @@
+model:
+  expected_num_intersections: 1
+  shared_parameters: true
+  state_variant: base
+  reward_variant: original
+  use_position_encoding: false
+  offline_ratio: 0.0
+  training_mode: online
+trainer:
+  episodes: 2
+  learning_start: 10
+  buffer_size: 5000
+  steps: 60
+  test_steps: 60
+  evaluation_episodes: [0, 2]
+  resumable_checkpoint_episodes: [0, 2]

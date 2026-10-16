@@ -1,0 +1,21 @@
+logger:
+  save_rate: 1
+model:
+  name: maxpressure
+  t_min: 10
+  train_model: false
+trainer:
+  action_interval: 10
+  buffer_size: 0
+  episodes: 0
+  evaluation_episodes:
+  - 0
+  event_schedule_plan: configs/events/plans/att004_t4_eval_v1.yml
+  learning_start: 0
+  resumable_checkpoint_episodes:
+  - 0
+  steps: 3600
+  test_steps: 3600
+  test_when_train: false
+  update_model_rate: 0
+  update_target_rate: 0

@@ -52,9 +52,13 @@ hz1x1 路网（直行+左转拓扑）上生成 15 个语义标注的需求包（
 ## 3. 实验设计
 
 - 场景/路网：hz1x1 同一路网，15 个需求包；三序列各 1 order。
-- 臂设置：`CONT-FIFO`（在线基线）/`SELF-DHOA-R50`（自产档案动态均匀采样）
-  /`SELF-CQ-R50`（自产档案 + Q 质量锚定工作池），offline_ratio=0.5。
-- seed/episode：seeds [0..4]，stage_episodes=[100]×8（smoke=[5]×8），
+- 臂设置：`CONT-FIFO`（在线基线）/`SELF-DHOA-R50`（自产档案动态均匀采样），
+  offline_ratio=0.5。**设计修正（2026-10-16 用户裁决）**：SELF-CQ-R50 臂为
+  意图错误——质量锚定工作池（CQ/CQA 选池）属此前已否定的技术路线，不纳入
+  本 pilot；已完成的 SD0/SD1 共 6 个 CQ run 数据保留为产物但不进入结论，
+  SD2/SD3 六个中断 attempt 封存 `cancelled`。
+- seed/episode：seeds [0..3]（原批 [0..4]，SD4 波 9 run 经裁决撤销未派发），
+  stage_episodes=[100]×8（smoke=[5]×8），
   steps=3600、action_interval=10、b100 其余超参沿用 plan34_b100。
 - 父 checkpoint：复用 engineering_20260726 initial_state_catalog 的 ep0
   初始态（per-seed 跨网络 bitwise 等价已审计），元数据重绑定到各 order

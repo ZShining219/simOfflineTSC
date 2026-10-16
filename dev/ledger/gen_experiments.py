@@ -7,6 +7,14 @@ ROOT = Path(__file__).resolve().parents[2]
 ROWS = [json.loads(l) for l in open(ROOT / "ledger" / "runs.jsonl")]
 
 META = {
+"signal_control_v1": {
+ "title": "SUMO 修正绿黄执行（sumo-green-yellow-v1）主线训练验证",
+ "hypothesis": "在 run.py/TSCTrainer 主线启用 sumo-green-yellow-v1（5s 黄灯过渡、清空期锁相）后，DQN 在 hz4x4 上可正常训练收敛；与无过渡 legacy 臂的指标差异反映换相物理成本的口径变化（语义变更，GOVERNANCE §5.5，两臂指标不与历史无过渡 run 直接可比）。",
+ "plan_id": "scv1_gy5_v1",
+ "design": "artifacts/signal_control_v1/run_queue_dqn_gy5.json；configs/tsc/{dqn_gy5,dqn_gy5_smoke}.yml；适配器 world/sumo_signal_control.py；trainer/tsc_trainer.py signal_control 安装点",
+ "conclusion": "进行中：2 臂 REGISTERED（dqn_gy5 + 同种子 legacy 对照），400ep train_frozen_eval seed=7。",
+ "queues": "artifacts/signal_control_v1/run_queue_dqn_gy5.json",
+},
 "att_entity_004": {
  "title": "ATT-ENTITY-004 结构化事件输入 + 语义辅助（注意力线当前主线）",
  "hypothesis": "事件信息以结构化 z_task 槽位 + 语义辅助头进入 TARL 注意力，应同时提升场景区分与决策优化（H: 结构化+aux > 纯文本注入）。",
@@ -15,13 +23,12 @@ META = {
            "configs/tsc/att_entity_004/generated/*.yml；"
            "artifacts/att_entity_004/{ABLATION_ARMS_DESIGN,DIVIDE_CONQUER_DESIGN,SGA_REPAIR_DESIGN}.md",
  "conclusion": "fixG/fixR/fixD/crossq/ablA/ablation/a2s/a3s/holdout 波次均完成并留档；"
-               "**fixG 收官测评收割（2026-10-07，eval 实为 10-05 已跑完、此前未汇总判读）**："
-               "fe_fixG_* 网格 5 seed×{ep50/100/150/200}×5 条件×3 eval seed 共 300 run 全存在。"
+               "\n- **fixG 收官测评收割（2026-10-07，eval 实为 10-05 已跑完、此前未汇总判读）**：fe_fixG_* 网格 5 seed×{ep50/100/150/200}×5 条件×3 eval seed 共 300 run 全存在。"
                "判读：①优化层——fixG vs a3s 同 seed/同 eval 配对 canonical TT ep50 −24.9s、ep100 −8.9s（收敛更快且更优）；"
                "②表征层——wrong_type−canonical 中位 +1.34s 非零，类型语义仍在影响行为；"
-               "③**效用层未翻正**——canonical−empty 中位 +0.58s（均值 +2.27s 被 s? 单点 +28.7s 拉高），"
-               "文本通道相对 empty 仍无净收益，独家信息设计需求不变。evidence：hz4x4/fe_fixG_*。"
-               "stg2 波次登记未执行、2026-10-07 裁决转 SCOPE_DISCARD，stg1/ctl 部分臂 DROPPED（SCOPE_DISCARD）；"
+               "③**效用层未翻正**——canonical−empty 中位 +0.58s（均值 +2.27s 被 s? 单点 +28.7s 拉高），文本通道相对 empty 仍无净收益，独家信息设计需求不变。"
+               "evidence：hz4x4/fe_fixG_*。stg2 波次登记未执行、2026-10-07 裁决转 SCOPE_DISCARD，stg1/ctl 部分臂 DROPPED（SCOPE_DISCARD）；"
+
                "SGA-GB 梯度线经 pilot 判定为负结果后停止（SGA_GB_PILOT_RESULT.md）；"
                "三指标+条件矩阵证据在 data/output_data/analysis/att_entity_004/ 与 baseline_cmp.md。",
  "queues": "run_queue_att004_{wave1,fix,struct,formal,ablation,ablA,holdout,stage2}.json + artifacts/att004_e200/run_queue_e200.json",
@@ -118,6 +125,51 @@ META = {
  "conclusion": "1 DONE、5 FAILED、1 SCOPE_DISCARD（inspect_mplight，2026-10-07 裁决：基线已被 baseline_eval 覆盖）。",
  "queues": "—",
 },
+"cl_hz1x1": {
+ "title": "cl_hz1x1 同质单路口持续学习（cl1 主线 + so1 半离线 + soa1 输出锚定）",
+ "hypothesis": "值迭代型 TSC-RL 在顺序场景训练下发生机制性灾难性遗忘；25% 因果历史离线混合应以架构无关方式消除遗忘且不损害新场景学习；"
+               "在离线样本上加 stage 末教师输出锚定（CLEAR 式 policy cloning 的 DQN 移植）应在同回放预算下进一步压缩残余退化。",
+ "plan_id": "cl_hz1x1_v1 / cl_hz1x1_anchor_{screen,main,main_o3,rho,vdqn,vdqnb}",
+ "design": "artifacts/cl_hz1x1/{run_queue_cl1.json, run_queue_so1.json, run_queue_soa_*.json}；"
+           "dev/cl_hz1x1/{build_queue,build_queue_so,build_queue_soa,harvest_matrix,harvest_soa,plot_so_compare,plot_soa_compare}.py；"
+           "矩阵 artifacts/cl_hz1x1/matrix_report{,_so,_soa_soa1}.json；图 artifacts/cl_hz1x1/fig_{so,soa}_{retention_trajectory,worst_degradation}.png；"
+           "锚定实现 agent/{dqn,frap}.py::_anchor_loss，诊断经 metrics schema v5 train_diagnostics 落盘",
+ "conclusion": "cl1 1476/1476 + so1 612/612 + soa screen 306/306 + soa1 主矩阵 612/612 + soa3 复现 306/306 + soar 1224/1224 + soav 204/204 + 基线 12/12 全 DONE。"
+               "①ddqn/duel/frap 三骨干在 clear 下均崩（o2 最深退化 +597/+282/+140s），遗忘为 off-policy 机制性失败非实现特例；"
+               "②结构调制易感性（duel>ddqn>frap）但不免疫；③25% 因果半离线三臂 18/18 链最深退化 ≤+9s，对角线新学习近似保持——"
+               "结论=抗遗忘修复，非绝对性能提升。PPO 为 on-policy 未入 so 臂。"
+               "④soa1（o2, n=3，口径=全部旧场景 cell 最深 ΔATT）：policy 锚 λ_π=1 把 worst 退化 ddqn 1.54→0.44s、duel 5.23→0.90s、frap 9.79→0.99s，"
+               "对角线 ΔATT 均值变化 ≤0.4s 近似零塑性代价；λ_π=10 双指标恶化（筛除非单调剂量响应）；"
+               "+value 锚 λ_q=0.1 一致略逊于纯 policy 锚（同预算下钉旧 Q 值与 TD 拉扯）。"
+               "⑤o3 复现（仅 +P 臂）：worst 退化 ddqn 3.91→0.35s、duel 5.96→0.56s、frap 0.73→−0.03s（全 cell 优于基线），"
+               "跨序一致；sd1 链 st3 对角线单点 +2.4s 为唯一塑性毛刺（臂均值仍 −0.10s）。"
+               "⑥ρ 剂量-响应（soar, o2, n=3）：+P@0.25 全面优于 replay@0.5（0.17/0.39/0.65 vs 0.92/1.67/1.25）——"
+               "锚定一半预算胜过加倍回放；+P@0.125 对 frap/duel 压过 replay@0.5（frap 1.05 vs 1.25、duel 1.45 vs 1.67）"
+               "且远低于 replay@0.25 的 frap 7.03，ddqn 上则不及（1.48 vs 0.92）；+P 非单调——ρ=0.5 时 worst 回升（ddqn 0.17→1.00、duel 0.39→0.93），"
+               "历史占比过高稀释当前学习信号，ρ=0.25 为甜点；对角线全程 ≤0.4s。"
+               "⑦vanilla DQN 补格（soav, o2, n=3，double_dqn=false）：此前全部 dqn 臂实为 DDQN；"
+               "补跑 replay-only + +P 双臂及 12 个单场景基线后 worst 退化 2.55/3.62 → 0.46/0.78（5.5×），"
+               "vanilla 的 max-target 偏置使纯回放退化大于 ddqn（2.55 vs 1.07），+P 同样压回 <1s——"
+               "锚定收益对 double/dueling/FRAP/原始 DQN 四种输出结构一致成立。"
+               "⑧适应代价分析（plot_soa_adapt，复用既有 records 无新 run）：切换的入场冲击集中于 o3 st3(c3→s1)——"
+               "ddqn/duel 纯在线 ep0 冻结评估相对基线最差 +157/+104s、前10ep 训练 ATT +8.2s、20ep 超额成本 3-4×；"
+               "半离线将入场差距压回 ≤2s，+P 与其相当或略优；frap 同切换差异 <1s——"
+               "结论=半离线/锚定收益含'新场景入场可靠性'一层，但具顺序与骨干特异性，非普适加速。"
+               "⑨snap3 收敛探针（model_snapshot 新通道，324 eval 任务，o3 st3 ep5/10/15/20 快照评估）："
+               "确认纯在线入场冲击真实且恢复缓慢但可恢复——ddqn clear 最差种子 ep5-20 仍高于基线+5%、"
+               "至 ep100 才稳定；但同时发现回放/锚定臂存在中段回弹（ddqn semi sd1 ep10=89.2s、"
+               "+P sd1 ep15=86.1s、duel +P sd2 ep15-20≈83-84s），'settled'时点在三条件间交错，"
+               "锚定在新场景轴上并非单调更优——诚实的口径是'可靠入场+偶发中段回弹'而非'更快收敛'。"
+               "注：dqn 系 model/{e}_0.pt 为 target 快照（保守口径），frap 为 online 快照。"
+               "⑩snap3o 微观解剖（18 复跑 + 126 controller eval-manifest，online 口径）："
+               "RNG 复现验证通过（抽样 3 run 100/100 episode 与原 run 逐位一致）；"
+               "冲击的微观形态=慢性相位分配病理而非瞬时扰动——clear ep0 全网队列 ~5min 内堆至 110+veh 且"
+               "全程不消退、吞吐缺口贯穿整 episode（-37%），逐lane 热力定位为单方向进口道全程饿死+"
+               "对向周期性欠服务；恢复极快：online 口径 ep5 即回 ~80s 常态。"
+               "target-snap 与 online 数值差 <1s——snap3 的 settled/回弹结论在 online 口径下成立。"
+               "216 行 SCOPE_DISCARD 为超范围裁决留档。",
+ "queues": "artifacts/cl_hz1x1/{run_queue_cl1.json, run_queue_so1.json, run_queue_soa_screen.json, run_queue_soa_main.json, run_queue_soa_main_o3.json, run_queue_soa_rho.json, run_queue_soa_vdqn.json, run_queue_soa_vdqnb.json, run_queue_soa_snap3.json}",
+},
 }
 
 def fmt_metrics(m):
@@ -146,6 +198,7 @@ SHORT = {
 "milestone0_infra": "基础设施验证",
 "paper_infra_validation": "paper 基建验证",
 "misc_probes": "零散探针",
+"cl_hz1x1": "hz1x1 持续学习：off-policy 机制性遗忘三骨干证实；+policy 锚 λπ=1 把 worst 退化压至 ≤1.0s 近零塑性代价；ρ 剂量响应显示锚定可省回放预算且 ρ=0.25 为甜点",
 }
 
 camps = collections.Counter(r["campaign"] for r in ROWS)
@@ -210,7 +263,14 @@ for camp in order + sorted(set(camps) - set(order)):
             d.append(f"| `{pkg[:60]}` | {sc.get('DONE',0)}/{sc.get('FAILED',0)}/{sc.get('ABORTED',0)} | "
                      f"{','.join(conds)[:60] or '—'} | {','.join(map(str,ess))[:40] or '—'} |")
         d.append("")
-    (DETAIL / f"{camp}.md").write_text("\n".join(d))
+    # 明细文件尾部人工维护区：<!-- EXTRA-BEGIN/END --> 块原样回填（同索引层 PANEL 约定）。
+    detail_path = DETAIL / f"{camp}.md"
+    if detail_path.exists():
+        xm = re.search(r"<!-- EXTRA-BEGIN -->.*?<!-- EXTRA-END -->",
+                       detail_path.read_text(), re.S)
+        if xm:
+            d.append(xm.group(0))
+    detail_path.write_text("\n".join(d))
     sc = collections.Counter(r["status"] for r in rs)
     idx_rows.append(f"| `{camp}` | {len(rs)} | "
                     f"{sc.get('DONE',0)}/{sc.get('FAILED',0)}/{sc.get('ABORTED',0)}/{sc.get('SCOPE_DISCARD',0)} | "

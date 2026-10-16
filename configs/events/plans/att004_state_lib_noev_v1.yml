@@ -1,0 +1,36 @@
+schema_version: sumo-episode-plan-v1
+plan_id: att004_state_lib_noev_v1
+episodes:
+- episode: 0
+  label: statelib_00_normal
+  events: []
+- episode: 1
+  label: statelib_01_normal
+  events: []
+- episode: 2
+  label: statelib_02_normal
+  events: []
+- episode: 3
+  label: statelib_03_single:road_closure
+  events: []
+- episode: 4
+  label: statelib_04_single:lane_blockage
+  events: []
+- episode: 5
+  label: statelib_05_single:global_rain
+  events: []
+- episode: 6
+  label: statelib_06_multi:lane_blockage+road_closure
+  events: []
+- episode: 7
+  label: statelib_07_multi:lane_blockage+global_rain
+  events: []
+- episode: 8
+  label: statelib_08_multi:road_closure+global_rain
+  events: []
+- episode: 9
+  label: statelib_09_multi:lane_blockage+road_closure
+  events: []
+eval:
+  schema_version: sumo-events-v1
+  events: []

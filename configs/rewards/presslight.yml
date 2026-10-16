@@ -1,0 +1,14 @@
+schema_version: paper-reward-v1
+profile_id: presslight_author_pressure_sumo_v1
+owner: presslight
+statistic: absolute_queue_pressure
+lane_scope: all_incoming_outgoing
+weight: -0.25
+normal_factor: 20.0
+stopped_speed_mps: 0.1
+temporal_aggregation: action_interval_mean
+references:
+  - https://github.com/wingsweihua/presslight/blob/efb086782ec4aa4516f18917e39f60c25c39c64d/runexp.py
+  - https://github.com/wingsweihua/presslight/blob/efb086782ec4aa4516f18917e39f60c25c39c64d/anon_env.py
+  - https://github.com/wingsweihua/presslight/blob/efb086782ec4aa4516f18917e39f60c25c39c64d/network_agent.py
+qualification: "Author mode=3 anon-branch reward: negative absolute difference of total incoming/outgoing queues, with -0.25 weight and TD division by 20. SUMO full-lane current speed < 0.1 m/s adapter. Not density-normalized movement pressure or an exact reproduction of all paper settings."

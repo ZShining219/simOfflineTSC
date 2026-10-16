@@ -24,11 +24,11 @@
 
 ## 0. 总览
 
-登记 run 总数：**7066**（train 978、eval attempt 5789、smoke 139、calibration 18、batch 40）
+登记 run 总数：**12715**（train 1472+hitl_warmloop 等 HEAD 增量；详见 ledger/runs.jsonl 行数）
 
 | campaign | DONE | FAILED | ABORTED | SUPERSEDED | REGISTERED | SCOPE_DISCARD | LEGACY_UNCLEAR | 合计 |
 |---|---|---|---|---|---|---|---|---|
-| att_entity_004 | 1812 | 126 | 30 | 0 | 0 | 10 | 0 | 1978 |
+| att_entity_004 | 1871 | 126 | 30 | 0 | 0 | 11 | 0 | 2039 |
 | att_entity_003 | 1372 | 67 | 0 | 0 | 0 | 0 | 0 | 1439 |
 | att_entity_002 | 2206 | 26 | 59 | 0 | 0 | 0 | 0 | 2291 |
 | arterial_1x6 | 501 | 8 | 0 | 0 | 0 | 0 | 0 | 509 |
@@ -40,6 +40,7 @@
 | milestone0_infra | 12 | 0 | 0 | 0 | 0 | 0 | 0 | 12 |
 | paper_infra_validation | 19 | 0 | 0 | 0 | 0 | 0 | 0 | 19 |
 | misc_probes | 1 | 5 | 0 | 0 | 0 | 1 | 0 | 7 |
+| cl_hz1x1 | 5368 | 0 | 0 | 0 | 0 | 216 | 0 | 5584 |
 | hitl_live_ab | 6 | 0 | 0 | 0 | 0 | 0 | 0 | 6 |
 | hitl_live_baseline | 2 | 0 | 0 | 0 | 0 | 0 | 0 | 2 |
 | hitl_live_gate | 30 | 0 | 0 | 0 | 0 | 0 | 0 | 30 |
@@ -49,8 +50,9 @@
 | hitl_live_r3 | 150 | 0 | 0 | 0 | 0 | 0 | 0 | 150 |
 | hitl_live_r4 | 20 | 0 | 0 | 0 | 0 | 0 | 0 | 20 |
 | hitl_warmloop | 26 | 0 | 0 | 0 | 2 | 0 | 0 | 28 |
+| signal_control_v1 | 0 | 0 | 0 | 0 | 4 | 0 | 0 | 4 |
 | takeover_probe_sig15 | 24 | 0 | 0 | 0 | 0 | 0 | 0 | 24 |
-| **合计** | 6711 | 243 | 95 | 4 | 2 | 11 | 0 | **7066** |
+| **合计** | 11966 | 243 | 93 | 4 | 6 | 228 | 0 | **12541** |
 
 状态语义见 GOVERNANCE.md §2。LEGACY_UNCLEAR=0 表示全部可识别 run 均通过队列/状态文件/目录归属证据还原出 campaign；个别 run 的臂内身份仍以命名约定为据，已在 notes 标注处保持保守。
 
@@ -58,7 +60,7 @@
 
 | campaign | runs | D/F/A/SD | 一句话结论 | 明细 |
 |---|---|---|---|---|
-| `att_entity_004` | 1978 | 1812/126/30/10 | 当前主线：保真达标；canonical≈empty 修正为窗内小幅净负；closure 缺口待修 | [明细](EXPERIMENTS/att_entity_004.md) |
+| `att_entity_004` | 2039 | 1871/126/30/11 | 当前主线：保真达标；canonical≈empty 修正为窗内小幅净负；closure 缺口待修 | [明细](EXPERIMENTS/att_entity_004.md) |
 | `att_entity_003` | 1439 | 1372/67/0/0 | TARL 对齐/传感矩阵完成（flx）；文本反事实探针完成 | [明细](EXPERIMENTS/att_entity_003.md) |
 | `att_entity_002` | 2291 | 2206/26/59/0 | SGA/concat 文本注入矩阵：H2 支持、H3 未支持 | [明细](EXPERIMENTS/att_entity_002.md) |
 | `arterial_1x6` | 509 | 501/8/0/0 | 半离线干线 stage0/1/2 流水线完成 | [明细](EXPERIMENTS/arterial_1x6.md) |
@@ -67,10 +69,11 @@
 | `plan5_b100` | 68 | 68/0/0/0 | Plan5 b100 半离线批 | [明细](EXPERIMENTS/plan5_b100.md) |
 | `plan1_dqn` | 35 | 27/0/4/0 | Plan1 在线 DQN 基线 | [明细](EXPERIMENTS/plan1_dqn.md) |
 | `ha_sodqn` | 174 | 172/0/2/0 | 半离线主线：E4 正式批完成；历史利用降遗忘但有适应代价 | [明细](EXPERIMENTS/ha_sodqn.md) |
-| `seq8_demand` | 45 | 0/0/0/0 | SEQ8 语义需求包+8 段序列 pilot（进行中）：SELF 自产档案×DHOA/CQ | [明细](EXPERIMENTS/seq8_demand.md) |
+| `seq8_demand` | 45 | 18/0/0/0 | SEQ8 需求套件 pilot 已关闭：18 run 完成留作资产；SELF/CQ 路线作废，半离线口径收编至 cl_hz1x1 | [明细](EXPERIMENTS/seq8_demand.md) |
 | `milestone0_infra` | 12 | 12/0/0/0 | 基础设施验证 | [明细](EXPERIMENTS/milestone0_infra.md) |
 | `paper_infra_validation` | 19 | 19/0/0/0 | paper 基建验证 | [明细](EXPERIMENTS/paper_infra_validation.md) |
 | `misc_probes` | 7 | 1/5/0/1 | 零散探针 | [明细](EXPERIMENTS/misc_probes.md) |
+| `cl_hz1x1` | 5584 | 5368/0/0/216 | hz1x1 持续学习：off-policy 机制性遗忘三骨干证实；+policy 锚 λπ=1 把 worst 退化压至 ≤1.0s 近零塑性代价；ρ 剂量响应显示锚定可省回放预算且 ρ=0.25 为甜点 | [明细](EXPERIMENTS/cl_hz1x1.md) |
 | `hitl_live_ab` | 6 | 6/0/0/0 | — | [明细](EXPERIMENTS/hitl_live_ab.md) |
 | `hitl_live_baseline` | 2 | 2/0/0/0 | — | [明细](EXPERIMENTS/hitl_live_baseline.md) |
 | `hitl_live_gate` | 30 | 30/0/0/0 | — | [明细](EXPERIMENTS/hitl_live_gate.md) |
@@ -80,6 +83,7 @@
 | `hitl_live_r3` | 150 | 150/0/0/0 | — | [明细](EXPERIMENTS/hitl_live_r3.md) |
 | `hitl_live_r4` | 20 | 20/0/0/0 | — | [明细](EXPERIMENTS/hitl_live_r4.md) |
 | `hitl_warmloop` | 28 | 26/0/0/0 | — | [明细](EXPERIMENTS/hitl_warmloop.md) |
+| `signal_control_v1` | 4 | 0/0/0/0 | — | [明细](EXPERIMENTS/signal_control_v1.md) |
 | `takeover_probe_sig15` | 24 | 24/0/0/0 | — | [明细](EXPERIMENTS/takeover_probe_sig15.md) |
 
 ## 附：追溯口径说明

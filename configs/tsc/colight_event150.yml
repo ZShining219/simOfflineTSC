@@ -1,0 +1,13 @@
+# Research candidate; preflight assessment is distinct from formal efficacy.
+extends: paper_experiment_base.yml
+purpose: research
+seeds: [7, 17, 27, 37, 47]
+episodes: 150
+seconds: 3600
+validation_every: 5
+test_episodes: [100, 150]
+event_execution:
+  placement:
+    version: clear-conflicts-v1
+preflight:
+  admission_basis: injection

@@ -1,0 +1,79 @@
+schema_version: 1
+plan_id: Plan5
+output_root: data/output_data/cross_algorithm/plan5_b100
+scenes:
+  S1: sumohz1x1_config2
+  S2: sumohz1x1
+  S3: sumohz1x1_config4
+  S4: sumohz1x1_config3
+transitions:
+  H34: [S3, S4]
+  H43: [S4, S3]
+  L23: [S2, S3]
+  L32: [S3, S2]
+algorithms: [DDQN, CTXDDQN, PPO]
+training_seeds: [0, 1, 2, 3, 4]
+protocol:
+  simulation_duration: 3600
+  sumo_step: 1
+  decision_interval: 10
+  training_episodes: 100
+  observation_dim: 16
+  context_dim: 4
+  action_dim: 8
+  reward_scale: 12.0
+  bootstrap_truncated: true
+  device: cpu
+  sumo_seed: null
+  sumo_random: false
+  historical_evaluation_episodes: [0, 1, 2, 3, 5, 10, 15, 20, 25, 30, 40, 50, 60, 75, 100]
+environment:
+  conda_environment: colight
+  python: 3.10.18
+  torch: 1.13.1+cu116
+  gym: 0.26.2
+  numpy: 1.26.4
+  pfrl: 0.4.0
+  sumo: 1.27.1
+ddqn:
+  network: [20, 20]
+  optimizer: RMSprop
+  learning_rate: 0.001
+  gamma: 0.95
+  batch_size: 64
+  replay_capacity: 5000
+  learning_start: 1000
+  gradient_clip: 5.0
+  target_sync_successful_updates: 10
+  epsilon_initial: 1.0
+  epsilon_decay: 0.995
+  epsilon_min: 0.01
+ppo:
+  shared_trunk: [64, 64]
+  optimizer: Adam
+  optimizer_eps: 0.00001
+  gamma: 0.95
+  gae_lambda: 0.95
+  clip_ratio: 0.2
+  value_coefficient: 1.0
+  value_clip: 0.2
+  standardize_advantages: true
+  max_grad_norm: 0.5
+  observation_normalizer: null
+  rollout_length: 360
+  minibatch_size: 90
+  epochs: 4
+  calibration:
+    scene: S2
+    seeds: [100, 101, 102]
+    learning_rates: [0.0001, 0.00025, 0.0005]
+    entropy_coefficients: [0.001, 0.01]
+probe:
+  probe_id: plan5_fixed_probe_v1
+  decisions_per_trajectory: 360
+  main_source_seeds: [0, 1, 2, 3]
+  heldout_source_seeds: [4]
+analysis:
+  seed: 20260827
+  bootstrap_resamples: 10000
+  confidence: percentile_95

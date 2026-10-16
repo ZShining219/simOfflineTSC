@@ -1,0 +1,36 @@
+schema_version: sumo-episode-plan-v1
+plan_id: hz4x4_surge_smoke_v1
+episodes:
+- episode: 0
+  label: single:demand_surge
+  events:
+  - event_id: ep0000_s0
+    kind: demand_surge
+    begin: 600
+    end: 1200
+    edge_id: road_0_1_0
+    to_edge_id: road_2_1_0
+    rate_vph: 600
+- episode: 1
+  label: single:demand_surge
+  events:
+  - event_id: ep0001_s0
+    kind: demand_surge
+    begin: 900
+    end: 1500
+    edge_id: road_0_2_0
+    to_edge_id: road_2_2_0
+    rate_vph: 900
+- episode: 2
+  label: no_event
+  events: []
+eval:
+  schema_version: sumo-events-v1
+  events:
+  - event_id: hz_surge_01
+    kind: demand_surge
+    begin: 900
+    end: 1200
+    edge_id: road_0_1_0
+    to_edge_id: road_2_1_0
+    rate_vph: 600

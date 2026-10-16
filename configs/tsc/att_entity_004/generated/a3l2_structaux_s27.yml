@@ -1,0 +1,41 @@
+# ATT-ENTITY-004 structured-event line config (a3l2_structaux_s27.yml)
+model:
+  name: tarl_attention
+  train_model: True
+  tarl_impl: paper
+  one_hot: True
+  phase: True
+  batch_size: 128
+  gamma: 0.99
+  learning_rate: 0.0001
+  epsilon: 0.8
+  epsilon_decay: 0.99995
+  epsilon_min: 0.05
+  grad_clip: 5.0
+  # Structured per-node grounded event input (replaces the 768-d BERT slot):
+  # [present,type,scope,direction,movement,severity] from ReportGrounder +
+  # TextEntityBinder node_report_mask.  No SGA-GB, no dense probe.
+  event_input: structured
+  semantic_aux:
+    enabled: true
+    lambda: 2.0
+  # ledger carries aux_present_acc / aux_type_acc / aux_loss every step;
+  # gradient probe disabled (event line no longer studies R_t).
+  grad_ledger: true
+  grad_probe_interval: 0
+trainer:
+  episodes: 100
+  steps: 3600
+  test_steps: 3600
+  learning_start: 1000
+  buffer_size: 50000
+  action_interval: 10
+  update_model_rate: 1
+  update_target_rate: 200
+  test_when_train: false
+  evaluation_episodes: [0, 20, 50, 100]
+  resumable_checkpoint_episodes: [0, 20, 50, 100]
+  event_schedule_plan: configs/events/plans/hz4x4_random_v1.yml
+
+logger:
+  save_rate: 25

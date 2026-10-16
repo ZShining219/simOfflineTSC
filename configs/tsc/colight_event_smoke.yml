@@ -1,0 +1,24 @@
+includes:
+  - configs/tsc/colight.yml
+
+model:
+  name: colight
+  epsilon: 0.8
+  epsilon_decay: 0.995
+  epsilon_min: 0.05
+  batch_size: 8
+
+trainer:
+  episodes: 2
+  steps: 300
+  test_steps: 300
+  learning_start: 20
+  buffer_size: 500
+  action_interval: 10
+  update_model_rate: 1
+  update_target_rate: 10
+  test_when_train: false
+  event_schedule: configs/events/hz4x4.yml
+
+logger:
+  save_rate: 1

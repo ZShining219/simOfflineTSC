@@ -1,0 +1,26 @@
+# demand_surge eval schedule (att004 surge line).
+# Three corridors at distinct windows/rates so eval_v2 pairs can stratify
+# announced / active / post windows per event.
+schema_version: sumo-events-v1
+events:
+  - event_id: hz_surge_east
+    kind: demand_surge
+    begin: 900
+    end: 1500
+    edge_id: road_0_1_0
+    to_edge_id: road_3_1_0
+    rate_vph: 600
+  - event_id: hz_surge_south
+    kind: demand_surge
+    begin: 1800
+    end: 2400
+    edge_id: road_1_0_1
+    to_edge_id: road_1_3_1
+    rate_vph: 900
+  - event_id: hz_surge_west
+    kind: demand_surge
+    begin: 2400
+    end: 3000
+    edge_id: road_3_2_0
+    to_edge_id: road_0_2_0
+    rate_vph: 450

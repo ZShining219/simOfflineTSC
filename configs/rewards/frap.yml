@@ -1,0 +1,14 @@
+schema_version: paper-reward-v1
+profile_id: frap_author_queue_sumo_v1
+owner: frap
+statistic: queue_sum
+lane_scope: phase_movements
+weight: -0.25
+normal_factor: 20.0
+stopped_speed_mps: 0.1
+temporal_aggregation: action_interval_mean
+references:
+  - https://github.com/gjzheng93/frap-pub/blob/59235b01451f9d5502dfa698c3a0cdc8f7aa6b77/runexp.py
+  - https://github.com/gjzheng93/frap-pub/blob/59235b01451f9d5502dfa698c3a0cdc8f7aa6b77/network_agent.py
+  - https://github.com/gjzheng93/frap-pub/blob/59235b01451f9d5502dfa698c3a0cdc8f7aa6b77/anon_env.py
+qualification: "Author anon-branch queue penalty and TD scaling, projected to SUMO current speed < 0.1 m/s over full controlled-movement lanes; excludes always-open right turns. Not the author's SUMO historical-min-speed counter, nor an exact paper-protocol reproduction."

@@ -1,0 +1,12 @@
+schema_version: sumo-events-v1
+events:
+- event_id: randeval_v1_10_e0
+  kind: global_rain
+  begin: 746
+  end: 1268
+  speed_factor: 0.737
+- event_id: randeval_v1_10_e1
+  kind: road_closure
+  begin: 1618
+  end: 2188
+  edge_id: road_4_3_1

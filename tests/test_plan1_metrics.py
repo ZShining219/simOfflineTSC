@@ -48,6 +48,8 @@ class Plan1MetricTest(unittest.TestCase):
             ('finished', 'lane_a'): 10.0,
         }
         self.world.real_delay = {'sentinel': 99.0}
+        self.world.inside_vehicles = {'active': 0.0}
+        self.world.vehicles = {}
 
     def test_real_delay_is_repeatable_and_side_effect_free(self):
         first = self.world.get_real_delay()
@@ -60,6 +62,7 @@ class Plan1MetricTest(unittest.TestCase):
         self.assertEqual(12.0, self.world.get_average_waiting_time())
         self.assertEqual(1, self.world.get_unfinished_vehicle_count())
         self.world.eng.vehicle.vehicles = []
+        self.world.vehicles['active'] = 10.0
         self.assertEqual(0.0, self.world.get_average_waiting_time())
         self.assertEqual(0, self.world.get_unfinished_vehicle_count())
 

@@ -1,0 +1,10 @@
+# DQN arm under corrected green/yellow signal execution.
+# trainer.signal_control installs world/sumo_signal_control.py
+# (sumo-green-yellow-v1): every phase change goes through a fixed 5 s 'y'
+# clearance with locked transitions and >=1 s green on the target.
+# Semantics differ from legacy no-transition runs; do not mix metrics
+# (GOVERNANCE.md section 5.5).  Use with: -w sumo -a dqn.
+trainer:
+  signal_control:
+    version: sumo-green-yellow-v1
+    yellow_seconds: 5

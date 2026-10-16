@@ -1,0 +1,19 @@
+includes:
+  - configs/tsc/sga_colight_text_event_smoke.yml
+
+model:
+  name: sga_colight
+  train_model: False
+  test_model: True
+  sga_input_mode: text_multi_event
+  batch_size: 8
+
+trainer:
+  episodes: 1
+  steps: 300
+  test_steps: 300
+  event_schedule: configs/events/hz4x4.yml
+
+logger:
+  save_rate: 1
+  attention: true

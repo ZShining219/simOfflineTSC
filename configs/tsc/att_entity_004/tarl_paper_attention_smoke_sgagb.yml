@@ -1,0 +1,41 @@
+# ATT-ENTITY-004 engineering smoke: same 4ep x 300s alignment smoke plan as
+# tarl_paper_attention_smoke.yml, plus SGA-GB enabled with a tiny warmup so the
+# per-sample gating path, event_active replay storage and the gradient ledger
+# are exercised end-to-end before any real pilot run.
+model:
+  name: tarl_attention
+  train_model: True
+  tarl_impl: paper
+  one_hot: True
+  phase: True
+  batch_size: 8
+  gamma: 0.99
+  learning_rate: 0.0001
+  epsilon: 0.8
+  epsilon_decay: 0.99995
+  epsilon_min: 0.05
+  grad_clip: 5.0
+  grad_ledger: true
+  sga_gb:
+    enabled: true
+    r_star: 3.0
+    alpha_min: 0.1
+    ema_beta: 0.98
+    warmup_steps: 5
+
+trainer:
+  episodes: 4
+  steps: 300
+  test_steps: 300
+  learning_start: 5
+  buffer_size: 5000
+  action_interval: 10
+  update_model_rate: 1
+  update_target_rate: 200
+  test_when_train: false
+  evaluation_episodes: [0, 4]
+  resumable_checkpoint_episodes: [0, 4]
+  event_schedule_plan: configs/events/plans/hz4x4_align_smoke_v1.yml
+
+logger:
+  save_rate: 1

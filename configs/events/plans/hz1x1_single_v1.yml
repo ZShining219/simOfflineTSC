@@ -1,0 +1,156 @@
+schema_version: sumo-episode-plan-v1
+plan_id: hz1x1_single_v1
+# ATT-ENTITY-004 73-side quick validation plan for hz1x1 (single controllable
+# junction, 4 incoming roads x 2 lanes, ~290m each).
+#
+# PLACEMENT CONSTRAINT (verified 2026-10-03 smoke): incoming approaches are
+# fully queue-saturated by ~600s, so lane_blockage obstacles can only be
+# inserted early (<=~300s) while free lane space exists.  All blockage events
+# therefore begin at 300s and PERSIST through the 900-1200s protocol window;
+# z_task stays present during the window and conditioned-behavior readouts
+# remain valid.  global_rain has no placement constraint and keeps the
+# 900-1200s window.  road_closure needs no obstacle placement; it is kept to
+# a single short 120s probe on one incoming edge (other 3 approaches stay
+# connected) and excluded from the eval schedule.
+episodes:
+- episode: 0
+  label: normal
+  events: []
+- episode: 1
+  label: normal
+  events: []
+- episode: 2
+  label: normal
+  events: []
+- episode: 3
+  label: normal
+  events: []
+- episode: 4
+  label: single:blockage-E
+  events:
+  - event_id: e4_blk
+    kind: lane_blockage
+    begin: 300
+    end: 1200
+    lane_id: road_0_1_0_0
+    position: 60.0
+    position_tolerance: 40.0
+- episode: 5
+  label: single:blockage-N
+  events:
+  - event_id: e5_blk
+    kind: lane_blockage
+    begin: 300
+    end: 1200
+    lane_id: road_1_2_3_0
+    position: 60.0
+    position_tolerance: 40.0
+- episode: 6
+  label: single:blockage-W
+  events:
+  - event_id: e6_blk
+    kind: lane_blockage
+    begin: 300
+    end: 1200
+    lane_id: road_2_1_2_0
+    position: 60.0
+    position_tolerance: 40.0
+- episode: 7
+  label: single:blockage-S
+  events:
+  - event_id: e7_blk
+    kind: lane_blockage
+    begin: 300
+    end: 1200
+    lane_id: road_1_0_1_0
+    position: 60.0
+    position_tolerance: 40.0
+- episode: 8
+  label: single:rain
+  events:
+  - event_id: e8_rain
+    kind: global_rain
+    begin: 900
+    end: 1200
+    speed_factor: 0.72
+- episode: 9
+  label: single:rain
+  events:
+  - event_id: e9_rain
+    kind: global_rain
+    begin: 600
+    end: 900
+    speed_factor: 0.8
+- episode: 10
+  label: multi:blockage+rain
+  events:
+  - event_id: e10_blk
+    kind: lane_blockage
+    begin: 300
+    end: 1200
+    lane_id: road_0_1_0_1
+    position: 55.0
+    position_tolerance: 40.0
+  - event_id: e10_rain
+    kind: global_rain
+    begin: 900
+    end: 1150
+    speed_factor: 0.78
+- episode: 11
+  label: multi:rain+blockage
+  events:
+  - event_id: e11_rain
+    kind: global_rain
+    begin: 750
+    end: 1100
+    speed_factor: 0.75
+  - event_id: e11_blk
+    kind: lane_blockage
+    begin: 300
+    end: 1200
+    lane_id: road_1_2_3_1
+    position: 55.0
+    position_tolerance: 40.0
+- episode: 12
+  label: normal
+  events: []
+- episode: 13
+  label: single:blockage-E2
+  events:
+  - event_id: e13_blk
+    kind: lane_blockage
+    begin: 300
+    end: 1300
+    lane_id: road_0_1_0_1
+    position: 50.0
+    position_tolerance: 40.0
+- episode: 14
+  label: probe:short-closure
+  events:
+  # optional probe only: 120s closure on one incoming edge; the other
+  # three approaches remain connected so the net is not severed.
+  - event_id: e14_cls
+    kind: road_closure
+    begin: 900
+    end: 1020
+    edge_id: road_0_1_0
+- episode: 15
+  label: normal
+  events: []
+eval:
+  schema_version: sumo-events-v1
+  events:
+  # blockage placed at 300s (pre-saturation), persists through the
+  # 900-1200s protocol window; rain confined to the window.
+  - event_id: eval_blk
+    kind: lane_blockage
+    begin: 300
+    end: 1200
+    lane_id: road_2_1_2_0
+    position: 60
+    position_tolerance: 40
+  - event_id: eval_rain
+    kind: global_rain
+    begin: 900
+    end: 1200
+    speed_factor: 0.75

@@ -1,0 +1,27 @@
+# Formal 200-episode CoLight baseline on the SHARED random episode plan.
+# Self-contained: overlays do not resolve `includes`.
+model:
+  name: colight
+  train_model: True
+  epsilon: 0.8
+  epsilon_decay: 0.99995
+  epsilon_min: 0.05
+  batch_size: 8
+
+trainer:
+  episodes: 100
+  steps: 3600
+  test_steps: 3600
+  learning_start: 1000
+  buffer_size: 5000
+  action_interval: 10
+  update_model_rate: 1
+  update_target_rate: 10
+  test_when_train: false
+  evaluation_episodes: [0, 50, 100]
+  resumable_checkpoint_episodes: [0, 50, 100]
+  event_schedule_plan: configs/events/plans/hz4x4_random_v1.yml
+
+logger:
+  save_rate: 25
+  attention: false

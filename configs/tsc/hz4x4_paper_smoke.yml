@@ -1,0 +1,20 @@
+# Engineering smoke overlay for run.py --experiment-config; not a training budget.
+# Use with -w sumo -n hz4x4 -a frap/colight --seed 7 --interface libsumo.
+# Events are exercised by tests/test_paper_agents_sumo.py through install_events.
+command:
+  sumo_seed: 7
+trainer:
+  episodes: 2
+  steps: 300
+  test_steps: 300
+  learning_start: 5
+  buffer_size: 100
+  evaluation_episodes: [0, 2]
+  resumable_checkpoint_episodes: [0, 2]
+  action_interval: 10
+model:
+  batch_size: 4
+world:
+  saveReplay: false
+logger:
+  save_rate: 1

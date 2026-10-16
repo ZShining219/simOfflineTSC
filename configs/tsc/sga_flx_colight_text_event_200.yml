@@ -1,0 +1,37 @@
+includes:
+  - configs/tsc/sga_flx_colight_text_event_smoke.yml
+
+# Formal 200-episode SGA-FLX profile on the FIXED hz4x4 schedule.  Keeps the
+# ATT-ENTITY-002 fixed-E identity so the paired delta vs the completed
+# CoLight/SGA-v1 runs isolates the fusion module change.
+model:
+  name: sga_flx_colight
+  train_model: True
+  sga_enabled: True
+  sga_input_mode: text_multi_event_flx
+  sga_meta_dim: 64
+  sga_attention_dim: 64
+  sga_flx_heads: 4
+  sga_grounding_bias: 1.0
+  epsilon: 0.8
+  epsilon_decay: 0.99995
+  epsilon_min: 0.05
+  batch_size: 8
+
+trainer:
+  episodes: 200
+  steps: 3600
+  test_steps: 3600
+  learning_start: 1000
+  buffer_size: 5000
+  action_interval: 10
+  update_model_rate: 1
+  update_target_rate: 10
+  test_when_train: false
+  evaluation_episodes: [0, 50, 100, 150, 200]
+  resumable_checkpoint_episodes: [0, 50, 100, 150, 200]
+  event_schedule: configs/events/hz4x4.yml
+
+logger:
+  save_rate: 25
+  attention: true

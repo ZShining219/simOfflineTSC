@@ -1,0 +1,7 @@
+schema_version: sumo-events-v1
+events:
+- event_id: randeval_v1_02_e0
+  kind: road_closure
+  begin: 1446
+  end: 1926
+  edge_id: road_3_2_3

@@ -1,0 +1,110 @@
+# Shared configuration fragment; use a complete profile with config/plan/preflight.
+schema_version: paper-experiment-v1
+agent: paper_colight
+network: hz4x4
+regimes:
+- normal
+- mixed
+action_interval: 10
+signal_control:
+  version: sumo-green-yellow-v1
+  yellow_seconds: 5
+model:
+  phase: true
+  one_hot: true
+  batch_size: 64
+trainer:
+  learning_start: 1000
+  buffer_size: 5000
+  update_model_rate: 1
+  update_target_rate: 10
+monitor:
+  render_every: 5
+event_execution:
+  placement:
+    version: stopping-distance-v1
+    clearance_m: 2
+    reaction_steps: 1
+    obstacle_length_m: 5
+events:
+  begin:
+    start: 600
+    stop: 1500
+    step: 10
+  durations:
+  - 180
+  - 300
+  - 360
+  rain_factors:
+  - 0.7
+  - 0.8
+  - 0.9
+  blockage_min_vehicles: 0
+  block_distance: 100
+  position_tolerance: 20
+  validation_begin:
+  - 1200
+  test_begin:
+  - 900
+  - 1500
+  evaluation_duration: 300
+  recovery_seconds: 600
+  cases_per_kind: 6
+  validation_sumo_seeds:
+  - 300007
+  test_sumo_seeds:
+  - 400007
+  - 400017
+  - 400027
+  mixed_cycle:
+  - normal
+  - normal
+  - normal
+  - lane_blockage
+  - road_closure
+  - global_rain
+seed_policy:
+  training_event_base: 100000
+  training_sumo_base: 200000
+  validation_plan_seed: 300101
+  test_plan_seed: 400101
+  training_sumo_stride: 1000
+target_groups:
+  train_junctions:
+  - intersection_1_1
+  - intersection_1_3
+  - intersection_2_2
+  - intersection_2_4
+  - intersection_3_1
+  - intersection_3_3
+  - intersection_4_2
+  - intersection_4_4
+  validation_junctions:
+  - intersection_1_2
+  - intersection_2_3
+  - intersection_3_4
+  - intersection_4_1
+  test_junctions:
+  - intersection_1_4
+  - intersection_2_1
+  - intersection_3_2
+  - intersection_4_3
+preflight:
+  admission_basis: injection_and_intensity
+  case_ids: null
+  seeds:
+  - 101
+  - 103
+  controllers:
+  - fixedtime
+  - maxpressure
+  - colight_untrained
+  fixedtime_green: 20
+  maxpressure_min_green: 10
+  event_begin: 900
+  event_duration: 300
+  target_count: 2
+  case_seed: 500101
+  normal_repeats: 2
+  minimum_local_queue_delta: 0.5
+  minimum_speed_drop: 0.03

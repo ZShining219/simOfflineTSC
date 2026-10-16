@@ -1,0 +1,52 @@
+# Engineering-only episode plan for the stage-3 alignment smoke run.
+# Early event begins keep a 300-second episode inside the event window so
+# the accumulator produces pairs without a full 3600s rollout.
+schema_version: sumo-episode-plan-v1
+plan_id: hz4x4_align_smoke_v1
+episodes:
+  - episode: 0
+    label: "single:lane_blockage"
+    events:
+      - event_id: smoke_ep0_e0
+        kind: lane_blockage
+        begin: 60
+        end: 200
+        lane_id: "road_1_2_3_0"
+        position: 200.0
+        position_tolerance: 20.0
+  - episode: 1
+    label: "multi:blockage+closure"
+    events:
+      - event_id: smoke_ep1_e0
+        kind: lane_blockage
+        begin: 40
+        end: 160
+        lane_id: "road_1_2_3_0"
+        position: 200.0
+        position_tolerance: 20.0
+      - event_id: smoke_ep1_e1
+        kind: road_closure
+        begin: 100
+        end: 240
+        edge_id: "road_3_1_2"
+  - episode: 2
+    label: "single:global_rain"
+    events:
+      - event_id: smoke_ep2_e0
+        kind: global_rain
+        begin: 60
+        end: 220
+        speed_factor: 0.72
+  - episode: 3
+    label: "normal"
+    events: []
+eval:
+  schema_version: sumo-events-v1
+  events:
+    - event_id: smoke_eval_e0
+      kind: lane_blockage
+      begin: 60
+      end: 200
+      lane_id: "road_1_2_3_0"
+      position: 200.0
+      position_tolerance: 20.0

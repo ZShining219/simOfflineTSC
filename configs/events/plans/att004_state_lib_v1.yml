@@ -1,0 +1,116 @@
+schema_version: sumo-episode-plan-v1
+plan_id: att004_state_lib_v1
+episodes:
+- episode: 0
+  label: statelib_00_normal
+  events: []
+- episode: 1
+  label: statelib_01_normal
+  events: []
+- episode: 2
+  label: statelib_02_normal
+  events: []
+- episode: 3
+  label: statelib_03_single:road_closure
+  events:
+  - event_id: ep0000_e0
+    kind: road_closure
+    begin: 665
+    end: 954
+    edge_id: road_1_2_3
+- episode: 4
+  label: statelib_04_single:lane_blockage
+  events:
+  - event_id: ep0031_e0
+    kind: lane_blockage
+    begin: 914
+    end: 1289
+    lane_id: road_3_5_3_2
+    position: 221.2
+    position_tolerance: 20.0
+- episode: 5
+  label: statelib_05_single:global_rain
+  events:
+  - event_id: ep0028_e0
+    kind: global_rain
+    begin: 636
+    end: 1099
+    speed_factor: 0.796
+- episode: 6
+  label: statelib_06_multi:lane_blockage+road_closure
+  events:
+  - event_id: ep0009_e0
+    kind: lane_blockage
+    begin: 1637
+    end: 2119
+    lane_id: road_3_5_3_1
+    position: 453.4
+    position_tolerance: 20.0
+  - event_id: ep0009_e1
+    kind: road_closure
+    begin: 696
+    end: 995
+    edge_id: road_4_4_1
+- episode: 7
+  label: statelib_07_multi:lane_blockage+global_rain
+  events:
+  - event_id: ep0008_e0
+    kind: lane_blockage
+    begin: 806
+    end: 1109
+    lane_id: road_1_3_1_0
+    position: 434.1
+    position_tolerance: 20.0
+  - event_id: ep0008_e1
+    kind: global_rain
+    begin: 1328
+    end: 1636
+    speed_factor: 0.785
+- episode: 8
+  label: statelib_08_multi:road_closure+global_rain
+  events:
+  - event_id: ep0012_e0
+    kind: road_closure
+    begin: 816
+    end: 1042
+    edge_id: road_4_2_1
+  - event_id: ep0012_e1
+    kind: global_rain
+    begin: 1693
+    end: 1979
+    speed_factor: 0.863
+- episode: 9
+  label: statelib_09_multi:lane_blockage+road_closure
+  events:
+  - event_id: ep0019_e0
+    kind: lane_blockage
+    begin: 844
+    end: 1277
+    lane_id: road_5_3_2_2
+    position: 417.4
+    position_tolerance: 20.0
+  - event_id: ep0019_e1
+    kind: road_closure
+    begin: 729
+    end: 1067
+    edge_id: road_2_4_2
+eval:
+  schema_version: sumo-events-v1
+  events:
+  - event_id: hz_lane_01
+    kind: lane_blockage
+    begin: 900
+    end: 1200
+    lane_id: road_1_1_0_2
+    position: 650
+    position_tolerance: 20
+  - event_id: hz_road_01
+    kind: road_closure
+    begin: 900
+    end: 1200
+    edge_id: road_2_2_0
+  - event_id: hz_rain_01
+    kind: global_rain
+    begin: 900
+    end: 1200
+    speed_factor: 0.7

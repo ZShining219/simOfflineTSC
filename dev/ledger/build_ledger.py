@@ -2,8 +2,8 @@
 """Build ledger/runs.jsonl + summary tables from inventory.json."""
 import json, re, os, collections
 
-ROOT = "/data/users/zfh/workspace/projects/simOfflineTSC"
-OUT = "/data/users/zfh/workspace/projects/govern_1007/scratch"
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+OUT = os.environ.get("LEDGER_SCRATCH", os.path.join(ROOT, "dev", "ledger", "scratch"))
 inv = json.load(open(os.path.join(OUT, "inventory.json")))
 
 # ---------- queue membership map: output_path -> queue file ----------
@@ -12,7 +12,7 @@ q_task = {}         # run_id -> (queue_file, task)
 for q in inv["queues"]:
     for t in q["tasks"]:
         if t.get("output_path"):
-            rp = os.path.relpath(t["output_path"], "/data/users/zfh/workspace/projects/simOfflineTSC") \
+            rp = os.path.relpath(t["output_path"], ROOT) \
                  if t["output_path"].startswith("/") else t["output_path"]
             q_by_out[rp] = q["file"]
         if t.get("run_id"):

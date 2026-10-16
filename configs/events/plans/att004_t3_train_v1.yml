@@ -1,0 +1,846 @@
+schema_version: sumo-episode-plan-v1
+plan_id: att004_t3_train_v1
+episodes:
+- episode: 0
+  label: t3_single:road_closure
+  events:
+  - event_id: ep0000_e0
+    kind: road_closure
+    begin: 1010
+    end: 1325
+    edge_id: road_3_1_3
+- episode: 1
+  label: t3_normal
+  events: []
+- episode: 2
+  label: t3_multi:lane_blockage+road_closure
+  events:
+  - event_id: ep0002_e0
+    kind: lane_blockage
+    begin: 638
+    end: 841
+    lane_id: road_0_3_0_0
+    position: 364.3
+    position_tolerance: 20.0
+  - event_id: ep0002_e1
+    kind: road_closure
+    begin: 1589
+    end: 1774
+    edge_id: road_1_3_3
+- episode: 3
+  label: t3_single:lane_blockage
+  events:
+  - event_id: ep0003_e0
+    kind: lane_blockage
+    begin: 1583
+    end: 1820
+    lane_id: road_1_4_3_0
+    position: 240.8
+    position_tolerance: 20.0
+- episode: 4
+  label: t3_multi:lane_blockage+road_closure
+  events:
+  - event_id: ep0004_e0
+    kind: lane_blockage
+    begin: 1213
+    end: 1447
+    lane_id: road_4_1_2_2
+    position: 579.1
+    position_tolerance: 20.0
+  - event_id: ep0004_e1
+    kind: road_closure
+    begin: 1739
+    end: 1943
+    edge_id: road_1_2_2
+- episode: 5
+  label: t3_multi:road_closure+lane_blockage
+  events:
+  - event_id: ep0005_e0
+    kind: road_closure
+    begin: 1065
+    end: 1348
+    edge_id: road_4_2_3
+  - event_id: ep0005_e1
+    kind: lane_blockage
+    begin: 1697
+    end: 1899
+    lane_id: road_1_4_2_0
+    position: 698.8
+    position_tolerance: 20.0
+- episode: 6
+  label: t3_single:road_closure
+  events:
+  - event_id: ep0006_e0
+    kind: road_closure
+    begin: 633
+    end: 943
+    edge_id: road_4_2_1
+- episode: 7
+  label: t3_single:road_closure
+  events:
+  - event_id: ep0007_e0
+    kind: road_closure
+    begin: 1424
+    end: 1724
+    edge_id: road_2_4_3
+- episode: 8
+  label: t3_single:global_rain
+  events:
+  - event_id: ep0008_e0
+    kind: global_rain
+    begin: 1062
+    end: 1242
+    speed_factor: 0.805
+- episode: 9
+  label: t3_single:lane_blockage
+  events:
+  - event_id: ep0009_e0
+    kind: lane_blockage
+    begin: 1447
+    end: 1788
+    lane_id: road_3_2_0_0
+    position: 454.5
+    position_tolerance: 20.0
+- episode: 10
+  label: t3_single:lane_blockage
+  events:
+  - event_id: ep0010_e0
+    kind: lane_blockage
+    begin: 1424
+    end: 1660
+    lane_id: road_3_1_1_2
+    position: 190.3
+    position_tolerance: 20.0
+- episode: 11
+  label: t3_normal
+  events: []
+- episode: 12
+  label: t3_single:road_closure
+  events:
+  - event_id: ep0012_e0
+    kind: road_closure
+    begin: 1485
+    end: 1722
+    edge_id: road_2_2_1
+- episode: 13
+  label: t3_normal
+  events: []
+- episode: 14
+  label: t3_multi:lane_blockage+global_rain
+  events:
+  - event_id: ep0014_e0
+    kind: lane_blockage
+    begin: 1082
+    end: 1399
+    lane_id: road_3_4_3_1
+    position: 436.5
+    position_tolerance: 20.0
+  - event_id: ep0014_e1
+    kind: global_rain
+    begin: 1720
+    end: 2066
+    speed_factor: 0.9
+- episode: 15
+  label: t3_normal
+  events: []
+- episode: 16
+  label: t3_single:global_rain
+  events:
+  - event_id: ep0016_e0
+    kind: global_rain
+    begin: 1065
+    end: 1271
+    speed_factor: 0.872
+- episode: 17
+  label: t3_single:lane_blockage
+  events:
+  - event_id: ep0017_e0
+    kind: lane_blockage
+    begin: 1650
+    end: 1904
+    lane_id: road_1_3_1_1
+    position: 323.0
+    position_tolerance: 20.0
+- episode: 18
+  label: t3_single:road_closure
+  events:
+  - event_id: ep0018_e0
+    kind: road_closure
+    begin: 1241
+    end: 1437
+    edge_id: road_4_5_3
+- episode: 19
+  label: t3_multi:road_closure+global_rain
+  events:
+  - event_id: ep0019_e0
+    kind: road_closure
+    begin: 816
+    end: 1041
+    edge_id: road_4_2_1
+  - event_id: ep0019_e1
+    kind: global_rain
+    begin: 1693
+    end: 1978
+    speed_factor: 0.863
+- episode: 20
+  label: t3_normal
+  events: []
+- episode: 21
+  label: t3_multi:lane_blockage+global_rain
+  events:
+  - event_id: ep0021_e0
+    kind: lane_blockage
+    begin: 1012
+    end: 1296
+    lane_id: road_2_4_2_0
+    position: 613.8
+    position_tolerance: 20.0
+  - event_id: ep0021_e1
+    kind: global_rain
+    begin: 1129
+    end: 1318
+    speed_factor: 0.78
+- episode: 22
+  label: t3_single:road_closure
+  events:
+  - event_id: ep0022_e0
+    kind: road_closure
+    begin: 914
+    end: 1131
+    edge_id: road_2_2_2
+- episode: 23
+  label: t3_normal
+  events: []
+- episode: 24
+  label: t3_single:global_rain
+  events:
+  - event_id: ep0024_e0
+    kind: global_rain
+    begin: 1341
+    end: 1569
+    speed_factor: 0.891
+- episode: 25
+  label: t3_normal
+  events: []
+- episode: 26
+  label: t3_normal
+  events: []
+- episode: 27
+  label: t3_multi:global_rain+road_closure
+  events:
+  - event_id: ep0027_e0
+    kind: global_rain
+    begin: 1069
+    end: 1313
+    speed_factor: 0.872
+  - event_id: ep0027_e1
+    kind: road_closure
+    begin: 1701
+    end: 2002
+    edge_id: road_2_2_2
+- episode: 28
+  label: t3_multi:global_rain+lane_blockage
+  events:
+  - event_id: ep0028_e0
+    kind: global_rain
+    begin: 923
+    end: 1203
+    speed_factor: 0.813
+  - event_id: ep0028_e1
+    kind: lane_blockage
+    begin: 798
+    end: 1058
+    lane_id: road_3_3_0_0
+    position: 361.8
+    position_tolerance: 20.0
+- episode: 29
+  label: t3_single:road_closure
+  events:
+  - event_id: ep0029_e0
+    kind: road_closure
+    begin: 1336
+    end: 1655
+    edge_id: road_3_2_1
+- episode: 30
+  label: t3_single:global_rain
+  events:
+  - event_id: ep0030_e0
+    kind: global_rain
+    begin: 870
+    end: 1185
+    speed_factor: 0.753
+- episode: 31
+  label: t3_multi:road_closure+global_rain
+  events:
+  - event_id: ep0031_e0
+    kind: road_closure
+    begin: 1187
+    end: 1440
+    edge_id: road_5_4_2
+  - event_id: ep0031_e1
+    kind: global_rain
+    begin: 1126
+    end: 1435
+    speed_factor: 0.738
+- episode: 32
+  label: t3_single:global_rain
+  events:
+  - event_id: ep0032_e0
+    kind: global_rain
+    begin: 743
+    end: 989
+    speed_factor: 0.85
+- episode: 33
+  label: t3_single:global_rain
+  events:
+  - event_id: ep0033_e0
+    kind: global_rain
+    begin: 923
+    end: 1155
+    speed_factor: 0.846
+- episode: 34
+  label: t3_normal
+  events: []
+- episode: 35
+  label: t3_normal
+  events: []
+- episode: 36
+  label: t3_single:global_rain
+  events:
+  - event_id: ep0036_e0
+    kind: global_rain
+    begin: 1576
+    end: 1806
+    speed_factor: 0.855
+- episode: 37
+  label: t3_single:lane_blockage
+  events:
+  - event_id: ep0037_e0
+    kind: lane_blockage
+    begin: 601
+    end: 841
+    lane_id: road_2_2_2_2
+    position: 646.9
+    position_tolerance: 20.0
+- episode: 38
+  label: t3_single:road_closure
+  events:
+  - event_id: ep0038_e0
+    kind: road_closure
+    begin: 1158
+    end: 1445
+    edge_id: road_1_3_3
+- episode: 39
+  label: t3_normal
+  events: []
+- episode: 40
+  label: t3_normal
+  events: []
+- episode: 41
+  label: t3_single:global_rain
+  events:
+  - event_id: ep0041_e0
+    kind: global_rain
+    begin: 1071
+    end: 1368
+    speed_factor: 0.841
+- episode: 42
+  label: t3_multi:lane_blockage+road_closure
+  events:
+  - event_id: ep0042_e0
+    kind: lane_blockage
+    begin: 844
+    end: 1095
+    lane_id: road_5_3_2_2
+    position: 417.4
+    position_tolerance: 20.0
+  - event_id: ep0042_e1
+    kind: road_closure
+    begin: 729
+    end: 1066
+    edge_id: road_2_4_2
+- episode: 43
+  label: t3_normal
+  events: []
+- episode: 44
+  label: t3_multi:global_rain+road_closure
+  events:
+  - event_id: ep0044_e0
+    kind: global_rain
+    begin: 685
+    end: 954
+    speed_factor: 0.848
+  - event_id: ep0044_e1
+    kind: road_closure
+    begin: 1681
+    end: 1944
+    edge_id: road_1_2_1
+- episode: 45
+  label: t3_normal
+  events: []
+- episode: 46
+  label: t3_single:global_rain
+  events:
+  - event_id: ep0046_e0
+    kind: global_rain
+    begin: 1058
+    end: 1361
+    speed_factor: 0.793
+- episode: 47
+  label: t3_multi:global_rain+lane_blockage
+  events:
+  - event_id: ep0047_e0
+    kind: global_rain
+    begin: 1525
+    end: 1768
+    speed_factor: 0.891
+  - event_id: ep0047_e1
+    kind: lane_blockage
+    begin: 1054
+    end: 1279
+    lane_id: road_2_4_0_1
+    position: 543.2
+    position_tolerance: 20.0
+- episode: 48
+  label: t3_single:road_closure
+  events:
+  - event_id: ep0048_e0
+    kind: road_closure
+    begin: 900
+    end: 1213
+    edge_id: road_1_2_2
+- episode: 49
+  label: t3_normal
+  events: []
+- episode: 50
+  label: t3_normal
+  events: []
+- episode: 51
+  label: t3_single:road_closure
+  events:
+  - event_id: ep0051_e0
+    kind: road_closure
+    begin: 1048
+    end: 1270
+    edge_id: road_4_3_1
+- episode: 52
+  label: t3_multi:global_rain+road_closure
+  events:
+  - event_id: ep0052_e0
+    kind: global_rain
+    begin: 1273
+    end: 1554
+    speed_factor: 0.744
+  - event_id: ep0052_e1
+    kind: road_closure
+    begin: 675
+    end: 1015
+    edge_id: road_2_5_3
+- episode: 53
+  label: t3_single:road_closure
+  events:
+  - event_id: ep0053_e0
+    kind: road_closure
+    begin: 665
+    end: 953
+    edge_id: road_1_2_3
+- episode: 54
+  label: t3_multi:road_closure+lane_blockage
+  events:
+  - event_id: ep0054_e0
+    kind: road_closure
+    begin: 1397
+    end: 1628
+    edge_id: road_2_3_3
+  - event_id: ep0054_e1
+    kind: lane_blockage
+    begin: 913
+    end: 1266
+    lane_id: road_4_2_1_1
+    position: 392.1
+    position_tolerance: 20.0
+- episode: 55
+  label: t3_multi:global_rain+lane_blockage
+  events:
+  - event_id: ep0055_e0
+    kind: global_rain
+    begin: 1138
+    end: 1348
+    speed_factor: 0.742
+  - event_id: ep0055_e1
+    kind: lane_blockage
+    begin: 1492
+    end: 1818
+    lane_id: road_1_2_0_0
+    position: 600.2
+    position_tolerance: 20.0
+- episode: 56
+  label: t3_single:road_closure
+  events:
+  - event_id: ep0056_e0
+    kind: road_closure
+    begin: 1344
+    end: 1534
+    edge_id: road_1_4_1
+- episode: 57
+  label: t3_normal
+  events: []
+- episode: 58
+  label: t3_normal
+  events: []
+- episode: 59
+  label: t3_single:road_closure
+  events:
+  - event_id: ep0059_e0
+    kind: road_closure
+    begin: 1422
+    end: 1658
+    edge_id: road_2_3_3
+- episode: 60
+  label: t3_multi:global_rain+road_closure
+  events:
+  - event_id: ep0060_e0
+    kind: global_rain
+    begin: 1282
+    end: 1525
+    speed_factor: 0.858
+  - event_id: ep0060_e1
+    kind: road_closure
+    begin: 1511
+    end: 1814
+    edge_id: road_1_3_0
+- episode: 61
+  label: t3_normal
+  events: []
+- episode: 62
+  label: t3_single:lane_blockage
+  events:
+  - event_id: ep0062_e0
+    kind: lane_blockage
+    begin: 1637
+    end: 1994
+    lane_id: road_4_2_3_0
+    position: 352.8
+    position_tolerance: 20.0
+- episode: 63
+  label: t3_normal
+  events: []
+- episode: 64
+  label: t3_normal
+  events: []
+- episode: 65
+  label: t3_normal
+  events: []
+- episode: 66
+  label: t3_single:global_rain
+  events:
+  - event_id: ep0066_e0
+    kind: global_rain
+    begin: 1175
+    end: 1411
+    speed_factor: 0.853
+- episode: 67
+  label: t3_single:lane_blockage
+  events:
+  - event_id: ep0067_e0
+    kind: lane_blockage
+    begin: 1136
+    end: 1417
+    lane_id: road_1_3_3_2
+    position: 259.6
+    position_tolerance: 20.0
+- episode: 68
+  label: t3_single:road_closure
+  events:
+  - event_id: ep0068_e0
+    kind: road_closure
+    begin: 1768
+    end: 2090
+    edge_id: road_3_0_1
+- episode: 69
+  label: t3_normal
+  events: []
+- episode: 70
+  label: t3_single:global_rain
+  events:
+  - event_id: ep0070_e0
+    kind: global_rain
+    begin: 1772
+    end: 2110
+    speed_factor: 0.791
+- episode: 71
+  label: t3_multi:global_rain+lane_blockage
+  events:
+  - event_id: ep0071_e0
+    kind: global_rain
+    begin: 1392
+    end: 1659
+    speed_factor: 0.845
+  - event_id: ep0071_e1
+    kind: lane_blockage
+    begin: 1093
+    end: 1383
+    lane_id: road_3_3_3_2
+    position: 329.1
+    position_tolerance: 20.0
+- episode: 72
+  label: t3_multi:road_closure+global_rain
+  events:
+  - event_id: ep0072_e0
+    kind: road_closure
+    begin: 1508
+    end: 1806
+    edge_id: road_3_3_3
+  - event_id: ep0072_e1
+    kind: global_rain
+    begin: 1751
+    end: 1994
+    speed_factor: 0.832
+- episode: 73
+  label: t3_multi:road_closure+lane_blockage
+  events:
+  - event_id: ep0073_e0
+    kind: road_closure
+    begin: 1502
+    end: 1763
+    edge_id: road_4_2_0
+  - event_id: ep0073_e1
+    kind: lane_blockage
+    begin: 1281
+    end: 1515
+    lane_id: road_5_3_2_1
+    position: 500.1
+    position_tolerance: 20.0
+- episode: 74
+  label: t3_normal
+  events: []
+- episode: 75
+  label: t3_multi:lane_blockage+road_closure
+  events:
+  - event_id: ep0075_e0
+    kind: lane_blockage
+    begin: 1206
+    end: 1449
+    lane_id: road_4_2_0_0
+    position: 397.4
+    position_tolerance: 20.0
+  - event_id: ep0075_e1
+    kind: road_closure
+    begin: 1248
+    end: 1589
+    edge_id: road_3_3_1
+- episode: 76
+  label: t3_multi:global_rain+road_closure
+  events:
+  - event_id: ep0076_e0
+    kind: global_rain
+    begin: 1484
+    end: 1756
+    speed_factor: 0.805
+  - event_id: ep0076_e1
+    kind: road_closure
+    begin: 1523
+    end: 1866
+    edge_id: road_3_4_2
+- episode: 77
+  label: t3_multi:lane_blockage+global_rain
+  events:
+  - event_id: ep0077_e0
+    kind: lane_blockage
+    begin: 1578
+    end: 1767
+    lane_id: road_4_1_1_0
+    position: 413.7
+    position_tolerance: 20.0
+  - event_id: ep0077_e1
+    kind: global_rain
+    begin: 1464
+    end: 1681
+    speed_factor: 0.703
+- episode: 78
+  label: t3_single:road_closure
+  events:
+  - event_id: ep0078_e0
+    kind: road_closure
+    begin: 1730
+    end: 2001
+    edge_id: road_1_2_0
+- episode: 79
+  label: t3_single:road_closure
+  events:
+  - event_id: ep0079_e0
+    kind: road_closure
+    begin: 1318
+    end: 1642
+    edge_id: road_2_3_2
+- episode: 80
+  label: t3_normal
+  events: []
+- episode: 81
+  label: t3_single:global_rain
+  events:
+  - event_id: ep0081_e0
+    kind: global_rain
+    begin: 1214
+    end: 1501
+    speed_factor: 0.774
+- episode: 82
+  label: t3_multi:global_rain+lane_blockage
+  events:
+  - event_id: ep0082_e0
+    kind: global_rain
+    begin: 1644
+    end: 1925
+    speed_factor: 0.703
+  - event_id: ep0082_e1
+    kind: lane_blockage
+    begin: 718
+    end: 910
+    lane_id: road_2_1_2_2
+    position: 382.5
+    position_tolerance: 20.0
+- episode: 83
+  label: t3_normal
+  events: []
+- episode: 84
+  label: t3_normal
+  events: []
+- episode: 85
+  label: t3_single:lane_blockage
+  events:
+  - event_id: ep0085_e0
+    kind: lane_blockage
+    begin: 1775
+    end: 1957
+    lane_id: road_2_3_0_1
+    position: 338.0
+    position_tolerance: 20.0
+- episode: 86
+  label: t3_normal
+  events: []
+- episode: 87
+  label: t3_multi:global_rain+road_closure
+  events:
+  - event_id: ep0087_e0
+    kind: global_rain
+    begin: 1495
+    end: 1836
+    speed_factor: 0.808
+  - event_id: ep0087_e1
+    kind: road_closure
+    begin: 1329
+    end: 1622
+    edge_id: road_3_1_0
+- episode: 88
+  label: t3_single:road_closure
+  events:
+  - event_id: ep0088_e0
+    kind: road_closure
+    begin: 1793
+    end: 1974
+    edge_id: road_4_2_0
+- episode: 89
+  label: t3_normal
+  events: []
+- episode: 90
+  label: t3_single:road_closure
+  events:
+  - event_id: ep0090_e0
+    kind: road_closure
+    begin: 1031
+    end: 1356
+    edge_id: road_3_3_2
+- episode: 91
+  label: t3_normal
+  events: []
+- episode: 92
+  label: t3_single:global_rain
+  events:
+  - event_id: ep0092_e0
+    kind: global_rain
+    begin: 1220
+    end: 1408
+    speed_factor: 0.883
+- episode: 93
+  label: t3_multi:global_rain+road_closure
+  events:
+  - event_id: ep0093_e0
+    kind: global_rain
+    begin: 948
+    end: 1205
+    speed_factor: 0.877
+  - event_id: ep0093_e1
+    kind: road_closure
+    begin: 1336
+    end: 1547
+    edge_id: road_3_3_0
+- episode: 94
+  label: t3_single:global_rain
+  events:
+  - event_id: ep0094_e0
+    kind: global_rain
+    begin: 636
+    end: 917
+    speed_factor: 0.796
+- episode: 95
+  label: t3_multi:global_rain+road_closure
+  events:
+  - event_id: ep0095_e0
+    kind: global_rain
+    begin: 1545
+    end: 1855
+    speed_factor: 0.731
+  - event_id: ep0095_e1
+    kind: road_closure
+    begin: 683
+    end: 892
+    edge_id: road_1_2_3
+- episode: 96
+  label: t3_single:global_rain
+  events:
+  - event_id: ep0096_e0
+    kind: global_rain
+    begin: 1190
+    end: 1540
+    speed_factor: 0.735
+- episode: 97
+  label: t3_normal
+  events: []
+- episode: 98
+  label: t3_multi:road_closure+lane_blockage
+  events:
+  - event_id: ep0098_e0
+    kind: road_closure
+    begin: 1081
+    end: 1416
+    edge_id: road_3_2_0
+  - event_id: ep0098_e1
+    kind: lane_blockage
+    begin: 1493
+    end: 1846
+    lane_id: road_3_3_3_1
+    position: 149.9
+    position_tolerance: 20.0
+- episode: 99
+  label: t3_normal
+  events: []
+eval:
+  schema_version: sumo-events-v1
+  events:
+  - event_id: hz_lane_01
+    kind: lane_blockage
+    begin: 900
+    end: 1200
+    lane_id: road_1_1_0_2
+    position: 650
+    position_tolerance: 20
+  - event_id: hz_road_01
+    kind: road_closure
+    begin: 900
+    end: 1200
+    edge_id: road_2_2_0
+  - event_id: hz_rain_01
+    kind: global_rain
+    begin: 900
+    end: 1200
+    speed_factor: 0.7

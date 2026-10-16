@@ -38,9 +38,13 @@ data/output_data/
 *.sh
 !dev/checks/*.sh
 *.ipynb
+/.secrets/
 
 # Runtime coordination artifacts (queues / claims / eval bundles) — runtime state, not versioned.
 /artifacts/*
 !/artifacts/wiki_claims/
 /artifacts/wiki_claims/*
 !/artifacts/wiki_claims/README.md
+
+# feishu 实例指针配置（本地部署用，勿入库）
+configs/feishu.json

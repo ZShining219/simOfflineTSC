@@ -1,0 +1,9 @@
+# Optional CoLight graph backend for the validated Python 3.10 environment.
+# Requires an existing torch==1.13.1+cu116 installation; this file does not
+# upgrade PyTorch or replace the base environment. Run with colight's python:
+# python -m pip install -r requirements-colight.txt
+--find-links https://data.pyg.org/whl/torch-1.13.0+cu116.html
+--only-binary torch-scatter
+torch-scatter==2.1.1+pt113cu116
+torch-geometric==2.3.1
+safetensors>=0.3

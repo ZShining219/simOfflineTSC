@@ -1,0 +1,7 @@
+includes:
+  - configs/tsc/colight.yml
+
+trainer:
+  episodes: 150
+  action_interval: 15
+  test_when_train: False

@@ -1,0 +1,39 @@
+# w34_3 baseline eval_v2: MPLight frozen ckpt (mplight_event_random_200_s7
+# ep200, evaluation checkpoint) under the shared eval_v2 frozen eval set.
+# Model section mirrors the run's resolved mplight.yml; att004_baseline_eval.py
+# loads the checkpoint and redirects sample() to the greedy policy —
+# train_model stays true only to pass the task.py train() gate.
+model:
+  name: mplight
+  train_model: True
+  n_layers: 2
+  rotation: true
+  conflict_matrix: true
+  merge: multiply
+  d_dense: 20
+  learning_rate: 0.001
+  batch_size: 32
+  gamma: 0.99
+  eps_start: 1.0
+  eps_end: 0.0
+  eps_decay: 220
+  target_update: 500
+  demand_shape: 1
+  phase: true
+
+trainer:
+  episodes: 40
+  steps: 3600
+  test_steps: 3600
+  learning_start: -1
+  buffer_size: 10000
+  action_interval: 10
+  update_model_rate: 1
+  update_target_rate: 10
+  test_when_train: false
+  event_schedule_plan: configs/events/plans/hz4x4_random_v1.yml
+  sumo_seed_per_episode: true
+
+logger:
+  save_rate: 25
+  attention: false

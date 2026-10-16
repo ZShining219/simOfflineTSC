@@ -1,0 +1,23 @@
+# ATT-ENTITY-004 baseline eval: MaxPressure (no ckpt), eval-only under the
+# shared random-v1 plan (eval schedule = compound event 900-1200s).
+model:
+  name: maxpressure
+  train_model: False
+  t_min: 10
+
+trainer:
+  episodes: 0
+  steps: 3600
+  test_steps: 3600
+  learning_start: 0
+  buffer_size: 0
+  action_interval: 10
+  update_model_rate: 0
+  update_target_rate: 0
+  test_when_train: false
+  evaluation_episodes: [0]
+  resumable_checkpoint_episodes: [0]
+  event_schedule_plan: configs/events/plans/hz4x4_mid20_v1.yml
+
+logger:
+  save_rate: 1

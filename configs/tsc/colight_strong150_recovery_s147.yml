@@ -1,0 +1,3 @@
+extends: colight_strong150.yml
+seeds: [147]
+regimes: [mixed]

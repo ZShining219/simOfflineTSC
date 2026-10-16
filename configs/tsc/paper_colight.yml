@@ -1,0 +1,5 @@
+includes:
+  - configs/tsc/colight.yml
+model:
+  name: paper_colight
+  reward_profile: configs/rewards/colight.yml

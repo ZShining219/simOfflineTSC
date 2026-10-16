@@ -1,0 +1,10 @@
+includes:
+  - configs/tsc/colight.yml
+
+model:
+  name: sga_colight
+  sga_enabled: True
+  sga_attention_dim: 64
+  sga_temperature: 1.0
+  sga_dropout: 0.0
+  sga_residual_scale: 1.0

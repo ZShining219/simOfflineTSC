@@ -47,7 +47,7 @@ class EpisodeTrajectoryWriter:
 
     def __init__(
         self, output_path, network, behavior_training_seed, config_hash,
-        simulation_steps, action_interval, action_dim,
+        simulation_steps, action_interval, action_dim, resume_episode=None,
     ):
         self.root = os.path.join(output_path, 'trajectory')
         self.episodes_path = os.path.join(self.root, 'episodes')
@@ -65,8 +65,7 @@ class EpisodeTrajectoryWriter:
         self.current_episode = None
         self.total_count = 0
         self.index_entries = []
-        os.makedirs(self.episodes_path, exist_ok=False)
-        _atomic_json(self.manifest_path, {
+        expected_manifest = {
             'schema_version': TRAJECTORY_SCHEMA_VERSION,
             'storage': 'episode_npz',
             'network': network,
@@ -76,7 +75,29 @@ class EpisodeTrajectoryWriter:
             'config_hash': config_hash,
             'expected_decisions_per_episode': self.expected_decisions_per_episode,
             'action_dim': action_dim,
-        })
+        }
+        if resume_episode is None:
+            os.makedirs(self.episodes_path, exist_ok=False)
+            _atomic_json(self.manifest_path, expected_manifest)
+        else:
+            if not os.path.isdir(self.episodes_path):
+                raise FileNotFoundError(
+                    f'Resume trajectory directory is missing: {self.episodes_path}')
+            with open(self.manifest_path, encoding='utf-8') as handle:
+                existing_manifest = json.load(handle)
+            if existing_manifest != expected_manifest:
+                raise ValueError('Resume trajectory manifest does not match run config')
+            if os.path.exists(self.index_path):
+                with open(self.index_path, encoding='utf-8') as handle:
+                    self.index_entries = [
+                        json.loads(line) for line in handle if line.strip()]
+            expected_ids = list(range(1, int(resume_episode) + 1))
+            actual_ids = [int(item['episode_id']) for item in self.index_entries]
+            if actual_ids != expected_ids:
+                raise ValueError(
+                    'Resume trajectory index does not exactly match checkpoint episode')
+            self.total_count = sum(
+                int(item['transition_count']) for item in self.index_entries)
 
     def start_episode(self, episode_id):
         if self.current_episode is not None or self.records:

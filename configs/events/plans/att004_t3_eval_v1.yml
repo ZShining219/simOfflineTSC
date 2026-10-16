@@ -1,0 +1,26 @@
+schema_version: sumo-episode-plan-v1
+plan_id: att004_t3_eval_v1
+episodes:
+- episode: 0
+  label: eval_only_normal
+  events: []
+eval:
+  schema_version: sumo-events-v1
+  events:
+  - event_id: hz_lane_01
+    kind: lane_blockage
+    begin: 900
+    end: 1320
+    lane_id: road_1_1_0_2
+    position: 650
+    position_tolerance: 20
+  - event_id: hz_road_01
+    kind: road_closure
+    begin: 900
+    end: 1440
+    edge_id: road_2_2_0
+  - event_id: hz_rain_01
+    kind: global_rain
+    begin: 900
+    end: 1500
+    speed_factor: 0.7

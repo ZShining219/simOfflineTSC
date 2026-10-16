@@ -61,6 +61,7 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
 
 ## dev/ 现状
 
+
 - `dev/ledger/`：台账构建器（inventory.py / build_ledger.py / gen_experiments.py /
   append_ha_sodqn.py + README），2026-10-07 裁决收仓长期维护；源自治理工作区
   govern_1007/scratch/。append_ha_sodqn.py（2026-10-15）定向补登 ha_sodqn 桶：
@@ -80,7 +81,136 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
   sumohz1x1_<cat>_<sub>.cfg` + 集合清单 `data/raw_data/
   hangzhou_1x1_demand_packs.json`。硬约束：hz1x1 无右转连接，
   高右转包不可表达。供持续学习/半离线扩展需求库。
+- `dev/w34/probes/`：w34_2 零训练探针分析件——`p2_binding_audit.py`（离线
+  绑定审计：bound/fallback_bind/gap/co_active 分类 + 配对差分层）、
+  `p4_stratify.py`（臂/种子/事件类/窗长分层 + 稀疏窗伪影检验）。消费
+  eval_v2_paired 产物，不改原始 run 输出；随 feat/w34-eval-v2-closure 入库。
+- `dev/lag_utility/`：滞后窗口（pre-symptom）效用分析件——`phase_map.py`
+  （离线导出 hz4x4 相位→lanelink 映射 + 进口道特征序 → `hz4x4_phase_map.json`）、
+  `lag_analysis.py`（事件→症状滞后分布 / bound-feeder-down 三侧发散 /
+  首发散时刻 / 死需求份额 / foreign 特异性，消费 eval_v2 dump+probe）、
+  `run_oracle_deadlane.py`（closure 激活期馈入节点死车道观测遮蔽 oracle，
+  判决文本通道可兑现上界）、`probe_junction_block.py`（libsumo 微探针：
+  封闭边需求车辆的滞留位置/车道/箱内阻塞核验）、
+  `run_oracle_corridor.py`（corridor oracle：closure/ blockage 窗内在目标
+  节点强制选"走廊方向服务最少/最多"相位，判决双向 headroom；
+  `--kind` 选事件族、`--mode min|max`、`--window active|recovery`、
+  `--lead` 可把窗延伸到预告段测预置收益）、
+  `probe_surge_inject.py`（libsumo 微探针：不走 trainer 直绑
+  SumoEventRuntime，验证 demand_surge 的路由绑定/确定性注入/announced→
+  active→cleared 三态报告渲染/严格 grounding 全链路）。探索期实现，
+  产物落 `data/output_data/analysis/att_entity_004/lag_utility/`。
+- `dev/pairaux/`：配对课程 + 事件语义辅助奖励线（73 侧思路本地化）——
+  `build_pair_plan.py` 把源 plan 的每条 episode 复制成
+  `{canonical, empty}` 对（同 schedule/同 SUMO seed，仅文本有无不同），
+  产出 `configs/events/plans/hz4x4_pair_v1.yml`（200 行=100 对）；
+  surge 线源 plan 由 `tools/build_random_event_plan.py --kinds demand_surge`
+  生成（连通 OD 对经 sumolib getShortestPath 验证），配对版
+  `hz4x4_surge_pair_v1.yml`（200 行=100 对，eval=三走廊 surge schedule
+  `configs/events/hz4x4_surge_eval_v1.yml`）；
+  配套机制在 `world/sumo_events/plans.py`（行级 `sumo_seed`/
+  `text_condition` 覆盖）与 `reproduction/tarl_tsc/parent_adapter.py`
+  （`_effective_text_condition` 逐集生效 + `model.reward_aux` 辅助奖励，
+  仅注入 replay、不动评估 metric，window 支持 active|recovery|both）。
+  训练臂配置 `att004_paircurr_{smoke,200}.yml` /
+  `att004_paircurr_aux_smoke.yml`。
+
 - `dev/govern_1007/`：本治理任务的授权暂存位（当前为空）。
+- `dev/scene_semantics/`：轨迹场景语义标注探索件（P0 窗口恢复/统计 → P2 事实描述+冻结编码 →
+  P3 三层匹配验证），探索期实现；执行依据 `docs/plan_trajectory_scene_semantics.md`，
+  产物落 `data/output_data/scene_semantics/`。
+- `dev/if_mask_eval/`：MPLight 方向掩码评测探索件——`eval_mplight_mask.py`
+  按 RobustLight Table-2 语义在 hz4x4_rl(5816) 上做 clean/sensorW/sensorW,E
+  评测；mask 只作用 agent 观测输入（`MPLIGHT_OBS_FEATURE` 环境变量配合）。
+- `dev/t34_stage1/`：t34/att004 stage-1 场景分类报告件——`scene_report.py`
+  从 `tools/run_tarl_struct_cf.py --dump_dir` 产出（ep*.npz + records）
+  拟合线性探针回答 stage-1 关卡问题。
+- `dev/cl_hz1x1/`：hz1x1 持续学习（sequential stage 链 + 冻结下三角评估矩阵）
+  队列生成件——`build_queue.py` 产出 `artifacts/cl_hz1x1/run_queue_cl1.json`
+  （1476 任务：ddqn/dueling_ddqn/frap×{clear,fifo}+ppo×{clear} 四阶段链 ×
+  2 序 × 3 种子 + 单任务基线 + 逐 cell 冻结评估）与台账 REGISTERED 行；
+  依赖 `run.py` 的 `model.stage_checkpoint`/`replay_policy`/`epsilon_mode` 路径。
+  姊妹件 `build_queue_so.py` 产出 `run_queue_so1.json`（612 任务：半离线臂
+  soddqn/soduel/sofrap × 2 序 × 3 种子，offline_ratio=0.25 因果历史，
+  在线 buffer 随场景清空、历史包按 stage 归档 `history_archive/`）；
+  基线复用 cl1（offline_ratio=0 同码路）。
+  锚定件 `build_queue_soa.py`（argv: smoke|screen|main|main_o3|rho|vdqn|vdqnb）产出
+  `run_queue_soa_<phase>.json`——与 so1 同协议但 stage>1 额外加载
+  `teacher_paths`（各可见场景的 stage 末冻结 ckpt）并在离线样本上加
+  输出锚定损失 `λ_π·KL(softmax(Q_teacher/T)‖softmax(Q_θ/T))`
+  +可选 `λ_q·Huber`（mask 已执行动作维）；锚定实现位于
+  `agent/dqn.py::_anchor_loss` 与 `agent/frap.py::_anchor_loss`，
+  诊断经 `train_diagnostics` 字段（metrics schema v5）落 records.jsonl。
+  收割/绘图件——
+  `harvest_matrix.py` 产出 `matrix_report{,_so}.json`（下三角矩阵+最深退化汇总），
+  `harvest_soa.py` 产出 `matrix_report_soa_<prefix>.json`（同构口径，适配
+  soa 命名前缀；argv: `<run_id前缀> [输出文件名]`），
+  `plot_so_compare.py` 产出 `fig_so_{retention_trajectory,worst_degradation}.png`
+  （clear/fifo/半离线三条件对照，逐种子细线+均值粗线+基线虚线），
+  `plot_soa_compare.py` 产出 `fig_soa_{retention_trajectory,worst_degradation}.png`
+  （o2 三条件对照：replay / +policy锚 / +policy+value锚），
+  `plot_soa_panels.py` 产出 `fig_soa_{cellmap,bars,diag}.png`
+  （逐 cell ΔATT 热力三角、o2+o3 双序 worst 柱状、锚定/TD 诊断曲线），
+  `plot_soa_rho.py` 产出 `fig_soa_rho.png`
+  （ρ∈{0.125,0.25,0.5} × {replay,+P} 剂量-响应：worst 退化 + 对角线塑性），
+  `plot_soa_episodes.py` 产出 `fig_soa_episodes.png`
+  （逐 episode 训练曲线：3/4 骨干 × st1-4 面板，replay vs +P 种子均值带），
+  `plot_soa_adapt.py` 产出 `fig_soa_adapt_{main,all,tradeoff}.png` +
+  `adapt_metrics.json`
+  （切换适应代价分析：clear/semi/+P 三条件逐 episode 对比、入场差距/
+  超额成本/最差窗口/去趋势波动/反弹指标、稳定-塑性二维散点），
+  `plot_soa_snap.py` 产出 `fig_soa_snap_convergence.png` +
+  `snap3_metrics.json`（o3 st3 收敛探针：model/{e}_0.pt 快照冻结评估
+  ep5/10/15/20 + ev3(ep100) + in-train ep0/50，"达标时点"=之后所有测点
+  ≤基线+5%；dqn 系快照为 target 网、frap 为 online 网），
+  `build_snap3o_manifest.py` + `plot_snap3o_micro.py` 产出
+  `fig_snap3o_{queue,throughput,laneheat,conv}.png`
+  （o3 st3 复跑 + eval-manifest 微观解剖：RNG 复现式重跑取 online 权重
+  resumable{0,5,10,15,20,50,100}，同 eval seed 同交通实现下逐 10s
+  queue/吞吐/逐lane 热力；frap 不在 manifest loader 白名单仅 ddqn/duel）。
+  `build_forget_manifest.py` + `plot_forget_micro.py` 产出
+  `fig_forget_{queue,throughput,laneheat,att}.png`
+  （遗忘侧微观解剖：o2 链各 stage 末 + 侵蚀 stage 内 {0,50,100} resumable
+  ckpt 回评旧场景 s1@es101，39 controller 同交通实现逐 10s 时序；
+  配套把 frap 补进 run.py/logger.py 的 manifest loader 白名单）。
+  `plot_motivation.py` 产出 `fig_cl_motivation.png`
+  （论文动机四联图：(a) so1_soddqn_o2_sd0 各 stage archive 真实
+  (state,phase) 对 PCA 按场景着色；(b) drift_s1_rows 公共池 |ΔQ|1
+  沿链漂移 clear vs so；(c) PC1 边际密度 + buffer 并集 cover；
+  (d) drift_s1_tt stage 末冻结 ATT，clear 爆 so 平；全部存量数据零新 run）。
+  诊断件 `drift_diag.py`——历史策略/价值漂移诊断（冻结推理，不改 ckpt）：
+  `pool` 用基准 ckpt 在 held-out sumo 种子上 greedy rollout 建场景公共
+  参考状态池（~1500 态/场景，c4/c2 合并两臂基准并留 src 标签）；
+  `measure` 对链上 ep{0,50,100} ckpt 测 Q-L1/去中心化 Q-L1/贪心翻转率
+  （累计+相邻）/Action Gap，含 archive 补充数据集与跨臂决策差异行；
+  `mkqueue` 生成中途 ckpt 冻结 TT 补评队列（治理路径 runner）；
+  `harvest`/`report` 汇总 TT 并出漂移-进度曲线与漂移-TT 对应图。
+  产物 `artifacts/cl_hz1x1/{drift_pool/,drift_*_rows.json,drift_*_tt.json,
+  drift_figs/,run_queue_drift_*.json,run_state_drift_*/}`。
+  诊断件 `grad_diag.py`——纯离线梯度协调探针：从 resumable checkpoint
+  重建模型+优化器，以 so1 归档 transition 为新旧数据探针，测 batch 梯度
+  余弦/符号冲突/范数比与单步真实更新前后旧场景 TD 误差变化；
+  产出 `artifacts/cl_hz1x1/grad_diag.json`（5 边界 × so/clear 双 ckpt）。
+  诊断件 `fqe_probe.py`——离线策略价值评估（OPE）可行性探针（纯离线，
+  不改 ckpt、不跑新仿真）：6 个候选策略/种子 = s1 基准 st1ep100 +
+  clear/so st4 ep{0,50,100}；真值取既有 ev*/drift_* 冻结 eval 格的
+  reward_sum/travel_time（eval 种子 101–103）；以 so 臂 st1
+  `history_archive` 归档 transition 为独立历史轨迹（shard 末条标记
+  terminal），半梯度 FQE（γ=0.95，DQNNet 同构）逐策略估计 V；
+  覆盖变体 all/early(ep1–50)/late(ep51–100)/n4k/explor（仅 off-greedy
+  转移）探覆盖-误差关系；输出 Spearman(V̂, 真回报) 与
+  good/bad 策略分离判定；附 FQE 随机种子方差探针（信号 vs 噪声）。
+  产物 `artifacts/cl_hz1x1/{fqe_s1.json,fqe_s1_noise.json,mc_s1.jsonl}`。
+  审计：Bellman target/γ/reward/done 口径均无误；失败根因为
+  覆盖不足——各候选策略所选动作在档案状态上的支持率仅
+  10–50%，且崩溃 clear 策略在每种覆盖变体下支持率最低
+  （late 变体 base 69% vs clear_ep50 27%）。
+  口径核验（--mc 子进程单回合 rollout，`mc_s1.jsonl` 63 行）：
+  逐决策步 reward 的 J_γ=Σ0.95^t·r_t 与官方 reward_sum 对拍
+  max|Δ|=0.01；J_γ 真值排序改变（sd0 base 退至第 5、clear_ep50
+  差距缩至 ~3×）但 FQE SEP 仍 4/15——口径对齐不能挽救排序。
+  结论：单点 FQE 排序不可靠（SEP 4/15、ΔV̂≈种子噪声），
+  支持走不确定性约束的历史策略保护路线。
 - `dev/_legacy/20261007/`：见 `dev/_legacy/20261007/README.md`。
 - `dev/takeover_probe/`：**已升格** `scene_attention/`（2026-10-13，方法包，
   面表见其 README）；本条目下各文件路径已迁，产物桶

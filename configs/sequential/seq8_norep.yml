@@ -1,5 +1,8 @@
 schema_version: 2
 protocol_id: seq8_norep_v1
+# 注意（2026-10-16 裁决）：pilot 已关闭；SELF 半离线条件作废移除，
+# 半离线口径收编至 cl_hz1x1 线（agent/dqn.py 教师锚定 + arterial/replay.py）。
+# 本配置仅保留 CONT 条件作为序列/需求资产记录。
 # 8 段无回访序列：每个 stage 换一个语义不同的需求包，相邻切换主轴轮换，
 # 对比度最大化。场景顺序：空载→脉冲→超高左转→单臂集中→过饱和→直行主导
 # →东西潮汐→爬坡。
@@ -21,12 +24,6 @@ conditions:
   - archive_mode: NONE
     method: CONT
     offline_ratio: 0.0
-  - archive_mode: SELF
-    method: DHOA
-    offline_ratio: 0.5
-  - archive_mode: SELF
-    method: CQ
-    offline_ratio: 0.5
 trainer:
   stage_episodes: [100, 100, 100, 100, 100, 100, 100, 100]
   smoke_stage_episodes: [5, 5, 5, 5, 5, 5, 5, 5]

@@ -12,8 +12,6 @@ from .core import SequentialReplay, TargetUpdateScheduler
 from .expert_pool import ExpertPoolArchive
 from .historical_archive import HistoricalArchive, derive_rng_seed
 from .owp import build_historical_sampler, restore_rand_historical_sampler
-from .self_archive import (
-    SelfArchive, build_self_sampler, restore_self_sampler)
 
 
 class HASODQNAgent(SequentialDQNAgent):
@@ -50,21 +48,10 @@ class HASODQNAgent(SequentialDQNAgent):
         self.expert_rng = random.Random(
             derive_rng_seed(training_seed, 'hitl_expert_sampler'))
         self.archive = (
-            None if self.archive_mode in ('NONE', 'SELF') else HistoricalArchive(
+            None if self.archive_mode == 'NONE' else HistoricalArchive(
                 archive_manifest, training_seed,
                 verify_hashes=verify_archive_hashes,
             )
-        )
-        # SELF mode: the run's own past-stage transitions replace the
-        # external Plan-1 archive; keep every record so ORB eviction cannot
-        # erase stage-1..k-1 evidence.
-        self.self_archive = (
-            SelfArchive(
-                training_seed, run_id='self_archive',
-                stage_capacity=int(trainer_config.get(
-                    'self_stage_capacity', 2500)),
-            )
-            if self.archive_mode == 'SELF' else None
         )
         self.expert_archive = None if expert_pool_manifest is None else (
             ExpertPoolArchive(
@@ -107,8 +94,8 @@ class HASODQNAgent(SequentialDQNAgent):
         return schedule[-1][1]
 
     def _validate_ha_config(self):
-        if self.archive_mode not in {'NONE', 'P1C', 'P1F', 'SELF'}:
-            raise ValueError('HA archive mode must be none/P1C/P1F/SELF')
+        if self.archive_mode not in {'NONE', 'P1C', 'P1F'}:
+            raise ValueError('HA archive mode must be none/P1C/P1F')
         if self.archive_mode == 'NONE':
             if self.method != 'CONT' or self.offline_ratio != 0.0:
                 raise ValueError('CONT requires archive_mode=none and ratio=0')
@@ -117,10 +104,8 @@ class HASODQNAgent(SequentialDQNAgent):
                 raise ValueError('Unknown HA-SODQN historical method')
             if self.offline_ratio not in {0.25, 0.5, 0.75}:
                 raise ValueError('HA-SODQN offline ratio must be 0.25/0.50/0.75')
-            if self.archive_mode != 'SELF' and not self.archive_manifest:
+            if not self.archive_manifest:
                 raise ValueError('HA-SODQN requires an archive root manifest')
-            if self.archive_mode == 'SELF' and self.archive_manifest:
-                raise ValueError('SELF mode takes no external archive manifest')
         if self.owp_capacity <= 0 or self.alignment_warmup_episodes < 0:
             raise ValueError('Invalid HA-SODQN working-pool configuration')
         _sched_max = max(
@@ -154,7 +139,7 @@ class HASODQNAgent(SequentialDQNAgent):
                 'sample-time scoring')
         # Duplicate networks (scene revisit) are only disallowed for the
         # external archive modes, whose visibility is keyed by unique network
-        # names; SELF indexes by stage and NONE has no archive at all.
+        # names; NONE has no archive at all.
         if (self.archive_mode in ('P1C', 'P1F')
                 and len(set(self.ordered_networks)) != len(self.ordered_networks)):
             raise ValueError('HA-SODQN ordered networks contain duplicates')
@@ -218,16 +203,6 @@ class HASODQNAgent(SequentialDQNAgent):
             return None
         if self.method == 'CQA' and not self.alignment_observations:
             return None
-        if self.archive_mode == 'SELF':
-            self.historical_sampler = build_self_sampler(
-                self.visible_archive, self.method, self.owp_capacity,
-                self.hoa_rng,
-                alignment_observations=(
-                    self.alignment_observations
-                    if self.method == 'CQA' else None
-                ),
-            )
-            return self.historical_sampler
         self.historical_sampler = build_historical_sampler(
             self.visible_archive, self.method, self.owp_capacity, self.hoa_rng,
             alignment_observations=(
@@ -255,13 +230,6 @@ class HASODQNAgent(SequentialDQNAgent):
                 'archive_mode': 'NONE', 'stage_index': stage_index,
                 'visible_networks': [], 'transition_count': 0,
             }
-        elif self.archive_mode == 'SELF':
-            self.visible_archive = self.self_archive.view(stage_index)
-            visibility = dict(self.visible_archive.visibility)
-            visibility['transition_count'] = len(self.visible_archive)
-            self.historical_sampler = None
-            if self.method != 'CQA':
-                self._build_sampler()
         else:
             self.visible_archive = self.archive.visibility(
                 self.archive_mode, self.ordered_networks, stage_index,
@@ -299,8 +267,6 @@ class HASODQNAgent(SequentialDQNAgent):
             state, phase, action, reward, next_state, next_phase,
             local_episode, decision_index, terminated, truncated,
         )
-        if self.self_archive is not None:
-            self.self_archive.append(self.replay.records[-1])
         self.last_local_episode = int(local_episode)
         if self.last_local_episode <= self.alignment_warmup_episodes:
             phase_index = int(np.asarray(phase).reshape(-1)[0])
@@ -569,10 +535,7 @@ class HASODQNAgent(SequentialDQNAgent):
             ),
             'alignment_observations': list(self.alignment_observations),
             'last_local_episode': self.last_local_episode,
-            'self_archive': (
-                None if self.self_archive is None
-                else self.self_archive.state_dict()
-            ),
+            'self_archive': None,
             'expert': None if self.expert_archive is None else {
                 'expert_ratio': self.expert_ratio,
                 'expert_ratio_schedule': (
@@ -615,19 +578,7 @@ class HASODQNAgent(SequentialDQNAgent):
         self.hoa_rng.setstate(ha['hoa_rng_state'])
         self.alignment_observations = list(ha['alignment_observations'])
         self.last_local_episode = int(ha['last_local_episode'])
-        if self.archive_mode == 'SELF':
-            self.self_archive = SelfArchive.from_state_dict(
-                ha['self_archive'], self.training_seed)
-            self.visible_archive = self.self_archive.view(
-                self.current_stage_index)
-            if self.visible_archive.digest != ha['visible_archive_digest']:
-                raise ValueError('Self archive changed on resume')
-            sampler_state = ha.get('historical_sampler_state')
-            if sampler_state is not None:
-                self.historical_sampler = restore_self_sampler(
-                    self.visible_archive, self.method, sampler_state,
-                    self.hoa_rng)
-        elif self.archive_mode != 'NONE':
+        if self.archive_mode != 'NONE':
             self.visible_archive = self.archive.visibility(
                 self.archive_mode, self.ordered_networks, self.current_stage_index,
             )

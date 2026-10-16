@@ -4,8 +4,10 @@ Extends the frozen 4-scene formal protocol to arbitrary demand sequences:
 orders may list any existing configs/sim/<name>.cfg network identity, may be
 8 stages long, and may repeat networks (revisit semantics).  Children are
 HA-SODQN-compatible entries so ``runtime.run_child`` executes them
-unchanged; the offline leg uses archive_mode='SELF' (the run's own
-stage<k transitions) or 'NONE' (CONT-FIFO).
+unchanged; the offline leg uses archive_mode='NONE' (CONT-FIFO).
+Semi-offline conditions (archive_mode='SELF') were retired 2026-10-16:
+the canonical semi-offline implementation lives on the cl_hz1x1 line
+(agent/dqn.py anchor losses + arterial/replay.py HistoricalPool).
 """
 
 import copy
@@ -78,15 +80,11 @@ def validate_seq8_config(config):
         if mode == 'NONE':
             if condition.get('method') != 'CONT':
                 raise ValueError('NONE condition must use method=CONT')
-        elif mode == 'SELF':
-            if condition.get('method') not in ('DHOA', 'RAND', 'COV', 'CQ',
-                                               'CQA'):
-                raise ValueError('SELF condition has unknown method')
-            ratio = float(condition.get('offline_ratio', 0.0))
-            if ratio not in (0.25, 0.5, 0.75):
-                raise ValueError('SELF offline_ratio must be 0.25/0.50/0.75')
         else:
-            raise ValueError(f'SEQ8 condition has bad archive_mode {mode!r}')
+            raise ValueError(
+                f'SEQ8 condition has bad archive_mode {mode!r}; '
+                'semi-offline conditions retired: canonical semi-offline '
+                'lives on the cl_hz1x1 line')
     return config
 
 
@@ -116,15 +114,14 @@ def _child(config, seed_initial_index, order_id, seed, condition,
     mode = str(condition['archive_mode']).upper()
     method = str(condition.get('method', 'CONT')).upper()
     ratio = float(condition.get('offline_ratio', 0.0))
-    if mode == 'NONE':
-        label = 'CONT'
-    else:
-        label = f'SELF-{method}-R{int(round(ratio * 100)):02d}'
+    if mode != 'NONE':
+        raise ValueError(f'SEQ8 archive mode {mode!r} retired')
+    label = 'CONT'
     logical_id = f'{label}-{order_id}-SD{seed}'
     return {
         'logical_run_id': logical_id,
         'experiment_stage': experiment_stage,
-        'condition': 'CONT_FIFO' if mode == 'NONE' else 'HA_SODQN_SELF',
+        'condition': 'CONT_FIFO',
         'policy': 'ha_sodqn',
         'algorithm_id': str(
             config.get('algorithm_id', 'independent_dqn')).lower(),
@@ -226,11 +223,9 @@ def validate_seq8_plan(path):
                 child['initial_checkpoint_file_sha256']:
             raise ValueError('SEQ8 initial checkpoint changed')
         mode = child.get('archive_mode')
-        if mode == 'NONE':
-            if child['method'] != 'CONT' or child['offline_ratio'] != 0.0:
-                raise ValueError('Invalid CONT-FIFO identity')
-        elif mode != 'SELF':
-            raise ValueError(f'Invalid SEQ8 archive mode {mode!r}')
+        if mode != 'NONE' or child['method'] != 'CONT' \
+                or child['offline_ratio'] != 0.0:
+            raise ValueError('Invalid CONT-FIFO identity')
         if len(child.get('networks', ())) != len(expected_budget):
             raise ValueError('SEQ8 child stage count mismatch')
     return {'valid': True, 'child_count': len(children),

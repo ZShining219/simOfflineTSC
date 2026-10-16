@@ -25,7 +25,7 @@ FIELDS = ["run_id", "line", "campaign", "arm", "alias_of", "net", "seed",
 
 STATUS_MAP = {"completed": "DONE", "failed": "FAILED", "running": "ABORTED",
               "aborted": "ABORTED", "interrupted": "ABORTED",
-              "planned": "REGISTERED"}
+              "cancelled": "SCOPE_DISCARD", "planned": "REGISTERED"}
 
 
 def base_row():

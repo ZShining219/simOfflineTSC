@@ -12,12 +12,21 @@
   产物 `data/output_data/sequential/seq8_{norep,rep,drift}_formal_20261015/`
 - 范围裁决（2026-10-16 用户）：
   - **SELF-CQ-R50 臂为意图错误**——Q 锚定工作池属此前已否定的技术路线，
-    不纳入本 pilot 语义；SD2/SD3 六个中断 attempt 标 `cancelled` 封存，
-    SD0/SD1 六个已完成 run 数据保留为产物、但不进入结论对比；
-  - **seeds 只到 SD3**——SD4 波（9 run）撤销不派发；
-  - 有效范围 = 3 序列 × {CONT, SELF-DHOA-R50} × seeds 0..3 = 24 run。
-- 结论：（进行中——pilot 3 序列 × {CONT, SELF-DHOA-R50} × seeds 0..3
-  = 24 run；SELF-CQ-R50 臂已作废）
+    不纳入本 pilot 语义；SD0/SD1 六个已完成 run 数据保留为产物、但不
+    进入结论对比；
+  - **pilot 整体关闭**——SD2/SD3 十二个中断 run（CONT+DHOA+CQ）标
+    `cancelled` 并清理半截 attempt 产物，SD4 波（9 run）未派发；
+  - **SELF 半离线链路作废关闭**——远程 `cl_hz1x1` 线（`agent/dqn.py`
+    教师锚定 + `arterial/replay.py` HistoricalPool 全量自产归档）为仓内
+    唯一半离线口径；`sequential/self_archive.py` 与 SELF 接线已移除。
+- 登记：18 train DONE + 18 train SCOPE_DISCARD + 6 batch（
+  `dev/ledger/append_seq8.py` 幂等补登）。
+- 结论（已完成 run 证据，仅 SD0/SD1 配对 n=42 场景格）：
+  - CONT-FIFO 历史退化 mean +21.4%/med +9.8%/max +326%（灾难格 9/42）；
+  - SELF-DHOA-R50 mean +1.2%/med +1.0%/max +39.1%（灾难格 1/42）——
+    均匀重放自产 stage<k 数据基本压住遗忘，与 cl_hz1x1 主线方向一致；
+  - REP 回访局部恢复成立（sparse_low 回访≈首次水平）但末段仍漂移；
+  - 三结论在需求语义多样性下方向复现；CQ 数据仅作路线证伪留档。
 
 | run_id | 臂/net/seed | ep | 状态 | 起始 | TT/th/unfinished | 产物路径 | 备注 |
 |---|---|---|---|---|---|---|---|

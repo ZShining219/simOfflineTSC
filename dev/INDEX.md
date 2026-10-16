@@ -69,6 +69,12 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
   append_seq8.py（2026-10-15）定向补登 seq8_* 桶（campaign=seq8_demand）：
   扫 seq8_{norep,rep,drift}_{formal,smoke}* 桶的 logical_run_manifest，
   幂等追加 train/smoke/batch 行，SELF 臂 notes 记 method/ratio。
+- `dev/seq8_anchor/`：seq8_anchor campaign 队列生成件（2026-10-16）：
+  `build_queue.py` 在 cl_hz1x1 链路上对 seq8 三序（N1/R1/D1 需求包，
+  seeds 0/1）派发 soddqnp_r25 半离线+policy-anchor（λπ=1.0、ρ=0.25）
+  补充臂，100ep/stage + 逐 ep 评估 + stage 末下三角 eval 格；产物
+  `artifacts/seq8_anchor/`（gitignore），实验记录
+  `docs/experiments/2026-10-16_seq8_anchor.md`。
 - `dev/seq8_viz/`：seq8 pilot 冻结评估可视化（2026-10-16，一次性分析件）：
   `plot_seq8_evals.py` 消费 CONT/SELF-DHOA-R50 完成 run 的 events.jsonl
   evaluation 操作 + `_shared_evaluation` 摘要，产两类图：A=逐 ep 当前场景

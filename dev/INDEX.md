@@ -69,6 +69,12 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
   append_seq8.py（2026-10-15）定向补登 seq8_* 桶（campaign=seq8_demand）：
   扫 seq8_{norep,rep,drift}_{formal,smoke}* 桶的 logical_run_manifest，
   幂等追加 train/smoke/batch 行，SELF 臂 notes 记 method/ratio。
+- `dev/seq8_viz/`：seq8 pilot 冻结评估可视化（2026-10-16，一次性分析件）：
+  `plot_seq8_evals.py` 消费 CONT/SELF-DHOA-R50 完成 run 的 events.jsonl
+  evaluation 操作 + `_shared_evaluation` 摘要，产两类图：A=逐 ep 当前场景
+  波动折线（mean+SD0/SD1 min-max 带，x=global ep1..800），B=stage 末冻结
+  ckpt 下三角回测柱状图（簇=stage，簇内=场景序×双 seed 并列柱，指标
+  TT/wait/queue）。输出 `data/output_data/analysis/seq8_figs/`（gitignore）。
 - `dev/plan34_viz/`：Plan 3/4 持续学习证据图（2026-10-15，一次性）：
   `plot_stage_scene_recovery.py` 消费 plan34_b100_formal_60 的
   stage_scene_evaluations + plan_ha bundle 的 frozen_eval_timeseries，

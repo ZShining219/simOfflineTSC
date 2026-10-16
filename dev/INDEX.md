@@ -122,6 +122,10 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
 - `dev/if_mask_eval/`：MPLight 方向掩码评测探索件——`eval_mplight_mask.py`
   按 RobustLight Table-2 语义在 hz4x4_rl(5816) 上做 clean/sensorW/sensorW,E
   评测；mask 只作用 agent 观测输入（`MPLIGHT_OBS_FEATURE` 环境变量配合）。
+- `dev/cl_hz1x1/plot_fig_forget.py`：遗忘锐化双图——F1 遗忘轨迹线
+  （ΔATT vs 后续 ckpt，任务色线 + min-max 带，clear vs +P 两行面板）、
+  F3 链末 Δ 簇柱（st4 ckpt 对各历史任务的 ΔATT，两臂并排）；
+  复用 plot_fig_ab.load_p2，产物 fig_forget_{curve,final}.png。
 - `dev/cl_hz1x1/plot_fig_ab.py`：CL 标准双图——fig A 训练期逐点指标
   （TRAIN 行均值±极差带 + ep0/50/100 冻结评估锚点，主矩阵仅三点冻结评估），
   fig B 阶段末下三角回测柱状（matrix_report*.json，簇=历史任务、

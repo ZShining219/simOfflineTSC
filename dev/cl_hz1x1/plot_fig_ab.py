@@ -32,7 +32,8 @@ SCENE_DIR = {
 }
 BACKBONES = ['ddqn', 'duel', 'frap']
 ARMS = ['clear', 'semi', '+P']
-ARM_LABEL = {'clear': 'pure online', 'semi': 'semi-offline', '+P': 'semi + P-anchor'}
+ARM_LABEL = {'clear': 'pure online', 'semi': 'semi-offline',
+             '+P': 'semi + policy anchor'}
 METRICS = [('travel_time', 'ATT (s)'), ('queue', 'Mean queue (veh)')]
 
 # backbone → (family_dir, run-prefix per arm, matrix key per arm)

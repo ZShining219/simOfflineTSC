@@ -103,6 +103,10 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
 - `dev/if_mask_eval/`：MPLight 方向掩码评测探索件——`eval_mplight_mask.py`
   按 RobustLight Table-2 语义在 hz4x4_rl(5816) 上做 clean/sensorW/sensorW,E
   评测；mask 只作用 agent 观测输入（`MPLIGHT_OBS_FEATURE` 环境变量配合）。
+- `dev/cl_hz1x1/plot_fig_ab.py`：CL 标准双图——fig A 训练期逐点指标
+  （TRAIN 行均值±极差带 + ep0/50/100 冻结评估锚点，主矩阵仅三点冻结评估），
+  fig B 阶段末下三角回测柱状（matrix_report*.json，簇=历史任务、
+  簇内=后续 stage 末 ckpt×3 seed 并列柱）；产物 fig_{A,B}_*.png + fig_ab_data.json。
 - `dev/t34_stage1/`：t34/att004 stage-1 场景分类报告件——`scene_report.py`
   从 `tools/run_tarl_struct_cf.py --dump_dir` 产出（ep*.npz + records）
   拟合线性探针回答 stage-1 关卡问题。

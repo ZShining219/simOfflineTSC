@@ -99,7 +99,7 @@ def main(out_dir):
             fn = os.path.join(out_dir, f'A_wave_{fam}_{arm_tag}.png')
             fig.savefig(fn, dpi=150); plt.close(fig); print('saved', fn)
 
-    # ---- 图B：下三角柱状图 ----
+    # ---- 图B：下三角柱状图（按场景位置分簇，簇内=stage k≥j 末冻结 ckpt 时间序回测）----
     PAL = plt.get_cmap('tab10')
     for arm_key, arm_tag in ARMS.items():
         for fam in ORDERS:
@@ -107,26 +107,28 @@ def main(out_dir):
             for ax, (mk, mlab) in zip(axes, METRICS):
                 centers, w = [], 0.38
                 x0 = 0.0
-                for k in range(1, 9):
-                    scenes = ORDERS[fam][:k]
-                    for j, sc in enumerate(scenes):
+                for j in range(8):                       # 簇 = 场景位置 j（state j+1）
+                    sc = ORDERS[fam][j]
+                    npos = 8 - j                          # ckpt 位点 k=j+1..8 共 8-j 个
+                    for i, k in enumerate(range(j+1, 9)): # 簇内按 ckpt stage 时间序
                         for si, sd in enumerate(['SD0', 'SD1']):
                             r = by[f'{arm_key}-{fam}-{sd}'].get((k, 100, sc))
                             if r is None: continue
-                            ax.bar(x0 + j*(2*w+0.06) + si*w, r[mk], width=w,
-                                   color=PAL(j % 10), alpha=1.0 if si == 0 else 0.45,
+                            ax.bar(x0 + i*(2*w+0.06) + si*w, r[mk], width=w,
+                                   color=PAL((k-1) % 10), alpha=1.0 if si == 0 else 0.45,
                                    edgecolor='k', lw=0.3)
                     ax.axvline(x0 - 0.35, color='gray', ls='-', lw=0.6, alpha=0.5)
-                    centers.append(x0 + len(scenes)*(2*w+0.06)/2)
-                    x0 += len(scenes)*(2*w+0.06) + 0.6
+                    centers.append(x0 + npos*(2*w+0.06)/2)
+                    x0 += npos*(2*w+0.06) + 0.6
                 ax.axvline(x0 - 0.3, color='gray', ls='-', lw=0.6, alpha=0.5)
-                ax.set_xticks(centers); ax.set_xticklabels([f'S{k}' for k in range(1, 9)])
-                ax.set_xlabel('stage ckpt (bars: eval scenes in order, color=scene idx)')
+                ax.set_xticks(centers)
+                ax.set_xticklabels([f'S{j+1}' for j in range(8)])
+                ax.set_xlabel('eval state (bars: ckpt stage k=j..8 in time order, color=ckpt stage)')
                 ax.set_ylabel(mlab)
             handles = [plt.Rectangle((0,0),1,1,fc='gray',alpha=1.0),
                        plt.Rectangle((0,0),1,1,fc='gray',alpha=0.45)]
             axes[0].legend(handles, ['SD0','SD1'], loc='upper left', fontsize=8)
-            fig.suptitle(f'{fam} ({FAM_TITLE[fam]}) — {arm_tag}: stage-end frozen-ckpt eval on scenes 1..k (lower-triangular)')
+            fig.suptitle(f'{fam} ({FAM_TITLE[fam]}) — {arm_tag}: eval-state clusters; bars = stage-k frozen ckpts k≥j in time order (lower-triangular)')
             fig.tight_layout(rect=[0, 0, 1, 0.93])
             fn = os.path.join(out_dir, f'B_tri_{fam}_{arm_tag}.png')
             fig.savefig(fn, dpi=150); plt.close(fig); print('saved', fn)

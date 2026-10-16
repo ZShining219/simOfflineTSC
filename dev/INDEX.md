@@ -87,7 +87,8 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
   同目录 `plot_seq8_delta.py`：相对漂移三件套（复用收割）——
   C_delta_bars=Δ%柱状（vs 场景自身stage末基线，同列共享y按99分位截断）、
   D_delta_ecdf=三臂遗忘Δ%累积分布（k>j格全池化）、
-  E_forget_curve=遗忘×stage距离均值+min-max带。
+  E_forget_curve=遗忘×stage距离均值+min-max带、
+  F_summary_bars=超线格占比+mean/worst双柱汇总图。
 - `dev/plan34_viz/`：Plan 3/4 持续学习证据图（2026-10-15，一次性）：
   `plot_stage_scene_recovery.py` 消费 plan34_b100_formal_60 的
   stage_scene_evaluations + plan_ha bundle 的 frozen_eval_timeseries，

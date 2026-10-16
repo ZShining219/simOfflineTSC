@@ -13,6 +13,8 @@ R1 回访场景按位置分别计（S5 基准=st5 末，与 S1 独立）。
   读法：曲线越靠左下=遗忘越少，P(Δ≤x) 直接可读）
 - E_forget_curve.png：1×3 遗忘曲线（x=stage 距离 d=k-j，
   y=该距离全部格 Δ% 均值线+min-max 带，三臂三线）
+- F_summary_bars.png：2×3 汇总柱——上排每臂"遗忘>+10%格占比"，
+  下排 meanΔ% 实柱 + worst格Δ% 斜纹柱（>250%截断并标注真值）
 
 数据源同 plot_seq8_evals.py（复用其 harvest/harvest_anchor）。
 """
@@ -185,6 +187,52 @@ def main(out_dir):
     fig_c(dt, out_dir)
     fig_d(dt, out_dir)
     fig_e(dt, out_dir)
+    fig_f(dt, out_dir)
+
+
+
+
+def fig_f(dt, out_dir):
+    """方案A+B：上行=遗忘>10%格占比，下行=mean+worst 双柱（max柱标注真值）"""
+    fig, axes = plt.subplots(2, 3, figsize=(19, 9))
+    x = np.arange(3); w = 0.55
+    CAP = 250  # 下行展示封顶，超出截断+文字标注
+    for ci, (mk, mlab) in enumerate(METRICS):
+        axA, axB = axes[0][ci], axes[1][ci]
+        rates, means, maxs = [], [], []
+        for arm in ARMS3:
+            v = all_cells(dt, arm, mk)
+            rates.append(np.mean(v > 10) * 100)
+            means.append(np.mean(v))
+            maxs.append(np.max(v))
+        axA.bar(x, rates, w, color=[ARM_COL[a] for a in ARMS3])
+        for i, r in enumerate(rates):
+            axA.text(x[i], r + 1.5, f'{r:.0f}%', ha='center', fontsize=11,
+                     fontweight='bold')
+        axA.set_xticks(x); axA.set_xticklabels([ARM_LAB[a] for a in ARMS3])
+        axA.set_ylabel('% cells with Δ>+10%'); axA.set_title(f'{mlab} — A: % cells above +10% threshold')
+        axA.set_ylim(0, max(rates) * 1.25); axA.grid(axis='y', alpha=0.3)
+        # B: mean 实柱 + worst 斜纹柱
+        axB.bar(x - w / 4, means, w / 2, color=[ARM_COL[a] for a in ARMS3],
+                label='mean Δ%')
+        disp = [min(mv, CAP) for mv in maxs]
+        axB.bar(x + w / 4, disp, w / 2, color=[ARM_COL[a] for a in ARMS3],
+                hatch='//', alpha=0.65, label='worst cell Δ%')
+        for i, (mn, mv) in enumerate(zip(means, maxs)):
+            axB.text(x[i] - w / 4, mn + 4, f'{mn:+.0f}%', ha='center', fontsize=9)
+            lab = f'+{mv:.0f}%' + ('↑' if mv > CAP else '')
+            axB.text(x[i] + w / 4, min(mv, CAP) + 4, lab, ha='center', fontsize=9)
+        axB.axhline(0, color='k', lw=0.7)
+        axB.set_xticks(x); axB.set_xticklabels([ARM_LAB[a] for a in ARMS3])
+        axB.set_ylabel('forgetting Δ%'); axB.set_ylim(top=CAP * 1.12)
+        axB.set_title(f'{mlab} — B: mean vs worst cell')
+        axB.grid(axis='y', alpha=0.3); axB.legend(fontsize=8, loc='upper right')
+    fig.suptitle('SEQ8 forgetting Δ% — pooled lower-triangle cells (k>j), '
+                 'N1/R1/D1 × SD0/SD1; worst-bar clipped at +250% with true value annotated',
+                 fontsize=12)
+    fig.tight_layout(rect=[0, 0, 1, 0.94])
+    fn = os.path.join(out_dir, 'F_summary_bars.png')
+    fig.savefig(fn, dpi=140); plt.close(fig); print('saved', fn)
 
 
 if __name__ == '__main__':

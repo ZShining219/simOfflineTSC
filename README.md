@@ -2,15 +2,15 @@
 
 面向交通信号控制（Traffic Signal Control，TSC）的跨仿真器实验框架，基于 [LibSignal](https://github.com/DaRL-LibSignal/LibSignal) 整理，提供与 OpenAI Gym 风格兼容的交通环境、统一训练流程，以及传统控制和强化学习基线。
 
-本仓库在统一框架上持续开展多条研究线，当前包括场景引导注意力（campaign `att_entity_*`）与半离线强化学习（Plan 1–4 / HA-SODQN）等；各研究线的 run 级事实与结论统一登记在仓库台账中。
+本仓库在统一框架上持续开展多条研究线，当前包括场景引导注意力（campaign `att_entity_*`）与**半离线持续学习**（当前激活口径为 `cl_hz1x1` 线：自产历史归档 + 教师锚定，见下文「研究线」节；更早的 Plan 1–4 / HA-SODQN 线已冻结保留）等；各研究线的 run 级事实与结论统一登记在仓库台账中。
 
 ## 仓库地图
 
 - **实验进度与结论**：`EXPERIMENTS.md` 顶部「当前面板」；逐 run 机读事实源 `ledger/runs.jsonl`，各 campaign 明细在 `EXPERIMENTS/`。动态实验状态一律以台账为准，本文件不复述。
 - **实验纪律**：`GOVERNANCE.md`（登记→冒烟→派发→收割→回填全流程）；正式验收口径见 `bench/`。
 - **Agent 上手**：`AGENTS.md`；一次性脚本登记见 `dev/INDEX.md`。
-- **注意力线代码**：`agent/scene_attention.py` + `agent/tarl.py` 等当前位于 `codex/milestone0-experiment-infrastructure` 分支。
-- **专项手册**：`docs/`（Plan 2 支持说明、半离线复现指南等，见下文各节指针）。
+- **注意力线代码**：`scene_attention/` 方法包 + `agent/` 注册臂（codex 分支工作已并入 main；`_legacy/router/` 为已否决架构存档）。
+- **专项手册**：`docs/`（Plan 2 支持说明、半离线复现指南、cl_hz1x1 Q 锚定设计稿等，见下文各节指针）。
 
 ## 功能概览
 
@@ -27,7 +27,8 @@
 | --- | --- | --- | --- |
 | Online/传统 TSC（fixedtime/dqn/colight 等） | `python run.py` | `configs/tsc/` | `data/output_data/tsc/` |
 | Plan 2 纯 Offline DQN | `python -m sequential.offline train` | `configs/offline_tsc/` | `data/output_data/offline_tsc/` |
-| Plan 3/4 Sequential / HA-SODQN / HITL 通道训练 | `python -m sequential <verb>`（manifest 驱动） | `configs/sequential/` | `data/output_data/{sequential,ha_sodqn,hitl_probe}/` |
+| Plan 3/4 Sequential / HA-SODQN / HITL 通道训练（❄️ 冻结，仅复跑底稿） | `python -m sequential <verb>`（manifest 驱动） | `configs/sequential/` | `data/output_data/{sequential,ha_sodqn,hitl_probe}/` |
+| 半离线持续学习正式批（✅ 当前唯一激活链路 cl_hz1x1） | `python tools/run_experiment_queue.py`（队列 manifest 驱动，生成件 `dev/cl_hz1x1/`） | `dev/cl_hz1x1/` overlays + `configs/tsc/` | `data/output_data/tsc/` + `artifacts/cl_hz1x1/` |
 | 场景引导注意力训练/评测 | `python -m scene_attention.train` / `.eval` | `scene_attention/events.py` 常量源 | `data/output_data/dev_takeover_probe/` |
 | HITL 实时服务 | `python -m hitl.serve` | `--scene/--dispatch/--gate/--record` | `data/output_data/hitl_probe/sessions/` |
 | HITL 数据面/plan/探针/审计 | `python -m hitl.pipeline <stage>` / `hitl.plans build --round <r>` / `hitl.probe.<x>` / `hitl.audit.<x>` | 见 `hitl/README.md` | `data/output_data/hitl_probe/` |
@@ -44,9 +45,35 @@
 
 详细手册：Offline 数据门禁与恢复见 [Plan 2 支持说明](docs/plan2_offline_support.md)；半离线科学设计、结果边界与迁移步骤见 [半离线实验总结与跨算法复现实用指南](docs/semi_offline_cross_algorithm_reproduction.md)；HITL 通道与边界见 [hitl/README.md](hitl/README.md)；注意力线见 [scene_attention/README.md](scene_attention/README.md)。
 
-## 研究线：半离线实验链（Plan 1–4 / HA-SODQN）
+## 研究线：半离线持续学习
 
-该研究线由四个阶段构成：Plan 1 Online DQN 采集（建立单场景在线基线、trajectory 与可恢复初始化）→ Plan 2 纯 Offline 学习 → Plan 3/4 Sequential 顺序训练（比较场景切换时的 replay 策略）→ HA-SODQN 半离线历史利用。各阶段证据状态与结论见 `EXPERIMENTS.md` 面板及 `EXPERIMENTS/` 明细。
+**语义定义**：多场景顺序训练下，stage k 的每个训练 batch 由「当前在线回放」
++「本 run 自己 stage 1..k−1 产生的历史转移」（因果可见、均匀随机采样、
+`offline_ratio` 混入比例）两部分构成；可选在离线样本上叠加**教师锚定
+loss**——各历史场景 stage 末的冻结网络给出参考 Q，约束 `λ_π·KL(softmax
+(Q_teacher/T)‖softmax(Q_θ/T))` 使非执行动作的 Q 面不被共享权重漂移改写。
+
+**当前唯一激活实现 = `cl_hz1x1` 线**（campaign `cl_hz1x1`，5584 run 已收口）：
+`agent/dqn.py`+`agent/frap.py` 的 `collect_history`/`_anchor_loss` +
+`arterial/replay.py` 的 `HistoricalPool`/`mixed_batch`（`global_uniform` 或
+`scene_intersection_balanced`）+ `tools/run_experiment_queue.py` 队列编排
+（stage=进程边界，`history_paths`/`teacher_paths`/`depends_on` 逐段交接），
+队列生成件与收割件在 `dev/cl_hz1x1/`。结论摘要见 EXPERIMENTS.md 面板；
+设计稿 `docs/plan_qanchor_clhz1x1.md`。
+
+**已冻结保留**：Plan 1–4 / HA-SODQN 链（`sequential/` 方法包，manifest 驱动
+的单进程 stage 循环 + 外部 Plan-2 档案 P1C/P1F 可见性 + DHOA/RAND/CQ/CQA
+采样器）。证据链完整、可审计、可复跑底稿，但**不再发起新实验**——与
+cl_hz1x1 并存会造成「两套半离线口径」歧义，故冻结。
+
+**已否决支线（负证据保留，勿再启用）**：
+- **CQ/CQA 数据层选池**（按转移质量分锚选固定工作池 OWP）——seq8 pilot
+  中实测在自产档案口径下不优于均匀重放且稀疏场景退化更重，2026-10-16
+  裁决作废；ha_sodqn 历史批中的 CQ/CQA 结果仅作对比留档；
+- **sequential `archive_mode: SELF`**（in-process stage<k 蓄水池档案）——
+  与 cl_hz1x1 全量落盘归档语义重复实现，同日裁决移除代码；
+- **seq8 pilot**（需求语义多样性 8 段序列）——campaign 关闭，18 完成 run
+  留作资产；15 个需求包与序列定义保留为可复用资产。
 
 半离线正式场景为四个 SUMO 杭州单路口（16 维 observation：8 维进入车道 count + 8 维当前相位 one-hot；8 个绿灯动作）：
 
@@ -86,7 +113,8 @@ python run.py --agent maxpressure --world sumo --network sumo1x1 \
 python offline_run.py train --agent batch_dqn --network sumohz1x1 \
   --dataset-manifest /path/to/manifest.json --prefix p2_seed1000 --seed 1000
 
-# Sequential / HA-SODQN（manifest 驱动，不接受 --agent/--network）
+# Sequential / HA-SODQN（❄️已冻结，manifest 驱动；新半离线实验用
+# cl_hz1x1 队列路径，见上表）
 python sequential_run.py --help
 ```
 
@@ -119,7 +147,7 @@ data/output_data/ha_sodqn/               # HA-SODQN engineering / 正式运行 /
 | configs/{tsc,offline_tsc,sequential,sim,evaluation} | 智能体、离线、顺序/半离线、仿真器及评估配置 |
 | data/ | 数据层：`raw_data/`（路网输入，只读）、`output_data/`（run 产物证据桶，gitignore）、`dataset/`（数据集接口代码） |
 | common/、generator/ | 注册器与配置加载、特征生成器 |
-| sequential/ | 方法包：持续学习+半离线训练（manifest 驱动，`python -m sequential`；README 方法卡） |
+| sequential/ | 方法包（❄️已冻结）：持续学习+HA-SODQN 半离线（manifest 驱动；README 方法卡）。新半离线实验走 cl_hz1x1 |
 | scene_attention/ | 方法包：场景引导注意力主线（`python -m scene_attention`；README 方法卡） |
 | hitl/ | 通道包：人在回路实时+数据面（`python -m hitl`；README 通道卡与边界） |
 | GOVERNANCE.md、EXPERIMENTS.md、EXPERIMENTS/、ledger/ | 实验治理规范、台账索引与各 campaign 明细、机读台账 |
@@ -150,9 +178,9 @@ data/output_data/ha_sodqn/               # HA-SODQN engineering / 正式运行 /
 
 本仓在 LibSignal 基座（`agent/`+`world/`+`trainer/`+`run.py`）之上并行推进三条研究线，均为 Route A 包形状（`python -m <pkg>` 打面表，方法卡见各自 README）：
 
-### 1. 半离线 / 持续学习（`sequential/`）
+### 1. 半离线 / 持续学习（cl_hz1x1 当前线 + `sequential/` 已冻结）
 
-从在线交互到离线/半离线训练的迁移线：Plan 2 纯离线（白名单 run→只读轨迹索引→离线训练，`python -m sequential.offline`）、manifest 驱动的持续学习与 HA-SODQN 半离线训练（`python -m sequential` 39 子命令）、HITL 采集数据回流训练。产物 `data/output_data/{offline_tsc,offline_datasets,sequential,ha_sodqn}/`。
+在线交互 + 过去阶段自产历史数据的混合训练线。**当前实现**：`cl_hz1x1` 队列路径（run.py 逐 stage 进程 + `history_archive` 全量归档 + 教师锚定 loss；生成/收割件 `dev/cl_hz1x1/`，产物 `data/output_data/tsc/` + `artifacts/cl_hz1x1/`）。**冻结保留**：Plan 2 纯离线（`python -m sequential.offline`）、manifest 驱动 HA-SODQN（`python -m sequential`，已冻结）、HITL 采集数据回流训练。产物 `data/output_data/{offline_tsc,offline_datasets,sequential,ha_sodqn}/`（冻结层）。
 
 ### 2. 人在回路（`hitl/`）
 

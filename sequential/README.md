@@ -1,6 +1,13 @@
-# sequential — 半离线/持续学习训练包
+# sequential — 半离线/持续学习训练包（❄️ 已冻结）
 
-> 包形状约定见 GOVERNANCE §3.1。本包为**方法包**。
+> **状态（2026-10-16 裁决）：本包冻结，不再发起新实验。**
+> 仓内唯一激活半离线链路 = `cl_hz1x1` 线（`agent/dqn.py`+`agent/frap.py`
+> 自产 stage<k `history_archive` 归档 + `arterial/replay.py` `mixed_batch`
+> 采样 + 教师锚定 `_anchor_loss`，经 `tools/run_experiment_queue.py` +
+> `dev/cl_hz1x1/` 队列生成件驱动）。本包仅保留为 ha_sodqn/plan34/seq8 三条
+> 已关闭 campaign 的证据可审计层与复跑底稿；`archive_mode: SELF` 与 CQ 选池
+> 路线已作废移除。
+> 包形状约定见 GOVERNANCE §3.1。本包为**方法包**（冻结）。
 
 ## 问什么
 

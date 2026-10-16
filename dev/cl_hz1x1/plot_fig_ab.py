@@ -159,11 +159,12 @@ def fig_a(data):
     return fig
 
 
-def fig_b(mat, avg_seeds=False, fname='fig_B_retest.png'):
-    rows = [(bb, a) for bb in BACKBONES for a in ARMS]
+def fig_b(mat, avg_seeds=False, fname='fig_B_retest.png', arms=ARMS):
+    rows = [(bb, a) for bb in BACKBONES for a in arms]
     scenes = SCENES[ORDER]
     stage_c = plt.get_cmap('viridis', NSTAGE)
-    fig, axes = plt.subplots(len(rows), len(METRICS), figsize=(11, 16),
+    fig, axes = plt.subplots(len(rows), len(METRICS),
+                             figsize=(11, 1.75 * len(rows) + 1.5),
                              sharex=True)
     if avg_seeds:
         bw = 0.8 / NSTAGE              # 簇内每 stage 一柱
@@ -247,7 +248,8 @@ def main():
 
     fig_a(data).savefig(ART / 'fig_A_train.png', dpi=200)
     fig_b(mat)
-    fig_b(mat, avg_seeds=True, fname='fig_B_retest_avg.png')
+    fig_b(mat, avg_seeds=True, fname='fig_B_retest_avg.png',
+          arms=['clear', '+P'])
     print('wrote fig_A_train.png / fig_B_retest{,_avg}.png')
 
 

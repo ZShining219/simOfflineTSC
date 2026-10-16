@@ -16,7 +16,7 @@ model:
   # far below the text pathway's (traffic_lr_scale applied to lr).
   # stage_load_optimizer=false because the two-group RMSprop layout differs
   # from the single-group state saved in the stage1 checkpoint.
-  stage_checkpoint: /data/users/zfh/workspace/projects/simOfflineTSC/data/output_data/tsc/sumo_tarl_attention/hz4x4/att004_stg1_s7/checkpoints/resumable/episode_0200.pt
+  stage_checkpoint: data/output_data/tsc/sumo_tarl_attention/hz4x4/att004_stg1_s7/checkpoints/resumable/episode_0200.pt
   replay_policy: fifo
   epsilon_mode: continue_schedule
   stage_load_optimizer: false

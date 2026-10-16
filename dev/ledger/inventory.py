@@ -4,8 +4,8 @@ Emits inventory.json with every identifiable run under data/output_data/,
 plus queue/state registrations. Read-only."""
 import json, os, re, sys, csv, glob
 
-ROOT = "/data/users/zfh/workspace/projects/simOfflineTSC"
-OUT = "/data/users/zfh/workspace/projects/govern_1007/scratch"
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+OUT = os.environ.get("LEDGER_SCRATCH", os.path.join(ROOT, "dev", "ledger", "scratch"))
 
 def jload(p):
     try:

@@ -45,7 +45,7 @@
     "test_result": "66 passed",
     "test_result_source": "Executed four-file pytest regression on 2026-09-18; integration evidence linked below",
     "command": [
-      "/data/users/zfh/workspace/projects/simOfflineTSC/data/output_data/cross_algorithm/plan5_b100/environment/micromamba/envs/colight/bin/python",
+      "data/output_data/cross_algorithm/plan5_b100/environment/micromamba/envs/colight/bin/python",
       "-m",
       "pytest",
       "-q",

@@ -41,8 +41,8 @@ import argparse
 import copy
 import glob
 import json
-import os
 import sys
+import os
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -73,10 +73,10 @@ ARMS = {
     'soddqn':     ('sumo_dqn', 'so1_soddqn_{o}_sd{sd}_st{st}'),
     'soduel':     ('sumo_dqn', 'so1_soduel_{o}_sd{sd}_st{st}'),
 }
-PY = '/data/users/zfh/workspace/envs/colight/bin/python'
-LD_PRELOAD = ('/data/users/zfh/workspace/projects/simOfflineTSC/data/output_data/'
-              'cross_algorithm/plan5_b100/environment/micromamba/envs/colight/'
-              'lib/libstdc++.so.6')
+PY = sys.executable
+LD_PRELOAD = str(ROOT / 'data' / 'output_data' / 'cross_algorithm' /
+                 'plan5_b100' / 'environment' / 'micromamba' / 'envs' /
+                 'colight' / 'lib' / 'libstdc++.so.6')
 
 
 def run_dir(agent_dir, scene_key, prefix):

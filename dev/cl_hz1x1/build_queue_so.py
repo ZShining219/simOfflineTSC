@@ -14,15 +14,16 @@ Outputs (all under gitignored artifacts/cl_hz1x1/):
   ledger_rows_so.jsonl    REGISTERED rows to append into ledger/runs.jsonl
 """
 import json
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 ART = ROOT / 'artifacts' / 'cl_hz1x1'
 OVERLAYS = ART / 'overlays'
-PY = '/data/users/zfh/workspace/envs/colight/bin/python'
-LD_PRELOAD = ('/data/users/zfh/workspace/projects/simOfflineTSC/data/output_data/'
-              'cross_algorithm/plan5_b100/environment/micromamba/envs/colight/'
-              'lib/libstdc++.so.6')
+PY = sys.executable
+LD_PRELOAD = str(ROOT / 'data' / 'output_data' / 'cross_algorithm' /
+                 'plan5_b100' / 'environment' / 'micromamba' / 'envs' /
+                 'colight' / 'lib' / 'libstdc++.so.6')
 ENV = {
     'LD_PRELOAD': LD_PRELOAD,
     'CUDA_VISIBLE_DEVICES': '-1',

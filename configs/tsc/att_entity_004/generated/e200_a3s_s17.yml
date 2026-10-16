@@ -21,7 +21,7 @@ model:
     lambda: 1.0
   grad_ledger: true
   grad_probe_interval: 0
-  stage_checkpoint: /data/users/zfh/workspace/projects/simOfflineTSC/data/output_data/tsc/sumo_tarl_attention/hz4x4/att004_a3s_s17/checkpoints/resumable/episode_0100.pt
+  stage_checkpoint: data/output_data/tsc/sumo_tarl_attention/hz4x4/att004_a3s_s17/checkpoints/resumable/episode_0100.pt
   replay_policy: fifo
   epsilon_mode: continue_schedule
 

@@ -1,0 +1,10 @@
+{
+  "cat": "fluct",
+  "shape_note": "1800–2400s 脉冲×2.5，其余×0.7",
+  "note": "中段突发尖峰（事件/事故后集聚）",
+  "pack": "fluct_burst",
+  "n_vehicles": 2094,
+  "seed": 2249296496,
+  "base": "hangzhou_1x1_bc-tyc_18041610_1h",
+  "horizon_s": 3600
+}

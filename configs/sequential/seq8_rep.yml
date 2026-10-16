@@ -1,0 +1,55 @@
+schema_version: 2
+protocol_id: seq8_rep_v1
+# 注意（2026-10-16 裁决）：pilot 已关闭；SELF 半离线条件作废移除，
+# 半离线口径收编至 cl_hz1x1 线（agent/dqn.py 教师锚定 + arterial/replay.py）。
+# 本配置仅保留 CONT 条件作为序列/需求资产记录。
+# 8 段有回访序列：4 个跨类别锚点包块重复两轮（回访间隔统一=4 stage），
+# 检验"回访同一需求时控制能力是恢复、超调还是已被改写"。
+orders:
+  R1:
+    - sumohz1x1_sparse_low
+    - sumohz1x1_lt_high
+    - sumohz1x1_fluct_burst
+    - sumohz1x1_dense_high
+    - sumohz1x1_sparse_low
+    - sumohz1x1_lt_high
+    - sumohz1x1_fluct_burst
+    - sumohz1x1_dense_high
+training_seeds: [0, 1, 2, 3, 4]
+algorithm_id: independent_dqn
+owp_capacity: 5000
+alignment_warmup_episodes: 10
+conditions:
+  - archive_mode: NONE
+    method: CONT
+    offline_ratio: 0.0
+trainer:
+  stage_episodes: [100, 100, 100, 100, 100, 100, 100, 100]
+  smoke_stage_episodes: [5, 5, 5, 5, 5, 5, 5, 5]
+  steps: 3600
+  test_steps: 3600
+  action_interval: 10
+  learning_start: 1000
+  buffer_size: 5000
+  batch_size: 64
+  update_model_rate: 1
+  target_update_interval: 10
+  evaluation_retries: 3
+  max_child_concurrency: 8
+  max_evaluator_concurrency: 8
+model:
+  learning_rate: 0.001
+  gamma: 0.95
+  epsilon_decay: 0.995
+  epsilon_min: 0.01
+  grad_clip: 5.0
+  phase: true
+  one_hot: true
+rng:
+  derivation_version: 1
+  algorithm: sha256_first_64_bits
+  streams: [model_action, online_replay_sampler, hoa_owp_sampler, evaluation]
+analysis:
+  seed: 20261015
+  resamples: 10000
+  primary_adaptation_metric: normalized_travel_time_aulc_0_100

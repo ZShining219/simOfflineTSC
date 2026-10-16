@@ -1,0 +1,13 @@
+{
+  "cat": "lt",
+  "left": 0.55,
+  "left_arms": [
+    "W"
+  ],
+  "note": "仅西臂左转→55%（单臂转向集中），其余臂不变",
+  "pack": "lt_wsing",
+  "n_vehicles": 2064,
+  "seed": 552005552,
+  "base": "hangzhou_1x1_bc-tyc_18041610_1h",
+  "horizon_s": 3600
+}

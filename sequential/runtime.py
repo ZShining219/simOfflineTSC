@@ -257,7 +257,8 @@ class SequentialChildRunner:
                 self.world, 0, self.model_config, self.trainer_config,
                 self.child['initial_state'],
                 archive_manifest=(
-                    None if self.child['archive_mode'] == 'NONE'
+                    None
+                    if self.child['archive_mode'] == 'NONE'
                     else self.plan['archive_root_manifest']
                 ),
                 ordered_networks=self.networks,

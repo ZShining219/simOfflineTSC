@@ -1,0 +1,15 @@
+{
+  "cat": "asym",
+  "arm": {
+    "W": 0.35,
+    "E": 0.35,
+    "S": 1.9,
+    "N": 1.9
+  },
+  "note": "南北向重载潮汐（与 we 对称镜像）",
+  "pack": "asym_ns",
+  "n_vehicles": 2251,
+  "seed": 893310911,
+  "base": "hangzhou_1x1_bc-tyc_18041610_1h",
+  "horizon_s": 3600
+}

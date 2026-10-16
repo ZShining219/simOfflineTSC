@@ -1,0 +1,10 @@
+{
+  "cat": "fluct",
+  "shape_note": "线性爬坡 ×0.4→×1.6",
+  "note": "单调爬坡型需求增长（早高峰形态）",
+  "pack": "fluct_ramp",
+  "n_vehicles": 2045,
+  "seed": 3573213079,
+  "base": "hangzhou_1x1_bc-tyc_18041610_1h",
+  "horizon_s": 3600
+}

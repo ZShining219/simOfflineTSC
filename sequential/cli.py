@@ -218,6 +218,15 @@ def _parser():
 
     ha_validate = subparsers.add_parser('validate-ha-plan')
     ha_validate.add_argument('--plan', required=True)
+
+    seq8_build = subparsers.add_parser('build-seq8-plan')
+    seq8_build.add_argument('--stage', choices=('smoke', 'formal'),
+                           default='formal')
+    seq8_build.add_argument('--config', required=True)
+    seq8_build.add_argument('--output', required=True)
+    seq8_build.add_argument('--authorize-formal', action='store_true')
+    seq8_validate = subparsers.add_parser('validate-seq8-plan')
+    seq8_validate.add_argument('--plan', required=True)
     ha_audit = subparsers.add_parser('audit-ha')
     ha_audit.add_argument('--plan', required=True)
     ha_audit.add_argument('--output-root', required=True)
@@ -557,6 +566,18 @@ def main(argv=None):
         result = {'valid': True, 'output': os.path.abspath(args.output),
                   'child_count': payload['child_count'],
                   'plan_digest': payload['plan_digest']}
+    elif args.command == 'build-seq8-plan':
+        from .seq8_manifest import build_seq8_plan
+        payload = build_seq8_plan(
+            args.output, args.config, experiment_stage=args.stage,
+            launch_authorized=True if args.authorize_formal else None,
+        )
+        result = {'valid': True, 'output': os.path.abspath(args.output),
+                  'child_count': payload['child_count'],
+                  'plan_digest': payload['plan_digest']}
+    elif args.command == 'validate-seq8-plan':
+        from .seq8_manifest import validate_seq8_plan
+        result = validate_seq8_plan(args.plan)
     elif args.command == 'validate-ha-plan':
         from .ha_manifest import validate_ha_plan
         result = validate_ha_plan(args.plan)

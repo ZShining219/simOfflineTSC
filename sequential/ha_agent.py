@@ -47,8 +47,11 @@ class HASODQNAgent(SequentialDQNAgent):
         self.hoa_rng = random.Random(derive_rng_seed(training_seed, 'hoa_owp_sampler'))
         self.expert_rng = random.Random(
             derive_rng_seed(training_seed, 'hitl_expert_sampler'))
-        self.archive = None if self.archive_mode == 'NONE' else HistoricalArchive(
-            archive_manifest, training_seed, verify_hashes=verify_archive_hashes,
+        self.archive = (
+            None if self.archive_mode == 'NONE' else HistoricalArchive(
+                archive_manifest, training_seed,
+                verify_hashes=verify_archive_hashes,
+            )
         )
         self.expert_archive = None if expert_pool_manifest is None else (
             ExpertPoolArchive(
@@ -134,7 +137,11 @@ class HASODQNAgent(SequentialDQNAgent):
                 'legacy reward shaping (b1/b2) and expert pool (C) must '
                 'not be mixed; use the adjudication layer for unified '
                 'sample-time scoring')
-        if len(set(self.ordered_networks)) != len(self.ordered_networks):
+        # Duplicate networks (scene revisit) are only disallowed for the
+        # external archive modes, whose visibility is keyed by unique network
+        # names; NONE has no archive at all.
+        if (self.archive_mode in ('P1C', 'P1F')
+                and len(set(self.ordered_networks)) != len(self.ordered_networks)):
             raise ValueError('HA-SODQN ordered networks contain duplicates')
 
     @classmethod
@@ -528,6 +535,7 @@ class HASODQNAgent(SequentialDQNAgent):
             ),
             'alignment_observations': list(self.alignment_observations),
             'last_local_episode': self.last_local_episode,
+            'self_archive': None,
             'expert': None if self.expert_archive is None else {
                 'expert_ratio': self.expert_ratio,
                 'expert_ratio_schedule': (

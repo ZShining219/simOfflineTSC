@@ -61,8 +61,26 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
 
 ## dev/ 现状
 
-- `dev/ledger/`：台账构建器（inventory.py / build_ledger.py / gen_experiments.py +
-  README），2026-10-07 裁决收仓长期维护；源自治理工作区 govern_1007/scratch/。
+
+- `dev/ledger/`：台账构建器（inventory.py / build_ledger.py / gen_experiments.py /
+  append_ha_sodqn.py + README），2026-10-07 裁决收仓长期维护；源自治理工作区
+  govern_1007/scratch/。append_ha_sodqn.py（2026-10-15）定向补登 ha_sodqn 桶：
+  152 train + 12 smoke + 10 batch，幂等追加，扫 logical_run_manifest 取字段。
+  append_seq8.py（2026-10-15）定向补登 seq8_* 桶（campaign=seq8_demand）：
+  扫 seq8_{norep,rep,drift}_{formal,smoke}* 桶的 logical_run_manifest，
+  幂等追加 train/smoke/batch 行，SELF 臂 notes 记 method/ratio。
+- `dev/plan34_viz/`：Plan 3/4 持续学习证据图（2026-10-15，一次性）：
+  `plot_stage_scene_recovery.py` 消费 plan34_b100_formal_60 的
+  stage_scene_evaluations + plan_ha bundle 的 frozen_eval_timeseries，
+  产学习趋势/stage×scene 横比图（fifo 口径），输出至
+  `data/output_data/analysis/plan34/stage_scene_recovery_view_20261015/`。
+- `dev/demand_packs/`：hz1x1 语义化流量需求包生成器（2026-10-15，一次性）：
+  `build_hz1x1_demands.py` 以 `hangzhou_1x1_bc-tyc_18041610_1h` 路网为基准，
+  按 4 大类 15 包（sparse/dense/lt+st/asym/fluct）改需求不改拓扑，
+  产出 `data/raw_data/hangzhou_1x1_<cat>_<sub>_1h/` + `configs/sim/
+  sumohz1x1_<cat>_<sub>.cfg` + 集合清单 `data/raw_data/
+  hangzhou_1x1_demand_packs.json`。硬约束：hz1x1 无右转连接，
+  高右转包不可表达。供持续学习/半离线扩展需求库。
 - `dev/w34/probes/`：w34_2 零训练探针分析件——`p2_binding_audit.py`（离线
   绑定审计：bound/fallback_bind/gap/co_active 分类 + 配对差分层）、
   `p4_stratify.py`（臂/种子/事件类/窗长分层 + 稀疏窗伪影检验）。消费
@@ -96,6 +114,7 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
   仅注入 replay、不动评估 metric，window 支持 active|recovery|both）。
   训练臂配置 `att004_paircurr_{smoke,200}.yml` /
   `att004_paircurr_aux_smoke.yml`。
+
 - `dev/govern_1007/`：本治理任务的授权暂存位（当前为空）。
 - `dev/scene_semantics/`：轨迹场景语义标注探索件（P0 窗口恢复/统计 → P2 事实描述+冻结编码 →
   P3 三层匹配验证），探索期实现；执行依据 `docs/plan_trajectory_scene_semantics.md`，
@@ -530,6 +549,23 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
   未来 seed，复用 counterfactual_v2.run_branch。产物 `divergence_bc/cf*/`。
 - `hitl/audit/analyze_divergence.py`：分歧率画像 +
   分歧动作反事实差值统计（C 方向归一化：Δ>0 即 C 的动作为优）。
+- `hitl_warmstart/convert_warm_init.py`：resumable ep-N 档 → ep0 语义
+  warm-init 初始态档（探索件）。「已有模型+专家介入数据续训」验证链
+  （campaign=hitl_warmloop，产物 `data/output_data/hitl_probe/warmloop/`）
+  的唯一新件：episode/三级计数器清零、replay_state.items 置空（对齐 ep0
+  的 orb empty 约定），weights/optimizer/epsilon/RNG 原样保留，追加
+  `warm_source` 溯源块（源路径/源 episode/源 sha256）写进工件本体；
+  --sidecar 产可直接贴进 plan child `initial_state` 的 dict（digest 复用
+  `sequential.core` 四摘要函数）。消费端零改动：`from_initial_state`
+  只校验档内 episode==0+counters==0。链式用法：phase0 短程 ep0 run 产
+  M₀ → paired_probe student 臂冻结基线 → hitl 臂同档介入采集 →
+  package/filter_pool 建 per-seed 池 → warm-init 续训（expert_pool
+  消费）→ student 臂复评 M₁ → 配对比较三指标。
+- `hitl_warmstart/fig_queue_compare.py`：warmloop 三臂 queue 轨迹图
+  （探索件）。消费 paired_probe runs.json['series']（probe 内建逐决策
+  过程量），把 eval_m0/eval_expert/eval_m1 三批 run_dir 的曲线插值
+  对齐后绘 mean±SEM，终端 tt 均值作角注。产物
+  `data/output_data/hitl_probe/warmloop/figs/fig_queue_three_arm.png`。
 
 ## 已裁决归档（2026-10-07 Z 裁）
 

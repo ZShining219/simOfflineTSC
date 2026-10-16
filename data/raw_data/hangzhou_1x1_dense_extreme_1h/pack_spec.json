@@ -1,0 +1,10 @@
+{
+  "cat": "dense",
+  "scale": 1.8,
+  "note": "总流入×1.80（~3640veh/h）压力场景，预期排队累积",
+  "pack": "dense_extreme",
+  "n_vehicles": 3638,
+  "seed": 2142541750,
+  "base": "hangzhou_1x1_bc-tyc_18041610_1h",
+  "horizon_s": 3600
+}

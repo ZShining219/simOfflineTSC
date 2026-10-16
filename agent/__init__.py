@@ -25,7 +25,13 @@ except ModuleNotFoundError as error:
     if error.name != 'pfrl':
         raise
 from .shared_dqn import SharedDQNAgent
-from . import tarl
+try:
+    from . import tarl
+except ModuleNotFoundError as error:
+    # reproduction/tarl_tsc was removed upstream (8bae003); keep the TARL
+    # shim optional so the rest of the agent registry stays importable.
+    if error.name != 'reproduction':
+        raise
 try:
     from .colight import SGAColightAgent, ConcatColightAgent
 except ModuleNotFoundError as error:

@@ -28,6 +28,7 @@ META = {
                "②表征层——wrong_type−canonical 中位 +1.34s 非零，类型语义仍在影响行为；"
                "③**效用层未翻正**——canonical−empty 中位 +0.58s（均值 +2.27s 被 s? 单点 +28.7s 拉高），文本通道相对 empty 仍无净收益，独家信息设计需求不变。"
                "evidence：hz4x4/fe_fixG_*。stg2 波次登记未执行、2026-10-07 裁决转 SCOPE_DISCARD，stg1/ctl 部分臂 DROPPED（SCOPE_DISCARD）；"
+
                "SGA-GB 梯度线经 pilot 判定为负结果后停止（SGA_GB_PILOT_RESULT.md）；"
                "三指标+条件矩阵证据在 data/output_data/analysis/att_entity_004/ 与 baseline_cmp.md。",
  "queues": "run_queue_att004_{wave1,fix,struct,formal,ablation,ablA,holdout,stage2}.json + artifacts/att004_e200/run_queue_e200.json",
@@ -63,6 +64,18 @@ META = {
  "design": "data/output_data/tsc/sumo_dqn/sumohz1x1*/p1_*",
  "conclusion": "p1_formal 初批 4 个 run 中止后由同身份 *_r2 重跑取代（SUPERSEDED）；pilot_v3 4 run ABORTED（状态残留）；正式批完成。",
  "queues": "无独立队列文件（直跑+run_status）",
+},
+"ha_sodqn": {
+ "title": "HA-SODQN 半离线正式批（hz1x1，DHOA/OWP 历史采样矩阵）",
+ "hypothesis": "顺序在线训练中按预设比例混合 Plan 1 冻结历史档案（HOA），检验历史利用能否降低旧场景遗忘及其当前场景适应代价。",
+ "plan_id": "E0–E4 manifest（engineering_20260726/E{0,1,2,3,3_seed0,4}_manifest_*.json）；正式批 formal_e7705f7_20260726",
+ "design": "docs/semi_offline_cross_algorithm_reproduction.md、docs/plan_cross_algorithm_semi_offline.md；"
+           "资产 data/output_data/ha_sodqn/{formal_e7705f7_20260726,engineering_20260726}",
+ "conclusion": "E0–E4 全部完成（E4=100 审计白名单身份，E0–E3 阶段产物/扫参 52 个同桶留档）；"
+               "历史利用显著降低遗忘（avg−23~24、worst−33~35）、retention+0.09~0.11，"
+               "伴随小幅当前场景适应代价（CQ/CQA-R75 显著、DHOA-R25 边缘）；P1F 仅作非因果参照。"
+               "分析产物 analysis_e7705f7/E{0..4} 与 analysis/plan_ha_analysis_bundle_v1。",
+ "queues": "E{0..4}_manifest_*.json + coordination_20260727 派发协调证据；无 run_queue 文件",
 },
 "plan5_b100": {
  "title": "Plan5-B100 跨算法锚点/校准（Phase0）",
@@ -178,6 +191,7 @@ SHORT = {
 "att_entity_002": "SGA/concat 文本注入矩阵：H2 支持、H3 未支持",
 "arterial_1x6": "半离线干线 stage0/1/2 流水线完成",
 "plan1_dqn": "Plan1 在线 DQN 基线",
+"ha_sodqn": "半离线主线：E4 正式批完成；历史利用降遗忘但有适应代价",
 "plan5_b100": "Plan5 b100 半离线批",
 "tarl_reproduction": "TARL 论文复现基线（完结，仅对照）",
 "tarl_v21_formal": "TARL v2.1 正式评估（完结）",
@@ -190,7 +204,7 @@ SHORT = {
 camps = collections.Counter(r["campaign"] for r in ROWS)
 order = ["att_entity_004", "att_entity_003", "att_entity_002", "arterial_1x6",
          "tarl_reproduction", "tarl_v21_formal", "plan5_b100", "plan1_dqn",
-         "milestone0_infra", "paper_infra_validation", "misc_probes"]
+         "ha_sodqn", "milestone0_infra", "paper_infra_validation", "misc_probes"]
 
 # ---------- 明细文件：每 campaign 一篇 ----------
 DETAIL = ROOT / "EXPERIMENTS"

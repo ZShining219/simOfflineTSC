@@ -1,0 +1,10 @@
+{
+  "cat": "fluct",
+  "shape_note": "正弦±45%周期600s",
+  "note": "周期波动需求，考验相位切换节奏跟踪",
+  "pack": "fluct_sin",
+  "n_vehicles": 2043,
+  "seed": 1017866621,
+  "base": "hangzhou_1x1_bc-tyc_18041610_1h",
+  "horizon_s": 3600
+}

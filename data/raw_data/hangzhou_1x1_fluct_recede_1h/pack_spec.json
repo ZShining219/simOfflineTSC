@@ -1,0 +1,10 @@
+{
+  "cat": "fluct",
+  "shape_note": "前半×1.6后半×0.4退潮",
+  "note": "先高后塌（晚高峰退潮/活动散场）",
+  "pack": "fluct_recede",
+  "n_vehicles": 2028,
+  "seed": 3098403337,
+  "base": "hangzhou_1x1_bc-tyc_18041610_1h",
+  "horizon_s": 3600
+}

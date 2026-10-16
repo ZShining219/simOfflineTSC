@@ -57,6 +57,11 @@ def validate_sequential_config(config):
 
 
 def simulator_config_path(network):
-    if network not in FORMAL_NETWORKS:
-        raise ValueError(f'Unsupported sequential network: {network}')
-    return os.path.join('configs', 'sim', f'{network}.cfg')
+    # Extended demand packs (schema_version 2 protocols) resolve to any
+    # existing configs/sim/<name>.cfg; unknown names still fail fast.
+    if network in FORMAL_NETWORKS:
+        return os.path.join('configs', 'sim', f'{network}.cfg')
+    candidate = os.path.join('configs', 'sim', f'{network}.cfg')
+    if os.path.exists(candidate):
+        return candidate
+    raise ValueError(f'Unsupported sequential network: {network}')

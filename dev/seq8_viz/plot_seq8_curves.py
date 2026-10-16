@@ -191,6 +191,43 @@ def main(out_dir):
     fn = os.path.join(out_dir, 'G_adapt_curve.png')
     fig.savefig(fn, dpi=140); plt.close(fig); print('saved', fn)
 
+    # ---- 图H：三序列混合池化，统一趋势呈现（1行×3列）----
+    # 粗实线=全体均值主标准；背景色带=每臂 3 fam × 2 seed = 6 条
+    # 序列级 stage 均值曲线的 min-max 包络，呈现大概趋势/离散度。
+    fig, axes = plt.subplots(1, 3, figsize=(19, 5.5), sharex=True)
+    for ci, (mk, mlab) in enumerate(METRICS):
+        ax = axes[ci]
+        for ai, arm in enumerate(['CONT', 'DHOA', 'ANCHOR']):
+            fam_curves = []
+            for fam in ORDERS:
+                for sd in ['SD0', 'SD1']:
+                    cs = [t[mk] for _, t in tr[arm][fam][sd]
+                          if len(t[mk]) == len(GRID)]
+                    if cs:
+                        fam_curves.append(np.nanmean(np.stack(cs), axis=0))
+            if not fam_curves:
+                continue
+            arr = np.stack(fam_curves)
+            ax.fill_between(GRID, np.nanmin(arr, axis=0),
+                            np.nanmax(arr, axis=0),
+                            color=ARMC[arm], alpha=0.13)
+            mu = np.nanmean(arr, axis=0)
+            ax.plot(GRID, mu, lw=2.2, color=ARMC[arm], label=arm)
+            ax.annotate(f'{arm} end={mu[-1]:.1f}',
+                        xy=(GRID[-1], mu[-1]), xytext=(4, 8 - 8 * ai),
+                        textcoords='offset points', fontsize=7,
+                        color=ARMC[arm], va='center')
+        ax.set_xlim(0, 3600); ax.grid(alpha=0.3)
+        ax.set_ylabel(mlab); ax.set_xlabel('simulation time (s)')
+        if ci == 0:
+            ax.legend(fontsize=9)
+    fig.suptitle('SEQ8 current-scene adaptation, pooled over N1/R1/D1: '
+                 'within-sim curves [bold line=mean; background band='
+                 'min–max of 6 sequence×seed stage-avg curves]', fontsize=12)
+    fig.tight_layout(rect=[0, 0, 1, 0.93])
+    fn = os.path.join(out_dir, 'H_adapt_curve_pooled.png')
+    fig.savefig(fn, dpi=140); plt.close(fig); print('saved', fn)
+
 
 if __name__ == '__main__':
     out = sys.argv[1] if len(sys.argv) > 1 else os.path.join(

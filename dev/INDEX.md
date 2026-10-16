@@ -90,7 +90,10 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
   E_forget_curve=遗忘×stage距离均值+min-max带、
   F_summary_bars=超线格占比+mean/worst双柱汇总图。
   同目录 `plot_seq8_curves.py`：当前场景适应保持图
-  G_adapt_curve.png（3行序列×3列 TT/Q/throughput）——每链 stage 末
+  G_adapt_curve.png（3行序列×3列 TT/Q/throughput）与
+  H_adapt_curve_pooled.png（三序列混合池化版，1行×3列统一趋势：
+  粗实线=全体均值主标准，背景色带=每臂 3 序列×2 seed 共 6 条
+  序列级 stage 均值曲线的 min-max 包络呈现大概趋势/离散度）——每链 stage 末
   冻结 ckpt 对当前场景跑一次 0–3600s 仿真，取逐步（10s 网格）性能
   曲线，8 stage 逐点平均后跨 seed 均值+seed 极差带，三臂同格对比；
   CONT/DHOA 侧由 _shared_evaluation 对角线格的

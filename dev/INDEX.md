@@ -75,9 +75,11 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
   补充臂，100ep/stage + 逐 ep 评估 + stage 末下三角 eval 格；产物
   `artifacts/seq8_anchor/`（gitignore），实验记录
   `docs/experiments/2026-10-16_seq8_anchor.md`。
-- `dev/seq8_viz/`：seq8 pilot 冻结评估可视化（2026-10-16，一次性分析件）：
+- `dev/seq8_viz/`：seq8 三臂冻结评估可视化（2026-10-16，分析件）：
   `plot_seq8_evals.py` 消费 CONT/SELF-DHOA-R50 完成 run 的 events.jsonl
-  evaluation 操作 + `_shared_evaluation` 摘要，产两类图：A=逐 ep 当前场景
+  evaluation 操作 + `_shared_evaluation` 摘要，外加 seq8_anchor s8f_ 批
+  （ANCHOR=soddqnp_r25）的 `evaluation/summary.json` 直读，产两类 9 行×
+  3 列拼图（行=N1/R1/D1×CONT/DHOA/ANCHOR 相邻）：A=逐 ep 当前场景
   波动折线（mean+SD0/SD1 min-max 带，x=global ep1..800），B=stage 末冻结
   ckpt 下三角回测柱状图（簇=state 位置 j，簇内=stage k≥j ckpt 时间序×
   双 seed 并列柱，指标 TT/wait/queue）。输出

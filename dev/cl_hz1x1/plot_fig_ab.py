@@ -159,26 +159,41 @@ def fig_a(data):
     return fig
 
 
-def fig_b(mat):
+def fig_b(mat, avg_seeds=False, fname='fig_B_retest.png'):
     rows = [(bb, a) for bb in BACKBONES for a in ARMS]
     scenes = SCENES[ORDER]
     stage_c = plt.get_cmap('viridis', NSTAGE)
     fig, axes = plt.subplots(len(rows), len(METRICS), figsize=(11, 16),
                              sharex=True)
-    bw = 0.8 / (NSTAGE * len(SEEDS))  # 簇内宽度单位
+    if avg_seeds:
+        bw = 0.8 / NSTAGE              # 簇内每 stage 一柱
+    else:
+        bw = 0.8 / (NSTAGE * len(SEEDS))
     for ri, (bb, arm) in enumerate(rows):
         for ci, (m, mlab) in enumerate(METRICS):
             ax = axes[ri][ci]
             for j, sc in enumerate(scenes):  # 历史任务簇
                 for i in range(j + 1, NSTAGE + 1):  # 之后每个 stage 末 ckpt
-                    for sd in SEEDS:
-                        v = mat[bb][arm][sd][str(i)].get(sc, {}).get(m)
-                        if v is None:
-                            continue
-                        k = i - (j + 1)  # 簇内第几根组
-                        x = j + (k * len(SEEDS) + sd) * bw - 0.35
-                        ax.bar(x, v, width=bw * .92, color=stage_c(i - 1),
-                               alpha=.9, lw=0)
+                    vals = [mat[bb][arm][sd][str(i)].get(sc, {}).get(m)
+                            for sd in SEEDS]
+                    vals = [v for v in vals if v is not None]
+                    if not vals:
+                        continue
+                    k = i - (j + 1)  # 簇内第几根组
+                    if avg_seeds:
+                        x = j + k * bw - 0.35
+                        ax.bar(x, np.mean(vals), width=bw * .92,
+                               color=stage_c(i - 1), alpha=.9, lw=0)
+                        ax.errorbar(x, np.mean(vals),
+                                    yerr=[[np.mean(vals) - min(vals)],
+                                          [max(vals) - np.mean(vals)]],
+                                    fmt='none', ecolor='k', elinewidth=.8,
+                                    capsize=2, zorder=5)
+                    else:
+                        for sd, v in enumerate(vals):
+                            x = j + (k * len(SEEDS) + sd) * bw - 0.35
+                            ax.bar(x, v, width=bw * .92,
+                                   color=stage_c(i - 1), alpha=.9, lw=0)
             ax.set_xticks(range(len(scenes)))
             ax.set_xticklabels([f'T{j+1}\n{sc}' for j, sc in
                                 enumerate(scenes)], fontsize=8)
@@ -194,13 +209,16 @@ def fig_b(mat):
     # 图例：ckpt 阶段
     handles = [plt.Rectangle((0, 0), 1, 1, color=stage_c(i))
                for i in range(NSTAGE)]
+    cap = ('bars = mean of 3 seeds, whiskers = min–max' if avg_seeds else
+           'bars within a cluster = per-seed evals by each later stage-end '
+           'ckpt (3 seeds side-by-side)')
     fig.legend(handles, [f'ckpt @st{i+1}' for i in range(NSTAGE)],
                loc='lower center', ncol=4, fontsize=9,
-               title='bars within a cluster = per-seed evals by each later '
-                     'stage-end ckpt (3 seeds side-by-side)', title_fontsize=8)
+               title=cap, title_fontsize=8)
     fig.suptitle(f'fig B — P2 stage-end ckpt retest on historical tasks '
                  f'({ORDER}, lower-triangular)', fontsize=11)
     fig.tight_layout(rect=(0, .05, 1, .98))
+    fig.savefig(ART / fname, dpi=200)
     return fig
 
 
@@ -228,8 +246,9 @@ def main():
     print(f'P1 cells: {n_p1}  P2 cells: {n_p2}')
 
     fig_a(data).savefig(ART / 'fig_A_train.png', dpi=200)
-    fig_b(mat).savefig(ART / 'fig_B_retest.png', dpi=200)
-    print('wrote fig_A_train.png / fig_B_retest.png')
+    fig_b(mat)
+    fig_b(mat, avg_seeds=True, fname='fig_B_retest_avg.png')
+    print('wrote fig_A_train.png / fig_B_retest{,_avg}.png')
 
 
 if __name__ == '__main__':

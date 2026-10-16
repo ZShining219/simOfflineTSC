@@ -125,7 +125,7 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
 - `dev/cl_hz1x1/plot_fig_ab.py`：CL 标准双图——fig A 训练期逐点指标
   （TRAIN 行均值±极差带 + ep0/50/100 冻结评估锚点，主矩阵仅三点冻结评估），
   fig B 阶段末下三角回测柱状（matrix_report*.json，簇=历史任务、
-  簇内=后续 stage 末 ckpt×3 seed 并列柱）；产物 fig_{A,B}_*.png + fig_ab_data.json。
+  簇内=后续 stage 末 ckpt×3 seed 并列柱）；产物 fig_{A,B}_*.png（fig_B 含 seed 均值+min-max 误差须变体）+ fig_ab_data.json。
 - `dev/t34_stage1/`：t34/att004 stage-1 场景分类报告件——`scene_report.py`
   从 `tools/run_tarl_struct_cf.py --dump_dir` 产出（ep*.npz + records）
   拟合线性探针回答 stage-1 关卡问题。

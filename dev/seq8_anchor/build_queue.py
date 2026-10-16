@@ -156,7 +156,7 @@ def train_overlay(run_id, stage_idx, nets, history_paths, teacher_ckpts,
     return write_overlay(run_id, me, te)
 
 
-def eval_overlay(run_id, ckpt):
+def eval_overlay(run_id, ckpt, step_log=False):
     me = dict(ARM_MODEL)
     for key in (*SO_BASE, *ANCHOR_KEYS, 'offline_ratio'):
         me.pop(key, None)
@@ -172,6 +172,8 @@ def eval_overlay(run_id, ckpt):
         'evaluation_episodes': [0],
         'resumable_checkpoint_episodes': [0],
     })
+    if step_log:
+        te['eval_step_log'] = True
     return write_overlay(run_id, me, te)
 
 
@@ -331,12 +333,83 @@ def net_tag(net):
     return net.replace('sumohz1x1_', '').replace('sumohz1x1', 'base')
 
 
+def build_stepeval(prefix='s8fs', stage_episodes=100):
+    """对角线 eval 补跑（逐步指标落盘）：每链 stage k 末 ckpt × 当前场景，
+    产出 evaluation/steps_ep0000.jsonl 供仿真内性能曲线作图。"""
+    OVERLAYS.mkdir(parents=True, exist_ok=True)
+    tasks, ledger = [], []
+    for order_name, nets in ORDERS.items():
+        for seed in SEEDS:
+            for st, net in enumerate(nets):
+                train_rid = f's8f_soddqnp_{order_name}_sd{seed}_st{st + 1}'
+                ckpt = (out_dir('dqn', net, train_rid) / 'checkpoints' /
+                        'resumable' / f'episode_{stage_episodes:04d}.pt')
+                rid = f'{prefix}_{order_name}_sd{seed}_st{st + 1}diag'
+                odir = out_dir('dqn', net, rid)
+                ov = eval_overlay(rid, ckpt, step_log=True)
+                tasks.append({
+                    'run_id': rid,
+                    'command': cmd(rid, net, ov, seed, EVAL_SUMO_SEED),
+                    'cwd': str(ROOT), 'env': dict(ENV),
+                    'output_path': str(odir),
+                    'completion': completion(odir),
+                    'requires': [{'path': str(ckpt)}],
+                    'campaign': 'seq8_anchor', 'arm': 'soddqnp_r25',
+                    'order': order_name, 'stage': st + 1, 'scene': net,
+                    'training_seed': seed, 'eval_sumo_seed': EVAL_SUMO_SEED,
+                    'checkpoint_path': str(ckpt), 'run_kind': 'eval',
+                })
+                ledger.append({
+                    'run_id': rid, 'line': 'cl_hz1x1',
+                    'campaign': 'seq8_anchor', 'arm': 'soddqnp_r25',
+                    'alias_of': None, 'net': net, 'seed': seed,
+                    'episodes_total': 0, 'episodes_increment': 0,
+                    'resume_from': None, 'ngpu': -1, 'status': 'REGISTERED',
+                    'plan_id': 'seq8_anchor_stepeval', 'code_commit': None,
+                    'dirty': None,
+                    'queue_file': 'artifacts/seq8_anchor/run_queue_seq8_stepeval.json',
+                    'run_dir': None, 'tmux': None, 'started': None,
+                    'eval_mode': 'frozen_stage_ckpt_steptrace',
+                    'behavior_source': None, 'metrics': {},
+                    'abort_reason': None, 'error': None,
+                    'evidence_lost': False,
+                    'notes': f'REGISTERED: seq8_anchor stepeval diagonal '
+                             f'order={order_name} stage={st + 1} '
+                             f'scene={net} (per-step eval dump)',
+                    'run_kind': 'eval', 'config_sha': None,
+                    'sumo_seed_mode': 'fixed', 'sumo_seed': EVAL_SUMO_SEED,
+                    'eval_seed': EVAL_SUMO_SEED,
+                    'condition': 'semi_offline_anchor',
+                    'superseded_by': None, 'runtime_env': 'colight',
+                    'end_time': None,
+                })
+    manifest = {
+        'schema_version': 1, 'plan': 'seq8_anchor_stepeval',
+        'expected_tasks': len(tasks), 'orders': ORDERS,
+        'arms': ['soddqnp_r25'],
+        'notes': 'diagonal eval cells re-run with eval_step_log=true for '
+                 'within-sim performance curves; same ckpts/protocol as '
+                 's8f_ eval cells, separate run dirs',
+        'tasks': tasks,
+    }
+    qp = ART / 'run_queue_seq8_stepeval.json'
+    qp.write_text(json.dumps(manifest, indent=1, ensure_ascii=False),
+                  encoding='utf-8')
+    (ART / 'ledger_rows_seq8_stepeval.jsonl').write_text(
+        '\n'.join(json.dumps(r, ensure_ascii=False) for r in ledger) + '\n',
+        encoding='utf-8')
+    print(f'phase=stepeval tasks={len(tasks)} ledger_rows={len(ledger)}')
+    return qp
+
+
 if __name__ == '__main__':
     phase = sys.argv[1] if len(sys.argv) > 1 else 'smoke'
     if phase == 'smoke':
         qp = build('smoke', {'N1': ORDERS['N1'][:4]}, [0], 5, 's8q')
     elif phase == 'formal':
         qp = build('formal', ORDERS, SEEDS, 100, 's8f')
+    elif phase == 'stepeval':
+        qp = build_stepeval()
     else:
         raise SystemExit(f'unknown phase: {phase}')
     print(qp)

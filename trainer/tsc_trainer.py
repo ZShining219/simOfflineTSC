@@ -1702,6 +1702,9 @@ class TSCTrainer(BaseTrainer):
             self._reset_action_diagnostics()
             for a in self.agents:
                 a.reset()
+            step_log = bool(Registry.mapping['trainer_mapping']['setting']
+                            .param.get('eval_step_log'))
+            step_records = []
             for i in range(self.test_steps):
                 if i % self.action_interval == 0:
                     self._refresh_live_scenes()
@@ -1721,8 +1724,31 @@ class TSCTrainer(BaseTrainer):
                         rewards_list.append(np.stack(rewards))
                     rewards = np.mean(rewards_list, axis=0)
                     self.metric.update(rewards)
+                    if step_log:
+                        step_records.append({
+                            'sim_time': self.metric.decision_num
+                                        * self.action_interval,
+                            'queue': float(np.mean(
+                                [ag.get_queue() for ag in self.agents])),
+                            'waiting_time': float(
+                                self.metric.waiting_time()),
+                            'travel_time': float(
+                                self.metric.real_average_travel_time()),
+                            'throughput': int(self.metric.throughput()),
+                            'approx_delay': float(np.mean(
+                                [ag.get_delay() for ag in self.agents])),
+                            'real_delay': float(self.metric.real_delay()),
+                        })
                 if all(dones):
                     break
+            if step_log:
+                os.makedirs(os.path.join(self.output_path, 'evaluation'),
+                            exist_ok=True)
+                sp = os.path.join(self.output_path, 'evaluation',
+                                  'steps_ep%04d.jsonl' % e)
+                with open(sp, 'w', encoding='utf-8') as fh:
+                    for rec in step_records:
+                        fh.write(json.dumps(rec) + '\n')
             self.logger.info("Test step:{}/{}, travel time :{}, rewards:{}, queue:{}, delay:{}, throughput:{}".format(\
                 e, self.episodes, self.metric.real_average_travel_time(), self.metric.rewards(),\
                 self.metric.queue(), self.metric.delay(), int(self.metric.throughput())))

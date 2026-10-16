@@ -89,6 +89,16 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
   D_delta_ecdf=三臂遗忘Δ%累积分布（k>j格全池化）、
   E_forget_curve=遗忘×stage距离均值+min-max带、
   F_summary_bars=超线格占比+mean/worst双柱汇总图。
+  同目录 `plot_seq8_curves.py`：当前场景适应保持图
+  G_adapt_curve.png（3行序列×3列 TT/Q/throughput）——每链 stage 末
+  冻结 ckpt 对当前场景跑一次 0–3600s 仿真，取逐步（10s 网格）性能
+  曲线，8 stage 逐点平均后跨 seed 均值+seed 极差带，三臂同格对比；
+  CONT/DHOA 侧由 _shared_evaluation 对角线格的
+  decisions.jsonl+tripinfo.xml 重建同口径曲线（TT=累计到达均值，
+  endpoint 与官方 summary 可有 ≤~1% 冲刷期口径差），ANCHOR 侧消费
+  s8fs_ 补跑批（run_queue_seq8_stepeval.json，48 对角线格，
+  trainer eval_step_log=true 落 evaluation/steps_ep0000.jsonl）；
+  waiting_time 因快照/累计语义跨 runtime 不可比不入图。
 - `dev/plan34_viz/`：Plan 3/4 持续学习证据图（2026-10-15，一次性）：
   `plot_stage_scene_recovery.py` 消费 plan34_b100_formal_60 的
   stage_scene_evaluations + plan_ha bundle 的 frozen_eval_timeseries，

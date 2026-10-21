@@ -1,6 +1,6 @@
 # xiasha1_explore_v1：充分探索下的 DQN 早收敛与性能验证
 
-> 状态：进行中（2026-10-21 派发 12 run）
+> 状态：已暂停（2026-10-21；slow 6 DONE，full 6 ABORTED；转 `xiasha1_online_v2`）
 > 发起日期：2026-10-21 ｜ 负责人/Agent：Z / Claude Code
 > 最近更新：2026-10-21
 
@@ -90,9 +90,51 @@ native 臂，native 参照直接复用已完成的 6 个 run。
 
 ## 4. 实验结果
 
-**待收割。** 12 个 run 已于 2026-10-21 派发；完成后回填本节、
-`artifacts/xiasha1_explore_v1/analysis/pilot_summary.md` 与台账。
+### 4.1 slow 臂（6 DONE）
+
+slow 设定：ε 1.0→0.05，decay 0.99992，learning_start 5000；
+epsilon 约 **ep118** 到下限。native 设定：ε 0.1→0.01，decay 0.995，
+learning_start 1000；epsilon 约 **ep5** 到下限。
+
+| pack | native TT | slow TT | ΔTT | native 未插入 | slow 未插入 | native 收敛 ep | slow 收敛 ep | epsilon 下限 ep |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| asym_nonly | 13.35 | 13.31 | -0.04 | 144.9 | 144.1 | 31.3 | 36.7 | 5 → 118 |
+| asym_ns | 11.65 | 11.59 | -0.07 | 1.1 | 1.3 | 28.0 | 37.3 | 5 → 118 |
+
+- 6/6 slow run 的 5% 收敛点在 ep 36–37，**仍远早于 epsilon 下限 ep118**；
+  6/6 也早于 epsilon 下限的 50%（ep59）。
+- 扣掉 warmup：native 开始更新后约 25–28 ep 收敛，slow 约 22–23 ep；
+  slow 没有因为探索更多而延长学习。
+- 配对差：ΔTT 仅 -0.04 / -0.07，Δthroughput 约 0，Δuninserted
+  -0.8 / +0.2（方向不一致）。first-100 AUC slow 约 2200 vs native
+  1440–1580，说明高探索让前期更差，但最终 greedy 策略回到同一水平。
+- 结论：**充分（slow）探索没有消除早收敛，也没有带来稳定性能提升。**
+
+### 4.2 full 臂（6 ABORTED）
+
+full 设定：ε 1.0→0.05，decay 0.99995，epsilon 约 ep180 到下限。
+用户于 2026-10-21 决定暂停当前 explore 验证、转 `xiasha1_online_v2`；
+6 个 full run 停止时约 ep143–154，partial 数据不作最终判断。台账记
+ABORTED + 暂停原因，partial 目录保留。
+
+### 4.3 判定
+
+- 问题 1（是否仍早收敛）：**是**。slow 在 epsilon 仍高的阶段就达到
+  5% 收敛，且收敛点在 epsilon 下限之前。
+- 问题 2（是否有性能提升）：**没有稳定证据**。TT 差值在 ±0.07 内，
+  吞吐/未插入方向不一致。
+- 因此“探索 schedule 不足”不能解释 xiasha1 上 plain DQN 的早收敛；
+  用户决定把 online 基线改为充分探索并重新从头跑，记为
+  `xiasha1_online_v2`（见 `docs/experiments/2026-10-21_xiasha1_online_v2.md`）。
 
 ## 5. 结论与后续
 
-**待收割。** 结果不足以前置判断；不在数据完成前写结论。
+**结论**：在 xiasha1 的 plain DQN 上，slow epsilon schedule 已足以
+排除“探索不足导致早收敛”的解释；早收敛是当前状态/动作/网络/优化
+配置下的策略快速稳定，而非 epsilon 衰减过快。性能也没有因慢探索
+而提升。
+
+**后续**：`xiasha1_explore_v1` 暂停，不再续跑 full；slow 的 6 个
+DONE run 保留为 v2 设计依据。新的 `xiasha1_online_v2` 使用
+full-horizon epsilon（ε1.0→0.05，约 ep180 到下限）对 8 臂 ×12 包 ×
+3 seeds 重新训练；SAC/MPLight 保留各自原生探索机制。

@@ -1,0 +1,16 @@
+{
+  "cat": "asym",
+  "arm": {
+    "N2J": 3.0,
+    "S2J": 0.5,
+    "E2J": 0.5,
+    "W2J": 0.5
+  },
+  "normalize": false,
+  "note": "单臂集中：N 臂×3.0 其余×0.5，总量不归一（~1.35×基线）",
+  "pack": "asym_nonly",
+  "n_vehicles": 1990,
+  "seed": 1568726994,
+  "base": "data/raw_data/xiasha1*1/xiasha1_sumo_vehicles.rou.xml",
+  "horizon_s": 3600
+}

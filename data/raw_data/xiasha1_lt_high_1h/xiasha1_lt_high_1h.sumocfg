@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<configuration>
+	<input>
+		<net-file value="xiasha1_lt_high_1h_signal.net.xml"/>
+		<route-files value="xiasha1_lt_high_1h.rou.xml"/>
+		<additional-files value="xiasha1_lt_high_1h_logic_lines.add.xml"/>
+	</input>
+	<time>
+		<begin value="0"/>
+		<end value="3600"/>
+	</time>
+</configuration>

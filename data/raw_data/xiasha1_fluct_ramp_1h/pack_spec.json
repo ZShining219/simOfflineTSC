@@ -1,0 +1,10 @@
+{
+  "cat": "fluct",
+  "shape_note": "线性爬坡 ×0.4→×1.6",
+  "note": "单调爬坡型需求增长（早高峰形态）",
+  "pack": "fluct_ramp",
+  "n_vehicles": 1493,
+  "seed": 1741349729,
+  "base": "data/raw_data/xiasha1*1/xiasha1_sumo_vehicles.rou.xml",
+  "horizon_s": 3600
+}

@@ -1,0 +1,6 @@
+# Replay overlay for within-episode performance curves.
+# It only enables step logging; it does not change controller semantics or
+# signal execution.
+trainer:
+  eval_step_log: true
+  eval_step_log_interval: 1

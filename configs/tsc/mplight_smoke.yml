@@ -1,0 +1,23 @@
+# Engineering smoke for MPLight on the existing hz4x4 signal_config.
+# Short horizon; save one model file for the per-agent loader test.
+# Keep the native phase-scalar encoding: MPLight's FRAP backbone cannot use
+# a phase one-hot when the number of lane movements differs from the number
+# of phase pairs.
+model:
+  one_hot: false
+
+trainer:
+  episodes: 1
+  steps: 300
+  test_steps: 300
+  learning_start: -1
+  evaluation_episodes: [0, 1]
+  resumable_checkpoint_episodes: [0, 1]
+  test_when_train: false
+
+logger:
+  save_model: true
+  save_rate: 1
+
+world:
+  saveReplay: false

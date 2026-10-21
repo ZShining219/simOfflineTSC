@@ -1,0 +1,10 @@
+{
+  "cat": "turn",
+  "left": 0.35,
+  "note": "全臂左转占比→35%，lane2 独占有相位承压",
+  "pack": "lt_high",
+  "n_vehicles": 1477,
+  "seed": 763738996,
+  "base": "data/raw_data/xiasha1*1/xiasha1_sumo_vehicles.rou.xml",
+  "horizon_s": 3600
+}

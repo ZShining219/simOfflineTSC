@@ -1,0 +1,32 @@
+includes:
+  - configs/tsc/base.yml
+
+# Discrete-action SAC baseline.  The actor is a Categorical policy; the value
+# critic and twin Q critics follow the legacy agent/sac.py implementation.
+# SAC has no epsilon-greedy schedule; these fields are kept at neutral values
+# so the shared checkpoint/logger contract can record them.
+model:
+  name: sac
+  train_model: true
+  phase: true
+  one_hot: true
+  gamma: 0.99
+  grad_clip: 5.0
+  learning_rate: 0.0003
+  batch_size: 256
+  sac_temperature: 0.2
+  tau: 0.005
+  reward_scale: 1.0
+  epsilon: 0.0
+  epsilon_decay: 1.0
+  epsilon_min: 0.0
+
+trainer:
+  episodes: 400
+  buffer_size: 10000
+  learning_start: 1000
+  update_model_rate: 1
+  update_target_rate: 10
+  action_interval: 10
+  evaluation_episodes: [0, 100, 200, 300, 400]
+  resumable_checkpoint_episodes: [0, 100, 200, 300, 400]

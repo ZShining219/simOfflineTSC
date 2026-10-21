@@ -1,0 +1,10 @@
+{
+  "cat": "turn",
+  "right": 0.35,
+  "note": "全臂右转占比→35%（xiasha 特有维度），右直共用 lane0 排队竞争",
+  "pack": "rt_high",
+  "n_vehicles": 1450,
+  "seed": 4270147836,
+  "base": "data/raw_data/xiasha1*1/xiasha1_sumo_vehicles.rou.xml",
+  "horizon_s": 3600
+}

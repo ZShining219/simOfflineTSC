@@ -1,0 +1,3 @@
+<?xml version='1.0' encoding='utf-8'?>
+<!-- instantInductionLoop detectors from baseline removed: their file= attrs pointed at an absolute in-repo path and every sim run overwrote xiasha1*1/xiasha1_sumo_logic_line_events.xml. Detectors are output-only instrumentation, no effect on dynamics. -->
+<additional/>

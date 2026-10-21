@@ -1,0 +1,94 @@
+{
+  "schema_version": 1,
+  "collection": "xiasha1_demand_packs_v1",
+  "base_pack": "data/raw_data/xiasha1*1/xiasha1_sumo_vehicles.rou.xml",
+  "topology": "xiasha1*1（进口 lane0=右+直共用/lane1=直/lane2=左；J2N,J2S 出口 2 车道、J2E,J2W 出口 1 车道；无 u_turn 连接）",
+  "caveat": "J 处掉头在受控网物理不可表达（观测 5 条 u_turn 记录仍丢弃），本批不含掉头包；出口拓扑不做改造",
+  "horizon_s": 3600,
+  "packs": [
+    {
+      "pack": "sparse_low",
+      "dir": "xiasha1_sparse_low_1h",
+      "sumocfg": "xiasha1_sparse_low_1h/xiasha1_sparse_low_1h.sumocfg",
+      "cat": "sparse",
+      "n_vehicles": 741
+    },
+    {
+      "pack": "dense_high",
+      "dir": "xiasha1_dense_high_1h",
+      "sumocfg": "xiasha1_dense_high_1h/xiasha1_dense_high_1h.sumocfg",
+      "cat": "dense",
+      "n_vehicles": 2248
+    },
+    {
+      "pack": "dense_extreme",
+      "dir": "xiasha1_dense_extreme_1h",
+      "sumocfg": "xiasha1_dense_extreme_1h/xiasha1_dense_extreme_1h.sumocfg",
+      "cat": "dense",
+      "n_vehicles": 2872
+    },
+    {
+      "pack": "rt_high",
+      "dir": "xiasha1_rt_high_1h",
+      "sumocfg": "xiasha1_rt_high_1h/xiasha1_rt_high_1h.sumocfg",
+      "cat": "turn",
+      "n_vehicles": 1450
+    },
+    {
+      "pack": "lt_high",
+      "dir": "xiasha1_lt_high_1h",
+      "sumocfg": "xiasha1_lt_high_1h/xiasha1_lt_high_1h.sumocfg",
+      "cat": "turn",
+      "n_vehicles": 1477
+    },
+    {
+      "pack": "st_dom",
+      "dir": "xiasha1_st_dom_1h",
+      "sumocfg": "xiasha1_st_dom_1h/xiasha1_st_dom_1h.sumocfg",
+      "cat": "turn",
+      "n_vehicles": 1405
+    },
+    {
+      "pack": "asym_ns",
+      "dir": "xiasha1_asym_ns_1h",
+      "sumocfg": "xiasha1_asym_ns_1h/xiasha1_asym_ns_1h.sumocfg",
+      "cat": "asym",
+      "n_vehicles": 1857
+    },
+    {
+      "pack": "asym_we",
+      "dir": "xiasha1_asym_we_1h",
+      "sumocfg": "xiasha1_asym_we_1h/xiasha1_asym_we_1h.sumocfg",
+      "cat": "asym",
+      "n_vehicles": 1414
+    },
+    {
+      "pack": "asym_nonly",
+      "dir": "xiasha1_asym_nonly_1h",
+      "sumocfg": "xiasha1_asym_nonly_1h/xiasha1_asym_nonly_1h.sumocfg",
+      "cat": "asym",
+      "n_vehicles": 1990
+    },
+    {
+      "pack": "fluct_sin",
+      "dir": "xiasha1_fluct_sin_1h",
+      "sumocfg": "xiasha1_fluct_sin_1h/xiasha1_fluct_sin_1h.sumocfg",
+      "cat": "fluct",
+      "n_vehicles": 1463
+    },
+    {
+      "pack": "fluct_burst",
+      "dir": "xiasha1_fluct_burst_1h",
+      "sumocfg": "xiasha1_fluct_burst_1h/xiasha1_fluct_burst_1h.sumocfg",
+      "cat": "fluct",
+      "n_vehicles": 1456
+    },
+    {
+      "pack": "fluct_ramp",
+      "dir": "xiasha1_fluct_ramp_1h",
+      "sumocfg": "xiasha1_fluct_ramp_1h/xiasha1_fluct_ramp_1h.sumocfg",
+      "cat": "fluct",
+      "n_vehicles": 1493
+    }
+  ]
+}

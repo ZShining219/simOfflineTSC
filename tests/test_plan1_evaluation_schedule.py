@@ -24,7 +24,10 @@ class Plan1EvaluationScheduleTest(unittest.TestCase):
 
         def save_checkpoint(checkpoint_type, episode):
             self.saved.append((checkpoint_type, episode))
-            return None
+            path = self.trainer._checkpoint_path(checkpoint_type, episode)
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            open(path, 'wb').close()
+            return path
 
         def evaluate(episode, record_type='EVALUATION'):
             travel_times = {0: 10.0, 10: 5.0, 25: 5.0, 100: 6.0}

@@ -25,6 +25,7 @@ except ModuleNotFoundError as error:
     if error.name != 'pfrl':
         raise
 from .shared_dqn import SharedDQNAgent
+from .sac import SACAgent
 try:
     from . import tarl
 except ModuleNotFoundError as error:

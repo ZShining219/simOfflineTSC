@@ -1,0 +1,10 @@
+{
+  "cat": "dense",
+  "scale": 2.0,
+  "note": "总流入×2.00（~2900veh/h）过饱和压力，预期排队累积",
+  "pack": "dense_extreme",
+  "n_vehicles": 2872,
+  "seed": 4084134416,
+  "base": "data/raw_data/xiasha1*1/xiasha1_sumo_vehicles.rou.xml",
+  "horizon_s": 3600
+}

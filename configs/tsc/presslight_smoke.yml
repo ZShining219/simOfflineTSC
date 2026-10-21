@@ -1,0 +1,21 @@
+# Engineering smoke for PressLight; short horizon and small replay/batch so
+# at least one gradient update is exercised.
+model:
+  batch_size: 8
+
+trainer:
+  episodes: 1
+  steps: 300
+  test_steps: 300
+  learning_start: 10
+  buffer_size: 100
+  evaluation_episodes: [0, 1]
+  resumable_checkpoint_episodes: [0, 1]
+  test_when_train: false
+
+logger:
+  save_model: false
+  save_rate: 1
+
+world:
+  saveReplay: false

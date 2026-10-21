@@ -45,6 +45,74 @@
 
 详细手册：Offline 数据门禁与恢复见 [Plan 2 支持说明](docs/plan2_offline_support.md)；半离线科学设计、结果边界与迁移步骤见 [半离线实验总结与跨算法复现实用指南](docs/semi_offline_cross_algorithm_reproduction.md)；HITL 通道与边界见 [hitl/README.md](hitl/README.md)；注意力线见 [scene_attention/README.md](scene_attention/README.md)。
 
+## xiasha1 off-policy 基线
+
+> 状态：控制器与评估链路已适配并完成工程冒烟；正式训练矩阵、队列和台账登记尚未开始。详细记录见 [docs/experiments/2026-10-21_xiasha1_online_baseline.md](docs/experiments/2026-10-21_xiasha1_online_baseline.md)。
+
+**范围**：xiasha1*1 单受控路口 J、12 个 1 h 需求包；比较**纯在线 off-policy** 控制器在不同需求包上的收敛与训练后性能。不做半离线、教师锚定、事件语义。
+
+- **纳入臂**：`dqn`（DDQN / Dueling / D3QN 为同一 agent 的配置开关）、`presslight`、`frap`、`mplight`、`sac`。
+- **排除**：CoLight（单路口图退化）、PPO（on-policy，按本轮口径排除）、TARL / HA-SODQN / offline（非纯在线）。
+- **参照**：`fixedtime`、`maxpressure`、`sotl`（非训练）。
+
+### 控制器与统一口径
+
+| 臂 | 启动 / 开关 | 观测（xiasha1） | 动作 | 奖励 | 标准 checkpoint | 训练后评估 |
+| --- | --- | --- | --- | --- | --- | --- |
+| DQN / DDQN / Dueling / D3QN | `-a dqn`；`model.double_dqn` / `model.dueling` | 12 进口 lane + 4 相位 one-hot = **16** | 4 | `-queue` | `full` | 标准 manifest |
+| PressLight | `-a presslight` | 12 进口 + 6 出口 lane + 4 相位 one-hot = **22** | 4 | `-pressure` | `full` | 标准 manifest |
+| FRAP | `-a frap` | 12 进口 lane + 1 相位标量 = **13** | 4 | `-queue` | `full` | 标准 manifest |
+| MPLight | `-a mplight` | 12 进口 lane + 1 相位标量 = **13** | 4 | `-queue` | `evaluation_only` | 标准 manifest（仅 `best`/`final`） |
+| SAC | `-a sac` | 12 进口 lane + 4 相位 one-hot = **16** | 4 | `-queue`（`reward_scale=1.0`） | `full` | 标准 manifest |
+| 规则参照 | `fixedtime` / `maxpressure` / `sotl` | 无 | 4 | 规则 | — | 只作参照 |
+
+**统一的是环境、动作索引和评估条件；不统一的是观测编码和奖励。**
+
+- DQN 家族 / SAC：12 进口 lane + 4 相位 one-hot = 16；
+- PressLight：12 进口 + 6 出口 lane + 4 相位 one-hot = 22（`in_only=False` 硬编码）；
+- FRAP / MPLight：12 进口 lane + 1 相位标量 = 13；**必须 `one_hot: false`**。FRAP backbone 在 `one_hot: true` 时要求 `num_movements == len(phase_pairs)`；xiasha1 是 12 车道 / 4 相位，会直接越界；
+- 动作：所有臂输出 0..3，映射到 `world.id2intersection['J'].green_phases[action]`；
+- 奖励不同，`reward`/`loss` 不用于跨控制器排名；主指标 `travel_time`，强制同报 `throughput`、`unfinished_vehicles`。
+
+### xiasha1 signal_config
+
+`configs/tsc/frap.yml` 和 `configs/tsc/mplight.yml` 已加入：
+
+```yaml
+xiasha1:
+  phase_pairs: [[4, 10], [5, 11], [1, 7], [2, 8]]
+  valid_acts: null
+```
+
+- 绿相位顺序（运行时 `world.green_phases`）：0 EW 直行、1 EW 左转、2 NS 直行、3 NS 左转；
+- 进口车道顺序（`LaneVehicleGenerator`）：`N0,N1,N2,E0,E1,E2,S0,S1,S2,W0,W1,W2`；
+- 每个 pair 是两个对向臂的专用直行 / 左转车道；
+- 改信号程序或路网后必须重新标定；不要照搬 hz1x1 的 8 条 pair。
+
+### 需求包 network 统一
+
+`configs/sim/xiasha1_<pack>.cfg` 的 `"network"` 全部为 `xiasha1`。CLI `-n xiasha1_<pack>` 仍是需求包身份，run 目录与 `run_manifest.network` 仍用 pack 名。**不要改回 pack 名**，否则 FRAP/MPLight 查 `signal_config[network]` 会 miss。生成件 `dev/demand_packs/build_xiasha_notrain_queue.py` 已同步。
+
+### Checkpoint / 训练后评估
+
+- DQN 家族 / PressLight / FRAP / SAC：`checkpoint_protocol: full`，有 `checkpoints/evaluation` 和 `checkpoints/resumable`；走标准 `run.py --evaluation-manifest ... --evaluation-output ...`。
+- MPLight：`checkpoint_protocol: evaluation_only`，有 `checkpoints/evaluation`，**没有** `checkpoints/resumable`；标准 manifest 只能用 `checkpoint_role: best|final`，不要请求 `resumable`。这是 pfrl 的 target/replay 不在 DQN checkpoint 契约内的有意限制。
+- `evaluation/summary.json` 的 checkpoint 计数按**实际文件**计；MPLight 的 `resumable_checkpoint_count=0` 不是缺文件，是设计如此。
+- `model/{e}.pt` 是 legacy 模型文件（MPLight 为 `model_state_dict` + `optimizer_state_dict`）；需要按模型文件评估时用 `tools/eval_baseline_checkpoint.py`。
+- MPLight 的 `model/{e}.pt` 保存节奏由 `logger.save_rate` 控制；需要中间节点就把它设成评估节点间隔。DQN/SAC/PressLight/FRAP 用 `evaluation_episodes` / `resumable_checkpoint_episodes`。
+
+### 不要搞混
+
+- xiasha1 上 FRAP/MPLight 不要设 `one_hot: true`，会 `IndexError`；
+- 不要用 `-a ppo`（旧实现已断链）；PPO 是 on-policy，本轮不纳入；
+- CoLight 不纳入本基线；
+- MPLight 没有 `checkpoints/resumable` 是设计限制，不是文件缺失；
+- 不要跨控制器比较 `reward` / `loss`，只比交通指标；
+- 需求包 cfg 的 `network: xiasha1` 与 CLI `-n xiasha1_<pack>` 是两层身份，不要混用；
+- 当前冒烟产物是工程证据，不是台账正式结果。
+
+正式 run 仍按仓库规则：台账 REGISTERED → SMOKE → 队列 runner（`run_queue_*.json`）或 `bench/` profile → 收割三指标 → 回填台账与 `docs/experiments/`。
+
 ## 研究线：半离线持续学习
 
 **语义定义**：多场景顺序训练下，stage k 的每个训练 batch 由「当前在线回放」
@@ -160,6 +228,7 @@ data/output_data/ha_sodqn/               # HA-SODQN engineering / 正式运行 /
 
 - **`tools/xiasha_sumo/`**：xiasha1*1 语义事件到 SUMO 逐车/flow 需求和信号路网的转换。最小示例 `python -m tools.xiasha_sumo --all`，参数与信号规则见 [tools/xiasha_sumo/README.md](tools/xiasha_sumo/README.md)。
 - **`tools/traffic_flow_profile/`**：SUMO 单场景车流需求评估、标准度量计算与固定子图报告。
+- **`tools/eval_baseline_checkpoint.py`**：per-agent 训练后评估加载器，支持标准 `checkpoints/evaluation/*.pt` 和 `model/{e}.pt` 两种 checkpoint；用于 MPLight 等不产生完整 DQN checkpoint 的控制器。评估条件由 `configs/tsc/eval_baseline_checkpoint*.yml` 控制；示例见 [xiasha1 off-policy 基线](#xiasha1-off-policy-基线)。
 - **`common/converter.py`**：CityFlow 与 SUMO 路网/交通流互转；`cd common && python converter.py --typ s2c`（默认处理 cologne3，转换其他数据需改 parse_args 默认路径）。
 - **`tools/sumo_html_comparison.py`**：将已记录的 SUMO 决策经 libsumo 按原控制间隔重放，生成自包含 HTML 多控制器对比页面（不改源记录/路网/配置）。支持多方法对比与追加冻结记录；最小示例：
 

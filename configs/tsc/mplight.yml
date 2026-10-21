@@ -67,5 +67,14 @@ world:
         # NT,NL,ET,EL,ST,SL,WT,WL
         'cluster_2415878664_254486231_359566_359576': {1: 0, 2: 1, 4: 2, 5: 3, 7: 4, 8: 5, 10: 6, 11: 7}
       }
+    },
+    xiasha1: {
+      # green phases, in world.green_phases order:
+      #   0 = EW straight, 1 = EW left, 2 = NS straight, 3 = NS left
+      # lane order (LaneVehicleGenerator, in_only=True):
+      #   0=N0,1=N1,2=N2,3=E0,4=E1,5=E2,6=S0,7=S1,8=S2,9=W0,10=W1,11=W2
+      # Each pair uses the dedicated straight/left lane of the two opposing arms.
+      phase_pairs: [[4, 10], [5, 11], [1, 7], [2, 8]],
+      valid_acts: null
     }
   }

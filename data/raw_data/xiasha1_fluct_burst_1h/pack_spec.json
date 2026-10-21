@@ -1,0 +1,10 @@
+{
+  "cat": "fluct",
+  "shape_note": "1800–2400s 脉冲×2.5，其余×0.7",
+  "note": "中段突发尖峰（事件/事故后集聚）",
+  "pack": "fluct_burst",
+  "n_vehicles": 1456,
+  "seed": 2333923328,
+  "base": "data/raw_data/xiasha1*1/xiasha1_sumo_vehicles.rou.xml",
+  "horizon_s": 3600
+}

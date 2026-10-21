@@ -32,6 +32,11 @@ class MPLightAgent(RLAgent):
     def __init__(self, world, rank):
         super().__init__(world,world.intersection_ids[rank])
         self.evaluation_isolation_exempt = True
+        # pfrl keeps its target network and replay buffer outside the
+        # DQN-style (model, target_model, optimizer, epsilon, replay_buffer)
+        # contract.  Produce evaluation checkpoints only; resumable
+        # checkpoints remain a DQN-family capability.
+        self.checkpoint_eval_only = True
         self.dic_agent_conf = Registry.mapping['model_mapping']['setting']
         self.dic_traffic_env_conf = Registry.mapping['world_mapping']['setting']
         self.dic_trainer_conf = Registry.mapping['trainer_mapping']['setting']
@@ -523,10 +528,16 @@ class MPLightAgent(RLAgent):
         '''
         model_name = os.path.join(Registry.mapping['logger_mapping']['path'].path,
                                   'model', f'{e}_{self.rank}.pt')
-        self.agents_iner = self._build_model()
-        # self.agents_iner.load_state_dict(torch.load(model_name))
-        tmp_dict = {}
-        tmp_dict.load_state_dict(torch.load(model_name))
+        payload = torch.load(model_name, map_location='cpu')
+        if isinstance(payload, dict) and 'model_state_dict' in payload:
+            self.model.load_state_dict(payload['model_state_dict'])
+            if 'optimizer_state_dict' in payload:
+                self.optimizer.load_state_dict(payload['optimizer_state_dict'])
+        else:
+            self.model.load_state_dict(payload)
+        target_model = getattr(self.agents_iner, 'target_model', None)
+        if target_model is not None:
+            target_model.load_state_dict(self.model.state_dict())
 
     def save_model(self, e):
         '''

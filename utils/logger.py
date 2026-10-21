@@ -1233,7 +1233,7 @@ def load_evaluation_collection_manifest(path):
         seen_ids.add(controller_id)
         if controller['agent'] not in {
             'dqn', 'shared_dqn', 'batch_dqn', 'cql_dqn',
-            'fixedtime', 'maxpressure', 'frap',
+            'fixedtime', 'maxpressure', 'presslight', 'sac', 'frap',
             'colight', 'sga_colight', 'concat_colight',
             'sga_flx_colight', 'mplight', 'sga_mplight',
             'tarl_sensor', 'tarl_gat', 'tarl_concat',
@@ -1267,7 +1267,8 @@ def load_evaluation_collection_manifest(path):
         checkpoint_sha256 = None
         checkpoint_audit = None
         if controller['agent'] in {
-            'dqn', 'shared_dqn', 'frap', 'colight', 'sga_colight',
+            'dqn', 'shared_dqn', 'presslight', 'sac',
+            'frap', 'colight', 'sga_colight',
             'concat_colight', 'sga_flx_colight', 'mplight', 'sga_mplight',
             'tarl_sensor', 'tarl_gat', 'tarl_concat',
             'tarl_attention', 'tarl_gating', 'tarl_selfattn', 'tarl_crossq',

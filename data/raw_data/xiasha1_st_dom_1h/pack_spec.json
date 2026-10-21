@@ -1,0 +1,10 @@
+{
+  "cat": "turn",
+  "straight": 0.9,
+  "note": "直行主导：全臂直行→90%，右/左≈5%",
+  "pack": "st_dom",
+  "n_vehicles": 1405,
+  "seed": 2314091232,
+  "base": "data/raw_data/xiasha1*1/xiasha1_sumo_vehicles.rou.xml",
+  "horizon_s": 3600
+}

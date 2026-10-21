@@ -3,6 +3,7 @@ from common.registry import Registry
 from generator import LaneVehicleGenerator, IntersectionPhaseGenerator, IntersectionVehicleGenerator
 import numpy as np
 import gym
+from collections import deque
 
 
 @Registry.register_model('sotl')
@@ -14,6 +15,7 @@ class SOTLAgent(BaseAgent):
         super().__init__(world)
         self.world = world
         self.rank = rank
+        self.replay_buffer = deque(maxlen=0)
         # some threshold to deal with phase requests
         self.min_green_vehicle = Registry.mapping['model_mapping']['setting'].param['min_green_vehicle']
         self.max_red_vehicle = Registry.mapping['model_mapping']['setting'].param['max_red_vehicle']

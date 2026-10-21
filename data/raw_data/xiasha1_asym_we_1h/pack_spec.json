@@ -1,0 +1,15 @@
+{
+  "cat": "asym",
+  "arm": {
+    "E2J": 1.8,
+    "W2J": 1.8,
+    "N2J": 0.4,
+    "S2J": 0.4
+  },
+  "note": "东西重载镜像：EW 长直绿 34s + J2E/J2W 单车道出口瓶颈",
+  "pack": "asym_we",
+  "n_vehicles": 1414,
+  "seed": 1037851535,
+  "base": "data/raw_data/xiasha1*1/xiasha1_sumo_vehicles.rou.xml",
+  "horizon_s": 3600
+}

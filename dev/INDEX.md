@@ -114,6 +114,52 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
   sumohz1x1_<cat>_<sub>.cfg` + 集合清单 `data/raw_data/
   hangzhou_1x1_demand_packs.json`。硬约束：hz1x1 无右转连接，
   高右转包不可表达。供持续学习/半离线扩展需求库。
+  姊妹件 `build_xiasha_demands.py`（2026-10-21）：xiasha1*1 实测单路口
+  12 包（sparse/dense/turn[rt_high 右转特有]/asym[asym_nonly 总量不归一]/
+  fluct），horizon=3600s，departLane 按转向语义分配（左→lane2、
+  右→lane0、直→lane0/1 按各臂实测拆分），departPos/arrivalPos/
+  departSpeed 沿用实测模态值。产出 `data/raw_data/xiasha1_<sub>_1h/`
+  （复制 signal net/add + logic_lines add + 新 rou + sumocfg +
+  pack_spec.json）+ 集合清单 `data/raw_data/xiasha1_demand_packs.json`。
+  已验证：12 sumocfg 全量 0–3600s 跑通（dense_extreme waiting≈471、
+  asym_nonly≈518 为注入跑道 ~22m 处的过饱和注入阻塞，属设计内压力信号）。
+  xiasha 未在 configs/sim/run.py 注册，消费走 SUMO 原生 .sumocfg。
+  同目录 `verify_xiasha_packs.py`（2026-10-21 验证件）：逐包跑
+  --summary-output/--statistic-output 全量仿真，产 halting(t)/
+  waiting(t)（注入阻塞=过饱和主信号，路面排队被 ~22m 注入跑道截顶）/
+  累计到达三面板图 + verify_metrics.json；需求侧对比图由
+  `tools.traffic_flow_profile` 出（12 包共享量程，PHF 区分时变轴），
+  产物 `data/output_data/xiasha1_pack_profiles/` 与
+  `analysis/xiasha1_pack_verify/`。控制面 smoke：`configs/sim/xiasha1.cfg`
+  + `run.py -w sumo -n xiasha1 -a fixedtime|dqn` 已跑通
+  （DQN 观测 16 维/4 相位动作）。
+  同目录 `build_xiasha_notrain_queue.py`（2026-10-21 队列生成件）：
+  产 `configs/sim/xiasha1_<pack>.cfg`×12 +
+  `artifacts/xiasha1_notrain/run_queue{,_retry}.json`（12 包 ×
+  fixedtime/sotl/maxpressure = 36 个 1-episode 采集 run）。
+  `harvest_xiasha_notrain.py`（收割件）：读 run_state manifest +
+  records.jsonl FINAL_EVALUATION + 原始程序臂 statistic/summary
+  直跑，产 `analysis/xiasha1_notrain/`（notrain_matrix.json/csv +
+  fig_notrain_2x2/heatmap）。**随带修复**：`agent/sotl.py` 补
+  `self.replay_buffer = deque(maxlen=0)`（fixedtime/maxpressure
+  同惯例，否则收尾 AttributeError 退出码 1；此前 8 run 重跑已全数成功）。
+  **事故修复**：基准 `xiasha1_sumo_logic_lines.add.xml` 的 14 个
+  instantInductionLoop `file=` 指向仓内绝对路径，生成包沿用后每次仿真
+  （verify/orig/36 ctl run）都覆写 `xiasha1*1/xiasha1_sumo_logic_line_
+  events.xml`——12 包 add.xml 已剔除检测器（纯输出仪表，不影响动力学），
+  原文件已 git 恢复；build_xiasha_demands.py 同步修复防复发。
+  口径注意（v3 全对齐）：orig 臂改为 libsumo 被动直跑（不动 tlLogic），
+  指标采集路径与 run.py world_sumo 逐字段一致——att=到达车在网时长
+  （depart→arrive 台账，两臂均只统计到达车、极端包同有生存者偏差）；
+  queue=Σ12 进口道 lane_waiting_count（wait>0 即计，曾停车未离域）每
+  10s 决策步采样；waiting_s=终点仍在网车辆 accumulated waiting 均值
+  （**不含未注入车**——SUMO summary meanWaitingTime 会把 waiting-to-
+  insert 计入，418s 旧值即由此而来，已弃用）；real_delay_s=逐车时延秒
+  （ctl=world real_delay，orig=tripinfo timeLoss，同为'实际-期望'口径）；
+  uninserted/unfinished_in_net 两臂均台账派生（loaded−inserted /
+  depart−arrive）；lane_delay_idx=原 records 'delay'，Σ12进口道
+  (1-v̄/vmax) 决策步均值，无量纲仅 ctl 有。v1/v2 缺陷（量纲混列、
+  orig throughput 多减 waiting、waiting 人群不一致）均已修正。
 - `dev/w34/probes/`：w34_2 零训练探针分析件——`p2_binding_audit.py`（离线
   绑定审计：bound/fallback_bind/gap/co_active 分类 + 配对差分层）、
   `p4_stratify.py`（臂/种子/事件类/窗长分层 + 稀疏窗伪影检验）。消费
@@ -603,6 +649,61 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
   过程量），把 eval_m0/eval_expert/eval_m1 三批 run_dir 的曲线插值
   对齐后绘 mean±SEM，终端 tt 均值作角注。产物
   `data/output_data/hitl_probe/warmloop/figs/fig_queue_three_arm.png`。
+- `dev/transition_dist/`：离线数据集三层分布草稿图（2026-10-18，探索件）。
+  `draft_plots.py` 消费 `tsc/sumo_dqn` 下 trajectory/episodes/*.npz
+  （schema A），按 8 个数据集（hz1x1 家族 4 个 p1_formal 场景 + dense_high/
+  sparse_low/asym_we/lt_high 各一 soddqnp run）出三联图：fig1 决策点
+  总排队边际分布、fig2 P(action|queue 分箱)、fig3 P(Δq|queue 分箱,action)。
+  口径：npz `queue` 字段为决策点瞬时 8 进口道等待数，Δq=queue[i]-queue[i-1]
+  对应 action[i]；样本不足格（n<50）留空。产物 `dev/transition_dist/figs/`。
+  `build_cache.py` 全量盘点五种轨迹 schema A/B 资产（tsc/sumo_dqn、
+  ha_sodqn、sequential seq8/plan34、hitl_probe、plan1_freeze），统一排队
+  口径 q_hat=-2r/3（8 进口道区间均值，schema A 另存瞬时 qi），写
+  `cache/*.npz`+`datasets_index.json`（1488 单元 ≈4.59M 转移，CAP_A=100/
+  CAP_B=12 集抽样，p1freeze 仅登记不入池）。`plot_expanded.py` 按需求
+  场景池化出 fig1 山脊+log 密度热力图（16 场景按中位排队排序）、
+  fig1b 同场景×采集管线对比、fig1c ECDF 同轴叠加、fig1d 字母值图、
+  fig1e/f 密度曲线分面与灰底小多图、fig2 P(action|qpre 分箱)（n<200
+  格留空）与 fig2b 堆叠条指纹、fig3 P(Δq|分箱,action) 轻/重载双面板
+  （n<100 格跳过）与 fig3c/3d 均值热力图、剖面线。产物同上目录。
+  `state_cluster.py` 簇结构佐证（2026-10-18，探索件）：每场景抽 ≤4
+  run×6 episode 的 8 维 `state` 车道计数（≈4–9k 行/场景），PCA
+  （PC1≈总量 41%、PC2≈方向对比 15%）+ 手写 kmeans(k=6) + 混合分布
+  分解。产 fig4a 散点+族椭圆、fig4a2 族 50%/90% 密度等高线、fig4b
+  簇→场景归属条图、fig4c 总量密度按族堆叠分解；fig5a-c 语义平面
+  （车道顺序经 net.xml+均值表验证：dims(0,1)(2,3)(4,5)(6,7)=W/S/E/N
+  进口×[THRU,LT]，SUMO lane0=直行——注意 roadnet.json 索引序不同），
+  轴=轴向不均衡(EW−NS)/tot、左转占比 LT/tot、总量；fig5d 语义态区
+  格位条图 sev{L,M,H}×dir{NS,bal,EW}×turn{,LT+}。
+- `dev/coverage_figs/`：跨语料场景×控制器「经验覆盖」三件套（2026-10-18
+  初建 seq8 版，当日扩至五语料）。数据集单元=一个控制器在某语料某 stage
+  采集的 transition 集；每单元固定等距抽 ≤25 episode（CAP_EPISODES）使
+  样本量可比（~9k 转移；hitl 单元 ~2.4k）。语料：seq8（144 单元，
+  CONT/SELF-DHOA-R50=s8f ANCHOR×N1/R1/D1×SD0-1×8 段）、ha_sodqn
+  formal_e7705f7（608 单元=152 run×4 段，CONT-FIFO/P1C·P1F×
+  {DHOA,RAND,COV,CQ,CQA}×R{25,50,75}）、plan34_b100/b400（448 单元；
+  两批 stage_01 轨迹均未持久化，实际贡献 st2–4）、p1_formal（80 单元=
+  4 config×seed0-4×Q1-Q4 切片，同 seed 多批 run 取 episode 最全者）、
+  hitl_probe pilot/pilot5/multiscene/warmloop（254 单元，人类接管）。
+  覆盖口径 `ha_coverage_v1`（sequential/owp.py）去 network/seed 维：
+  cell=(load_bin×max_bin×imb_bin×phase×action)，分箱 [0,1,3,7,15,31]。
+  `harvest.py` 产 `cache/units.json`（1534 单元：SACo=占用 cell 数/
+  saco_frac/cell_entropy_norm、TQ=均 reward）+ `marginals.npz`；
+  `harvest_evals.py` 产 `cache/evals.json`（3777 个 stage 末冻结评估
+  格：sequential/ 系走 events.jsonl `evaluation:stage_k:local_*:<net>`
+  取 local 最大者→_shared_evaluation，s8f 走 evK_<scene>/summary.json
+  末条）；`plot_figs.py` 产 `figs/`——fig1_seq8_{N1,R1,D1,union}（行=
+  stage/需求包、列=三控制器 log 热力图）、fig1_hz1x1（4 config 场景×
+  14 控制组：P1-Q1..Q4/p34-clear·fifo·fmw/ha-CONT·DHOA·RAND·COV·CQ·
+  CQA/HITL，格内合并、n=单元数）、fig2_saco_tq（单图 jointplot：
+  五语料共轴，x=SACo、y=语料×场景内 z-TQ，形=语料、色=链末 stage
+  回评 ATT，无评估链单元灰显；上/右边缘为各语料分布直方图）、
+  fig3_seq8 与 fig3_ha_e4（非对角遗忘 Δ%=(k 段回评/j 段自评−1)×100
+  mean±95%CI；seq8 每臂每序 n=56、ALL n=168；ha E4 五臂×O1-O4，每臂
+  每序 n≈24-30 场景格、ALL n≈111-114）。注意：seq8 ANCHOR 与 CONT/
+  DHOA 跨 runtime（run.py+队列 vs sequential/）；plan34 fifo_matched_
+  wait reward 变体使其 TQ 跨臂不可比；SELF-CQ 按裁决不进结论；CI 按
+  场景格计非种子级。
 
 ## 已裁决归档（2026-10-07 Z 裁）
 

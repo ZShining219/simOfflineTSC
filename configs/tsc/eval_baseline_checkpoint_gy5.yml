@@ -1,0 +1,25 @@
+# Evaluation-only overlay for corrected green/yellow execution.
+# Must be used only with a checkpoint trained under sumo-green-yellow-v1.
+model:
+  train_model: false
+  test_model: true
+  load_model: false
+
+trainer:
+  episodes: 1
+  steps: 3600
+  test_steps: 3600
+  action_interval: 10
+  learning_start: -1
+  test_when_train: false
+  evaluation_episodes: [0, 1]
+  resumable_checkpoint_episodes: [0, 1]
+  signal_control:
+    version: sumo-green-yellow-v1
+    yellow_seconds: 5
+
+logger:
+  save_model: false
+
+world:
+  saveReplay: false

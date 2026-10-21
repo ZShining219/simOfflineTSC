@@ -1,0 +1,10 @@
+{
+  "cat": "sparse",
+  "scale": 0.5,
+  "note": "总流入×0.50（~730veh/h），低密度常态",
+  "pack": "sparse_low",
+  "n_vehicles": 741,
+  "seed": 995137810,
+  "base": "data/raw_data/xiasha1*1/xiasha1_sumo_vehicles.rou.xml",
+  "horizon_s": 3600
+}

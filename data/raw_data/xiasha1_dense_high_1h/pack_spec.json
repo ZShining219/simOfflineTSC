@@ -1,0 +1,10 @@
+{
+  "cat": "dense",
+  "scale": 1.5,
+  "note": "总流入×1.50（~2180veh/h），逼近通行能力",
+  "pack": "dense_high",
+  "n_vehicles": 2248,
+  "seed": 885648045,
+  "base": "data/raw_data/xiasha1*1/xiasha1_sumo_vehicles.rou.xml",
+  "horizon_s": 3600
+}

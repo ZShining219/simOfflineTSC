@@ -1,0 +1,15 @@
+{
+  "cat": "asym",
+  "arm": {
+    "N2J": 1.8,
+    "S2J": 1.8,
+    "E2J": 0.4,
+    "W2J": 0.4
+  },
+  "note": "南北重载潮汐，撞上 NS 短直绿 27s 的信号-需求失配",
+  "pack": "asym_ns",
+  "n_vehicles": 1857,
+  "seed": 639420504,
+  "base": "data/raw_data/xiasha1*1/xiasha1_sumo_vehicles.rou.xml",
+  "horizon_s": 3600
+}

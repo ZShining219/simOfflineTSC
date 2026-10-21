@@ -289,7 +289,9 @@ class TSCTrainer(BaseTrainer):
         with open(os.path.join(self.output_path, 'run_manifest.json'), encoding='utf-8') as handle:
             self.config_hash = json.load(handle)['config_hash']
         self.trajectory_writer = None
-        if command['agent'] in {'dqn', 'shared_dqn'} and model['train_model']:
+        if command['agent'] in {
+            'dqn', 'shared_dqn', 'presslight', 'frap', 'mplight', 'sac',
+        } and model['train_model']:
             self.trajectory_writer = EpisodeTrajectoryWriter(
                 output_path=self.output_path,
                 network=command['network'],
@@ -435,9 +437,23 @@ class TSCTrainer(BaseTrainer):
             'resumable_checkpoint_episodes': list(
                 self.resumable_checkpoint_episodes or ()
             ),
-            'evaluation_checkpoint_count': len(ordered),
+            # Count actual checkpoint files, not scheduled episodes.  Agents
+            # such as MPLight intentionally save evaluation checkpoints only;
+            # their summary must not claim resumable files that were never
+            # written.
+            'checkpoint_protocol': (
+                'evaluation_only'
+                if any(getattr(agent, 'checkpoint_eval_only', False)
+                       for agent in getattr(self, 'agents', ()))
+                else 'full'
+            ),
+            'evaluation_checkpoint_count': sum(
+                self._checkpoint_exists('evaluation', episode)
+                for episode in self.evaluation_results
+            ),
             'resumable_checkpoint_count': sum(
                 episode in (self.resumable_checkpoint_episodes or ())
+                and self._checkpoint_exists('resumable', episode)
                 for episode in self.evaluation_results
             ),
             'evaluation_isolation_check_count': len(
@@ -449,13 +465,13 @@ class TSCTrainer(BaseTrainer):
             ),
             'best_episode': best['episode'],
             'best_travel_time': best['travel_time'],
-            'best_checkpoint': os.path.relpath(
-                self._checkpoint_path('evaluation', best['episode']), self.output_path
-            ),
+            'best_checkpoint': self._checkpoint_relpath(
+                'evaluation', best['episode']),
             'final_episode': None if final is None else final['episode'],
             'final_travel_time': None if final is None else final['travel_time'],
-            'final_checkpoint': None if final is None else os.path.relpath(
-                self._checkpoint_path('evaluation', final['episode']), self.output_path
+            'final_checkpoint': (
+                None if final is None
+                else self._checkpoint_relpath('evaluation', final['episode'])
             ),
             'evaluations': ordered,
         }
@@ -1166,19 +1182,46 @@ class TSCTrainer(BaseTrainer):
                 self.gradient_updates += 1
         return losses
 
-    def _supports_dqn_checkpoint(self):
-        return bool(self.agents) and all(
+    def _agent_supports_checkpoint(self, agent, checkpoint_type):
+        if not hasattr(agent, 'model') or agent.model is None:
+            return False
+        if getattr(agent, 'checkpoint_eval_only', False):
+            # Evaluation-only agents (MPLight) store the online network but
+            # do not expose a DQN-style target/optimizer/replay bundle.
+            return checkpoint_type == 'evaluation'
+        return (
             all(hasattr(agent, name) for name in (
-                'model', 'target_model', 'optimizer', 'epsilon', 'replay_buffer',
-            )) and agent.model is not None and agent.target_model is not None
+                'target_model', 'optimizer', 'epsilon', 'replay_buffer',
+            ))
+            and agent.target_model is not None
+        )
+
+    def _supports_checkpoint(self, checkpoint_type):
+        if checkpoint_type not in {'evaluation', 'resumable'}:
+            raise ValueError(f'Invalid checkpoint_type: {checkpoint_type}')
+        return bool(self.agents) and all(
+            self._agent_supports_checkpoint(agent, checkpoint_type)
             for agent in self.agents
         )
+
+    def _supports_dqn_checkpoint(self):
+        """Backward-compatible alias for full DQN-style checkpoints."""
+        return self._supports_checkpoint('resumable')
 
     def _checkpoint_path(self, checkpoint_type, episode):
         return os.path.join(
             self.output_path, 'checkpoints', checkpoint_type,
             f'episode_{episode:04d}.pt',
         )
+
+    def _checkpoint_exists(self, checkpoint_type, episode):
+        return os.path.isfile(self._checkpoint_path(checkpoint_type, episode))
+
+    def _checkpoint_relpath(self, checkpoint_type, episode):
+        path = self._checkpoint_path(checkpoint_type, episode)
+        if not os.path.isfile(path):
+            return None
+        return os.path.relpath(path, self.output_path)
 
     @staticmethod
     def _atomic_torch_save(payload, path):
@@ -1198,7 +1241,7 @@ class TSCTrainer(BaseTrainer):
     def save_checkpoint(self, checkpoint_type, episode):
         if checkpoint_type not in {'evaluation', 'resumable'}:
             raise ValueError(f'Invalid checkpoint_type: {checkpoint_type}')
-        if not self._supports_dqn_checkpoint():
+        if not self._supports_checkpoint(checkpoint_type):
             return None
         payload = {
             'schema_version': 1,
@@ -1268,12 +1311,12 @@ class TSCTrainer(BaseTrainer):
         return path
 
     def save_milestone_checkpoints(self, episode):
-        if not self._supports_dqn_checkpoint():
+        if not self._supports_checkpoint('evaluation'):
             return []
-        return [
-            self.save_checkpoint('evaluation', episode),
-            self.save_checkpoint('resumable', episode),
-        ]
+        paths = [self.save_checkpoint('evaluation', episode)]
+        if self._supports_checkpoint('resumable'):
+            paths.append(self.save_checkpoint('resumable', episode))
+        return [path for path in paths if path is not None]
 
     @staticmethod
     def validate_checkpoint_payload(payload, expected_type=None):
@@ -1786,6 +1829,14 @@ class TSCTrainer(BaseTrainer):
             obs = self.env.reset()
             for a in self.agents:
                 a.reset()
+            trainer_settings = Registry.mapping['trainer_mapping']['setting'].param
+            step_log = bool(trainer_settings.get('eval_step_log'))
+            step_log_interval = int(
+                trainer_settings.get('eval_step_log_interval') or self.action_interval
+            )
+            if step_log_interval <= 0:
+                raise ValueError('eval_step_log_interval must be positive')
+            step_records = []
             for i in range(self.test_steps):
                 if i % self.action_interval == 0:
                     self._refresh_live_scenes()
@@ -1803,10 +1854,40 @@ class TSCTrainer(BaseTrainer):
                         obs, rewards, dones, _ = self.env.step(actions.flatten())
                         i += 1
                         rewards_list.append(np.stack(rewards))
+                        if step_log and i % step_log_interval == 0:
+                            step_records.append({
+                                'sim_time': i,
+                                'queue': float(np.mean(
+                                    [ag.get_queue() for ag in self.agents])),
+                                'waiting_time': float(self.metric.waiting_time()),
+                                'travel_time': float(
+                                    self.metric.real_average_travel_time()),
+                                'throughput': int(self.metric.throughput()),
+                                'unfinished_vehicles': int(
+                                    self.metric.unfinished_vehicles()),
+                                'inserted_vehicles': int(len(
+                                    getattr(self.world, 'inside_vehicles', {}) or {})),
+                                'approx_delay': float(np.mean(
+                                    [ag.get_delay() for ag in self.agents])),
+                                'real_delay': None,
+                            })
+                            if i % self.action_interval == 0:
+                                step_records[-1]['real_delay'] = float(
+                                    self.metric.real_delay())
                     rewards = np.mean(rewards_list, axis=0)
                     self.metric.update(rewards)
                 if all(dones):
                     break
+            if step_log:
+                os.makedirs(os.path.join(self.output_path, 'evaluation'),
+                            exist_ok=True)
+                step_path = os.path.join(
+                    self.output_path, 'evaluation',
+                    'steps_ep%04d.jsonl' % self.episodes,
+                )
+                with open(step_path, 'w', encoding='utf-8') as handle:
+                    for record in step_records:
+                        handle.write(json.dumps(record) + '\n')
             self.logger.info("Final Travel Time is %.4f, mean rewards: %.4f, queue: %.4f, delay: %.4f, throughput: %d" % (self.metric.real_average_travel_time(), \
                 self.metric.rewards(), self.metric.queue(), self.metric.delay(), self.metric.throughput()))
             self.last_evaluation_record = self.writeStructuredLog(

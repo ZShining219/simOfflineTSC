@@ -1,0 +1,37 @@
+# xiasha1 demand packs x rule controllers (one episode, 3600 s).
+# This spec only records existing run.py artifacts; it does not rerun them.
+schema_version: 1
+benchmark_id: xiasha1_notrain_v1
+horizon_s: 3600
+decision_interval_s: 10
+seed: 0
+episode: 1
+
+pack_manifest: data/raw_data/xiasha1_demand_packs.json
+pack_dir_template: data/raw_data/{dir}
+
+in_edges: [E2J, N2J, S2J, W2J]
+out_edges: [J2E, J2N, J2S, J2W]
+
+arms:
+  - id: orig_prog
+    kind: direct_sumo
+    label: "orig (native 128s program)"
+  - id: fixedtime
+    kind: run_dir
+    label: "fixedtime (t_fixed=30, legacy timing)"
+    agent: fixedtime
+    run_dir_template: data/output_data/tsc/sumo_fixedtime/xiasha1_{pack}/xi1_ft_{pack}
+    expected_control_semantics: legacy_pseudo_step
+  - id: sotl
+    kind: run_dir
+    label: "sotl (t_min=5, legacy timing)"
+    agent: sotl
+    run_dir_template: data/output_data/tsc/sumo_sotl/xiasha1_{pack}/xi1_sotl_{pack}
+    expected_control_semantics: legacy_pseudo_step
+  - id: maxpressure
+    kind: run_dir
+    label: "maxpressure (t_min=10, legacy timing)"
+    agent: maxpressure
+    run_dir_template: data/output_data/tsc/sumo_maxpressure/xiasha1_{pack}/xi1_mp_{pack}
+    expected_control_semantics: legacy_pseudo_step

@@ -1,0 +1,19 @@
+# Vanilla DQN engineering smoke (xiasha1_online_v1 派发门：dqn_smoke_ddqn 去掉 double_dqn).
+model:
+  batch_size: 8
+
+trainer:
+  episodes: 1
+  steps: 300
+  test_steps: 300
+  learning_start: 10
+  buffer_size: 100
+  evaluation_episodes: [0, 1]
+  resumable_checkpoint_episodes: [0, 1]
+  test_when_train: false
+
+logger:
+  save_model: false
+
+world:
+  saveReplay: false

@@ -1,0 +1,66 @@
+# seq8_anchor
+
+> 索引：[EXPERIMENTS.md](../EXPERIMENTS.md)；事实源 `ledger/runs.jsonl`
+
+- 假设：—
+- plan_id/队列：—
+- 设计稿/证据位置：—
+- 结论：—
+- 登记单元 312（train/eval/smoke/batch/calibration = 48/264/0/0/0）（追溯登记 2026-10-07）
+
+| run_id | 臂/net/seed | ep | 状态 | 起始 | TT/th/unfinished | 产物路径 | 备注 |
+|---|---|---|---|---|---|---|---|
+| `s8f_soddqnp_D1_sd0_st1` | soddqnp_r25/sumohz1x1_st_dom/s0 | 100 | DONE | 2026-10-16 | 76.2/2067/38 | `data/output_data/tsc/sumo_dqn/sumohz1x1_st_dom/s8f_soddqnp_D1_sd0_st1` | REGISTERED: seq8_anchor formal train order=D1 stage=1 ratio=0.0 anchor_lambda_po |
+| `s8f_soddqnp_D1_sd0_st2` | soddqnp_r25/sumohz1x1/s0 | 100 | DONE | 2026-10-16 | 77.5/1977/41 | `data/output_data/tsc/sumo_dqn/sumohz1x1/s8f_soddqnp_D1_sd0_st2` | REGISTERED: seq8_anchor formal train order=D1 stage=2 ratio=0.25 anchor_lambda_p |
+| `s8f_soddqnp_D1_sd0_st3` | soddqnp_r25/sumohz1x1_lt_high/s0 | 100 | DONE | 2026-10-16 | 85.4/2087/43 | `data/output_data/tsc/sumo_dqn/sumohz1x1_lt_high/s8f_soddqnp_D1_sd0_st3` | REGISTERED: seq8_anchor formal train order=D1 stage=3 ratio=0.25 anchor_lambda_p |
+| `s8f_soddqnp_D1_sd0_st4` | soddqnp_r25/sumohz1x1_lt_extreme/s0 | 100 | DONE | 2026-10-16 | 80.4/1950/41 | `data/output_data/tsc/sumo_dqn/sumohz1x1_lt_extreme/s8f_soddqnp_D1_sd0_st4` | REGISTERED: seq8_anchor formal train order=D1 stage=4 ratio=0.25 anchor_lambda_p |
+| `s8f_soddqnp_D1_sd0_st5` | soddqnp_r25/sumohz1x1_lt_wsing/s0 | 100 | DONE | 2026-10-16 | 82.4/2014/49 | `data/output_data/tsc/sumo_dqn/sumohz1x1_lt_wsing/s8f_soddqnp_D1_sd0_st5` | REGISTERED: seq8_anchor formal train order=D1 stage=5 ratio=0.25 anchor_lambda_p |
+| `s8f_soddqnp_D1_sd0_st6` | soddqnp_r25/sumohz1x1_asym_wonly/s0 | 100 | DONE | 2026-10-16 | 76.8/1922/51 | `data/output_data/tsc/sumo_dqn/sumohz1x1_asym_wonly/s8f_soddqnp_D1_sd0_st6` | REGISTERED: seq8_anchor formal train order=D1 stage=6 ratio=0.25 anchor_lambda_p |
+| `s8f_soddqnp_D1_sd0_st7` | soddqnp_r25/sumohz1x1_asym_we/s0 | 100 | DONE | 2026-10-16 | 75.6/2244/40 | `data/output_data/tsc/sumo_dqn/sumohz1x1_asym_we/s8f_soddqnp_D1_sd0_st7` | REGISTERED: seq8_anchor formal train order=D1 stage=7 ratio=0.25 anchor_lambda_p |
+| `s8f_soddqnp_D1_sd0_st8` | soddqnp_r25/sumohz1x1_asym_ns/s0 | 100 | DONE | 2026-10-16 | 76.6/2193/49 | `data/output_data/tsc/sumo_dqn/sumohz1x1_asym_ns/s8f_soddqnp_D1_sd0_st8` | REGISTERED: seq8_anchor formal train order=D1 stage=8 ratio=0.25 anchor_lambda_p |
+| `s8f_soddqnp_D1_sd1_st1` | soddqnp_r25/sumohz1x1_st_dom/s1 | 100 | DONE | 2026-10-16 | 77.1/2071/34 | `data/output_data/tsc/sumo_dqn/sumohz1x1_st_dom/s8f_soddqnp_D1_sd1_st1` | REGISTERED: seq8_anchor formal train order=D1 stage=1 ratio=0.0 anchor_lambda_po |
+| `s8f_soddqnp_D1_sd1_st2` | soddqnp_r25/sumohz1x1/s1 | 100 | DONE | 2026-10-16 | 79.8/1973/45 | `data/output_data/tsc/sumo_dqn/sumohz1x1/s8f_soddqnp_D1_sd1_st2` | REGISTERED: seq8_anchor formal train order=D1 stage=2 ratio=0.25 anchor_lambda_p |
+| `s8f_soddqnp_D1_sd1_st3` | soddqnp_r25/sumohz1x1_lt_high/s1 | 100 | DONE | 2026-10-16 | 82.3/2087/43 | `data/output_data/tsc/sumo_dqn/sumohz1x1_lt_high/s8f_soddqnp_D1_sd1_st3` | REGISTERED: seq8_anchor formal train order=D1 stage=3 ratio=0.25 anchor_lambda_p |
+| `s8f_soddqnp_D1_sd1_st4` | soddqnp_r25/sumohz1x1_lt_extreme/s1 | 100 | DONE | 2026-10-16 | 80.6/1946/45 | `data/output_data/tsc/sumo_dqn/sumohz1x1_lt_extreme/s8f_soddqnp_D1_sd1_st4` | REGISTERED: seq8_anchor formal train order=D1 stage=4 ratio=0.25 anchor_lambda_p |
+| `s8f_soddqnp_D1_sd1_st5` | soddqnp_r25/sumohz1x1_lt_wsing/s1 | 100 | DONE | 2026-10-16 | 81.9/2017/46 | `data/output_data/tsc/sumo_dqn/sumohz1x1_lt_wsing/s8f_soddqnp_D1_sd1_st5` | REGISTERED: seq8_anchor formal train order=D1 stage=5 ratio=0.25 anchor_lambda_p |
+| `s8f_soddqnp_D1_sd1_st6` | soddqnp_r25/sumohz1x1_asym_wonly/s1 | 100 | DONE | 2026-10-16 | 75.9/1921/48 | `data/output_data/tsc/sumo_dqn/sumohz1x1_asym_wonly/s8f_soddqnp_D1_sd1_st6` | REGISTERED: seq8_anchor formal train order=D1 stage=6 ratio=0.25 anchor_lambda_p |
+| `s8f_soddqnp_D1_sd1_st7` | soddqnp_r25/sumohz1x1_asym_we/s1 | 100 | DONE | 2026-10-16 | 75.8/2247/36 | `data/output_data/tsc/sumo_dqn/sumohz1x1_asym_we/s8f_soddqnp_D1_sd1_st7` | REGISTERED: seq8_anchor formal train order=D1 stage=7 ratio=0.25 anchor_lambda_p |
+| `s8f_soddqnp_D1_sd1_st8` | soddqnp_r25/sumohz1x1_asym_ns/s1 | 100 | DONE | 2026-10-16 | 76.6/2190/52 | `data/output_data/tsc/sumo_dqn/sumohz1x1_asym_ns/s8f_soddqnp_D1_sd1_st8` | REGISTERED: seq8_anchor formal train order=D1 stage=8 ratio=0.25 anchor_lambda_p |
+| `s8f_soddqnp_N1_sd0_st1` | soddqnp_r25/sumohz1x1_sparse_ultra/s0 | 100 | DONE | 2026-10-16 | 65.1/336/6 | `data/output_data/tsc/sumo_dqn/sumohz1x1_sparse_ultra/s8f_soddqnp_N1_sd0_st1` | REGISTERED: seq8_anchor formal train order=N1 stage=1 ratio=0.0 anchor_lambda_po |
+| `s8f_soddqnp_N1_sd0_st2` | soddqnp_r25/sumohz1x1_fluct_burst/s0 | 100 | DONE | 2026-10-16 | 125.6/1935/60 | `data/output_data/tsc/sumo_dqn/sumohz1x1_fluct_burst/s8f_soddqnp_N1_sd0_st2` | REGISTERED: seq8_anchor formal train order=N1 stage=2 ratio=0.25 anchor_lambda_p |
+| `s8f_soddqnp_N1_sd0_st3` | soddqnp_r25/sumohz1x1_lt_extreme/s0 | 100 | DONE | 2026-10-16 | 81.7/1944/47 | `data/output_data/tsc/sumo_dqn/sumohz1x1_lt_extreme/s8f_soddqnp_N1_sd0_st3` | REGISTERED: seq8_anchor formal train order=N1 stage=3 ratio=0.25 anchor_lambda_p |
+| `s8f_soddqnp_N1_sd0_st4` | soddqnp_r25/sumohz1x1_asym_wonly/s0 | 100 | DONE | 2026-10-16 | 76.8/1919/50 | `data/output_data/tsc/sumo_dqn/sumohz1x1_asym_wonly/s8f_soddqnp_N1_sd0_st4` | REGISTERED: seq8_anchor formal train order=N1 stage=4 ratio=0.25 anchor_lambda_p |
+| `s8f_soddqnp_N1_sd0_st5` | soddqnp_r25/sumohz1x1_dense_extreme/s0 | 100 | DONE | 2026-10-16 | 163.6/2564/117 | `data/output_data/tsc/sumo_dqn/sumohz1x1_dense_extreme/s8f_soddqnp_N1_sd0_st5` | REGISTERED: seq8_anchor formal train order=N1 stage=5 ratio=0.25 anchor_lambda_p |
+| `s8f_soddqnp_N1_sd0_st6` | soddqnp_r25/sumohz1x1_st_dom/s0 | 100 | DONE | 2026-10-16 | 77.3/2068/37 | `data/output_data/tsc/sumo_dqn/sumohz1x1_st_dom/s8f_soddqnp_N1_sd0_st6` | REGISTERED: seq8_anchor formal train order=N1 stage=6 ratio=0.25 anchor_lambda_p |
+| `s8f_soddqnp_N1_sd0_st7` | soddqnp_r25/sumohz1x1_asym_we/s0 | 100 | DONE | 2026-10-16 | 77.2/2247/37 | `data/output_data/tsc/sumo_dqn/sumohz1x1_asym_we/s8f_soddqnp_N1_sd0_st7` | REGISTERED: seq8_anchor formal train order=N1 stage=7 ratio=0.25 anchor_lambda_p |
+| `s8f_soddqnp_N1_sd0_st8` | soddqnp_r25/sumohz1x1_fluct_ramp/s0 | 100 | DONE | 2026-10-16 | 93.9/1913/104 | `data/output_data/tsc/sumo_dqn/sumohz1x1_fluct_ramp/s8f_soddqnp_N1_sd0_st8` | REGISTERED: seq8_anchor formal train order=N1 stage=8 ratio=0.25 anchor_lambda_p |
+| `s8f_soddqnp_N1_sd1_st1` | soddqnp_r25/sumohz1x1_sparse_ultra/s1 | 100 | DONE | 2026-10-16 | 65.0/337/5 | `data/output_data/tsc/sumo_dqn/sumohz1x1_sparse_ultra/s8f_soddqnp_N1_sd1_st1` | REGISTERED: seq8_anchor formal train order=N1 stage=1 ratio=0.0 anchor_lambda_po |
+| `s8f_soddqnp_N1_sd1_st2` | soddqnp_r25/sumohz1x1_fluct_burst/s1 | 100 | DONE | 2026-10-16 | 124.6/2014/65 | `data/output_data/tsc/sumo_dqn/sumohz1x1_fluct_burst/s8f_soddqnp_N1_sd1_st2` | REGISTERED: seq8_anchor formal train order=N1 stage=2 ratio=0.25 anchor_lambda_p |
+| `s8f_soddqnp_N1_sd1_st3` | soddqnp_r25/sumohz1x1_lt_extreme/s1 | 100 | DONE | 2026-10-16 | 83.5/1944/47 | `data/output_data/tsc/sumo_dqn/sumohz1x1_lt_extreme/s8f_soddqnp_N1_sd1_st3` | REGISTERED: seq8_anchor formal train order=N1 stage=3 ratio=0.25 anchor_lambda_p |
+| `s8f_soddqnp_N1_sd1_st4` | soddqnp_r25/sumohz1x1_asym_wonly/s1 | 100 | DONE | 2026-10-16 | 78.5/1923/48 | `data/output_data/tsc/sumo_dqn/sumohz1x1_asym_wonly/s8f_soddqnp_N1_sd1_st4` | REGISTERED: seq8_anchor formal train order=N1 stage=4 ratio=0.25 anchor_lambda_p |
+| `s8f_soddqnp_N1_sd1_st5` | soddqnp_r25/sumohz1x1_dense_extreme/s1 | 100 | DONE | 2026-10-16 | 170.6/2359/116 | `data/output_data/tsc/sumo_dqn/sumohz1x1_dense_extreme/s8f_soddqnp_N1_sd1_st5` | REGISTERED: seq8_anchor formal train order=N1 stage=5 ratio=0.25 anchor_lambda_p |
+| `s8f_soddqnp_N1_sd1_st6` | soddqnp_r25/sumohz1x1_st_dom/s1 | 100 | DONE | 2026-10-16 | 81.2/2067/38 | `data/output_data/tsc/sumo_dqn/sumohz1x1_st_dom/s8f_soddqnp_N1_sd1_st6` | REGISTERED: seq8_anchor formal train order=N1 stage=6 ratio=0.25 anchor_lambda_p |
+| `s8f_soddqnp_N1_sd1_st7` | soddqnp_r25/sumohz1x1_asym_we/s1 | 100 | DONE | 2026-10-16 | 77.0/2246/38 | `data/output_data/tsc/sumo_dqn/sumohz1x1_asym_we/s8f_soddqnp_N1_sd1_st7` | REGISTERED: seq8_anchor formal train order=N1 stage=7 ratio=0.25 anchor_lambda_p |
+| `s8f_soddqnp_N1_sd1_st8` | soddqnp_r25/sumohz1x1_fluct_ramp/s1 | 100 | DONE | 2026-10-16 | 93.5/1856/103 | `data/output_data/tsc/sumo_dqn/sumohz1x1_fluct_ramp/s8f_soddqnp_N1_sd1_st8` | REGISTERED: seq8_anchor formal train order=N1 stage=8 ratio=0.25 anchor_lambda_p |
+| `s8f_soddqnp_R1_sd0_st1` | soddqnp_r25/sumohz1x1_sparse_low/s0 | 100 | DONE | 2026-10-16 | 69.5/814/24 | `data/output_data/tsc/sumo_dqn/sumohz1x1_sparse_low/s8f_soddqnp_R1_sd0_st1` | REGISTERED: seq8_anchor formal train order=R1 stage=1 ratio=0.0 anchor_lambda_po |
+| `s8f_soddqnp_R1_sd0_st2` | soddqnp_r25/sumohz1x1_lt_high/s0 | 100 | DONE | 2026-10-16 | 81.2/2084/46 | `data/output_data/tsc/sumo_dqn/sumohz1x1_lt_high/s8f_soddqnp_R1_sd0_st2` | REGISTERED: seq8_anchor formal train order=R1 stage=2 ratio=0.25 anchor_lambda_p |
+| `s8f_soddqnp_R1_sd0_st3` | soddqnp_r25/sumohz1x1_fluct_burst/s0 | 100 | DONE | 2026-10-16 | 128.9/1984/72 | `data/output_data/tsc/sumo_dqn/sumohz1x1_fluct_burst/s8f_soddqnp_R1_sd0_st3` | REGISTERED: seq8_anchor formal train order=R1 stage=3 ratio=0.25 anchor_lambda_p |
+| `s8f_soddqnp_R1_sd0_st4` | soddqnp_r25/sumohz1x1_dense_high/s0 | 100 | DONE | 2026-10-16 | 112.5/2596/95 | `data/output_data/tsc/sumo_dqn/sumohz1x1_dense_high/s8f_soddqnp_R1_sd0_st4` | REGISTERED: seq8_anchor formal train order=R1 stage=4 ratio=0.25 anchor_lambda_p |
+| `s8f_soddqnp_R1_sd0_st5` | soddqnp_r25/sumohz1x1_sparse_low/s0 | 100 | DONE | 2026-10-16 | 70.0/812/26 | `data/output_data/tsc/sumo_dqn/sumohz1x1_sparse_low/s8f_soddqnp_R1_sd0_st5` | REGISTERED: seq8_anchor formal train order=R1 stage=5 ratio=0.25 anchor_lambda_p |
+| `s8f_soddqnp_R1_sd0_st6` | soddqnp_r25/sumohz1x1_lt_high/s0 | 100 | DONE | 2026-10-16 | 83.4/2077/53 | `data/output_data/tsc/sumo_dqn/sumohz1x1_lt_high/s8f_soddqnp_R1_sd0_st6` | REGISTERED: seq8_anchor formal train order=R1 stage=6 ratio=0.25 anchor_lambda_p |
+| `s8f_soddqnp_R1_sd0_st7` | soddqnp_r25/sumohz1x1_fluct_burst/s0 | 100 | DONE | 2026-10-16 | 119.1/1985/67 | `data/output_data/tsc/sumo_dqn/sumohz1x1_fluct_burst/s8f_soddqnp_R1_sd0_st7` | REGISTERED: seq8_anchor formal train order=R1 stage=7 ratio=0.25 anchor_lambda_p |
+| `s8f_soddqnp_R1_sd0_st8` | soddqnp_r25/sumohz1x1_dense_high/s0 | 100 | DONE | 2026-10-16 | 112.9/2637/92 | `data/output_data/tsc/sumo_dqn/sumohz1x1_dense_high/s8f_soddqnp_R1_sd0_st8` | REGISTERED: seq8_anchor formal train order=R1 stage=8 ratio=0.25 anchor_lambda_p |
+| `s8f_soddqnp_R1_sd1_st1` | soddqnp_r25/sumohz1x1_sparse_low/s1 | 100 | DONE | 2026-10-16 | 70.0/813/25 | `data/output_data/tsc/sumo_dqn/sumohz1x1_sparse_low/s8f_soddqnp_R1_sd1_st1` | REGISTERED: seq8_anchor formal train order=R1 stage=1 ratio=0.0 anchor_lambda_po |
+| `s8f_soddqnp_R1_sd1_st2` | soddqnp_r25/sumohz1x1_lt_high/s1 | 100 | DONE | 2026-10-16 | 81.6/2087/43 | `data/output_data/tsc/sumo_dqn/sumohz1x1_lt_high/s8f_soddqnp_R1_sd1_st2` | REGISTERED: seq8_anchor formal train order=R1 stage=2 ratio=0.25 anchor_lambda_p |
+| `s8f_soddqnp_R1_sd1_st3` | soddqnp_r25/sumohz1x1_fluct_burst/s1 | 100 | DONE | 2026-10-16 | 133.2/2052/42 | `data/output_data/tsc/sumo_dqn/sumohz1x1_fluct_burst/s8f_soddqnp_R1_sd1_st3` | REGISTERED: seq8_anchor formal train order=R1 stage=3 ratio=0.25 anchor_lambda_p |
+| `s8f_soddqnp_R1_sd1_st4` | soddqnp_r25/sumohz1x1_dense_high/s1 | 100 | DONE | 2026-10-16 | 113.0/2660/106 | `data/output_data/tsc/sumo_dqn/sumohz1x1_dense_high/s8f_soddqnp_R1_sd1_st4` | REGISTERED: seq8_anchor formal train order=R1 stage=4 ratio=0.25 anchor_lambda_p |
+| `s8f_soddqnp_R1_sd1_st5` | soddqnp_r25/sumohz1x1_sparse_low/s1 | 100 | DONE | 2026-10-16 | 74.2/813/25 | `data/output_data/tsc/sumo_dqn/sumohz1x1_sparse_low/s8f_soddqnp_R1_sd1_st5` | REGISTERED: seq8_anchor formal train order=R1 stage=5 ratio=0.25 anchor_lambda_p |
+| `s8f_soddqnp_R1_sd1_st6` | soddqnp_r25/sumohz1x1_lt_high/s1 | 100 | DONE | 2026-10-16 | 82.2/2085/45 | `data/output_data/tsc/sumo_dqn/sumohz1x1_lt_high/s8f_soddqnp_R1_sd1_st6` | REGISTERED: seq8_anchor formal train order=R1 stage=6 ratio=0.25 anchor_lambda_p |
+| `s8f_soddqnp_R1_sd1_st7` | soddqnp_r25/sumohz1x1_fluct_burst/s1 | 100 | DONE | 2026-10-16 | 136.6/1539/102 | `data/output_data/tsc/sumo_dqn/sumohz1x1_fluct_burst/s8f_soddqnp_R1_sd1_st7` | REGISTERED: seq8_anchor formal train order=R1 stage=7 ratio=0.25 anchor_lambda_p |
+| `s8f_soddqnp_R1_sd1_st8` | soddqnp_r25/sumohz1x1_dense_high/s1 | 100 | DONE | 2026-10-16 | 124.8/2621/122 | `data/output_data/tsc/sumo_dqn/sumohz1x1_dense_high/s8f_soddqnp_R1_sd1_st8` | REGISTERED: seq8_anchor formal train order=R1 stage=8 ratio=0.25 anchor_lambda_p |
+
+评估 attempt 共 264 行，按包/来源聚合：
+
+| 评估包/来源 | n DONE/FAILED/ABORTED | 条件集 | eval seeds |
+|---|---|---|---|
+| `soddqnp_r25` | 264/0/0 | semi_offline_anchor | 101 |

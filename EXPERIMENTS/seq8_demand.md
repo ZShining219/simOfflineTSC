@@ -1,32 +1,54 @@
-# SEQ8 语义需求包 + 8 段持续/半离线 pilot（hz1x1）
+# seq8_demand
 
 > 索引：[EXPERIMENTS.md](../EXPERIMENTS.md)；事实源 `ledger/runs.jsonl`
 
-- 假设：语义化需求多样性下，「学习恢复≠控制恢复」「继续学习改写历史表现」
-  「退化幅度非固定」三结论是否对序列形态（无回访/块重复回访/临近渐变）与
-  历史利用策略（在线 / 自产档案动态采样）稳健。
-- plan_id/队列：`build-seq8-plan`（schema_version=2）三份 manifest：
-  `seq8_norep_v1`/`seq8_rep_v1`/`seq8_drift_v1` → `sequential launch`
-- 设计稿/证据位置：`docs/experiments/2026-10-15_seq8_demand_suite.md`；
-  需求包清单 `data/raw_data/hangzhou_1x1_demand_packs.json`；
-  产物 `data/output_data/sequential/seq8_{norep,rep,drift}_formal_20261015/`
-- 范围裁决（2026-10-16 用户）：
-  - **SELF-CQ-R50 臂为意图错误**——Q 锚定工作池属此前已否定的技术路线，
-    不纳入本 pilot 语义；SD0/SD1 六个已完成 run 数据保留为产物、但不
-    进入结论对比；
-  - **pilot 整体关闭**——SD2/SD3 十二个中断 run（CONT+DHOA+CQ）标
-    `cancelled` 并清理半截 attempt 产物，SD4 波（9 run）未派发；
-  - **SELF 半离线链路作废关闭**——远程 `cl_hz1x1` 线（`agent/dqn.py`
-    教师锚定 + `arterial/replay.py` HistoricalPool 全量自产归档）为仓内
-    唯一半离线口径；`sequential/self_archive.py` 与 SELF 接线已移除。
-- 登记：18 train DONE + 18 train SCOPE_DISCARD + 6 batch（
-  `dev/ledger/append_seq8.py` 幂等补登）。
-- 结论（已完成 run 证据，仅 SD0/SD1 配对 n=42 场景格）：
-  - CONT-FIFO 历史退化 mean +21.4%/med +9.8%/max +326%（灾难格 9/42）；
-  - SELF-DHOA-R50 mean +1.2%/med +1.0%/max +39.1%（灾难格 1/42）——
-    均匀重放自产 stage<k 数据基本压住遗忘，与 cl_hz1x1 主线方向一致；
-  - REP 回访局部恢复成立（sparse_low 回访≈首次水平）但末段仍漂移；
-  - 三结论在需求语义多样性下方向复现；CQ 数据仅作路线证伪留档。
+- 假设：—
+- plan_id/队列：—
+- 设计稿/证据位置：—
+- 结论：—
+- 登记单元 42（train/eval/smoke/batch/calibration = 36/0/0/6/0）（追溯登记 2026-10-07）
 
 | run_id | 臂/net/seed | ep | 状态 | 起始 | TT/th/unfinished | 产物路径 | 备注 |
 |---|---|---|---|---|---|---|---|
+| `SEQ8-DRIFT-RESOURCE-GATE/seq8_drift_formal_20261015` | evidence/—/s— | — | DONE | — | — | `data/output_data/sequential/seq8_drift_formal_20261015/resource_gate.json` | 派发资源门禁：slots=4 valid=True |
+| `SEQ8-DRIFT-SHARED-EVAL/seq8_drift_formal_20261015` | evidence/—/s— | — | DONE | — | — | `data/output_data/sequential/seq8_drift_formal_20261015/_shared_evaluation` | seq8_drift_formal_20261015 冻结评估去重存储：6550 aliases / 6549 physical cells |
+| `SEQ8-NOREP-RESOURCE-GATE/seq8_norep_formal_20261015` | evidence/—/s— | — | DONE | — | — | `data/output_data/sequential/seq8_norep_formal_20261015/resource_gate.json` | 派发资源门禁：slots=4 valid=True |
+| `SEQ8-NOREP-SHARED-EVAL/seq8_norep_formal_20261015` | evidence/—/s— | — | DONE | — | — | `data/output_data/sequential/seq8_norep_formal_20261015/_shared_evaluation` | seq8_norep_formal_20261015 冻结评估去重存储：6393 aliases / 6389 physical cells |
+| `SEQ8-REP-RESOURCE-GATE/seq8_rep_formal_20261015` | evidence/—/s— | — | DONE | — | — | `data/output_data/sequential/seq8_rep_formal_20261015/resource_gate.json` | 派发资源门禁：slots=4 valid=True |
+| `SEQ8-REP-SHARED-EVAL/seq8_rep_formal_20261015` | evidence/—/s— | — | DONE | — | — | `data/output_data/sequential/seq8_rep_formal_20261015/_shared_evaluation` | seq8_rep_formal_20261015 冻结评估去重存储：6434 aliases / 6402 physical cells |
+| `CONT-D1-SD0` | CONT-D1/hz1x1:st_dom>base>lt_high>lt_extreme>lt_wsing>asym_wonly>asym_we>asym_ns/s0 | 800 | DONE | 2026-10-15 | 75.7/2195/47 | `data/output_data/sequential/seq8_drift_formal_20261015/CONT-D1-SD0` | attempts=1; stage=formal; 冻结评估cell×835（去重存储于_shared_evaluation） |
+| `CONT-D1-SD1` | CONT-D1/hz1x1:st_dom>base>lt_high>lt_extreme>lt_wsing>asym_wonly>asym_we>asym_ns/s1 | 800 | DONE | 2026-10-15 | 75.4/2186/56 | `data/output_data/sequential/seq8_drift_formal_20261015/CONT-D1-SD1` | attempts=1; stage=formal; 冻结评估cell×835（去重存储于_shared_evaluation） |
+| `CONT-D1-SD2` | CONT-D1/hz1x1/s— | — | SCOPE_DISCARD | 2026-10-15 | — | `data/output_data/sequential/seq8_drift_formal_20261015/CONT-D1-SD2` | attempts=2（有效attempt_2） |
+| `CONT-D1-SD3` | CONT-D1/hz1x1/s— | — | SCOPE_DISCARD | 2026-10-15 | — | `data/output_data/sequential/seq8_drift_formal_20261015/CONT-D1-SD3` | attempts=2（有效attempt_2） |
+| `CONT-N1-SD0` | CONT-N1/hz1x1:sparse_ultra>fluct_burst>lt_extreme>asym_wonly>dense_extreme>st_dom>asym_we>fluct_ramp/s0 | 800 | DONE | 2026-10-15 | 86.9/1782/93 | `data/output_data/sequential/seq8_norep_formal_20261015/CONT-N1-SD0` | attempts=1; stage=formal; 冻结评估cell×835（去重存储于_shared_evaluation） |
+| `CONT-N1-SD1` | CONT-N1/hz1x1:sparse_ultra>fluct_burst>lt_extreme>asym_wonly>dense_extreme>st_dom>asym_we>fluct_ramp/s1 | 800 | DONE | 2026-10-15 | 89.9/1915/106 | `data/output_data/sequential/seq8_norep_formal_20261015/CONT-N1-SD1` | attempts=1; stage=formal; 冻结评估cell×835（去重存储于_shared_evaluation） |
+| `CONT-N1-SD2` | CONT-N1/hz1x1/s— | — | SCOPE_DISCARD | 2026-10-15 | — | `data/output_data/sequential/seq8_norep_formal_20261015/CONT-N1-SD2` | attempts=2（有效attempt_2） |
+| `CONT-N1-SD3` | CONT-N1/hz1x1/s— | — | SCOPE_DISCARD | 2026-10-15 | — | `data/output_data/sequential/seq8_norep_formal_20261015/CONT-N1-SD3` | attempts=2（有效attempt_2） |
+| `CONT-R1-SD0` | CONT-R1/hz1x1:sparse_low>lt_high>fluct_burst>dense_high>sparse_low>lt_high>fluct_burst>dense_high/s0 | 800 | DONE | 2026-10-15 | 111.4/2622/114 | `data/output_data/sequential/seq8_rep_formal_20261015/CONT-R1-SD0` | attempts=1; stage=formal; 冻结评估cell×825（去重存储于_shared_evaluation） |
+| `CONT-R1-SD1` | CONT-R1/hz1x1:sparse_low>lt_high>fluct_burst>dense_high>sparse_low>lt_high>fluct_burst>dense_high/s1 | 800 | DONE | 2026-10-15 | 113.1/2590/108 | `data/output_data/sequential/seq8_rep_formal_20261015/CONT-R1-SD1` | attempts=1; stage=formal; 冻结评估cell×825（去重存储于_shared_evaluation） |
+| `CONT-R1-SD2` | CONT-R1/hz1x1/s— | — | SCOPE_DISCARD | 2026-10-15 | — | `data/output_data/sequential/seq8_rep_formal_20261015/CONT-R1-SD2` | attempts=2（有效attempt_2） |
+| `CONT-R1-SD3` | CONT-R1/hz1x1/s— | — | SCOPE_DISCARD | 2026-10-15 | — | `data/output_data/sequential/seq8_rep_formal_20261015/CONT-R1-SD3` | attempts=2（有效attempt_2） |
+| `SELF-CQ-R50-D1-SD0` | SELF-CQ-R50-D1/hz1x1:st_dom>base>lt_high>lt_extreme>lt_wsing>asym_wonly>asym_we>asym_ns/s0 | 800 | DONE | 2026-10-15 | 75.9/2194/49 | `data/output_data/sequential/seq8_drift_formal_20261015/SELF-CQ-R50-D1-SD0` | attempts=1; stage=formal; 冻结评估cell×835（去重存储于_shared_evaluation）; SELF自产档案 method |
+| `SELF-CQ-R50-D1-SD1` | SELF-CQ-R50-D1/hz1x1:st_dom>base>lt_high>lt_extreme>lt_wsing>asym_wonly>asym_we>asym_ns/s1 | 800 | DONE | 2026-10-15 | 77.0/2194/48 | `data/output_data/sequential/seq8_drift_formal_20261015/SELF-CQ-R50-D1-SD1` | attempts=1; stage=formal; 冻结评估cell×835（去重存储于_shared_evaluation）; SELF自产档案 method |
+| `SELF-CQ-R50-D1-SD2` | SELF-CQ-R50-D1/hz1x1/s— | — | SCOPE_DISCARD | 2026-10-15 | — | `data/output_data/sequential/seq8_drift_formal_20261015/SELF-CQ-R50-D1-SD2` | attempts=1 |
+| `SELF-CQ-R50-D1-SD3` | SELF-CQ-R50-D1/hz1x1/s— | — | SCOPE_DISCARD | 2026-10-15 | — | `data/output_data/sequential/seq8_drift_formal_20261015/SELF-CQ-R50-D1-SD3` | attempts=1 |
+| `SELF-CQ-R50-N1-SD0` | SELF-CQ-R50-N1/hz1x1:sparse_ultra>fluct_burst>lt_extreme>asym_wonly>dense_extreme>st_dom>asym_we>fluct_ramp/s0 | 800 | DONE | 2026-10-15 | 92.0/1857/106 | `data/output_data/sequential/seq8_norep_formal_20261015/SELF-CQ-R50-N1-SD0` | attempts=1; stage=formal; 冻结评估cell×835（去重存储于_shared_evaluation）; SELF自产档案 method |
+| `SELF-CQ-R50-N1-SD1` | SELF-CQ-R50-N1/hz1x1:sparse_ultra>fluct_burst>lt_extreme>asym_wonly>dense_extreme>st_dom>asym_we>fluct_ramp/s1 | 800 | DONE | 2026-10-15 | 90.7/1869/91 | `data/output_data/sequential/seq8_norep_formal_20261015/SELF-CQ-R50-N1-SD1` | attempts=1; stage=formal; 冻结评估cell×835（去重存储于_shared_evaluation）; SELF自产档案 method |
+| `SELF-CQ-R50-N1-SD2` | SELF-CQ-R50-N1/hz1x1/s— | — | SCOPE_DISCARD | 2026-10-15 | — | `data/output_data/sequential/seq8_norep_formal_20261015/SELF-CQ-R50-N1-SD2` | attempts=1 |
+| `SELF-CQ-R50-N1-SD3` | SELF-CQ-R50-N1/hz1x1/s— | — | SCOPE_DISCARD | 2026-10-15 | — | `data/output_data/sequential/seq8_norep_formal_20261015/SELF-CQ-R50-N1-SD3` | attempts=1 |
+| `SELF-CQ-R50-R1-SD0` | SELF-CQ-R50-R1/hz1x1:sparse_low>lt_high>fluct_burst>dense_high>sparse_low>lt_high>fluct_burst>dense_high/s0 | 800 | DONE | 2026-10-15 | 121.1/2579/112 | `data/output_data/sequential/seq8_rep_formal_20261015/SELF-CQ-R50-R1-SD0` | attempts=1; stage=formal; 冻结评估cell×825（去重存储于_shared_evaluation）; SELF自产档案 method |
+| `SELF-CQ-R50-R1-SD1` | SELF-CQ-R50-R1/hz1x1:sparse_low>lt_high>fluct_burst>dense_high>sparse_low>lt_high>fluct_burst>dense_high/s1 | 800 | DONE | 2026-10-15 | 111.8/2624/117 | `data/output_data/sequential/seq8_rep_formal_20261015/SELF-CQ-R50-R1-SD1` | attempts=1; stage=formal; 冻结评估cell×825（去重存储于_shared_evaluation）; SELF自产档案 method |
+| `SELF-CQ-R50-R1-SD2` | SELF-CQ-R50-R1/hz1x1/s— | — | SCOPE_DISCARD | 2026-10-15 | — | `data/output_data/sequential/seq8_rep_formal_20261015/SELF-CQ-R50-R1-SD2` | attempts=1 |
+| `SELF-CQ-R50-R1-SD3` | SELF-CQ-R50-R1/hz1x1/s— | — | SCOPE_DISCARD | 2026-10-15 | — | `data/output_data/sequential/seq8_rep_formal_20261015/SELF-CQ-R50-R1-SD3` | attempts=1 |
+| `SELF-DHOA-R50-D1-SD0` | SELF-DHOA-R50-D1/hz1x1:st_dom>base>lt_high>lt_extreme>lt_wsing>asym_wonly>asym_we>asym_ns/s0 | 800 | DONE | 2026-10-15 | 75.9/2195/47 | `data/output_data/sequential/seq8_drift_formal_20261015/SELF-DHOA-R50-D1-SD0` | attempts=1; stage=formal; 冻结评估cell×835（去重存储于_shared_evaluation）; SELF自产档案 method |
+| `SELF-DHOA-R50-D1-SD1` | SELF-DHOA-R50-D1/hz1x1:st_dom>base>lt_high>lt_extreme>lt_wsing>asym_wonly>asym_we>asym_ns/s1 | 800 | DONE | 2026-10-15 | 75.3/2192/50 | `data/output_data/sequential/seq8_drift_formal_20261015/SELF-DHOA-R50-D1-SD1` | attempts=1; stage=formal; 冻结评估cell×835（去重存储于_shared_evaluation）; SELF自产档案 method |
+| `SELF-DHOA-R50-D1-SD2` | SELF-DHOA-R50-D1/hz1x1/s— | — | SCOPE_DISCARD | 2026-10-15 | — | `data/output_data/sequential/seq8_drift_formal_20261015/SELF-DHOA-R50-D1-SD2` | attempts=2（有效attempt_2） |
+| `SELF-DHOA-R50-D1-SD3` | SELF-DHOA-R50-D1/hz1x1/s— | — | SCOPE_DISCARD | 2026-10-15 | — | `data/output_data/sequential/seq8_drift_formal_20261015/SELF-DHOA-R50-D1-SD3` | attempts=2（有效attempt_2） |
+| `SELF-DHOA-R50-N1-SD0` | SELF-DHOA-R50-N1/hz1x1:sparse_ultra>fluct_burst>lt_extreme>asym_wonly>dense_extreme>st_dom>asym_we>fluct_ramp/s0 | 800 | DONE | 2026-10-15 | 90.1/1857/109 | `data/output_data/sequential/seq8_norep_formal_20261015/SELF-DHOA-R50-N1-SD0` | attempts=1; stage=formal; 冻结评估cell×835（去重存储于_shared_evaluation）; SELF自产档案 method |
+| `SELF-DHOA-R50-N1-SD1` | SELF-DHOA-R50-N1/hz1x1:sparse_ultra>fluct_burst>lt_extreme>asym_wonly>dense_extreme>st_dom>asym_we>fluct_ramp/s1 | 800 | DONE | 2026-10-15 | 91.5/1909/106 | `data/output_data/sequential/seq8_norep_formal_20261015/SELF-DHOA-R50-N1-SD1` | attempts=1; stage=formal; 冻结评估cell×835（去重存储于_shared_evaluation）; SELF自产档案 method |
+| `SELF-DHOA-R50-N1-SD2` | SELF-DHOA-R50-N1/hz1x1/s— | — | SCOPE_DISCARD | 2026-10-15 | — | `data/output_data/sequential/seq8_norep_formal_20261015/SELF-DHOA-R50-N1-SD2` | attempts=2（有效attempt_2） |
+| `SELF-DHOA-R50-N1-SD3` | SELF-DHOA-R50-N1/hz1x1/s— | — | SCOPE_DISCARD | 2026-10-15 | — | `data/output_data/sequential/seq8_norep_formal_20261015/SELF-DHOA-R50-N1-SD3` | attempts=2（有效attempt_2） |
+| `SELF-DHOA-R50-R1-SD0` | SELF-DHOA-R50-R1/hz1x1:sparse_low>lt_high>fluct_burst>dense_high>sparse_low>lt_high>fluct_burst>dense_high/s0 | 800 | DONE | 2026-10-15 | 121.2/2523/107 | `data/output_data/sequential/seq8_rep_formal_20261015/SELF-DHOA-R50-R1-SD0` | attempts=1; stage=formal; 冻结评估cell×825（去重存储于_shared_evaluation）; SELF自产档案 method |
+| `SELF-DHOA-R50-R1-SD1` | SELF-DHOA-R50-R1/hz1x1:sparse_low>lt_high>fluct_burst>dense_high>sparse_low>lt_high>fluct_burst>dense_high/s1 | 800 | DONE | 2026-10-15 | 111.7/2557/107 | `data/output_data/sequential/seq8_rep_formal_20261015/SELF-DHOA-R50-R1-SD1` | attempts=1; stage=formal; 冻结评估cell×825（去重存储于_shared_evaluation）; SELF自产档案 method |
+| `SELF-DHOA-R50-R1-SD2` | SELF-DHOA-R50-R1/hz1x1/s— | — | SCOPE_DISCARD | 2026-10-15 | — | `data/output_data/sequential/seq8_rep_formal_20261015/SELF-DHOA-R50-R1-SD2` | attempts=2（有效attempt_2） |
+| `SELF-DHOA-R50-R1-SD3` | SELF-DHOA-R50-R1/hz1x1/s— | — | SCOPE_DISCARD | 2026-10-15 | — | `data/output_data/sequential/seq8_rep_formal_20261015/SELF-DHOA-R50-R1-SD3` | attempts=2（有效attempt_2） |

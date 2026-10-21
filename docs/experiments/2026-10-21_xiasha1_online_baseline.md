@@ -6,12 +6,14 @@
 
 ## 关联
 
-- campaign：`xiasha1_online_v1`（登记与提交随本轮配置定稿一并完成）
-- 队列文件：`artifacts/xiasha1_online_v1/run_queue.json`（随登记生成）
+- campaign：`xiasha1_online_v1`（台账 288 行 REGISTERED，2026-10-21）
+- 队列文件：`artifacts/xiasha1_online_v1/run_queue.json`（288 任务，
+  artifacts 为 gitignore 仓外资产）
 - 正式 overlay：`configs/tsc/xiasha1_online/{dqn,ddqn,dueling,d3qn,
   presslight,frap,mplight,sac}.yml`（经 `--experiment-config` 叠加在
   各臂 canonical 配置之上）
-- code_commit / config_sha：登记时以提交 sha 回填
+- code_commit：`79aec94`；config_sha 见台账行（canonical+overlay+sim
+  cfg 的合并 hash）
 - 产物目录：`data/output_data/tsc/sumo_{dqn,presslight,frap,mplight,sac}/xiasha1_*`
   （已有工程冒烟；正式 run 前缀 `xi1on_<arm>_<pack>_s<seed>`）
 
@@ -253,8 +255,10 @@ full checkpoint，MPLight 使用 evaluation-only checkpoint；动作空间统一
 3. 补 vanilla DQN 1-ep 冒烟门；同时任选一条非 dqn 臂（如 sac）
    短冒烟复验 trajectory npz 写入与 `validation.json` 通过
    （白名单刚扩臂，属新路径）；
-4. 派发正式矩阵（队列 runner，tmux 会话）；收割后回填台账与本文件
-   第 4/5 节。
+4. 派发正式矩阵：**手动拉起 + 全程盯守**——用既有通用 runner
+   `tools/run_experiment_queue.py` 在 tmux 会话中按批启动
+   （不写新的派发/自动化脚本），盯 `run_state`/run_status，失败
+   人工重跑；收割后回填台账与本文件第 4/5 节；
 
 **已知边界**：FRAP/MPLight `one_hot: true` 不可用；PressLight 观测为
 22 维；MPLight 无 resumable checkpoint；跨控制器不能比较 reward/loss；

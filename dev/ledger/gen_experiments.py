@@ -170,6 +170,14 @@ META = {
                "216 行 SCOPE_DISCARD 为超范围裁决留档。",
  "queues": "artifacts/cl_hz1x1/{run_queue_cl1.json, run_queue_so1.json, run_queue_soa_screen.json, run_queue_soa_main.json, run_queue_soa_main_o3.json, run_queue_soa_rho.json, run_queue_soa_vdqn.json, run_queue_soa_vdqnb.json, run_queue_soa_snap3.json}",
 },
+"xiasha1_online_v1": {
+ "title": "xiasha1 纯在线 off-policy 控制器基线（8 臂×12 需求包）",
+ "hypothesis": "在 xiasha1*1 单路口 J、12 个生成式 1h 需求包上，统一 legacy pseudo_step 口径下比较 8 个纯在线 off-policy 控制器（DQN/DDQN/Dueling/D3QN/PressLight/FRAP/MPLight/SAC）从零训练的收敛性与训后性能，产出半离线/顺序训练线的纯在线 control 参照。",
+ "plan_id": "xiasha1_online_v1",
+ "design": "docs/experiments/2026-10-21_xiasha1_online_baseline.md；configs/tsc/xiasha1_online/{dqn,ddqn,dueling,d3qn,presslight,frap,mplight,sac}.yml overlay（200ep+每ep贪心评估ep0-200+resumable{0,25,50,100,150,200}+saveReplay=false+trajectory npz 全量记录）；artifacts/xiasha1_online_v1/run_queue.json；规则参照=xiasha1_notrain_v1（configs/benchmarks/）",
+ "conclusion": "进行中：288 train REGISTERED（2026-10-21），训后 best-ckpt×3 sumo seeds(10000-10002) 待另行登记 eval 行。",
+ "queues": "artifacts/xiasha1_online_v1/run_queue.json",
+},
 }
 
 def fmt_metrics(m):
@@ -199,12 +207,14 @@ SHORT = {
 "paper_infra_validation": "paper 基建验证",
 "misc_probes": "零散探针",
 "cl_hz1x1": "hz1x1 持续学习：off-policy 机制性遗忘三骨干证实；+policy 锚 λπ=1 把 worst 退化压至 ≤1.0s 近零塑性代价；ρ 剂量响应显示锚定可省回放预算且 ρ=0.25 为甜点",
+"xiasha1_online_v1": "xiasha1 纯在线 off-policy 基线（8 臂×12 包×3 seeds，登记中）",
 }
 
 camps = collections.Counter(r["campaign"] for r in ROWS)
 order = ["att_entity_004", "att_entity_003", "att_entity_002", "arterial_1x6",
          "tarl_reproduction", "tarl_v21_formal", "plan5_b100", "plan1_dqn",
-         "ha_sodqn", "milestone0_infra", "paper_infra_validation", "misc_probes"]
+         "ha_sodqn", "milestone0_infra", "paper_infra_validation", "misc_probes",
+         "xiasha1_online_v1"]
 
 # ---------- 明细文件：每 campaign 一篇 ----------
 DETAIL = ROOT / "EXPERIMENTS"

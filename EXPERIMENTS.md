@@ -24,7 +24,7 @@
 
 ## 0. 总览
 
-登记 run 总数：**12715**（train 1472+hitl_warmloop 等 HEAD 增量；详见 ledger/runs.jsonl 行数）
+登记 run 总数：**13357**（train 2021、eval attempt 11004、smoke 140、calibration 18、batch 46）
 
 | campaign | DONE | FAILED | ABORTED | SUPERSEDED | REGISTERED | SCOPE_DISCARD | LEGACY_UNCLEAR | 合计 |
 |---|---|---|---|---|---|---|---|---|
@@ -40,6 +40,7 @@
 | milestone0_infra | 12 | 0 | 0 | 0 | 0 | 0 | 0 | 12 |
 | paper_infra_validation | 19 | 0 | 0 | 0 | 0 | 0 | 0 | 19 |
 | misc_probes | 1 | 5 | 0 | 0 | 0 | 1 | 0 | 7 |
+| xiasha1_online_v1 | 0 | 0 | 0 | 0 | 288 | 0 | 0 | 288 |
 | cl_hz1x1 | 5368 | 0 | 0 | 0 | 0 | 216 | 0 | 5584 |
 | hitl_live_ab | 6 | 0 | 0 | 0 | 0 | 0 | 0 | 6 |
 | hitl_live_baseline | 2 | 0 | 0 | 0 | 0 | 0 | 0 | 2 |
@@ -50,9 +51,11 @@
 | hitl_live_r3 | 150 | 0 | 0 | 0 | 0 | 0 | 0 | 150 |
 | hitl_live_r4 | 20 | 0 | 0 | 0 | 0 | 0 | 0 | 20 |
 | hitl_warmloop | 26 | 0 | 0 | 0 | 2 | 0 | 0 | 28 |
+| seq8_anchor | 312 | 0 | 0 | 0 | 0 | 0 | 0 | 312 |
+| seq8_demand | 24 | 0 | 0 | 0 | 0 | 18 | 0 | 42 |
 | signal_control_v1 | 0 | 0 | 0 | 0 | 4 | 0 | 0 | 4 |
 | takeover_probe_sig15 | 24 | 0 | 0 | 0 | 0 | 0 | 0 | 24 |
-| **合计** | 11966 | 243 | 93 | 4 | 6 | 228 | 0 | **12541** |
+| **合计** | 12474 | 243 | 95 | 4 | 294 | 246 | 0 | **13357** |
 
 状态语义见 GOVERNANCE.md §2。LEGACY_UNCLEAR=0 表示全部可识别 run 均通过队列/状态文件/目录归属证据还原出 campaign；个别 run 的臂内身份仍以命名约定为据，已在 notes 标注处保持保守。
 
@@ -69,10 +72,10 @@
 | `plan5_b100` | 68 | 68/0/0/0 | Plan5 b100 半离线批 | [明细](EXPERIMENTS/plan5_b100.md) |
 | `plan1_dqn` | 35 | 27/0/4/0 | Plan1 在线 DQN 基线 | [明细](EXPERIMENTS/plan1_dqn.md) |
 | `ha_sodqn` | 174 | 172/0/2/0 | 半离线主线：E4 正式批完成；历史利用降遗忘但有适应代价 | [明细](EXPERIMENTS/ha_sodqn.md) |
-| `seq8_demand` | 45 | 18/0/0/0 | SEQ8 需求套件 pilot 已关闭：18 run 完成留作资产；SELF/CQ 路线作废，半离线口径收编至 cl_hz1x1 | [明细](EXPERIMENTS/seq8_demand.md) |
 | `milestone0_infra` | 12 | 12/0/0/0 | 基础设施验证 | [明细](EXPERIMENTS/milestone0_infra.md) |
 | `paper_infra_validation` | 19 | 19/0/0/0 | paper 基建验证 | [明细](EXPERIMENTS/paper_infra_validation.md) |
 | `misc_probes` | 7 | 1/5/0/1 | 零散探针 | [明细](EXPERIMENTS/misc_probes.md) |
+| `xiasha1_online_v1` | 288 | 0/0/0/0 | xiasha1 纯在线 off-policy 基线（8 臂×12 包×3 seeds，登记中） | [明细](EXPERIMENTS/xiasha1_online_v1.md) |
 | `cl_hz1x1` | 5584 | 5368/0/0/216 | hz1x1 持续学习：off-policy 机制性遗忘三骨干证实；+policy 锚 λπ=1 把 worst 退化压至 ≤1.0s 近零塑性代价；ρ 剂量响应显示锚定可省回放预算且 ρ=0.25 为甜点 | [明细](EXPERIMENTS/cl_hz1x1.md) |
 | `hitl_live_ab` | 6 | 6/0/0/0 | — | [明细](EXPERIMENTS/hitl_live_ab.md) |
 | `hitl_live_baseline` | 2 | 2/0/0/0 | — | [明细](EXPERIMENTS/hitl_live_baseline.md) |
@@ -83,6 +86,8 @@
 | `hitl_live_r3` | 150 | 150/0/0/0 | — | [明细](EXPERIMENTS/hitl_live_r3.md) |
 | `hitl_live_r4` | 20 | 20/0/0/0 | — | [明细](EXPERIMENTS/hitl_live_r4.md) |
 | `hitl_warmloop` | 28 | 26/0/0/0 | — | [明细](EXPERIMENTS/hitl_warmloop.md) |
+| `seq8_anchor` | 312 | 312/0/0/0 | — | [明细](EXPERIMENTS/seq8_anchor.md) |
+| `seq8_demand` | 42 | 24/0/0/18 | — | [明细](EXPERIMENTS/seq8_demand.md) |
 | `signal_control_v1` | 4 | 0/0/0/0 | — | [明细](EXPERIMENTS/signal_control_v1.md) |
 | `takeover_probe_sig15` | 24 | 24/0/0/0 | — | [明细](EXPERIMENTS/takeover_probe_sig15.md) |
 

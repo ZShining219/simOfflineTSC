@@ -47,7 +47,7 @@
 
 ## xiasha1 off-policy 基线
 
-> 状态：控制器与评估链路已适配并完成工程冒烟；正式训练矩阵、队列和台账登记尚未开始。详细记录见 [docs/experiments/2026-10-21_xiasha1_online_baseline.md](docs/experiments/2026-10-21_xiasha1_online_baseline.md)。
+> 状态：控制器与评估链路已适配并完成工程冒烟；正式矩阵 `xiasha1_online_v1`（8 臂×12 包×3 seeds=288 run）已登记台账，待派发。详细记录见 [docs/experiments/2026-10-21_xiasha1_online_baseline.md](docs/experiments/2026-10-21_xiasha1_online_baseline.md)。
 
 **范围**：xiasha1*1 单受控路口 J、12 个 1 h 需求包；比较**纯在线 off-policy** 控制器在不同需求包上的收敛与训练后性能。不做半离线、教师锚定、事件语义。
 

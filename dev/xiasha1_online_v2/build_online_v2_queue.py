@@ -74,9 +74,11 @@ def main():
         "VECLIB_MAXIMUM_THREADS": "1",
     }
     tasks = []
-    for arm, meta in ARMS.items():
-        for pack in packs:
-            for seed in SEEDS:
+    # Pack-major order interleaves the 8 arms, so every arm is exercised
+    # early instead of waiting for the previous arm's 36 runs to finish.
+    for pack in packs:
+        for seed in SEEDS:
+            for arm, meta in ARMS.items():
                 prefix = f"xi2on_{arm}_{pack}_s{seed}"
                 run_dir = (ROOT / "data" / "output_data" / "tsc"
                            / meta["bucket"] / f"xiasha1_{pack}" / prefix)

@@ -53,11 +53,13 @@ def read_rows(path):
 def project_run(run_dir, run_id, points):
     """把单个 run 目录投影进 points[(run_id, tag, episode)] = value。"""
     records = run_dir / 'metrics' / 'records.jsonl'
+    max_ep = -1
     for row in read_rows(records):
         rtype = row.get('record_type')
         ep = row.get('episode')
         if ep is None:
             continue
+        max_ep = max(max_ep, ep)
         tags = TRAIN_TAGS if rtype == 'TRAIN' else EVAL_TAGS if rtype in (
             'EVALUATION', 'FINAL_EVALUATION') else []
         prefix = 'train' if rtype == 'TRAIN' else 'eval'
@@ -66,13 +68,14 @@ def project_run(run_dir, run_id, points):
             if isinstance(value, (int, float)) and value == value:  # 排除 None/NaN
                 points[(run_id, f'{prefix}/{tag}', ep)] = float(value)
     summary = run_dir / 'evaluation' / 'summary.json'
-    if summary.exists():
+    if summary.exists() and max_ep >= 0:
         try:
             s = json.loads(summary.read_text())
+            # best/* 写在 max_ep 步上，避免 step 回退触发 TB restart 清理
             for tag, key in (('best/episode', 'best_episode'),
                              ('best/travel_time', 'best_travel_time')):
                 if isinstance(s.get(key), (int, float)):
-                    points[(run_id, tag, 0)] = float(s[key])
+                    points[(run_id, tag, max_ep)] = float(s[key])
         except (json.JSONDecodeError, OSError):
             pass  # summary.json 可能正在写入
 

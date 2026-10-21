@@ -1,0 +1,17 @@
+# smoke overlay for xiasha1_explore_v1 (2 episodes, code-path only).
+# Not a performance run: learning_start=0 forces gradient updates from the
+# first decision so the epsilon-decay/train/checkpoint path is exercised.
+# Schedule constants match dqn_full.yml; dqn_slow.yml differs only in the
+# epsilon_decay constant, parsed by the same code path.
+model:
+  epsilon: 1.0
+  epsilon_decay: 0.99995
+  epsilon_min: 0.05
+
+trainer:
+  learning_start: 0
+  episodes: 2
+  evaluation_episodes: [0, 1, 2]
+  resumable_checkpoint_episodes: [0, 1, 2]
+world:
+  saveReplay: false

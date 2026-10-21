@@ -69,6 +69,9 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
   append_seq8.py（2026-10-15）定向补登 seq8_* 桶（campaign=seq8_demand）：
   扫 seq8_{norep,rep,drift}_{formal,smoke}* 桶的 logical_run_manifest，
   幂等追加 train/smoke/batch 行，SELF 臂 notes 记 method/ratio。
+  close_xiasha1_online.py（2026-10-21）一次性收口 xiasha1_online_v1：
+  24 DONE / 12 ABORTED / 252 SCOPE_DISCARD；register_xiasha1_explore.py
+  （2026-10-21）从队列幂等登记 xiasha1_explore_v1 的 12 行 REGISTERED。
 - `dev/seq8_anchor/`：seq8_anchor campaign 队列生成件（2026-10-16）：
   `build_queue.py` 在 cl_hz1x1 链路上对 seq8 三序（N1/R1/D1 需求包，
   seeds 0/1）派发 soddqnp_r25 半离线+policy-anchor（λπ=1.0、ρ=0.25）
@@ -160,6 +163,13 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
   depart−arrive）；lane_delay_idx=原 records 'delay'，Σ12进口道
   (1-v̄/vmax) 决策步均值，无量纲仅 ctl 有。v1/v2 缺陷（量纲混列、
   orig throughput 多减 waiting、waiting 人群不一致）均已修正。
+- `dev/xiasha1_online/`：xiasha1 充分探索验证（2026-10-21，campaign
+  `xiasha1_explore_v1`）：`build_schedule_pilot_queue.py` 生成 12 个
+  DQN run（asym_nonly/asym_ns × seeds 0/1/2 × {slow, full}，overlay
+  `configs/tsc/xiasha1_online/dqn_{slow,full}.yml`）；
+  `analyze_schedule_pilot.py` 对比 native/slow/full 的 final-20 三指标、
+  uninserted、5%/3% 收敛 episode、epsilon 到下限 episode、first-100 AUC、
+  best checkpoint。产物 `artifacts/xiasha1_explore_v1/`。
 - `dev/w34/probes/`：w34_2 零训练探针分析件——`p2_binding_audit.py`（离线
   绑定审计：bound/fallback_bind/gap/co_active 分类 + 配对差分层）、
   `p4_stratify.py`（臂/种子/事件类/窗长分层 + 稀疏窗伪影检验）。消费

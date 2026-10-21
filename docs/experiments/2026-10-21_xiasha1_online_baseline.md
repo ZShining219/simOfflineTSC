@@ -1,14 +1,17 @@
 # xiasha1_online_baseline：xiasha1 需求包上的纯在线 off-policy 基线
 
-> 状态：进行中（准备阶段；正式 run 未启动）
+> 状态：已收口（2026-10-21 停止；24/288 DONE，12 ABORTED，252 SCOPE_DISCARD；不恢复队列）
 > 发起日期：2026-10-21 ｜ 负责人/Agent：Z / Claude Code
 > 最近更新：2026-10-21
 
 ## 关联
 
-- campaign：`xiasha1_online_v1`（台账 288 行 REGISTERED，2026-10-21）
+- campaign：`xiasha1_online_v1`（台账 288 行；2026-10-21 收口为
+  24 DONE / 12 ABORTED / 252 SCOPE_DISCARD）
 - 队列文件：`artifacts/xiasha1_online_v1/run_queue.json`（288 任务，
-  artifacts 为 gitignore 仓外资产）
+  artifacts 为 gitignore 仓外资产；已标记 `dropped: true`，runner 拒绝执行）
+- 收口审计：`artifacts/xiasha1_online_v1/stop_audit.csv`（36 个已启动
+  run 的停止快照）
 - 正式 overlay：`configs/tsc/xiasha1_online/{dqn,ddqn,dueling,d3qn,
   presslight,frap,mplight,sac}.yml`（经 `--experiment-config` 叠加在
   各臂 canonical 配置之上）
@@ -212,9 +215,61 @@ FRAP/MPLight 查 `signal_config[network]` 会 miss。
 
 ## 4. 实验结果
 
-**正式结果：尚未开始。** 本轮只完成控制器可用性、checkpoint 与
-训练后评估链路的工程验证。以下冒烟均为 300 步、少量更新的工程 run，
-不是性能证据，也不进入台账正式统计。
+### 4.1 正式 run 收口状态（2026-10-21）
+
+原 288-run 矩阵停止后不再恢复，台账收口为：
+
+| 状态 | 数量 | 内容 |
+|---|---:|---|
+| DONE | 24 | plain DQN，8 包 × 3 seeds，200 ep 完整 |
+| ABORTED | 12 | plain DQN，sparse_low / st_dom / lt_high / rt_high × 3 seeds；停止前最后 eval ep 36–98 |
+| SCOPE_DISCARD | 252 | 其余 7 臂 × 12 包 × 3 seeds，未启动 |
+
+**只有 plain DQN 有正式结果；DDQN / Dueling / D3QN / PressLight /
+FRAP / MPLight / SAC 均无正式结果。**
+
+### 4.2 24 个 DQN run 的结果
+
+下表为 DQN final-20 评估均值（3 seeds 平均），对比 maxpressure
+规则基线；`未插入 = 需求车辆数 - throughput - unfinished`。
+DQN 为训练期 final-20 评估，MP 为单次规则 run；这不是
+best-checkpoint ×3 SUMO seeds 训后评估。
+
+| 需求包 | DQN TT | MP TT | DQN 吞吐 | MP 吞吐 | DQN 未插入 | MP 未插入 | DQN 收敛 ep（5%） |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| asym_nonly | 13.35 | 14.13 | 1839 | 1977 | 144.9 | 4 | 31.3 |
+| asym_ns | 11.66 | 12.24 | 1850 | 1851 | 1.1 | 0 | 28.0 |
+| asym_we | 12.65 | 13.38 | 1393 | 1407 | 17.1 | 1 | 18.3 |
+| dense_extreme | 15.84 | 15.79 | 2518 | 2566 | 343.3 | 295 | 24.3 |
+| dense_high | 15.21 | 15.21 | 2034 | 2089 | 206.1 | 146 | 39.7 |
+| fluct_burst | 14.31 | 14.07 | 1431 | 1451 | 19.5 | 0 | 19.7 |
+| fluct_ramp | 13.62 | 13.76 | 1434 | 1450 | 49.0 | 34 | 18.7 |
+| fluct_sin | 14.08 | 14.09 | 1456 | 1457 | 1.9 | 1 | 19.3 |
+
+判读：
+
+- DQN 的 travel_time 4/8 包低于 maxpressure，2 包持平，2 包更差；
+- 但 8/8 包 DQN 的 throughput 都低于 maxpressure，未插入车辆都更多；
+- asym_nonly 的 TT 优势伴随少服务约 138 辆车（未插入 145 vs 4），
+  不能解释为控制策略更优；
+- dense_extreme / dense_high 的未插入为 343 / 206，maxpressure
+  为 295 / 146，DQN 在服务需求上没有赢；
+- 5% 收敛点在 ep 18–40，跨 8 包 × 3 seeds 一致，确认早收敛现象；
+  这与 epsilon 在 ep 4–5 到达下限的机制一致。
+
+### 4.3 停止与重启事件
+
+2026-10-21 11:03 人工停止队列。审核期间发现同前缀队列在
+11:13:48 被再次拉起（`--parallel 12`），12 个原 RUNNING 任务被
+重新执行；`run.py` 清空并重写了这 12 个 run 目录，随后在约 11:17
+再次终止。原 partial raw records 被覆盖，`stop_audit.csv` 保留了
+停止前的 records 数与最后 eval episode；台账将这 12 行标记为
+ABORTED + `evidence_lost: true`。24 个 DONE 目录未受影响。
+
+### 4.4 工程冒烟
+
+以下冒烟均为 300 步、少量更新的工程 run，不是性能证据，也不进入
+台账正式统计。
 
 | 臂 | 冒烟 run | 状态 | checkpoint / 评估验证 |
 | --- | --- | --- | --- |
@@ -236,32 +291,29 @@ FRAP/MPLight 查 `signal_config[network]` 会 miss。
 
 ## 5. 结论与后续
 
-**结论（准备阶段）**：xiasha1 上 8 个 off-policy 臂的代码/配置链路可用
-（vanilla DQN 派发前补冒烟门）；DQN 家族、PressLight、FRAP、SAC 使用
-full checkpoint，MPLight 使用 evaluation-only checkpoint；动作空间统一为
-4 个绿相位；观测编码和奖励保留各控制器原生差异。
+**结论（收口）**：xiasha1 上 8 个 off-policy 臂的代码/配置链路可用；
+但本轮只有 plain DQN 完成了 8 包 × 3 seeds，且结果不是对 maxpressure
+的干净胜出——TT 局部更好，但吞吐更低、未插入更多。早收敛在 24 个
+run 上稳定复现，当前证据支持“原生 epsilon schedule 过快”这一机制
+解释，但还不足以区分“任务简单”“off-policy 本身”和“配置问题”。
 
 **已锁定决策（2026-10-21）**：legacy `pseudo_step` 信号语义、
 200 episodes、每 episode 评估、best-ckpt×3 SUMO seeds 训后评估、
-12 包全量、3 训练 seeds、跳过 pilot。
+12 包全量、3 训练 seeds；原 288-run 矩阵不再恢复。后续用
+`xiasha1_explore_v1` 验证 slow/full epsilon schedule：在相同 200 ep
+预算下，检查早收敛是否仍然出现、以及性能是否相对 native DQN 提升。
 
 **后续**：
 
-1. 提交本轮 working tree（代码 + 冒烟/正式配置 + 数据包 + 文档），
-   取得 code_commit；
-2. 台账补 `xiasha1_online_v1` REGISTERED 行 + 生成
-   `artifacts/xiasha1_online_v1/run_queue.json` +
-   `EXPERIMENTS/xiasha1_online_v1.md` 明细页；
-3. 补 vanilla DQN 1-ep 冒烟门；同时任选一条非 dqn 臂（如 sac）
-   短冒烟复验 trajectory npz 写入与 `validation.json` 通过
-   （白名单刚扩臂，属新路径）；
-4. 派发正式矩阵：**手动拉起 + 全程盯守**——用既有通用 runner
-   `tools/run_experiment_queue.py` 在 tmux 会话中按批启动
-   （不写新的派发/自动化脚本），盯 `run_state`/run_status，失败
-   人工重跑；收割后回填台账与本文件第 4/5 节；
-   过程监控另配只读 TB 投影件 `dev/xiasha1_online_monitor/project_tb.py`
-   （records.jsonl/summary.json → `train|eval|best/*` scalars，
-   已登记 dev/INDEX.md，不属派发链路）；
+1. 收口改动入库（台账 24 DONE / 12 ABORTED / 252 SCOPE_DISCARD、
+   `docs/experiments/` 与本文件更新、队列 `dropped: true` 守卫）；
+2. 派发 `xiasha1_explore_v1`：2 包 × 3 seeds × {slow, full} = 12 run，
+   同 200 ep、同评估协议，只改 epsilon schedule / learning_start；
+3. 收割后比较 native / slow / full 的收敛 episode、final-20 三指标、
+   未插入车辆与 best-checkpoint 性能，回填台账与本文件；
+4. 若 slow/full 仍早收敛且性能无改善，则停止在 DQN 上继续加 schedule，
+   转向其他解释（任务/观测/奖励）；若有改善，再决定是否以新 schedule
+   重跑其余 7 臂。
 
 **已知边界**：FRAP/MPLight `one_hot: true` 不可用；PressLight 观测为
 22 维；MPLight 无 resumable checkpoint；跨控制器不能比较 reward/loss；

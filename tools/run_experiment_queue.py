@@ -83,6 +83,9 @@ def main():
     args = ap.parse_args()
 
     spec = json.loads(Path(args.queue).read_text())
+    if spec.get('dropped'):
+        raise SystemExit(
+            f"queue is marked dropped: {spec.get('dropped_reason', '')}")
     prev = load_state(args.state)
     prev_tasks = {t['run_id']: t for t in prev['tasks']} if prev else {}
     tasks = []

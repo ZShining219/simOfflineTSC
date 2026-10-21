@@ -175,8 +175,16 @@ META = {
  "hypothesis": "在 xiasha1*1 单路口 J、12 个生成式 1h 需求包上，统一 legacy pseudo_step 口径下比较 8 个纯在线 off-policy 控制器（DQN/DDQN/Dueling/D3QN/PressLight/FRAP/MPLight/SAC）从零训练的收敛性与训后性能，产出半离线/顺序训练线的纯在线 control 参照。",
  "plan_id": "xiasha1_online_v1",
  "design": "docs/experiments/2026-10-21_xiasha1_online_baseline.md；configs/tsc/xiasha1_online/{dqn,ddqn,dueling,d3qn,presslight,frap,mplight,sac}.yml overlay（200ep+每ep贪心评估ep0-200+resumable{0,25,50,100,150,200}+saveReplay=false+trajectory npz 全量记录）；artifacts/xiasha1_online_v1/run_queue.json；规则参照=xiasha1_notrain_v1（configs/benchmarks/）",
- "conclusion": "进行中：288 train REGISTERED（2026-10-21），训后 best-ckpt×3 sumo seeds(10000-10002) 待另行登记 eval 行。",
- "queues": "artifacts/xiasha1_online_v1/run_queue.json",
+ "conclusion": "已收口（2026-10-21）：24 DONE / 12 ABORTED / 252 SCOPE_DISCARD，原矩阵不再恢复。仅 plain DQN 完成 8 包×3 seeds；5% 收敛 ep 18–40，早收敛稳定复现；TT 4/8 包低于 maxpressure，但 8/8 包吞吐更低、未插入更多，不能视为干净胜出。",
+ "queues": "artifacts/xiasha1_online_v1/run_queue.json（dropped: true）",
+},
+"xiasha1_explore_v1": {
+ "title": "xiasha1 充分探索验证（native / slow / full epsilon schedule）",
+ "hypothesis": "在相同 xiasha1 需求包、200ep 预算和评估协议下，只改变 DQN epsilon schedule：若充分探索后评估曲线仍早于 epsilon 下限收敛，则早收敛不能只用探索不足解释；若 slow/full 的 final-20 TT 或 uninserted 相对 native 稳定改善，则充分探索提升控制器性能。",
+ "plan_id": "xiasha1_explore_v1",
+ "design": "docs/experiments/2026-10-21_xiasha1_explore_validation.md；configs/tsc/xiasha1_online/dqn_{slow,full}.yml；2 包（asym_nonly/asym_ns）×3 seeds×2 schedules=12 run；native 参照=xiasha1_online_v1 的 6 个 DONE xi1on_dqn_*；同 200ep+每ep贪心评估+legacy pseudo_step+saveReplay=false。",
+ "conclusion": "进行中：12 train REGISTERED（2026-10-21）；结果回填后更新本行。",
+ "queues": "artifacts/xiasha1_explore_v1/run_queue.json",
 },
 }
 
@@ -207,14 +215,15 @@ SHORT = {
 "paper_infra_validation": "paper 基建验证",
 "misc_probes": "零散探针",
 "cl_hz1x1": "hz1x1 持续学习：off-policy 机制性遗忘三骨干证实；+policy 锚 λπ=1 把 worst 退化压至 ≤1.0s 近零塑性代价；ρ 剂量响应显示锚定可省回放预算且 ρ=0.25 为甜点",
-"xiasha1_online_v1": "xiasha1 纯在线 off-policy 基线（8 臂×12 包×3 seeds，登记中）",
+"xiasha1_online_v1": "xiasha1 纯在线 off-policy 基线（已收口：24 DONE/12 ABORTED/252 SCOPE_DISCARD）",
+"xiasha1_explore_v1": "xiasha1 充分探索验证：native/slow/full epsilon schedule（12 run）",
 }
 
 camps = collections.Counter(r["campaign"] for r in ROWS)
 order = ["att_entity_004", "att_entity_003", "att_entity_002", "arterial_1x6",
          "tarl_reproduction", "tarl_v21_formal", "plan5_b100", "plan1_dqn",
          "ha_sodqn", "milestone0_infra", "paper_infra_validation", "misc_probes",
-         "xiasha1_online_v1"]
+         "xiasha1_online_v1", "xiasha1_explore_v1"]
 
 # ---------- 明细文件：每 campaign 一篇 ----------
 DETAIL = ROOT / "EXPERIMENTS"

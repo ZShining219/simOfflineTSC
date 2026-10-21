@@ -124,6 +124,7 @@ class EvaluationPackageTest(unittest.TestCase):
 
     def test_replay_utilization_uses_counters_without_batch_logging(self):
         agent = DQNAgent.__new__(DQNAgent)
+        agent.collect_history = False
         agent.replay_buffer = deque(maxlen=3)
         agent.replay_total_collected = 0
         agent.replay_sample_total = 0

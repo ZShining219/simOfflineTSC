@@ -24,7 +24,7 @@
 
 ## 0. 总览
 
-登记 run 总数：**13357**（train 2021、eval attempt 11004、smoke 140、calibration 18、batch 46）
+登记 run 总数：**13369**（train 2033、eval attempt 11004、smoke 140、calibration 18、batch 46）
 
 | campaign | DONE | FAILED | ABORTED | SUPERSEDED | REGISTERED | SCOPE_DISCARD | LEGACY_UNCLEAR | 合计 |
 |---|---|---|---|---|---|---|---|---|
@@ -41,6 +41,7 @@
 | paper_infra_validation | 19 | 0 | 0 | 0 | 0 | 0 | 0 | 19 |
 | misc_probes | 1 | 5 | 0 | 0 | 0 | 1 | 0 | 7 |
 | xiasha1_online_v1 | 24 | 0 | 12 | 0 | 0 | 252 | 0 | 288 |
+| xiasha1_explore_v1 | 0 | 0 | 0 | 0 | 12 | 0 | 0 | 12 |
 | cl_hz1x1 | 5368 | 0 | 0 | 0 | 0 | 216 | 0 | 5584 |
 | hitl_live_ab | 6 | 0 | 0 | 0 | 0 | 0 | 0 | 6 |
 | hitl_live_baseline | 2 | 0 | 0 | 0 | 0 | 0 | 0 | 2 |
@@ -55,7 +56,7 @@
 | seq8_demand | 24 | 0 | 0 | 0 | 0 | 18 | 0 | 42 |
 | signal_control_v1 | 0 | 0 | 0 | 0 | 4 | 0 | 0 | 4 |
 | takeover_probe_sig15 | 24 | 0 | 0 | 0 | 0 | 0 | 0 | 24 |
-| **合计** | 12498 | 243 | 107 | 4 | 6 | 498 | 0 | **13357** |
+| **合计** | 12498 | 243 | 107 | 4 | 18 | 498 | 0 | **13369** |
 
 状态语义见 GOVERNANCE.md §2。LEGACY_UNCLEAR=0 表示全部可识别 run 均通过队列/状态文件/目录归属证据还原出 campaign；个别 run 的臂内身份仍以命名约定为据，已在 notes 标注处保持保守。
 
@@ -76,6 +77,7 @@
 | `paper_infra_validation` | 19 | 19/0/0/0 | paper 基建验证 | [明细](EXPERIMENTS/paper_infra_validation.md) |
 | `misc_probes` | 7 | 1/5/0/1 | 零散探针 | [明细](EXPERIMENTS/misc_probes.md) |
 | `xiasha1_online_v1` | 288 | 24/0/12/252 | xiasha1 纯在线 off-policy 基线（已收口：24 DONE/12 ABORTED/252 SCOPE_DISCARD） | [明细](EXPERIMENTS/xiasha1_online_v1.md) |
+| `xiasha1_explore_v1` | 12 | 0/0/0/0 | xiasha1 充分探索验证：native/slow/full epsilon schedule（12 run） | [明细](EXPERIMENTS/xiasha1_explore_v1.md) |
 | `cl_hz1x1` | 5584 | 5368/0/0/216 | hz1x1 持续学习：off-policy 机制性遗忘三骨干证实；+policy 锚 λπ=1 把 worst 退化压至 ≤1.0s 近零塑性代价；ρ 剂量响应显示锚定可省回放预算且 ρ=0.25 为甜点 | [明细](EXPERIMENTS/cl_hz1x1.md) |
 | `hitl_live_ab` | 6 | 6/0/0/0 | — | [明细](EXPERIMENTS/hitl_live_ab.md) |
 | `hitl_live_baseline` | 2 | 2/0/0/0 | — | [明细](EXPERIMENTS/hitl_live_baseline.md) |

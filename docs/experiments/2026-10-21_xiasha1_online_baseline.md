@@ -259,6 +259,9 @@ full checkpoint，MPLight 使用 evaluation-only checkpoint；动作空间统一
    `tools/run_experiment_queue.py` 在 tmux 会话中按批启动
    （不写新的派发/自动化脚本），盯 `run_state`/run_status，失败
    人工重跑；收割后回填台账与本文件第 4/5 节；
+   过程监控另配只读 TB 投影件 `dev/xiasha1_online_monitor/project_tb.py`
+   （records.jsonl/summary.json → `train|eval|best/*` scalars，
+   已登记 dev/INDEX.md，不属派发链路）；
 
 **已知边界**：FRAP/MPLight `one_hot: true` 不可用；PressLight 观测为
 22 维；MPLight 无 resumable checkpoint；跨控制器不能比较 reward/loss；

@@ -704,6 +704,15 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
   DHOA 跨 runtime（run.py+队列 vs sequential/）；plan34 fifo_matched_
   wait reward 变体使其 TQ 跨臂不可比；SELF-CQ 按裁决不进结论；CI 按
   场景格计非种子级。
+- `dev/xiasha1_online_monitor/`：xiasha1_online_v1 只读 TensorBoard 投影件
+  （2026-10-21，campaign 绑定监控件）——`project_tb.py` 扫队列
+  `output_path` 下各 run 的 `metrics/records.jsonl`（record_type=TRAIN/
+  EVALUATION/FINAL_EVALUATION）与 `evaluation/summary.json`（best_episode/
+  best_travel_time），经 `tools.training_dashboard.ScalarMirror` 写
+  `train|eval|best/<metric>` scalars 到独立 logdir，`--serve` 可拉起
+  tensorboard.main 子进程；纯只读、幂等增量、可随时停起，输出归
+  `artifacts/xiasha1_online_v1/tb/`（不入库）。不投影 reward 跨臂比较
+  以外的语义判断；监控异常判读仍由人工盯守完成。
 
 ## 已裁决归档（2026-10-07 Z 裁）
 

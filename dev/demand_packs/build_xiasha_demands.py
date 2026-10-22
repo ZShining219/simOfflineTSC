@@ -257,7 +257,7 @@ def emit_pack(name, spec, vehicles, meta):
         lane = assign_lane(e0, e1, rng, st_lane0)
         rou.append(
             f'\t\t<vehicle depart="{dep:.2f}" departLane="{lane}" '
-            f'departPos="{dep_pos[e0]}" departSpeed="10.00" '
+            f'departPos="0.00" departSpeed="10.00" '
             f'arrivalPos="{arr_pos[e1]}" id="{i}" type="xiasha_passenger">\n'
             f"\t\t\t<route edges=\"{e0} {e1}\"/>\n\t\t</vehicle>")
     (pdir / f"{pname}.rou.xml").write_text(

@@ -416,7 +416,10 @@ class World(object):
         self.interval = sumo_dict['interval']
         self.step_ratio = 1  # TODO: register in Registry later
         self.step_length = 1  # should be 1 in our setting
-        self.max_distance = 200 # TODO: set in registry
+        # 观测距离上限取路网内实际最长车道长度；硬编码固定值会在车道
+        # 超过该值时静默截断观测（xiasha1 106.4m→280m 修复后暴露此隐患）。
+        self.max_distance = max(
+            self.eng.lane.getLength(l) for l in self.eng.lane.getIDList())
         # get all intersections (dict here)
         self.intersection_ids = stable_intersection_order(
             self.eng.trafficlight.getIDList())

@@ -10,7 +10,12 @@ from .collect import collect_dataset
 from .plot import load_dataset, plot_dataset
 from .report import validate_dataset, write_manifest, write_validation
 from .spec import load_benchmark_spec
-from .timeseries import collect_timeseries, plot_timeseries, write_replay_queue
+from .timeseries import (
+    collect_timeseries,
+    plot_timeseries,
+    plot_timeseries_focus,
+    write_replay_queue,
+)
 
 
 DEFAULT_OUTPUT_ROOT = Path("data/output_data/analysis/pack_benchmark")
@@ -130,6 +135,14 @@ def cmd_timeseries_plot(args):
     return 0
 
 
+def cmd_timeseries_plot_focus(args):
+    dataset = load_dataset(_dataset_path(args))
+    output_dir = _analysis_dir(args)
+    manifest = plot_timeseries_focus(dataset, output_dir, dpi=args.dpi)
+    print(f"wrote {len(manifest['figures'])} focus figures -> {output_dir / 'figures'}")
+    return 0
+
+
 def cmd_ckpt_ts_queue(args):
     spec = load_benchmark_spec(args.spec)
     path = write_ckpt_ts_queue(spec, args.queue)
@@ -228,6 +241,14 @@ def build_parser():
     )
     common(ts_plot)
     ts_plot.set_defaults(func=cmd_timeseries_plot)
+
+    ts_focus = subparsers.add_parser(
+        "timeseries-plot-focus",
+        help="Zoomed learned-band curves, delta-vs-maxpressure and "
+             "discriminability heatmaps from a collected timeseries CSV.",
+    )
+    common(ts_focus)
+    ts_focus.set_defaults(func=cmd_timeseries_plot_focus)
 
     ckpt_queue = subparsers.add_parser(
         "ckpt-ts-queue",

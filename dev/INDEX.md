@@ -184,6 +184,14 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
   `analyze_cross_scenario_eval.py` 做目标相对的 in-domain vs cross-source
   比较（TT/uninserted/queue、source→target 矩阵）。产物
   `artifacts/xiasha1_cross_eval_v1/`。
+- `dev/ledger/register_xiasha1_v2_bestckpt_ts.py` +
+  `backfill_xiasha1_v2_bestckpt_ts.py`（2026-10-22，campaign
+  `xiasha1_v2_bestckpt_ts_v1`）：96 个场景内冻结 best-ckpt 重放 eval 的
+  台账登记/回填件；队列与收集由正式能力
+  `tools.pack_benchmark ckpt-ts-queue/ckpt-ts-collect`（spec
+  `configs/benchmarks/xiasha1_v2_bestckpt_ts.yaml`）承担，产物
+  `artifacts/xiasha1_v2_bestckpt_ts/` 与图包
+  `data/output_data/analysis/pack_benchmark/xiasha1_v2_bestckpt_ts_20261022/`。
 - `dev/w34/probes/`：w34_2 零训练探针分析件——`p2_binding_audit.py`（离线
   绑定审计：bound/fallback_bind/gap/co_active 分类 + 配对差分层）、
   `p4_stratify.py`（臂/种子/事件类/窗长分层 + 稀疏窗伪影检验）。消费

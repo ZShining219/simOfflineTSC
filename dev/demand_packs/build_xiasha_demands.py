@@ -100,6 +100,30 @@ PACKS = {
                        shape=lambda t: 0.4 + 1.2 * t / HORIZON,
                        shape_note="线性爬坡 ×0.4→×1.6",
                        note="单调爬坡型需求增长（早高峰形态）"),
+    # ---- F 综合难度（多轴复合，scale×arm×转向×shape 连乘）----
+    # 基线臂计数 N119/S94/E102/W35（合350/867s窗）；参数挑选目标：
+    #   均值总流 ~2400-2600veh/h（对标 dense_high~extreme / 论文高方差~2435），
+    #   北臂占比 ~58%（失衡撞 NS 短直绿 27s），转向 s55/l20/r25（论文均衡档）。
+    "compound_a": dict(
+        cat="compound", scale=1.8,
+        arm={"N2J": 1.6, "S2J": 0.6, "E2J": 0.6, "W2J": 0.6},
+        normalize=False, left=0.20, right=0.25,
+        shape=lambda t: np.where((t >= 1800) & (t < 2400), 2.5, 0.7),
+        shape_note="全臂 1800–2400s ×2.5，其余 ×0.7（均值恰=1.0）",
+        note="饱和量级(~2460veh/h)+北臂失衡(~58%)+均衡转向+中段全局突发"
+             "（瞬时~6150veh/h，事件/事故后全域集聚）"),
+    "compound_b": dict(
+        cat="compound", scale=1.8,
+        arm={"N2J": 1.6, "S2J": 0.6, "E2J": 0.6, "W2J": 0.6},
+        normalize=False, left=0.20, right=0.25,
+        shape=lambda t, e0: (2.5 if 1800 <= t < 2400 else 0.7)
+                            if e0 == "N2J"
+                            else (0.5 if 1800 <= t < 2400 else 0.7),
+        shape_per_arm=True,
+        shape_note="N臂 1800–2400s ×2.5、轻臂同窗×0.5，其余时段×0.7"
+                   "（N均值=1.0、轻臂0.667）",
+        note="同量级(~2320veh/h)但突发只打北臂：窗口内 N 瞬时~3560veh/h "
+             "撞短直绿，考相位权重在线切换；窗口外 N~1000veh/h"),
 }
 
 
@@ -137,14 +161,23 @@ def build_lambda(spec, obs_span):
     right, left = spec.get("right"), spec.get("left")
     straight = spec.get("straight")
     arm = spec.get("arm", {a: 1.0 for a in ARMS})
-    shape = spec.get("shape", lambda t: 1.0)
+    shape_raw = spec.get("shape", lambda t: 1.0)
     normalize = spec.get("normalize", True)
+    # 标量 shape(t)：全 OD 统一乘子；per-arm shape(t, e0)：突发可只打
+    # 指定进口臂（shape_per_arm=True，与 normalize 互斥——逐臂归一化
+    # 会抹掉刻意设计的臂间强度差）
+    if spec.get("shape_per_arm"):
+        if normalize:
+            raise ValueError("shape_per_arm 与 normalize 不兼容")
+        shape = shape_raw
+    else:
+        shape = lambda t, e0: shape_raw(t)
 
     # shape 归一化：∫shape dt / HORIZON == 1 → 总期望车数≈基线×scale
     if normalize:
         grid = np.linspace(0, HORIZON, 721)
         shape_norm = HORIZON / np.trapz(
-            np.array([float(shape(t)) for t in grid]), grid)
+            np.array([float(shape(t, None)) for t in grid]), grid)
     else:
         shape_norm = 1.0
 
@@ -171,8 +204,8 @@ def build_lambda(spec, obs_span):
                     MOVES[e0][e1], tgt_s) for e1 in outs}
         for e1 in outs:
             rates[(e0, e1)] = n_arm / obs_span * shares[e1]
-    return {r: (lambda t, base=b, s=shape, k=shape_norm:
-                base * float(s(t)) * k) for r, b in rates.items()}
+    return {r: (lambda t, base=b, s=shape, k=shape_norm, a=r[0]:
+                base * float(s(t, a)) * k) for r, b in rates.items()}
 
 
 def gen_route(rates, seed):

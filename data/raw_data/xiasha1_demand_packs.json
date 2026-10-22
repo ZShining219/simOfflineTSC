@@ -89,6 +89,20 @@
       "sumocfg": "xiasha1_fluct_ramp_1h/xiasha1_fluct_ramp_1h.sumocfg",
       "cat": "fluct",
       "n_vehicles": 1493
+    },
+    {
+      "pack": "compound_a",
+      "dir": "xiasha1_compound_a_1h",
+      "sumocfg": "xiasha1_compound_a_1h/xiasha1_compound_a_1h.sumocfg",
+      "cat": "compound",
+      "n_vehicles": 2463
+    },
+    {
+      "pack": "compound_b",
+      "dir": "xiasha1_compound_b_1h",
+      "sumocfg": "xiasha1_compound_b_1h/xiasha1_compound_b_1h.sumocfg",
+      "cat": "compound",
+      "n_vehicles": 2188
     }
   ]
 }

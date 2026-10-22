@@ -1,0 +1,21 @@
+{
+  "cat": "compound",
+  "scale": 1.8,
+  "arm": {
+    "N2J": 1.6,
+    "S2J": 0.6,
+    "E2J": 0.6,
+    "W2J": 0.6
+  },
+  "normalize": false,
+  "left": 0.2,
+  "right": 0.25,
+  "shape_per_arm": true,
+  "shape_note": "N臂 1800–2400s ×2.5、轻臂同窗×0.5，其余时段×0.7（N均值=1.0、轻臂0.667）",
+  "note": "同量级(~2320veh/h)但突发只打北臂：窗口内 N 瞬时~3560veh/h 撞短直绿，考相位权重在线切换；窗口外 N~1000veh/h",
+  "pack": "compound_b",
+  "n_vehicles": 2188,
+  "seed": 4137792366,
+  "base": "data/raw_data/xiasha1*1/xiasha1_sumo_vehicles.rou.xml",
+  "horizon_s": 3600
+}

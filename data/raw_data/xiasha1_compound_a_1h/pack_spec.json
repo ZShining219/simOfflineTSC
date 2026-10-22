@@ -1,0 +1,20 @@
+{
+  "cat": "compound",
+  "scale": 1.8,
+  "arm": {
+    "N2J": 1.6,
+    "S2J": 0.6,
+    "E2J": 0.6,
+    "W2J": 0.6
+  },
+  "normalize": false,
+  "left": 0.2,
+  "right": 0.25,
+  "shape_note": "全臂 1800–2400s ×2.5，其余 ×0.7（均值恰=1.0）",
+  "note": "饱和量级(~2460veh/h)+北臂失衡(~58%)+均衡转向+中段全局突发（瞬时~6150veh/h，事件/事故后全域集聚）",
+  "pack": "compound_a",
+  "n_vehicles": 2463,
+  "seed": 2452239325,
+  "base": "data/raw_data/xiasha1*1/xiasha1_sumo_vehicles.rou.xml",
+  "horizon_s": 3600
+}

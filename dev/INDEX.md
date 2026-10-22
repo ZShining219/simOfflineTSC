@@ -75,7 +75,8 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
   backfill_xiasha1_explore.py 回填 slow 6 DONE / full 6 ABORTED；
   register_xiasha1_online_v2.py 登记 v2 的 288 行 REGISTERED；
   backfill_xiasha1_online_v2.py 将 v2 288 行回填为 DONE 并写入 final-20/queue/收敛摘要；
-  register_xiasha1_cross_eval.py 登记跨场景 eval 的 384 行 REGISTERED。
+  register_xiasha1_cross_eval.py 登记跨场景 eval 的 384 行 REGISTERED；
+  backfill_xiasha1_cross_eval.py 将 384 行回填为 DONE。
 - `dev/seq8_anchor/`：seq8_anchor campaign 队列生成件（2026-10-16）：
   `build_queue.py` 在 cl_hz1x1 链路上对 seq8 三序（N1/R1/D1 需求包，
   seeds 0/1）派发 soddqnp_r25 半离线+policy-anchor（λπ=1.0、ρ=0.25）
@@ -179,8 +180,10 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
   DQN 家族/PressLight/FRAP 用 full-horizon epsilon，SAC/MPLight 原生
   探索；产物 `artifacts/xiasha1_online_v2/`。
   `build_cross_scenario_eval_queue.py`（2026-10-22）从 v2 best checkpoint
-  生成 8 臂 × 4 source × 3 seeds × 4 target × 1 SUMO seed = 384 eval，
-  产物 `artifacts/xiasha1_cross_eval_v1/`。
+  生成 8 臂 × 4 source × 3 seeds × 4 target × 1 SUMO seed = 384 eval；
+  `analyze_cross_scenario_eval.py` 做目标相对的 in-domain vs cross-source
+  比较（TT/uninserted/queue、source→target 矩阵）。产物
+  `artifacts/xiasha1_cross_eval_v1/`。
 - `dev/w34/probes/`：w34_2 零训练探针分析件——`p2_binding_audit.py`（离线
   绑定审计：bound/fallback_bind/gap/co_active 分类 + 配对差分层）、
   `p4_stratify.py`（臂/种子/事件类/窗长分层 + 稀疏窗伪影检验）。消费

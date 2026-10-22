@@ -199,7 +199,7 @@ META = {
  "hypothesis": "用 xiasha1_online_v2 的 best checkpoint 在未参与训练的需求包上评估，测量单场景专训策略的泛化差；比较 8 臂在 TT/throughput/uninserted/queue 上的跨场景退化。",
  "plan_id": "xiasha1_cross_eval_v1",
  "design": "docs/experiments/2026-10-22_xiasha1_cross_eval.md；8 臂 × 4 source（asym_nonly/asym_ns/dense_extreme/fluct_burst）× 3 train seeds × 4 target × 1 SUMO seed(10000)=384 eval；source=target 为同场景控制；评估-only overlay configs/tsc/eval_baseline_checkpoint.yml。",
- "conclusion": "进行中：384 eval REGISTERED（2026-10-22）；结果回填后更新本行。",
+ "conclusion": "已完成（2026-10-22）：384/384 DONE。目标相对 TT gap：FRAP 0.9%、MPLight 1.6%、DQN 家族 3.9–4.8%、SAC 7.6%、PressLight 12.0%；绝对跨源 TT：DQN 家族 13.87–13.97 最好，FRAP/MPLight 14.15–14.17，SAC 14.44，PressLight 15.33。uninserted 受同场景 checkpoint 选择影响，不能直接当泛化增益。",
  "queues": "artifacts/xiasha1_cross_eval_v1/run_queue.json",
 },
 }
@@ -234,7 +234,7 @@ SHORT = {
 "xiasha1_online_v1": "xiasha1 纯在线 off-policy 基线（已收口：24 DONE/12 ABORTED/252 SCOPE_DISCARD）",
 "xiasha1_explore_v1": "xiasha1 充分探索验证（已暂停：slow 6 DONE，full 6 ABORTED；转 v2）",
 "xiasha1_online_v2": "已完成 288/288：DQN 家族仍早收敛；PressLight 最差，FRAP/MPLight 服务更好但 TT 更高",
-"xiasha1_cross_eval_v1": "v2 best-ckpt 跨场景评估：4 source × 4 target × 8 臂 × 3 seeds（384 eval）",
+"xiasha1_cross_eval_v1": "已完成 384/384：FRAP/MPLight 相对泛化最好；DQN 家族绝对跨源 TT 最好；PressLight 最差",
 }
 
 camps = collections.Counter(r["campaign"] for r in ROWS)

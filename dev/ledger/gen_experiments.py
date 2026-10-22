@@ -191,7 +191,7 @@ META = {
  "hypothesis": "在 xiasha1*1 单路口 J、12 个需求包上，用 full-horizon epsilon（ε 1.0→0.05，约 ep180 到下限）重跑 8 个 off-policy 臂，检验充分探索是否改变早收敛与训练后性能；SAC/MPLight 保留各自原生探索机制。",
  "plan_id": "xiasha1_online_v2",
  "design": "docs/experiments/2026-10-21_xiasha1_online_v2.md；configs/tsc/xiasha1_online_v2/{dqn,ddqn,dueling,d3qn,presslight,frap,sac,mplight}.yml；8 臂×12 包×3 seeds=288 train run；200ep+每ep贪心评估+legacy pseudo_step+saveReplay=false；DQN家族/PressLight/FRAP 用 full epsilon，SAC/MPLight 原生探索。",
- "conclusion": "进行中：288 train REGISTERED（2026-10-21）；结果回填后更新本行。",
+ "conclusion": "已完成（2026-10-22）：288/288 DONE。DQN 家族 final-20 TT 13.24–13.30、uninserted 62–64；PressLight TT 13.96、uninserted 151（最差）；FRAP/MPLight TT 14.04–14.06、uninserted 42（服务更好但 TT 更高）；SAC TT 13.28、uninserted 72。DQN 家族仍早收敛（conv 中位 30–32，epsilon 下限 ep181）；v2 vs v1 DQN 平均 ΔTT -0.10、Δuninserted -2.2，分 pack 方向不一致。",
  "queues": "artifacts/xiasha1_online_v2/run_queue.json",
 },
 }
@@ -225,7 +225,7 @@ SHORT = {
 "cl_hz1x1": "hz1x1 持续学习：off-policy 机制性遗忘三骨干证实；+policy 锚 λπ=1 把 worst 退化压至 ≤1.0s 近零塑性代价；ρ 剂量响应显示锚定可省回放预算且 ρ=0.25 为甜点",
 "xiasha1_online_v1": "xiasha1 纯在线 off-policy 基线（已收口：24 DONE/12 ABORTED/252 SCOPE_DISCARD）",
 "xiasha1_explore_v1": "xiasha1 充分探索验证（已暂停：slow 6 DONE，full 6 ABORTED；转 v2）",
-"xiasha1_online_v2": "xiasha1 纯在线 off-policy 基线 v2：full-horizon 充分探索（288 run）",
+"xiasha1_online_v2": "已完成 288/288：DQN 家族仍早收敛；PressLight 最差，FRAP/MPLight 服务更好但 TT 更高",
 }
 
 camps = collections.Counter(r["campaign"] for r in ROWS)

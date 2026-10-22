@@ -73,7 +73,8 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
   24 DONE / 12 ABORTED / 252 SCOPE_DISCARD；register_xiasha1_explore.py
   （2026-10-21）从队列幂等登记 xiasha1_explore_v1 的 12 行 REGISTERED；
   backfill_xiasha1_explore.py 回填 slow 6 DONE / full 6 ABORTED；
-  register_xiasha1_online_v2.py 登记 v2 的 288 行 REGISTERED。
+  register_xiasha1_online_v2.py 登记 v2 的 288 行 REGISTERED；
+  backfill_xiasha1_online_v2.py 将 v2 288 行回填为 DONE 并写入 final-20/queue/收敛摘要。
 - `dev/seq8_anchor/`：seq8_anchor campaign 队列生成件（2026-10-16）：
   `build_queue.py` 在 cl_hz1x1 链路上对 seq8 三序（N1/R1/D1 需求包，
   seeds 0/1）派发 soddqnp_r25 半离线+policy-anchor（λπ=1.0、ρ=0.25）

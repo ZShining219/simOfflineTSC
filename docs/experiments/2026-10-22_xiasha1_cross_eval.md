@@ -12,7 +12,8 @@
 - 源 checkpoint：`xiasha1_online_v2` 的 288 个 DONE run，
   每个 run 的 `evaluation/summary.json` 选出的 best checkpoint
 - 评估 overlay：`configs/tsc/eval_baseline_checkpoint.yml`
-  （legacy pseudo_step，与 v2 训练口径一致）
+  （legacy pseudo_step，与 v2 训练口径一致）；Dueling/D3QN 另用
+  `eval_baseline_checkpoint_{dueling,d3qn}.yml` 重建对应网络结构
 - 产物目录：`data/output_data/tsc/sumo_<arm>/xiasha1_<target>/xi2x_*`
 
 ## 1. 改动意图

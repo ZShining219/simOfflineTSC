@@ -22,11 +22,22 @@ LEDGER = ROOT / "ledger" / "runs.jsonl"
 QUEUE = ROOT / "artifacts" / "xiasha1_cross_eval_v1" / "run_queue.json"
 CAMPAIGN = "xiasha1_cross_eval_v1"
 EVAL_CONFIG = "configs/tsc/eval_baseline_checkpoint.yml"
+EVAL_CONFIGS = {
+    "dqn": EVAL_CONFIG,
+    "ddqn": "configs/tsc/eval_baseline_checkpoint_ddqn.yml",
+    "dueling": "configs/tsc/eval_baseline_checkpoint_dueling.yml",
+    "d3qn": "configs/tsc/eval_baseline_checkpoint_d3qn.yml",
+    "presslight": EVAL_CONFIG,
+    "frap": EVAL_CONFIG,
+    "mplight": EVAL_CONFIG,
+    "sac": EVAL_CONFIG,
+}
 
 
-def _config_sha(target_pack):
+def _config_sha(target_pack, arm):
     digest = hashlib.sha256()
-    for relative in (EVAL_CONFIG, f"configs/sim/xiasha1_{target_pack}.cfg"):
+    for relative in (EVAL_CONFIGS[arm],
+                     f"configs/sim/xiasha1_{target_pack}.cfg"):
         path = ROOT / relative
         digest.update(relative.encode("utf-8"))
         digest.update(b"\0")
@@ -73,7 +84,7 @@ def _row(task, code_commit):
             f"checkpoint={checkpoint_rel}；best_episode={task.get('best_episode')}"
         ),
         "run_kind": "eval",
-        "config_sha": _config_sha(task["target_pack"]),
+        "config_sha": _config_sha(task["target_pack"], task["arm"]),
         "sumo_seed_mode": "explicit",
         "sumo_seed": int(task["sumo_seed"]),
         "eval_seed": int(task["sumo_seed"]),

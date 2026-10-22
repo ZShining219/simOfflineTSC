@@ -1,0 +1,24 @@
+# Evaluation-only overlay for DDQN checkpoints.
+# Same protocol as eval_baseline_checkpoint.yml, plus the model flag needed
+# to rebuild the DQN agent's target-selection mode (architecture unchanged).
+model:
+  train_model: false
+  test_model: true
+  load_model: false
+  double_dqn: true
+
+trainer:
+  episodes: 1
+  steps: 3600
+  test_steps: 3600
+  action_interval: 10
+  learning_start: -1
+  test_when_train: false
+  evaluation_episodes: [0, 1]
+  resumable_checkpoint_episodes: [0, 1]
+
+logger:
+  save_model: false
+
+world:
+  saveReplay: false

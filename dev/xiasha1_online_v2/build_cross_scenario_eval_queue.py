@@ -45,6 +45,16 @@ ARMS = {
     "sac": ("sac", "sumo_sac"),
 }
 EVAL_CONFIG = "configs/tsc/eval_baseline_checkpoint.yml"
+EVAL_CONFIGS = {
+    "dqn": EVAL_CONFIG,
+    "ddqn": "configs/tsc/eval_baseline_checkpoint_ddqn.yml",
+    "dueling": "configs/tsc/eval_baseline_checkpoint_dueling.yml",
+    "d3qn": "configs/tsc/eval_baseline_checkpoint_d3qn.yml",
+    "presslight": EVAL_CONFIG,
+    "frap": EVAL_CONFIG,
+    "mplight": EVAL_CONFIG,
+    "sac": EVAL_CONFIG,
+}
 
 
 def main():
@@ -103,7 +113,7 @@ def main():
                                 "tools/eval_baseline_checkpoint.py",
                                 "--agent", agent,
                                 "--network", f"xiasha1_{target}",
-                                "--config", EVAL_CONFIG,
+                                "--config", EVAL_CONFIGS[arm],
                                 "--checkpoint", str(checkpoint),
                                 "--seed", str(train_seed),
                                 "--sumo_seed", str(sumo_seed),
@@ -129,7 +139,7 @@ def main():
         "arms": list(ARMS),
         "train_seeds": list(TRAIN_SEEDS),
         "sumo_seeds": list(SUMO_SEEDS),
-        "eval_config": EVAL_CONFIG,
+        "eval_config": EVAL_CONFIGS,
         "note": "Cross-scenario best-checkpoint eval: 8 arms x 4 source packs "
                 "x 3 train seeds x 4 target packs x 1 SUMO seed = 384 eval "
                 "runs; source pack is the in-domain control.",

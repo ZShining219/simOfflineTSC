@@ -138,3 +138,19 @@ ABORTED + 暂停原因，partial 目录保留。
 DONE run 保留为 v2 设计依据。新的 `xiasha1_online_v2` 使用
 full-horizon epsilon（ε1.0→0.05，约 ep180 到下限）对 8 臂 ×12 包 ×
 3 seeds 重新训练；SAC/MPLight 保留各自原生探索机制。
+
+## 勘误（2026-10-22，几何截断缺陷）
+
+本文档全部指标采集自**截断几何**的 xiasha1 路网：进口车道仅 106.4m，
+且路由 `departPos≈80`（车辆自距停车线 ~22-27m 处、以 10m/s 凭空插入——
+源自 `tools/xiasha_sumo/converter.py` 相机视野重建遗留语义，经
+`dev/demand_packs/build_xiasha_demands.py` 传播至全部 14 包）。
+
+影响口径：
+- 每车道可观测排队物理上限 ~3 辆，queue 均值/分位、waiting_time 长尾、
+  uninserted 计数、travel_time 绝对值均失真；
+- 结论中"臂间相对比较"仅在同几何内成立，**不可与修复后（280m、车道起点
+  插入）的 v3 指标直接比较**；
+- 台账 `ledger/runs.jsonl` 中全部 xiasha1* campaign 行已加
+  `errata=geometry_truncated_v1v2`；正式对比口径以 `xiasha1_online_v3`
+  为准。

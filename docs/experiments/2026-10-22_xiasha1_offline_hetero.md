@@ -184,3 +184,19 @@ SUMO），区别于 ha_sodqn/cl_hz1x1 半离线线（在线交互+历史归档�
 - campaign 作废，无实验结论；数据问题修复后按本设计重新构建
   `v2_hetero`（或同名递增）数据集索引并重登记队列；
 - 阶段②（自主价值利用）与 E6 阶段投喂族仍待数据就绪后另行立项。
+
+## 勘误（2026-10-22，几何截断缺陷）
+
+本文档全部指标采集自**截断几何**的 xiasha1 路网：进口车道仅 106.4m，
+且路由 `departPos≈80`（车辆自距停车线 ~22-27m 处、以 10m/s 凭空插入——
+源自 `tools/xiasha_sumo/converter.py` 相机视野重建遗留语义，经
+`dev/demand_packs/build_xiasha_demands.py` 传播至全部 14 包）。
+
+影响口径：
+- 每车道可观测排队物理上限 ~3 辆，queue 均值/分位、waiting_time 长尾、
+  uninserted 计数、travel_time 绝对值均失真；
+- 结论中"臂间相对比较"仅在同几何内成立，**不可与修复后（280m、车道起点
+  插入）的 v3 指标直接比较**；
+- 台账 `ledger/runs.jsonl` 中全部 xiasha1* campaign 行已加
+  `errata=geometry_truncated_v1v2`；正式对比口径以 `xiasha1_online_v3`
+  为准。

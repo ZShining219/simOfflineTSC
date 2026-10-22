@@ -173,3 +173,19 @@ TT 更高，SAC 约 7.6%，PressLight 约 12%。单场景专训不能保证
    跨场景评估；
 3. 若需要“通用控制器”结论，设计多场景训练 campaign，而不是
    继续增加单场景 seed。
+
+## 勘误（2026-10-22，几何截断缺陷）
+
+本文档全部指标采集自**截断几何**的 xiasha1 路网：进口车道仅 106.4m，
+且路由 `departPos≈80`（车辆自距停车线 ~22-27m 处、以 10m/s 凭空插入——
+源自 `tools/xiasha_sumo/converter.py` 相机视野重建遗留语义，经
+`dev/demand_packs/build_xiasha_demands.py` 传播至全部 14 包）。
+
+影响口径：
+- 每车道可观测排队物理上限 ~3 辆，queue 均值/分位、waiting_time 长尾、
+  uninserted 计数、travel_time 绝对值均失真；
+- 结论中"臂间相对比较"仅在同几何内成立，**不可与修复后（280m、车道起点
+  插入）的 v3 指标直接比较**；
+- 台账 `ledger/runs.jsonl` 中全部 xiasha1* campaign 行已加
+  `errata=geometry_truncated_v1v2`；正式对比口径以 `xiasha1_online_v3`
+  为准。

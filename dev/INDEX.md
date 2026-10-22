@@ -785,6 +785,19 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
   横轴 `training_update`，tag `train|eval|best|train_src/<net>`，
   `--serve` 拉起 tensorboard，输出归 `artifacts/xiasha1_offline_v1/tb/`）。
 
+## 几何修复与 v3（2026-10-22）
+
+- `dev/checks/check_xiasha1_geometry.py`——xiasha1 几何守卫
+  （16 net ×280m + 15 rou 无 departPos + max_distance 动态化断言），
+  防"短车道+视野内插入"截断观测缺陷复发。
+- `dev/xiasha1_online_v3/build_queue.py`——v3 修复重跑队列构建器，
+  产出 `artifacts/xiasha1_online_v3/run_queue.json`（288 tasks，
+  前缀 `xi3re_`，协议与 v2 逐位一致）。
+- `dev/ledger/register_xiasha1_online_v3.py`——v3 台账登记器
+  （288 REGISTERED，config_sha 含 v3 overlay）。
+- 相关文档：`docs/experiments/2026-10-22_xiasha1_online_v3.md`；
+  全部 xiasha1* 台账行已标 `errata=geometry_truncated_v1v2`。
+
 ## 已裁决归档（2026-10-07 Z 裁）
 
 1. `tools/*_matrix*.sh` 10 件矩阵驱动 → 主树 `dev/_legacy/20261007/matrix_drivers/`

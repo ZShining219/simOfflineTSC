@@ -106,13 +106,14 @@ def run(args):
         '-a', args.agent,
         '-n', args.network,
         '--seed', str(args.seed),
-        '--sumo_seed', str(args.sumo_seed),
         '--ngpu', args.ngpu,
         '--interface', 'libsumo',
         '--prefix', args.prefix,
         '--episodes', '1',
         '--experiment-config', str(config_path),
     ]
+    if args.sumo_seed is not None:
+        sys.argv += ['--sumo_seed', str(args.sumo_seed)]
     runpy.run_path(str(ROOT / 'run.py'), run_name='__main__')
 
     run_dir = (ROOT / 'data' / 'output_data' / 'tsc' /
@@ -138,6 +139,9 @@ def run(args):
         'prefix': args.prefix,
         'training_seed': args.seed,
         'sumo_seed': args.sumo_seed,
+        'sumo_seed_mode': (
+            'fixed_default' if args.sumo_seed is None else 'explicit'
+        ),
         'config': str(config_path.resolve()),
         'checkpoint': str(checkpoint),
         'checkpoint_sha256': _sha256(checkpoint),
@@ -170,7 +174,9 @@ def main():
     parser.add_argument('--checkpoint', required=True)
     parser.add_argument('--prefix', required=True)
     parser.add_argument('--seed', type=int, default=0)
-    parser.add_argument('--sumo_seed', type=int, default=0)
+    parser.add_argument('--sumo_seed', type=int, default=None,
+                        help='explicit SUMO seed; omit to keep the SUMO '
+                             'fixed_default seed used by training runs')
     parser.add_argument('--ngpu', default='-1')
     parser.add_argument('--output', default=None)
     run(parser.parse_args())

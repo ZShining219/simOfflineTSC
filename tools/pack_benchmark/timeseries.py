@@ -23,7 +23,7 @@ import matplotlib.pyplot as plt
 from . import __version__
 from .collect import collect_dataset
 from .metrics import METRICS, get_metric
-from .plot import PALETTE, _arm_label, _arm_order, _pack_order, _save, load_dataset
+from .plot import _arm_label, _arm_order, _pack_order, _save, load_dataset
 from .spec import REPO_ROOT, run_dir_for, sha256_file
 
 
@@ -209,6 +209,50 @@ def collect_timeseries(spec, output_dir, reference_dataset, orig_mode="rerun",
         spec, output_dir, orig_mode=orig_mode, sumo_binary=sumo_binary
     )
     replay_validation = _compare_replay(replay_dataset, reference_cells)
+    timeseries_path, rows, step_files = _timeseries_table(
+        replay_dataset, output_dir
+    )
+    manifest = {
+        "schema_version": 1,
+        "tool": {"name": "tools.pack_benchmark", "version": __version__},
+        "benchmark_id": replay_dataset["benchmark_id"],
+        "analysis_id": replay_dataset["analysis_id"],
+        "created_at_utc": utc_now(),
+        "reference_dataset": {
+            "path": str(Path(reference_dataset).resolve().relative_to(REPO_ROOT)),
+            "sha256": sha256_file(reference_dataset),
+        },
+        "replay_dataset": {
+            "path": "benchmark.json",
+            "sha256": sha256_file(output_dir / "benchmark.json"),
+        },
+        "replay_validation": replay_validation,
+        "rows": len(rows),
+        "step_log_files": step_files,
+        "resolution": {
+            "run_dir": "1 s (eval_step_log_interval=1)",
+            "direct_sumo": "10 s (decision samples)",
+        },
+    }
+    (output_dir / "manifests").mkdir(parents=True, exist_ok=True)
+    (output_dir / "manifests" / "timeseries_manifest.json").write_text(
+        json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    (output_dir / "timeseries_manifest.json").write_text(
+        json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    return replay_dataset, timeseries_path, manifest
+
+
+def _timeseries_table(replay_dataset, output_dir):
+    """Assemble timeseries_long.csv from per-cell step logs.
+
+    Shared by collect_timeseries and collect_ckpt_timeseries; returns the
+    CSV path, the row list and the per-cell step-log file map.
+    """
+    output_dir = Path(output_dir)
     loaded_by_pack = {
         pack["pack_id"]: pack.get("loaded") for pack in replay_dataset["packs"]
     }
@@ -289,39 +333,7 @@ def collect_timeseries(spec, output_dir, reference_dataset, orig_mode="rerun",
         writer = csv.DictWriter(handle, fieldnames=TS_FIELDS)
         writer.writeheader()
         writer.writerows(rows)
-    manifests = output_dir / "manifests"
-    manifests.mkdir(parents=True, exist_ok=True)
-    manifest = {
-        "schema_version": 1,
-        "tool": {"name": "tools.pack_benchmark", "version": __version__},
-        "benchmark_id": replay_dataset["benchmark_id"],
-        "analysis_id": replay_dataset["analysis_id"],
-        "created_at_utc": utc_now(),
-        "reference_dataset": {
-            "path": str(Path(reference_dataset).resolve().relative_to(REPO_ROOT)),
-            "sha256": sha256_file(reference_dataset),
-        },
-        "replay_dataset": {
-            "path": "benchmark.json",
-            "sha256": sha256_file(output_dir / "benchmark.json"),
-        },
-        "replay_validation": replay_validation,
-        "rows": len(rows),
-        "step_log_files": step_files,
-        "resolution": {
-            "run_dir": "1 s (eval_step_log_interval=1)",
-            "direct_sumo": "10 s (decision samples)",
-        },
-    }
-    (manifests / "timeseries_manifest.json").write_text(
-        json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
-        encoding="utf-8",
-    )
-    (output_dir / "timeseries_manifest.json").write_text(
-        json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
-        encoding="utf-8",
-    )
-    return replay_dataset, timeseries_path, manifest
+    return timeseries_path, rows, step_files
 
 
 def _read_timeseries(path):
@@ -349,7 +361,14 @@ def plot_timeseries(dataset, output_dir, dpi=160):
     by_cell = _read_timeseries(timeseries_path)
     packs = _pack_order(dataset)
     arms = _arm_order(dataset)
-    colors = {arm: PALETTE[index % len(PALETTE)] for index, arm in enumerate(arms)}
+    roles = {arm["arm_id"]: arm.get("role") for arm in dataset["arms"]}
+    ts_palette = (
+        "#0072B2", "#E69F00", "#009E73", "#CC79A7", "#56B4E9", "#D55E00",
+        "#F0E442", "#8C564B", "#E377C2", "#7F7F7F", "#BCBD22", "#17BECF",
+    )
+    colors = {
+        arm: ts_palette[index % len(ts_palette)] for index, arm in enumerate(arms)
+    }
     figures = []
     for figure_index, (metric_id, label, unit, definition) in enumerate(TS_METRICS, 6):
         fig, axes = plt.subplots(4, 3, figsize=(18, 14), constrained_layout=True)
@@ -368,8 +387,12 @@ def plot_timeseries(dataset, output_dir, dpi=160):
                 valid = np.isfinite(times) & np.isfinite(values)
                 if not valid.any():
                     continue
+                reference = roles.get(arm) == "reference"
                 axis.plot(
-                    times[valid], values[valid], linewidth=1.1,
+                    times[valid], values[valid],
+                    linewidth=0.9 if reference else 1.1,
+                    linestyle="--" if reference else "-",
+                    alpha=0.85 if reference else 1.0,
                     color=colors[arm], label=_arm_label(dataset, arm),
                 )
             axis.set_title(pack, fontsize=9)

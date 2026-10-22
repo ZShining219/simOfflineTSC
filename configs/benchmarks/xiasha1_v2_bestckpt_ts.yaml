@@ -1,0 +1,121 @@
+# Within-episode timeseries for xiasha1_online_v2 best checkpoints.
+# Each learned arm evaluates the representative-seed best checkpoint on its own
+# training pack (one frozen 3600 s episode, eval_step_log_interval=1, SUMO
+# fixed_default seed).  Rule-controller arms reuse the existing xi1ts_* replay
+# run dirs as in-scenario references; orig_prog is the native program curve.
+schema_version: 1
+benchmark_id: xiasha1_v2_bestckpt_ts_v1
+horizon_s: 3600
+decision_interval_s: 10
+seed: 0
+episode: 1
+
+pack_manifest: data/raw_data/xiasha1_demand_packs.json
+pack_dir_template: data/raw_data/{dir}
+
+in_edges: [E2J, N2J, S2J, W2J]
+out_edges: [J2E, J2N, J2S, J2W]
+
+# Checkpoint-eval source: for every (v2_arm, pack) cell the representative
+# training seed is the one whose evaluation/summary.json best_travel_time is
+# smallest; its best_checkpoint is replayed here.  The eval runs pass
+# --seed 0 (eval-time seed has no behavioral effect on a frozen greedy
+# rollout); the source training seed is recorded in the queue tasks.
+ckpt_eval:
+  v2_queue: artifacts/xiasha1_online_v2/run_queue.json
+  queue: artifacts/xiasha1_v2_bestckpt_ts/run_queue.json
+  run_prefix: xi2ts
+  rep_seed_rule: min_best_travel_time
+  sumo_seed_mode: fixed_default
+
+arms:
+  - id: orig_prog
+    kind: direct_sumo
+    role: reference
+    label: "orig (native 128s program)"
+  - id: fixedtime
+    kind: run_dir
+    role: reference
+    label: "fixedtime (t_fixed=30, legacy timing)"
+    agent: fixedtime
+    run_dir_template: data/output_data/tsc/sumo_fixedtime/xiasha1_{pack}/xi1ts_ft_{pack}
+    expected_control_semantics: legacy_pseudo_step
+  - id: sotl
+    kind: run_dir
+    role: reference
+    label: "sotl (t_min=5, legacy timing)"
+    agent: sotl
+    run_dir_template: data/output_data/tsc/sumo_sotl/xiasha1_{pack}/xi1ts_sotl_{pack}
+    expected_control_semantics: legacy_pseudo_step
+  - id: maxpressure
+    kind: run_dir
+    role: reference
+    label: "maxpressure (t_min=10, legacy timing)"
+    agent: maxpressure
+    run_dir_template: data/output_data/tsc/sumo_maxpressure/xiasha1_{pack}/xi1ts_mp_{pack}
+    expected_control_semantics: legacy_pseudo_step
+
+  - id: dqn
+    kind: run_dir
+    label: "dqn (best ckpt, frozen)"
+    agent: dqn
+    v2_arm: dqn
+    eval_overlay: configs/tsc/eval_baseline_checkpoint_ts.yml
+    run_dir_template: data/output_data/tsc/sumo_dqn/xiasha1_{pack}/xi2ts_dqn_{pack}
+    expected_control_semantics: legacy_pseudo_step
+  - id: ddqn
+    kind: run_dir
+    label: "ddqn (best ckpt, frozen)"
+    agent: dqn
+    v2_arm: ddqn
+    eval_overlay: configs/tsc/eval_baseline_checkpoint_ts_ddqn.yml
+    run_dir_template: data/output_data/tsc/sumo_dqn/xiasha1_{pack}/xi2ts_ddqn_{pack}
+    expected_control_semantics: legacy_pseudo_step
+  - id: dueling
+    kind: run_dir
+    label: "dueling (best ckpt, frozen)"
+    agent: dqn
+    v2_arm: dueling
+    eval_overlay: configs/tsc/eval_baseline_checkpoint_ts_dueling.yml
+    run_dir_template: data/output_data/tsc/sumo_dqn/xiasha1_{pack}/xi2ts_dueling_{pack}
+    expected_control_semantics: legacy_pseudo_step
+  - id: d3qn
+    kind: run_dir
+    label: "d3qn (best ckpt, frozen)"
+    agent: dqn
+    v2_arm: d3qn
+    eval_overlay: configs/tsc/eval_baseline_checkpoint_ts_d3qn.yml
+    run_dir_template: data/output_data/tsc/sumo_dqn/xiasha1_{pack}/xi2ts_d3qn_{pack}
+    expected_control_semantics: legacy_pseudo_step
+  - id: presslight
+    kind: run_dir
+    label: "presslight (best ckpt, frozen)"
+    agent: presslight
+    v2_arm: presslight
+    eval_overlay: configs/tsc/eval_baseline_checkpoint_ts.yml
+    run_dir_template: data/output_data/tsc/sumo_presslight/xiasha1_{pack}/xi2ts_presslight_{pack}
+    expected_control_semantics: legacy_pseudo_step
+  - id: frap
+    kind: run_dir
+    label: "frap (best ckpt, frozen)"
+    agent: frap
+    v2_arm: frap
+    eval_overlay: configs/tsc/eval_baseline_checkpoint_ts.yml
+    run_dir_template: data/output_data/tsc/sumo_frap/xiasha1_{pack}/xi2ts_frap_{pack}
+    expected_control_semantics: legacy_pseudo_step
+  - id: mplight
+    kind: run_dir
+    label: "mplight (best ckpt, frozen)"
+    agent: mplight
+    v2_arm: mplight
+    eval_overlay: configs/tsc/eval_baseline_checkpoint_ts.yml
+    run_dir_template: data/output_data/tsc/sumo_mplight/xiasha1_{pack}/xi2ts_mplight_{pack}
+    expected_control_semantics: legacy_pseudo_step
+  - id: sac
+    kind: run_dir
+    label: "sac (best ckpt, frozen)"
+    agent: sac
+    v2_arm: sac
+    eval_overlay: configs/tsc/eval_baseline_checkpoint_ts.yml
+    run_dir_template: data/output_data/tsc/sumo_sac/xiasha1_{pack}/xi2ts_sac_{pack}
+    expected_control_semantics: legacy_pseudo_step

@@ -1,0 +1,26 @@
+# Evaluation-only overlay for tools/eval_baseline_checkpoint.py with
+# within-episode step logging (evaluation/steps_ep0001.jsonl).
+# Legacy Intersection.pseudo_step semantics, same as eval_baseline_checkpoint.yml;
+# only eval_step_log / eval_step_log_interval are added.
+model:
+  train_model: false
+  test_model: true
+  load_model: false
+
+trainer:
+  episodes: 1
+  steps: 3600
+  test_steps: 3600
+  action_interval: 10
+  learning_start: -1
+  test_when_train: false
+  evaluation_episodes: [0, 1]
+  resumable_checkpoint_episodes: [0, 1]
+  eval_step_log: true
+  eval_step_log_interval: 1
+
+logger:
+  save_model: false
+
+world:
+  saveReplay: false

@@ -1,0 +1,27 @@
+# Evaluation-only overlay for D3QN checkpoints with within-episode step
+# logging.  Same protocol as eval_baseline_checkpoint_ts.yml, plus the model
+# flags needed to rebuild DuelingDQNNet and double-DQN target mode.
+model:
+  train_model: false
+  test_model: true
+  load_model: false
+  double_dqn: true
+  dueling: true
+
+trainer:
+  episodes: 1
+  steps: 3600
+  test_steps: 3600
+  action_interval: 10
+  learning_start: -1
+  test_when_train: false
+  evaluation_episodes: [0, 1]
+  resumable_checkpoint_episodes: [0, 1]
+  eval_step_log: true
+  eval_step_log_interval: 1
+
+logger:
+  save_model: false
+
+world:
+  saveReplay: false

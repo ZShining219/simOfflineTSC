@@ -452,6 +452,7 @@ def collect_dataset(spec, output_dir, orig_mode="rerun", allow_partial=False,
                 "label": arm.get("label") or arm["id"],
                 "agent": arm.get("agent"),
                 "expected_control_semantics": arm.get("expected_control_semantics"),
+                "role": arm.get("role"),
             }
             for arm in arms
         ],

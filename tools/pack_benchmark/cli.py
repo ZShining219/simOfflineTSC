@@ -5,6 +5,7 @@ import sys
 from pathlib import Path
 
 from . import __version__
+from .ckpt_eval_ts import collect_ckpt_timeseries, write_ckpt_ts_queue
 from .collect import collect_dataset
 from .plot import load_dataset, plot_dataset
 from .report import validate_dataset, write_manifest, write_validation
@@ -129,6 +130,31 @@ def cmd_timeseries_plot(args):
     return 0
 
 
+def cmd_ckpt_ts_queue(args):
+    spec = load_benchmark_spec(args.spec)
+    path = write_ckpt_ts_queue(spec, args.queue)
+    print(f"wrote checkpoint-eval queue: {path}")
+    return 0
+
+
+def cmd_ckpt_ts_collect(args):
+    spec = load_benchmark_spec(args.spec)
+    output_dir = _analysis_dir(args)
+    dataset, timeseries_path, manifest = collect_ckpt_timeseries(
+        spec, output_dir, args.queue,
+        orig_mode=args.orig_mode, sumo_binary=args.sumo_binary,
+    )
+    validation = manifest["frozen_replay_validation"]
+    print(
+        f"timeseries: {manifest['rows']} rows -> {timeseries_path}; "
+        f"frozen replay validation checked {validation['checked_values']} "
+        f"values, {validation['mismatch_count']} mismatches"
+    )
+    for mismatch in validation["mismatches"]:
+        print(f"MISMATCH: {mismatch}")
+    return 0 if validation["mismatch_count"] == 0 else 1
+
+
 def build_parser():
     parser = argparse.ArgumentParser(
         description="Record and plot a pack x controller benchmark with fixed metric ids."
@@ -202,6 +228,29 @@ def build_parser():
     )
     common(ts_plot)
     ts_plot.set_defaults(func=cmd_timeseries_plot)
+
+    ckpt_queue = subparsers.add_parser(
+        "ckpt-ts-queue",
+        help="Write a frozen best-checkpoint replay queue with step logging.",
+    )
+    ckpt_queue.add_argument("--spec", required=True)
+    ckpt_queue.add_argument("--queue", required=True)
+    ckpt_queue.set_defaults(func=cmd_ckpt_ts_queue)
+
+    ckpt_collect = subparsers.add_parser(
+        "ckpt-ts-collect",
+        help="Collect frozen-checkpoint step logs and validate them against "
+             "the source training run's best-episode evaluation records.",
+    )
+    ckpt_collect.add_argument("--spec", required=True)
+    ckpt_collect.add_argument("--queue", required=True,
+                              help="The dispatch queue json (source of ckpt provenance).")
+    ckpt_collect.add_argument(
+        "--orig-mode", choices=("rerun", "reuse"), default="rerun"
+    )
+    ckpt_collect.add_argument("--sumo-binary", default=None)
+    common(ckpt_collect)
+    ckpt_collect.set_defaults(func=cmd_ckpt_ts_collect)
     return parser
 
 

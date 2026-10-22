@@ -228,6 +228,7 @@ def _validate_shard_semantics(path, entry, source, action_dim):
         'transition_count': count,
         'first_global_step': int(entry['first_global_step']),
         'last_global_step': int(entry['last_global_step']),
+        'state_width': int(state.reshape(len(state), -1).shape[1]),
     }
 
 
@@ -248,7 +249,8 @@ def _verify_config_archive(run_path):
 
 
 def _validate_source_run(
-    run_path, network, behavior_seed, expected_episodes, require_plan1_formal=True,
+    run_path, network, behavior_seed, expected_episodes,
+    require_plan1_formal=True, allowed_agents=('dqn',), arm=None,
 ):
     run_path = os.path.abspath(run_path)
     manifest = _read_json(os.path.join(run_path, 'run_manifest.json'))
@@ -259,12 +261,16 @@ def _validate_source_run(
 
     if status.get('status') != '已完成' or status.get('exit_code') != 0:
         raise ValueError(f'{run_path}: source run is not completed successfully')
+    if manifest.get('task') != 'tsc' or manifest.get('world') != 'sumo':
+        raise ValueError(f'{run_path}: source is not a TSC SUMO run')
     if (
-        manifest.get('task') != 'tsc'
-        or manifest.get('world') != 'sumo'
-        or manifest.get('agent') != 'dqn'
+        allowed_agents is not None
+        and manifest.get('agent') not in set(allowed_agents)
     ):
-        raise ValueError(f'{run_path}: source is not a TSC DQN run')
+        raise ValueError(
+            f'{run_path}: source agent {manifest.get("agent")!r} is not in '
+            f'the approved set {sorted(allowed_agents)}'
+        )
     if (
         require_plan1_formal
         and not str(manifest.get('prefix', '')).startswith('p1_formal_')
@@ -328,6 +334,7 @@ def _validate_source_run(
         'run_id': manifest['run_id'],
         'network': network,
         'behavior_training_seed': behavior_seed,
+        'arm': arm,
         'config_hash': manifest['config_hash'],
         'action_dim': trajectory_manifest['action_dim'],
         'expected_decisions_per_episode': expected_per_episode,
@@ -343,16 +350,139 @@ def read_plan2_run_list(path):
     required = {'run_path', 'network', 'behavior_training_seed'}
     if not rows or not required.issubset(rows[0]):
         raise ValueError(f'run-list must contain columns {sorted(required)}')
+    arm_supported = 'arm' in rows[0]
     normalized = []
     for row in rows:
         if not os.path.isabs(row['run_path']):
             raise ValueError('Plan 2 run-list run_path values must be absolute paths')
-        normalized.append({
+        normalized_row = {
             'run_path': os.path.abspath(row['run_path']),
             'network': row['network'],
             'behavior_training_seed': int(row['behavior_training_seed']),
-        })
+        }
+        if arm_supported:
+            arm = (row.get('arm') or '').strip()
+            if not re.fullmatch(r'[A-Za-z0-9._-]+', arm):
+                raise ValueError('run-list arm column must be a non-empty identifier')
+            normalized_row['arm'] = arm
+        normalized.append(normalized_row)
     return normalized
+
+
+def _spec_selected_entries(indexed_entries, spec):
+    source_networks = set(spec['source_networks'])
+    source_arms = (
+        None if spec.get('source_arms') is None else set(spec['source_arms'])
+    )
+    source_cells = (
+        None if spec.get('source_cells') is None
+        else {
+            (cell['network'], cell.get('arm')) for cell in spec['source_cells']
+        }
+    )
+    behavior_seeds = (
+        None if spec.get('behavior_training_seeds') is None
+        else set(int(seed) for seed in spec['behavior_training_seeds'])
+    )
+    lo, hi = (int(v) for v in spec['episode_range'])
+    selected = []
+    for entry in indexed_entries:
+        if entry['network'] not in source_networks:
+            continue
+        if source_arms is not None and entry.get('arm') not in source_arms:
+            continue
+        if source_cells is not None and (
+            entry['network'], entry.get('arm')
+        ) not in source_cells:
+            continue
+        if (
+            behavior_seeds is not None
+            and entry['behavior_training_seed'] not in behavior_seeds
+        ):
+            continue
+        if not (lo <= int(entry['episode_id']) <= hi):
+            continue
+        selected.append(entry)
+    return selected
+
+
+def _emit_spec_manifest(
+    spec, dataset_root, source_index_path, indexed_entries,
+    scene_semantics_by_network, dataset_id, source_root, source_root_id,
+    action_dim, per_episode, semantic_fields,
+):
+    name = spec['name']
+    segments = name.split('/')
+    if any(
+        not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._-]*', segment)
+        for segment in segments
+    ):
+        raise ValueError(f'dataset spec name contains unsupported characters: {name!r}')
+    kind = spec['dataset_kind']
+    if kind not in {'single_scene', 'leave_one_out', 'multi_scene'}:
+        raise ValueError(f'{name}: unsupported dataset_kind {kind!r}')
+    source_networks = list(spec['source_networks'])
+    if not source_networks:
+        raise ValueError(f'{name}: source_networks must be non-empty')
+    evaluation_network = spec['evaluation_network']
+    if kind == 'leave_one_out' and evaluation_network in source_networks:
+        raise ValueError(f'{name}: leave_one_out spec must exclude the target network')
+    if kind == 'single_scene' and len(source_networks) != 1:
+        raise ValueError(f'{name}: single_scene spec requires exactly one source network')
+    if kind == 'multi_scene' and len(source_networks) < 2:
+        raise ValueError(f'{name}: multi_scene spec requires at least two source networks')
+    sampling = spec['sampling_strategy']
+    if len(source_networks) > 1 and sampling != 'scene_balanced_batch':
+        raise ValueError(
+            f'{name}: multi-network datasets require scene_balanced_batch sampling'
+        )
+    selected = _spec_selected_entries(indexed_entries, spec)
+    if not selected:
+        raise ValueError(f'{name}: dataset spec selects zero source entries')
+    path = os.path.join(dataset_root, 'datasets', name, 'manifest.json')
+    payload = {
+        'schema_version': OFFLINE_DATASET_SCHEMA_VERSION,
+        'dataset_builder_version': OFFLINE_DATASET_BUILDER_VERSION,
+        'feature_schema_version': FEATURE_SCHEMA_VERSION,
+        'trajectory_schema_version': TRAJECTORY_SCHEMA_VERSION,
+        'created_by_commit': _git_commit(),
+        'dataset_id': dataset_id,
+        'dataset_kind': kind,
+        'dataset_stage': spec.get('stage', 'full'),
+        'evaluation_network': evaluation_network,
+        'source_networks': source_networks,
+        'behavior_training_seeds': sorted({
+            entry['behavior_training_seed'] for entry in selected
+        }),
+        'episode_range': [int(v) for v in spec['episode_range']],
+        'sampling_strategy': sampling,
+        'source_index': os.path.relpath(source_index_path, os.path.dirname(path)),
+        'source_index_sha256': _sha256(source_index_path),
+        'source_root_id': source_root_id,
+        'original_source_root': source_root,
+        'action_dim': action_dim,
+        'expected_decisions_per_episode': per_episode,
+        'expected_transition_count': sum(
+            int(entry['transition_count']) for entry in selected
+        ),
+        'transition_unique_key': [
+            'run_id', 'shard_sha256', 'episode_id', 'decision_step'
+        ],
+        'scene_semantics': {
+            network: scene_semantics_by_network[network]
+            for network in source_networks
+        },
+        'semantic_compatibility_fields': list(semantic_fields),
+    }
+    if spec.get('source_arms') is not None:
+        payload['source_arms'] = sorted(spec['source_arms'])
+    if spec.get('source_cells') is not None:
+        payload['source_cells'] = [
+            {'network': cell['network'], 'arm': cell.get('arm')}
+            for cell in spec['source_cells']
+        ]
+    _atomic_json(path, payload)
+    return path
 
 
 def prepare_plan2_datasets(
@@ -365,6 +495,10 @@ def prepare_plan2_datasets(
     stages=PLAN2_STAGES,
     source_root=None,
     source_root_id=DEFAULT_SOURCE_ROOT_ID,
+    require_plan1_formal=True,
+    allowed_agents=('dqn',),
+    relaxed_compatibility=False,
+    dataset_specs=None,
 ):
     if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._-]*', dataset_id):
         raise ValueError('dataset_id contains unsupported characters')
@@ -375,6 +509,7 @@ def prepare_plan2_datasets(
     if os.path.exists(dataset_root):
         raise FileExistsError(f'Offline dataset id already exists: {dataset_root}')
     rows = read_plan2_run_list(run_list_path)
+    has_arm = 'arm' in rows[0]
     canonical_runs = [os.path.realpath(row['run_path']) for row in rows]
     if len(canonical_runs) != len(set(canonical_runs)):
         raise ValueError('run-list contains duplicate or symlink-equivalent run paths')
@@ -383,29 +518,47 @@ def prepare_plan2_datasets(
     )
     if not os.path.isdir(source_root):
         raise ValueError(f'Offline source root does not exist: {source_root}')
-    expected_pairs = {
-        (network, seed)
-        for network in expected_networks
-        for seed in expected_behavior_seeds
-    }
-    actual_pairs = [(row['network'], row['behavior_training_seed']) for row in rows]
-    if len(actual_pairs) != len(set(actual_pairs)):
-        raise ValueError('run-list contains duplicate network/behavior seed pairs')
-    if set(actual_pairs) != expected_pairs:
-        missing = sorted(expected_pairs - set(actual_pairs))
-        extra = sorted(set(actual_pairs) - expected_pairs)
-        raise ValueError(f'run-list matrix mismatch; missing={missing}, extra={extra}')
+    pair_keys = [
+        (row.get('arm'), row['network'], row['behavior_training_seed'])
+        for row in rows
+    ]
+    if len(pair_keys) != len(set(pair_keys)):
+        raise ValueError('run-list contains duplicate arm/network/behavior seed pairs')
+    if dataset_specs is None:
+        expected_pairs = {
+            (network, seed)
+            for network in expected_networks
+            for seed in expected_behavior_seeds
+        }
+        actual_pairs = [
+            (row['network'], row['behavior_training_seed']) for row in rows
+        ]
+        if set(actual_pairs) != expected_pairs:
+            missing = sorted(expected_pairs - set(actual_pairs))
+            extra = sorted(set(actual_pairs) - expected_pairs)
+            raise ValueError(f'run-list matrix mismatch; missing={missing}, extra={extra}')
 
     sources = [
         _validate_source_run(
             row['run_path'], row['network'], row['behavior_training_seed'],
             expected_episodes,
+            require_plan1_formal=require_plan1_formal,
+            allowed_agents=allowed_agents,
+            arm=row.get('arm'),
         )
         for row in rows
     ]
-    comparison = compare_runs([source['run_path'] for source in sources])
-    if not comparison['compatible']:
-        raise ValueError(f'Plan 1 source runs are not configuration-compatible: {comparison}')
+    if relaxed_compatibility:
+        comparison = {
+            'mode': 'relaxed',
+            'compatible': True,
+            'note': 'compare_runs skipped; identity enforced via scene semantic '
+                    'hashes, action_dim, decision count and state width',
+        }
+    else:
+        comparison = compare_runs([source['run_path'] for source in sources])
+        if not comparison['compatible']:
+            raise ValueError(f'Plan 1 source runs are not configuration-compatible: {comparison}')
     action_dims = {source['action_dim'] for source in sources}
     decisions = {source['expected_decisions_per_episode'] for source in sources}
     if len(action_dims) != 1 or len(decisions) != 1:
@@ -425,10 +578,16 @@ def prepare_plan2_datasets(
     seen_run_episodes = set()
     seen_canonical_shards = set()
     seen_shard_hashes = set()
+    seen_state_widths = set()
     raw_transition_count = 0
+    indexed_entries = []
     with open(source_index_path, 'x', encoding='utf-8') as handle:
         for source in sorted(
-            sources, key=lambda item: (item['network'], item['behavior_training_seed'])
+            sources,
+            key=lambda item: (
+                item.get('arm') or '', item['network'],
+                item['behavior_training_seed'],
+            ),
         ):
             for entry in source['entries']:
                 shard_path = os.path.abspath(
@@ -454,6 +613,7 @@ def prepare_plan2_datasets(
                 seen_run_episodes.add(logical_key)
                 seen_canonical_shards.add(canonical_shard)
                 seen_shard_hashes.add(entry['sha256'])
+                seen_state_widths.add(semantic_validation['state_width'])
                 raw_transition_count += entry['transition_count']
                 indexed = {
                     'schema_version': OFFLINE_DATASET_SCHEMA_VERSION,
@@ -469,102 +629,104 @@ def prepare_plan2_datasets(
                     'sha256': entry['sha256'],
                     'semantic_validation': semantic_validation,
                 }
+                if source.get('arm') is not None:
+                    indexed['arm'] = source['arm']
+                indexed_entries.append(indexed)
                 handle.write(json.dumps(indexed, sort_keys=True) + '\n')
         handle.flush()
         os.fsync(handle.fileno())
+    if len(seen_state_widths) != 1:
+        raise ValueError(
+            f'Source shards have incompatible state widths: {sorted(seen_state_widths)}'
+        )
 
     copied_run_list = os.path.join(dataset_root, 'source_runs.csv')
+    fieldnames = ['run_path', 'network', 'behavior_training_seed'] + (
+        ['arm'] if has_arm else []
+    )
     with open(copied_run_list, 'x', newline='', encoding='utf-8') as handle:
-        writer = csv.DictWriter(
-            handle, fieldnames=['run_path', 'network', 'behavior_training_seed']
-        )
+        writer = csv.DictWriter(handle, fieldnames=fieldnames)
         writer.writeheader()
-        writer.writerows(sorted(rows, key=lambda item: (item['network'], item['behavior_training_seed'])))
+        writer.writerows(sorted(
+            rows,
+            key=lambda item: (
+                item.get('arm') or '', item['network'],
+                item['behavior_training_seed'],
+            ),
+        ))
 
     dataset_manifests = []
     per_episode = next(iter(decisions))
     scene_semantics = {
         source['network']: source['scene_semantics'] for source in sources
-        if source['behavior_training_seed'] == expected_behavior_seeds[0]
     }
-    for network in expected_networks:
-        for stage, episode_range in stages.items():
-            path = os.path.join(dataset_root, 'datasets', network, stage, 'manifest.json')
-            payload = {
-                'schema_version': OFFLINE_DATASET_SCHEMA_VERSION,
-                'dataset_builder_version': OFFLINE_DATASET_BUILDER_VERSION,
-                'feature_schema_version': FEATURE_SCHEMA_VERSION,
-                'trajectory_schema_version': TRAJECTORY_SCHEMA_VERSION,
-                'created_by_commit': _git_commit(),
-                'dataset_id': dataset_id,
-                'dataset_kind': 'single_scene',
-                'dataset_stage': stage,
-                'evaluation_network': network,
-                'source_networks': [network],
-                'behavior_training_seeds': list(expected_behavior_seeds),
-                'episode_range': list(episode_range),
-                'sampling_strategy': 'uniform_transition',
-                'source_index': os.path.relpath(source_index_path, os.path.dirname(path)),
-                'source_index_sha256': _sha256(source_index_path),
-                'source_root_id': source_root_id,
-                'original_source_root': source_root,
-                'action_dim': next(iter(action_dims)),
-                'expected_decisions_per_episode': per_episode,
-                'expected_transition_count': (
-                    len(expected_behavior_seeds)
-                    * (episode_range[1] - episode_range[0] + 1)
-                    * per_episode
-                ),
-                'transition_unique_key': [
-                    'run_id', 'shard_sha256', 'episode_id', 'decision_step'
-                ],
-                'scene_semantics': {network: scene_semantics[network]},
-                'semantic_compatibility_fields': list(semantic_fields),
-            }
-            _atomic_json(path, payload)
-            dataset_manifests.append(path)
-
-    for target in expected_networks:
-        source_networks = [network for network in expected_networks if network != target]
-        path = os.path.join(
-            dataset_root, 'datasets', 'leave_one_out', target, 'manifest.json'
-        )
-        payload = {
-            'schema_version': OFFLINE_DATASET_SCHEMA_VERSION,
-            'dataset_builder_version': OFFLINE_DATASET_BUILDER_VERSION,
-            'feature_schema_version': FEATURE_SCHEMA_VERSION,
-            'trajectory_schema_version': TRAJECTORY_SCHEMA_VERSION,
-            'created_by_commit': _git_commit(),
-            'dataset_id': dataset_id,
-            'dataset_kind': 'leave_one_out',
-            'dataset_stage': 'full',
-            'evaluation_network': target,
-            'source_networks': source_networks,
-            'behavior_training_seeds': list(expected_behavior_seeds),
-            'episode_range': [1, expected_episodes],
-            'sampling_strategy': 'scene_balanced_batch',
-            'source_index': os.path.relpath(source_index_path, os.path.dirname(path)),
-            'source_index_sha256': _sha256(source_index_path),
-            'source_root_id': source_root_id,
-            'original_source_root': source_root,
-            'action_dim': next(iter(action_dims)),
-            'expected_decisions_per_episode': per_episode,
-            'expected_transition_count': (
-                len(source_networks)
-                * len(expected_behavior_seeds)
-                * expected_episodes
-                * per_episode
-            ),
-            'transition_unique_key': [
-                'run_id', 'shard_sha256', 'episode_id', 'decision_step'
-            ],
-            'scene_semantics': {
-                network: scene_semantics[network] for network in source_networks
-            },
-            'semantic_compatibility_fields': list(semantic_fields),
+    if dataset_specs is not None:
+        spec_names = [spec['name'] for spec in dataset_specs]
+        if len(spec_names) != len(set(spec_names)):
+            raise ValueError('dataset spec names must be unique')
+        known_arms = {source['arm'] for source in sources if source.get('arm')}
+        known_networks = {source['network'] for source in sources}
+        for spec in dataset_specs:
+            unknown_networks = set(spec['source_networks']) - known_networks
+            if unknown_networks:
+                raise ValueError(
+                    f'{spec["name"]}: source networks absent from run-list: '
+                    f'{sorted(unknown_networks)}'
+                )
+            if spec.get('source_arms') is not None and set(
+                spec['source_arms']
+            ) - known_arms:
+                raise ValueError(
+                    f'{spec["name"]}: source arms absent from run-list: '
+                    f'{sorted(set(spec["source_arms"]) - known_arms)}'
+                )
+            dataset_manifests.append(_emit_spec_manifest(
+                spec, dataset_root, source_index_path, indexed_entries,
+                scene_semantics, dataset_id, source_root, source_root_id,
+                next(iter(action_dims)), per_episode, semantic_fields,
+            ))
+    else:
+        scene_semantics = {
+            source['network']: source['scene_semantics'] for source in sources
+            if source['behavior_training_seed'] == expected_behavior_seeds[0]
         }
-        _atomic_json(path, payload)
-        dataset_manifests.append(path)
+        for network in expected_networks:
+            for stage, episode_range in stages.items():
+                dataset_manifests.append(_emit_spec_manifest(
+                    {
+                        'name': os.path.join(network, stage),
+                        'dataset_kind': 'single_scene',
+                        'stage': stage,
+                        'evaluation_network': network,
+                        'source_networks': [network],
+                        'behavior_training_seeds': None,
+                        'episode_range': list(episode_range),
+                        'sampling_strategy': 'uniform_transition',
+                    },
+                    dataset_root, source_index_path, indexed_entries,
+                    scene_semantics, dataset_id, source_root, source_root_id,
+                    next(iter(action_dims)), per_episode, semantic_fields,
+                ))
+
+        for target in expected_networks:
+            source_networks = [
+                network for network in expected_networks if network != target
+            ]
+            dataset_manifests.append(_emit_spec_manifest(
+                {
+                    'name': os.path.join('leave_one_out', target),
+                    'dataset_kind': 'leave_one_out',
+                    'stage': 'full',
+                    'evaluation_network': target,
+                    'source_networks': source_networks,
+                    'behavior_training_seeds': None,
+                    'episode_range': [1, expected_episodes],
+                    'sampling_strategy': 'scene_balanced_batch',
+                },
+                dataset_root, source_index_path, indexed_entries,
+                scene_semantics, dataset_id, source_root, source_root_id,
+                next(iter(action_dims)), per_episode, semantic_fields,
+            ))
 
     root_manifest = {
         'schema_version': OFFLINE_DATASET_SCHEMA_VERSION,
@@ -579,8 +741,19 @@ def prepare_plan2_datasets(
         'source_index_sha256': _sha256(source_index_path),
         'source_root_id': source_root_id,
         'original_source_root': source_root,
-        'networks': list(expected_networks),
-        'behavior_training_seeds': list(expected_behavior_seeds),
+        'networks': (
+            list(expected_networks) if dataset_specs is None else sorted(
+                {source['network'] for source in sources}
+            )
+        ),
+        'arms': sorted({
+            source['arm'] for source in sources if source.get('arm')
+        }),
+        'behavior_training_seeds': (
+            list(expected_behavior_seeds) if dataset_specs is None else sorted(
+                {source['behavior_training_seed'] for source in sources}
+            )
+        ),
         'episode_count_per_run': expected_episodes,
         'expected_decisions_per_episode': per_episode,
         'action_dim': next(iter(action_dims)),
@@ -659,6 +832,17 @@ def _load_source_entries(manifest_path, verify_hashes=True, source_root=None):
                 raise ValueError('Offline source index schema version mismatch')
             if entry['network'] not in manifest['source_networks']:
                 continue
+            if manifest.get('source_arms') is not None and entry.get(
+                'arm'
+            ) not in manifest['source_arms']:
+                continue
+            if manifest.get('source_cells') is not None:
+                cell_keys = {
+                    (cell['network'], cell.get('arm'))
+                    for cell in manifest['source_cells']
+                }
+                if (entry['network'], entry.get('arm')) not in cell_keys:
+                    continue
             if entry['behavior_training_seed'] not in manifest['behavior_training_seeds']:
                 continue
             if not manifest['episode_range'][0] <= entry['episode_id'] <= manifest['episode_range'][1]:

@@ -764,6 +764,26 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
   tensorboard.main 子进程；纯只读、幂等增量、可随时停起，输出归
   `artifacts/xiasha1_online_v1/tb/`（不入库）。不投影 reward 跨臂比较
   以外的语义判断；监控异常判读仍由人工盯守完成。
+- `dev/xiasha1_offline/`：xiasha1_offline_v1 异构历史经验离线矩阵
+  （E0–E5，campaign 绑定构建件）——`build_datasets.py` 扫描
+  `xi2on_<arm>_<pack>_s<seed>` 已完成源 run（27 个：A=asym_ns×{d3qn,
+  sac,frap,mplight}、B=dense_extreme×{d3qn,frap}、C=fluct_burst×{d3qn}、
+  D=asym_nonly×{d3qn,mplight}，各 s0–s2），产出
+  `artifacts/xiasha1_offline_v1/source_run_list.csv`（含 arm 列）+
+  `dataset_specs.json`（7 实验×3 池复本=21 spec）并调
+  `sequential.offline prepare-plan2` 建只读索引
+  `data/output_data/offline_datasets/xiasha1/v1_hetero`
+  （`--no-plan1-formal --allowed-agents dqn,sac,frap,mplight
+  --relaxed-compatibility`）；`build_queue.py` 产
+  `run_queue.json`（126 任务：7 spec×3 复本×{batch_dqn,cql_dqn}×
+  离线 seeds 1000–1002，144k updates + xiasha1_v1.yml 81 评估节点
+  overlay + `--backend native`）；登记件
+  `dev/ledger/register_xiasha1_offline_v1.py`（幂等 REGISTERED 行，
+  condition=dataset_spec 名、behavior_source=v1_hetero/<spec>）；
+  监控件 `project_tb.py`——与 `dev/xiasha1_online_monitor/` 同源的
+  只读 TB 投影器（离线适配：records=`metrics/offline_records.jsonl`、
+  横轴 `training_update`，tag `train|eval|best|train_src/<net>`，
+  `--serve` 拉起 tensorboard，输出归 `artifacts/xiasha1_offline_v1/tb/`）。
 
 ## 已裁决归档（2026-10-07 Z 裁）
 

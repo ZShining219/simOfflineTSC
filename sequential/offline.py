@@ -13,6 +13,7 @@ import re
 import tempfile
 import time
 import subprocess
+import yaml
 from concurrent.futures import ProcessPoolExecutor
 
 from data.dataset.offline_trajectory_dataset import (
@@ -88,6 +89,35 @@ def build_parser():
         '--expected-episodes', type=int, default=400,
         help='Episodes per source run (cross-algorithm history uses 100)',
     )
+    prepare.add_argument(
+        '--expected-networks', default=None,
+        help='Comma-separated expected networks; required together with '
+             '--expected-behavior-seeds to override the Plan 2 matrix',
+    )
+    prepare.add_argument(
+        '--expected-behavior-seeds', default=None,
+        help='Comma-separated expected behavior seeds (with --expected-networks)',
+    )
+    prepare.add_argument(
+        '--allowed-agents', default=None,
+        help='Comma-separated manifest agent allowlist (default: dqn only)',
+    )
+    prepare.add_argument(
+        '--no-plan1-formal', action='store_true',
+        help='Accept source runs without a p1_formal_* prefix',
+    )
+    prepare.add_argument(
+        '--relaxed-compatibility', action='store_true',
+        help='Skip full-config compare_runs; keep semantic hash + dimension '
+             'checks for approved heterogeneous mixtures',
+    )
+    prepare.add_argument(
+        '--dataset-specs', default=None,
+        help='JSON file with explicit dataset specs '
+             '[{name,dataset_kind,evaluation_network,source_networks,'
+             'source_arms?,behavior_training_seeds?,episode_range,'
+             'sampling_strategy,stage?}]; replaces the Plan 2 stage matrix',
+    )
 
     validate = subparsers.add_parser(
         'validate-dataset', help='Verify a generated offline dataset manifest and shards'
@@ -135,6 +165,11 @@ def build_parser():
         '--total-updates', type=int, default=None,
         help='Override 144000 only for development smoke tests',
     )
+    train.add_argument(
+        '--experiment-config', default=None,
+        help='Optional YAML overlay merged into the offline config '
+             '(e.g. evaluation node schedule for a research matrix)',
+    )
     train.add_argument('--log-interval', type=int, default=None)
     train.add_argument('--evaluation-timeout-seconds', type=int, default=None)
     train.add_argument('--evaluation-retries', type=int, default=None)
@@ -157,8 +192,8 @@ class OfflineRunner:
         from common.registry import Registry
         from utils.logger import (
             RunStateManager, archive_run_config, archive_runtime_model,
-            build_config, capture_config_sources, reserve_run_output,
-            setup_logging, verify_config_archive,
+            build_config, capture_config_sources, merge_dicts,
+            reserve_run_output, setup_logging, verify_config_archive,
         )
 
         self.Registry = Registry
@@ -169,6 +204,13 @@ class OfflineRunner:
         self.verify_config_archive = verify_config_archive
         self.args = args
         self.config, self.duplicate_config = build_config(args)
+        if args.experiment_config:
+            with open(args.experiment_config, encoding='utf-8') as handle:
+                overlay = yaml.safe_load(handle) or {}
+            self.config, overlay_duplicates = merge_dicts(
+                self.config, overlay
+            )
+            self.duplicate_config.update(overlay_duplicates)
         command = self.config['command']
         command['model_seed'] = args.seed if args.model_seed is None else args.model_seed
         command['dataset_sampler_seed'] = (
@@ -200,6 +242,9 @@ class OfflineRunner:
                 raise ValueError('--evaluation-retries must be non-negative')
             self.config['trainer']['evaluation_retries'] = args.evaluation_retries
         self.config_sources = capture_config_sources(self.config)
+        if args.experiment_config:
+            with open(args.experiment_config, 'rb') as handle:
+                self.config_sources['experiment_overlay.yml'] = handle.read()
         self.output_path = reserve_run_output(self.config)
         self.run_state = None
         try:
@@ -298,10 +343,30 @@ class OfflineRunner:
 def main(argv=None):
     args = build_parser().parse_args(argv)
     if args.offline_command == 'prepare-plan2':
+        kwargs = {}
+        if args.dataset_specs is not None:
+            with open(args.dataset_specs, encoding='utf-8') as handle:
+                kwargs['dataset_specs'] = json.load(handle)
+        else:
+            if args.expected_networks is not None:
+                kwargs['expected_networks'] = tuple(
+                    args.expected_networks.split(',')
+                )
+            if args.expected_behavior_seeds is not None:
+                kwargs['expected_behavior_seeds'] = tuple(
+                    int(seed) for seed in args.expected_behavior_seeds.split(',')
+                )
+        if args.allowed_agents is not None:
+            kwargs['allowed_agents'] = tuple(args.allowed_agents.split(','))
+        if args.no_plan1_formal:
+            kwargs['require_plan1_formal'] = False
+        if args.relaxed_compatibility:
+            kwargs['relaxed_compatibility'] = True
         path = prepare_plan2_datasets(
             args.run_list, args.output_root, args.dataset_id,
             expected_episodes=args.expected_episodes,
             source_root=args.source_root, source_root_id=args.source_root_id,
+            **kwargs,
         )
         print(f'Plan 2 dataset indexes prepared: {path}')
         return path

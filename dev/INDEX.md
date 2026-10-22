@@ -204,6 +204,13 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
   `configs/sim/xiasha1_compound_{a,b}.cfg`。产物
   `artifacts/xiasha1_compound_probe/` 与
   `data/output_data/tsc/sumo_<agent>/xiasha1_compound_<x>/`。
+- `dev/xiasha1_compound_train/build_queue.py` +
+  `dev/ledger/register_xiasha1_compound_train.py`（2026-10-22，
+  campaign `xiasha1_compound_train_v1`）：复合包早收敛假说检验
+  训练队列（d3qn/mplight/frap/presslight/sac × compound_a/b ×
+  3 seeds = 30 run，prefix xi3on_，复用 v2 overlay 同口径）与
+  台账登记件；实验叙事 `docs/experiments/
+  2026-10-22_xiasha1_compound_train.md`。
 - `dev/w34/probes/`：w34_2 零训练探针分析件——`p2_binding_audit.py`（离线
   绑定审计：bound/fallback_bind/gap/co_active 分类 + 配对差分层）、
   `p4_stratify.py`（臂/种子/事件类/窗长分层 + 稀疏窗伪影检验）。消费

@@ -1,6 +1,7 @@
 # xiasha1_offline_v1：异构历史经验的纯离线学习刻画实验（E0–E5）
 
-> 状态：进行中（2026-10-22 设计定稿）
+> 状态：**已关闭**（2026-10-22 Z 裁：源数据存在问题，campaign 作废；
+> 126 台账行全部 SCOPE_DISCARD，36 个已完成 run 产物仅留作过程证据）
 > 发起日期：2026-10-22 ｜ 负责人/Agent：Z / Devin
 > 最近更新：2026-10-22
 
@@ -166,10 +167,20 @@ SUMO），区别于 ha_sodqn/cl_hz1x1 半离线线（在线交互+历史归档�
   队列 `artifacts/xiasha1_offline_v1/run_queue.json` 126 任务就绪，
   **待确认后派发**。
 
-（待回填：126 run 完成后补各单元指标表、收敛 update 分布、
-对齐判定与混合效应归因）
+### 4.2 派发与关闭（2026-10-22）
+
+- 11:32 队列经 `tools/run_experiment_queue.py --parallel 12` 派发，
+  同步起 TB 投影器（`dev/xiasha1_offline/project_tb.py`，6008）；
+- ~11:40 Z 裁定**源数据存在问题**，全量停止：36 SUCCEEDED /
+  12 RUNNING 被 kill / 78 PENDING 未拉起；126 台账行转
+  SCOPE_DISCARD（notes 记录关停时状态）；已完成产物留存
+  `data/output_data/offline_tsc/sumo_{batch,cql}_dqn/xiasha1_asym_ns/`
+  仅作过程证据，不作结论依据；
+- 工程资产（构建器扩展、CLI 参数、overlay、dev 三件、本记录）
+  与数据本身无关，修复数据后可原样复用重跑。
 
 ## 5. 结论与后续
 
-（待回填：E0–E5 判读 → 决定是否进入阶段②自主价值利用方法设计；
-E6 阶段投喂族视结果另行立项）
+- campaign 作废，无实验结论；数据问题修复后按本设计重新构建
+  `v2_hetero`（或同名递增）数据集索引并重登记队列；
+- 阶段②（自主价值利用）与 E6 阶段投喂族仍待数据就绪后另行立项。

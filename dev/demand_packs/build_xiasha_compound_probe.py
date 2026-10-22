@@ -26,6 +26,8 @@ SOURCE_PACK = "dense_extreme"          # 最高量级既有包，最接近复合
 TARGETS = ("compound_a", "compound_b")
 RULE_AGENTS = {"fixedtime": "ft", "sotl": "sotl", "maxpressure": "mp"}
 RULE_OVERLAY = "configs/tsc/xiasha1_timeseries.yml"
+# 架构变体臂的注册 agent 名是 dqn，dueling/d3qn/ddqn 只靠 overlay 开关区分
+REGISTERED_AGENT = {"dueling": "dqn", "d3qn": "dqn", "ddqn": "dqn"}
 OUT = ROOT / "artifacts/xiasha1_compound_probe"
 PY = "/home/dev/miniforge3/envs/colight/bin/python"
 ENV = {
@@ -49,8 +51,9 @@ def main():
         net = f"xiasha1_{target}"
         for arm, t in sorted(src_tasks.items()):
             rid = f"xi3x_{arm}_{target}"
+            agent = REGISTERED_AGENT.get(arm, arm)
             out = (f"/projects/simOfflineTSC/data/output_data/tsc/"
-                   f"sumo_{arm}/{net}/{rid}")
+                   f"sumo_{agent}/{net}/{rid}")
             tasks.append({
                 "run_id": rid,
                 "arm": arm,
@@ -66,7 +69,7 @@ def main():
                 "source_run_dir": t["source_run_dir"],
                 "command": [
                     PY, "tools/eval_baseline_checkpoint.py",
-                    "--agent", arm, "--network", net,
+                    "--agent", agent, "--network", net,
                     "--config", t["eval_overlay"],
                     "--checkpoint", t["checkpoint"],
                     "--seed", "0", "--prefix", rid,

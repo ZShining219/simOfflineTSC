@@ -192,6 +192,18 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
   `configs/benchmarks/xiasha1_v2_bestckpt_ts.yaml`）承担，产物
   `artifacts/xiasha1_v2_bestckpt_ts/` 与图包
   `data/output_data/analysis/pack_benchmark/xiasha1_v2_bestckpt_ts_20261022/`。
+- `dev/demand_packs/build_xiasha_compound_probe.py` +
+  `dev/ledger/register_xiasha1_compound_probe.py` +
+  `backfill_xiasha1_compound_probe.py`（2026-10-22，campaign
+  `xiasha1_compound_probe_v1`）：综合难度需求包区分度探测队列生成
+  （8 臂 dense_extreme best-ckpt 跨评 compound_a/compound_b =
+  16 eval，+ ft/sotl/mp 规则参照 6 run，prefix xi3x_/xi3ts_）与
+  台账登记/回填件；`build_xiasha_demands.py` 同日扩 `shape(t,e0)`
+  per-arm 突发接口并新增 cat=compound 两包（compound_a 全臂突发
+  2463 veh、compound_b 北臂定向突发 2188 veh）+ 对应
+  `configs/sim/xiasha1_compound_{a,b}.cfg`。产物
+  `artifacts/xiasha1_compound_probe/` 与
+  `data/output_data/tsc/sumo_<agent>/xiasha1_compound_<x>/`。
 - `dev/w34/probes/`：w34_2 零训练探针分析件——`p2_binding_audit.py`（离线
   绑定审计：bound/fallback_bind/gap/co_active 分类 + 配对差分层）、
   `p4_stratify.py`（臂/种子/事件类/窗长分层 + 稀疏窗伪影检验）。消费

@@ -47,7 +47,7 @@
 
 ## xiasha1 off-policy 基线
 
-> 状态：`xiasha1_online_v2` 已完成 **288/288 DONE**（2026-10-22）：8 臂 × 12 包 × 3 seeds 的单场景 full-horizon 充分探索基线。DQN 家族仍早收敛（conv 中位约 30，epsilon 下限 ep181）；PressLight 的 queue/uninserted 最差；FRAP/MPLight 用更高 TT 换取更低 uninserted；SAC 与 DQN 接近。原 `xiasha1_online_v1` 已收口（24 DONE / 12 ABORTED / 252 SCOPE_DISCARD），`xiasha1_explore_v1` 已暂停（slow 6 DONE，full 6 ABORTED）。详细记录见 [docs/experiments/2026-10-21_xiasha1_online_v2.md](docs/experiments/2026-10-21_xiasha1_online_v2.md)。
+> 状态：`xiasha1_online_v2` 已完成 **288/288 DONE**（2026-10-22）：8 臂 × 12 包 × 3 seeds 的单场景 full-horizon 充分探索基线。DQN 家族仍早收敛（conv 中位约 30，epsilon 下限 ep181）；PressLight 的 queue/uninserted 最差；FRAP/MPLight 用更高 TT 换取更低 uninserted；SAC 与 DQN 接近。当前新增 `xiasha1_cross_eval_v1`：v2 best checkpoint 的跨场景评估（8 臂 × 4 source × 3 seeds × 4 target × 1 SUMO seed = 384 eval）。原 `xiasha1_online_v1` 已收口（24 DONE / 12 ABORTED / 252 SCOPE_DISCARD），`xiasha1_explore_v1` 已暂停（slow 6 DONE，full 6 ABORTED）。详细记录见 [docs/experiments/2026-10-21_xiasha1_online_v2.md](docs/experiments/2026-10-21_xiasha1_online_v2.md) 与 [docs/experiments/2026-10-22_xiasha1_cross_eval.md](docs/experiments/2026-10-22_xiasha1_cross_eval.md)。
 
 **范围**：xiasha1*1 单受控路口 J、12 个 1 h 需求包；比较**纯在线 off-policy** 控制器在不同需求包上的收敛与训练后性能。不做半离线、教师锚定、事件语义。
 

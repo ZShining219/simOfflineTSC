@@ -194,6 +194,14 @@ META = {
  "conclusion": "已完成（2026-10-22）：288/288 DONE。DQN 家族 final-20 TT 13.24–13.30、uninserted 62–64；PressLight TT 13.96、uninserted 151（最差）；FRAP/MPLight TT 14.04–14.06、uninserted 42（服务更好但 TT 更高）；SAC TT 13.28、uninserted 72。DQN 家族仍早收敛（conv 中位 30–32，epsilon 下限 ep181）；v2 vs v1 DQN 平均 ΔTT -0.10、Δuninserted -2.2，分 pack 方向不一致。",
  "queues": "artifacts/xiasha1_online_v2/run_queue.json",
 },
+"xiasha1_cross_eval_v1": {
+ "title": "xiasha1 v2 best-checkpoint 跨场景评估",
+ "hypothesis": "用 xiasha1_online_v2 的 best checkpoint 在未参与训练的需求包上评估，测量单场景专训策略的泛化差；比较 8 臂在 TT/throughput/uninserted/queue 上的跨场景退化。",
+ "plan_id": "xiasha1_cross_eval_v1",
+ "design": "docs/experiments/2026-10-22_xiasha1_cross_eval.md；8 臂 × 4 source（asym_nonly/asym_ns/dense_extreme/fluct_burst）× 3 train seeds × 4 target × 1 SUMO seed(10000)=384 eval；source=target 为同场景控制；评估-only overlay configs/tsc/eval_baseline_checkpoint.yml。",
+ "conclusion": "进行中：384 eval REGISTERED（2026-10-22）；结果回填后更新本行。",
+ "queues": "artifacts/xiasha1_cross_eval_v1/run_queue.json",
+},
 }
 
 def fmt_metrics(m):
@@ -226,13 +234,15 @@ SHORT = {
 "xiasha1_online_v1": "xiasha1 纯在线 off-policy 基线（已收口：24 DONE/12 ABORTED/252 SCOPE_DISCARD）",
 "xiasha1_explore_v1": "xiasha1 充分探索验证（已暂停：slow 6 DONE，full 6 ABORTED；转 v2）",
 "xiasha1_online_v2": "已完成 288/288：DQN 家族仍早收敛；PressLight 最差，FRAP/MPLight 服务更好但 TT 更高",
+"xiasha1_cross_eval_v1": "v2 best-ckpt 跨场景评估：4 source × 4 target × 8 臂 × 3 seeds（384 eval）",
 }
 
 camps = collections.Counter(r["campaign"] for r in ROWS)
 order = ["att_entity_004", "att_entity_003", "att_entity_002", "arterial_1x6",
          "tarl_reproduction", "tarl_v21_formal", "plan5_b100", "plan1_dqn",
          "ha_sodqn", "milestone0_infra", "paper_infra_validation", "misc_probes",
-         "xiasha1_online_v1", "xiasha1_explore_v1", "xiasha1_online_v2"]
+         "xiasha1_online_v1", "xiasha1_explore_v1", "xiasha1_online_v2",
+         "xiasha1_cross_eval_v1"]
 
 # ---------- 明细文件：每 campaign 一篇 ----------
 DETAIL = ROOT / "EXPERIMENTS"

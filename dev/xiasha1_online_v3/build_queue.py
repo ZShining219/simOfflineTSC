@@ -19,6 +19,9 @@ PACKS = ["sparse_low", "dense_high", "dense_extreme", "rt_high", "lt_high",
          "fluct_burst", "fluct_ramp"]
 SEEDS = [0, 1, 2]
 AGENT_DIR = {a: "dqn" for a in ("dqn", "ddqn", "dueling", "d3qn")}
+# dqn 家族变体走 `-a dqn`（canonical agent yml），变体由 overlay
+# double_dqn/dueling 开关决定——与 v2 命令逐位一致。
+AGENT_CMD = {"ddqn": "dqn", "dueling": "dqn", "d3qn": "dqn"}
 ENV = {"LD_PRELOAD": "/home/dev/miniforge3/envs/colight/lib/libstdc++.so.6",
        "CUDA_VISIBLE_DEVICES": "-1", "OMP_NUM_THREADS": "1",
        "MKL_NUM_THREADS": "1", "OPENBLAS_NUM_THREADS": "1",
@@ -37,7 +40,8 @@ for arm in ARMS:
                 "arm": arm,
                 "pack": pack,
                 "seed": seed,
-                "command": [PY, "run.py", "-w", "sumo", "-a", arm,
+                "command": [PY, "run.py", "-w", "sumo",
+                            "-a", AGENT_CMD.get(arm, arm),
                             "-n", f"xiasha1_{pack}", "--seed", str(seed),
                             "--interface", "libsumo", "--prefix", rid,
                             "--experiment-config",

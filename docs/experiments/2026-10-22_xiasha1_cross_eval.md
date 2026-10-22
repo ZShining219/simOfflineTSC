@@ -1,6 +1,6 @@
 # xiasha1_cross_eval_v1：v2 best-checkpoint 跨场景评估
 
-> 状态：进行中（2026-10-22 准备派发 384 eval）
+> 状态：已完成（2026-10-22；384/384 DONE）
 > 发起日期：2026-10-22 ｜ 负责人/Agent：Z / Claude Code
 > 最近更新：2026-10-22
 

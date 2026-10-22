@@ -11,7 +11,7 @@
   `artifacts/xiasha1_online_v3/run_queue.json`
 - code_commit：本次修复提交（见 ledger code_commit）
 - 产物目录：`data/output_data/tsc/sumo_<agent>/xiasha1_<pack>/xi3re_*`
-- TB 投影：`artifacts/xiasha1_online_v3/tb`（127.0.0.1:6006）
+- TB 投影：`artifacts/xiasha1_online_v3/tb`（127.0.0.1:6008）
 
 ## 1. 改动意图
 

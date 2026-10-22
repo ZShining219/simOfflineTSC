@@ -194,6 +194,14 @@ META = {
  "conclusion": "已完成（2026-10-22）：288/288 DONE。DQN 家族 final-20 TT 13.24–13.30、uninserted 62–64；PressLight TT 13.96、uninserted 151（最差）；FRAP/MPLight TT 14.04–14.06、uninserted 42（服务更好但 TT 更高）；SAC TT 13.28、uninserted 72。DQN 家族仍早收敛（conv 中位 30–32，epsilon 下限 ep181）；v2 vs v1 DQN 平均 ΔTT -0.10、Δuninserted -2.2，分 pack 方向不一致。",
  "queues": "artifacts/xiasha1_online_v2/run_queue.json",
 },
+"xiasha1_online_v3": {
+ "title": "xiasha1 纯在线 off-policy 基线 v3（几何修复重跑）",
+ "hypothesis": "在修复后 xiasha1 几何（进口车道 280m、车道起点插入）上按 v2 逐位协议重跑 8 臂×12 包×3 seeds，重建正式对比口径；历史 v1/v2 系列指标受截断几何污染（errata=geometry_truncated_v1v2）。",
+ "plan_id": "xiasha1_online_v3",
+ "design": "docs/experiments/2026-10-22_xiasha1_online_v3.md；configs/tsc/xiasha1_online_v3/{dqn,ddqn,dueling,d3qn,presslight,frap,sac,mplight}.yml；协议与 v2 完全一致（200ep+每ep贪心评估+pseudo_step）；run_id 前缀 xi3re_。",
+ "conclusion": "进行中（2026-10-22 队列派发）：288 run，16 并行。",
+ "queues": "artifacts/xiasha1_online_v3/run_queue.json",
+},
 "xiasha1_cross_eval_v1": {
  "title": "xiasha1 v2 best-checkpoint 跨场景评估",
  "hypothesis": "用 xiasha1_online_v2 的 best checkpoint 在未参与训练的需求包上评估，测量单场景专训策略的泛化差；比较 8 臂在 TT/throughput/uninserted/queue 上的跨场景退化。",
@@ -233,8 +241,9 @@ SHORT = {
 "cl_hz1x1": "hz1x1 持续学习：off-policy 机制性遗忘三骨干证实；+policy 锚 λπ=1 把 worst 退化压至 ≤1.0s 近零塑性代价；ρ 剂量响应显示锚定可省回放预算且 ρ=0.25 为甜点",
 "xiasha1_online_v1": "xiasha1 纯在线 off-policy 基线（已收口：24 DONE/12 ABORTED/252 SCOPE_DISCARD）",
 "xiasha1_explore_v1": "xiasha1 充分探索验证（已暂停：slow 6 DONE，full 6 ABORTED；转 v2）",
-"xiasha1_online_v2": "已完成 288/288：DQN 家族仍早收敛；PressLight 最差，FRAP/MPLight 服务更好但 TT 更高",
-"xiasha1_cross_eval_v1": "已完成 384/384：FRAP/MPLight 相对泛化最好；DQN 家族绝对跨源 TT 最好；PressLight 最差",
+"xiasha1_online_v2": "已完成 288/288（几何截断 errata，指标以 v3 为准）：DQN 家族仍早收敛；PressLight 最差，FRAP/MPLight 服务更好但 TT 更高",
+"xiasha1_cross_eval_v1": "已完成 384/384（几何截断 errata）：FRAP/MPLight 相对泛化最好；DQN 家族绝对跨源 TT 最好；PressLight 最差",
+"xiasha1_online_v3": "进行中：280m 几何修复版 v2 全量重跑（288 run，16 并行，TB :6008）",
 }
 
 camps = collections.Counter(r["campaign"] for r in ROWS)
@@ -242,7 +251,7 @@ order = ["att_entity_004", "att_entity_003", "att_entity_002", "arterial_1x6",
          "tarl_reproduction", "tarl_v21_formal", "plan5_b100", "plan1_dqn",
          "ha_sodqn", "milestone0_infra", "paper_infra_validation", "misc_probes",
          "xiasha1_online_v1", "xiasha1_explore_v1", "xiasha1_online_v2",
-         "xiasha1_cross_eval_v1"]
+         "xiasha1_cross_eval_v1", "xiasha1_online_v3"]
 
 # ---------- 明细文件：每 campaign 一篇 ----------
 DETAIL = ROOT / "EXPERIMENTS"

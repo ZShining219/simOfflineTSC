@@ -306,7 +306,7 @@ def main():
         veh = gen_route(rates, vehicles_seed(name))
         pdir = emit_pack(name, spec, veh,
                          (vtype, dep_pos, arr_pos, st_lane0))
-        summary.append((name, spec["cat"], len(veh)))
+        summary.append((name, spec["cat"], len(veh), spec.get("note", "")))
         print(f"{name:16s} cat={spec['cat']:6s} n={len(veh):5d} -> {pdir}")
 
     if args.only is not None:
@@ -324,8 +324,8 @@ def main():
         "packs": [
             {"pack": n, "dir": f"xiasha1_{n}_1h",
              "sumocfg": f"xiasha1_{n}_1h/xiasha1_{n}_1h.sumocfg",
-             "cat": c, "n_vehicles": v}
-            for n, c, v in summary
+             "cat": c, "n_vehicles": v, "note": nt}
+            for n, c, v, nt in summary
         ],
     }
     mpath = pathlib.Path("data/raw_data/xiasha1_demand_packs.json")

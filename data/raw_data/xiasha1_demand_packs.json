@@ -11,98 +11,112 @@
       "dir": "xiasha1_sparse_low_1h",
       "sumocfg": "xiasha1_sparse_low_1h/xiasha1_sparse_low_1h.sumocfg",
       "cat": "sparse",
-      "n_vehicles": 741
+      "n_vehicles": 741,
+      "note": "总流入×0.50（~730veh/h），低密度常态"
     },
     {
       "pack": "dense_high",
       "dir": "xiasha1_dense_high_1h",
       "sumocfg": "xiasha1_dense_high_1h/xiasha1_dense_high_1h.sumocfg",
       "cat": "dense",
-      "n_vehicles": 2248
+      "n_vehicles": 2248,
+      "note": "总流入×1.50（~2180veh/h），逼近通行能力"
     },
     {
       "pack": "dense_extreme",
       "dir": "xiasha1_dense_extreme_1h",
       "sumocfg": "xiasha1_dense_extreme_1h/xiasha1_dense_extreme_1h.sumocfg",
       "cat": "dense",
-      "n_vehicles": 2872
+      "n_vehicles": 2872,
+      "note": "总流入×2.00（~2900veh/h）过饱和压力，预期排队累积"
     },
     {
       "pack": "rt_high",
       "dir": "xiasha1_rt_high_1h",
       "sumocfg": "xiasha1_rt_high_1h/xiasha1_rt_high_1h.sumocfg",
       "cat": "turn",
-      "n_vehicles": 1450
+      "n_vehicles": 1450,
+      "note": "全臂右转占比→35%（xiasha 特有维度），右直共用 lane0 排队竞争"
     },
     {
       "pack": "lt_high",
       "dir": "xiasha1_lt_high_1h",
       "sumocfg": "xiasha1_lt_high_1h/xiasha1_lt_high_1h.sumocfg",
       "cat": "turn",
-      "n_vehicles": 1477
+      "n_vehicles": 1477,
+      "note": "全臂左转占比→35%，lane2 独占有相位承压"
     },
     {
       "pack": "st_dom",
       "dir": "xiasha1_st_dom_1h",
       "sumocfg": "xiasha1_st_dom_1h/xiasha1_st_dom_1h.sumocfg",
       "cat": "turn",
-      "n_vehicles": 1405
+      "n_vehicles": 1405,
+      "note": "直行主导：全臂直行→90%，右/左≈5%"
     },
     {
       "pack": "asym_ns",
       "dir": "xiasha1_asym_ns_1h",
       "sumocfg": "xiasha1_asym_ns_1h/xiasha1_asym_ns_1h.sumocfg",
       "cat": "asym",
-      "n_vehicles": 1857
+      "n_vehicles": 1857,
+      "note": "南北重载潮汐，撞上 NS 短直绿 27s 的信号-需求失配"
     },
     {
       "pack": "asym_we",
       "dir": "xiasha1_asym_we_1h",
       "sumocfg": "xiasha1_asym_we_1h/xiasha1_asym_we_1h.sumocfg",
       "cat": "asym",
-      "n_vehicles": 1414
+      "n_vehicles": 1414,
+      "note": "东西重载镜像：EW 长直绿 34s + J2E/J2W 单车道出口瓶颈"
     },
     {
       "pack": "asym_nonly",
       "dir": "xiasha1_asym_nonly_1h",
       "sumocfg": "xiasha1_asym_nonly_1h/xiasha1_asym_nonly_1h.sumocfg",
       "cat": "asym",
-      "n_vehicles": 1990
+      "n_vehicles": 1990,
+      "note": "单臂集中：N 臂×3.0 其余×0.5，总量不归一（~1.35×基线）"
     },
     {
       "pack": "fluct_sin",
       "dir": "xiasha1_fluct_sin_1h",
       "sumocfg": "xiasha1_fluct_sin_1h/xiasha1_fluct_sin_1h.sumocfg",
       "cat": "fluct",
-      "n_vehicles": 1463
+      "n_vehicles": 1463,
+      "note": "周期波动需求，考验相位切换节奏跟踪"
     },
     {
       "pack": "fluct_burst",
       "dir": "xiasha1_fluct_burst_1h",
       "sumocfg": "xiasha1_fluct_burst_1h/xiasha1_fluct_burst_1h.sumocfg",
       "cat": "fluct",
-      "n_vehicles": 1456
+      "n_vehicles": 1456,
+      "note": "中段突发尖峰（事件/事故后集聚）"
     },
     {
       "pack": "fluct_ramp",
       "dir": "xiasha1_fluct_ramp_1h",
       "sumocfg": "xiasha1_fluct_ramp_1h/xiasha1_fluct_ramp_1h.sumocfg",
       "cat": "fluct",
-      "n_vehicles": 1493
+      "n_vehicles": 1493,
+      "note": "单调爬坡型需求增长（早高峰形态）"
     },
     {
       "pack": "compound_a",
       "dir": "xiasha1_compound_a_1h",
       "sumocfg": "xiasha1_compound_a_1h/xiasha1_compound_a_1h.sumocfg",
       "cat": "compound",
-      "n_vehicles": 2463
+      "n_vehicles": 2463,
+      "note": "饱和量级(~2460veh/h)+北臂失衡(~58%)+均衡转向+中段全局突发（瞬时~6150veh/h，事件/事故后全域集聚）"
     },
     {
       "pack": "compound_b",
       "dir": "xiasha1_compound_b_1h",
       "sumocfg": "xiasha1_compound_b_1h/xiasha1_compound_b_1h.sumocfg",
       "cat": "compound",
-      "n_vehicles": 2188
+      "n_vehicles": 2188,
+      "note": "同量级(~2320veh/h)但突发只打北臂：窗口内 N 瞬时~3560veh/h 撞短直绿，考相位权重在线切换；窗口外 N~1000veh/h"
     }
   ]
 }

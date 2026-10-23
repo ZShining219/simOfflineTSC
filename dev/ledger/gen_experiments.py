@@ -207,7 +207,7 @@ META = {
  "hypothesis": "在已验证干净的 hz1x1 原始真实包上用与 v3 逐位一致的协议训练 4 臂，验证训练+eval 记录口径是否正常——若形态健康则确认 xiasha1 异常为数据专属，若异常则管线有更深缺陷。",
  "plan_id": "hz1x1_sanity_v1",
  "design": "docs/experiments/2026-10-23_hz1x1_sanity.md；4 臂(d3qn/frap/sac/presslight)×4 原始包(bc-tyc/qc-yn/kn-hz/sb-sx)×3 seeds=48 run；200ep+每ep贪心评估+pseudo_step，协议同 v3。",
- "conclusion": "进行中（2026-10-23 队列派发）。",
+ "conclusion": "已完成（2026-10-23）：48/48 DONE。final-20 TT 74.6–78.3、queue 5.3–7.2、thr≈需求 97-98%、uninserted≈0-3、收敛正常——体检签名全过，判定记录管线无罪，xiasha1 历史异常为截断几何数据专属问题，v3 口径可信。",
  "queues": "artifacts/hz1x1_sanity_v1/run_queue.json",
 },
 "xiasha1_v3_cross_eval_v1": {
@@ -277,7 +277,7 @@ SHORT = {
 "xiasha1_cross_eval_v1": "已完成 384/384（几何截断 errata）：FRAP/MPLight 相对泛化最好；DQN 家族绝对跨源 TT 最好；PressLight 最差",
 "xiasha1_online_v3": "已完成 288/288（几何修复正式口径）：ddqn/d3qn/sac TT 领先；uninserted≈1（v2 为 42–151，截断伪影消除）",
 "xiasha1_v3_cross_eval_v1": "已完成 384/384：SAC/PressLight 泛化最稳（gap 9.0/15.4%），DQN 家族最差（27.5–49.0%），v1 排序翻转",
-"hz1x1_sanity_v1": "进行中：hz1x1 原始真实包口径体检（4臂×4包×3seed=48，协议同 v3）",
+"hz1x1_sanity_v1": "已完成 48/48：体检签名全过（thr≈需求、uninserted≈0、量级正常）——记录管线无罪，xiasha1 异常为数据专属",
 "xiasha1_offline_v1": "作废：异构历史经验离线矩阵（v2 截断几何源，36 DONE+12 RUNNING 关停，产物已清理；xi2on 源 run 保留）",
 "xiasha1_offline_v2": "待派发：同矩阵基于 v3 修复源重建（v2_hetero/126 REGISTERED/81 评估节点）",
 }

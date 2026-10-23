@@ -46,7 +46,7 @@
 | xiasha1_cross_eval_v1 | 384 | 0 | 0 | 0 | 0 | 0 | 0 | 384 |
 | xiasha1_online_v3 | 288 | 0 | 0 | 0 | 0 | 0 | 0 | 288 |
 | xiasha1_v3_cross_eval_v1 | 384 | 0 | 0 | 0 | 0 | 0 | 0 | 384 |
-| hz1x1_sanity_v1 | 0 | 0 | 0 | 0 | 48 | 0 | 0 | 48 |
+| hz1x1_sanity_v1 | 48 | 0 | 0 | 0 | 0 | 0 | 0 | 48 |
 | xiasha1_offline_v1 | 0 | 0 | 0 | 0 | 0 | 126 | 0 | 126 |
 | xiasha1_offline_v2 | 0 | 0 | 0 | 0 | 126 | 0 | 0 | 126 |
 | cl_hz1x1 | 5368 | 0 | 0 | 0 | 0 | 216 | 0 | 5584 |
@@ -66,7 +66,7 @@
 | xiasha1_compound_probe_v1 | 22 | 0 | 0 | 0 | 0 | 0 | 0 | 22 |
 | xiasha1_compound_train_v1 | 0 | 0 | 0 | 0 | 30 | 0 | 0 | 30 |
 | xiasha1_v2_bestckpt_ts_v1 | 96 | 0 | 0 | 0 | 0 | 0 | 0 | 96 |
-| **合计** | 13966 | 243 | 113 | 4 | 210 | 624 | 0 | **15161** |
+| **合计** | 14014 | 243 | 113 | 4 | 162 | 624 | 0 | **15161** |
 
 状态语义见 GOVERNANCE.md §2。LEGACY_UNCLEAR=0 表示全部可识别 run 均通过队列/状态文件/目录归属证据还原出 campaign；个别 run 的臂内身份仍以命名约定为据，已在 notes 标注处保持保守。
 
@@ -92,7 +92,7 @@
 | `xiasha1_cross_eval_v1` | 384 | 384/0/0/0 | 已完成 384/384（几何截断 errata）：FRAP/MPLight 相对泛化最好；DQN 家族绝对跨源 TT 最好；PressLight 最差 | [明细](EXPERIMENTS/xiasha1_cross_eval_v1.md) |
 | `xiasha1_online_v3` | 288 | 288/0/0/0 | 已完成 288/288（几何修复正式口径）：ddqn/d3qn/sac TT 领先；uninserted≈1（v2 为 42–151，截断伪影消除） | [明细](EXPERIMENTS/xiasha1_online_v3.md) |
 | `xiasha1_v3_cross_eval_v1` | 384 | 384/0/0/0 | 已完成 384/384：SAC/PressLight 泛化最稳（gap 9.0/15.4%），DQN 家族最差（27.5–49.0%），v1 排序翻转 | [明细](EXPERIMENTS/xiasha1_v3_cross_eval_v1.md) |
-| `hz1x1_sanity_v1` | 48 | 0/0/0/0 | 进行中：hz1x1 原始真实包口径体检（4臂×4包×3seed=48，协议同 v3） | [明细](EXPERIMENTS/hz1x1_sanity_v1.md) |
+| `hz1x1_sanity_v1` | 48 | 48/0/0/0 | 已完成 48/48：体检签名全过（thr≈需求、uninserted≈0、量级正常）——记录管线无罪，xiasha1 异常为数据专属 | [明细](EXPERIMENTS/hz1x1_sanity_v1.md) |
 | `xiasha1_offline_v1` | 126 | 0/0/0/126 | 作废：异构历史经验离线矩阵（v2 截断几何源，36 DONE+12 RUNNING 关停，产物已清理；xi2on 源 run 保留） | [明细](EXPERIMENTS/xiasha1_offline_v1.md) |
 | `xiasha1_offline_v2` | 126 | 0/0/0/0 | 待派发：同矩阵基于 v3 修复源重建（v2_hetero/126 REGISTERED/81 评估节点） | [明细](EXPERIMENTS/xiasha1_offline_v2.md) |
 | `cl_hz1x1` | 5584 | 5368/0/0/216 | hz1x1 持续学习：off-policy 机制性遗忘三骨干证实；+policy 锚 λπ=1 把 worst 退化压至 ≤1.0s 近零塑性代价；ρ 剂量响应显示锚定可省回放预算且 ρ=0.25 为甜点 | [明细](EXPERIMENTS/cl_hz1x1.md) |

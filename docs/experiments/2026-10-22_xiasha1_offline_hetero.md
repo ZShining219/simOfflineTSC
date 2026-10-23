@@ -1,7 +1,9 @@
 # xiasha1_offline_v1：异构历史经验的纯离线学习刻画实验（E0–E5）
 
-> 状态：**已关闭**（2026-10-22 Z 裁：源数据存在问题，campaign 作废；
-> 126 台账行全部 SCOPE_DISCARD，36 个已完成 run 产物仅留作过程证据）
+> 状态：**v2 待派发**（v1 `xiasha1_offline_v1` 已关闭作废：v2 源数据
+> 截断几何缺陷，126 行 SCOPE_DISCARD；v2 `xiasha1_offline_v2` 基于
+> 几何修复版 v3 源 `xi3re_*` 重建完成——数据集 `v2_hetero`、队列、
+> 台账 126 行 REGISTERED，见 §4.3）
 > 发起日期：2026-10-22 ｜ 负责人/Agent：Z / Devin
 > 最近更新：2026-10-22
 
@@ -179,15 +181,39 @@ SUMO），区别于 ha_sodqn/cl_hz1x1 半离线线（在线交互+历史归档�
 - 工程资产（构建器扩展、CLI 参数、overlay、dev 三件、本记录）
   与数据本身无关，修复数据后可原样复用重跑。
 
+### 4.3 v3 数据对齐重建（2026-10-22）
+
+- 根因确认：v2 及全部历史 xiasha 实验在**截断几何**上运行
+  （进口道 106.4m + departPos≈80，见 `2026-10-22_xiasha1_online_v3.md`）；
+  v3（`xi3re_*`，288/288 DONE）修复几何（280m 道 + 去 departPos）。
+- 对齐核验：v3 源 run 与 v2 结构逐位一致（200ep×360、
+  `fixed_default`、schema 1、action_dim 4、manifest agent 映射相同）；
+  4 个目标包 net.xml 语义哈希仍全等（多场景门禁通过）；4 臂 shard
+  均 12 车道观测、queue 奖励。
+- 重建：`v2_hetero`（27 源 run/5400 shards/1.944M transitions，
+  `source_root_id=xiasha1_online_v3_root`）构建通过；
+  `artifacts/xiasha1_offline_v2/run_queue.json` 126 任务
+  （前缀 `xi2off_*`）；台账 126 行 REGISTERED。
+- v3 冒烟 `xi2offsmoke_e0_p0_batch_dqn_o1000`（3600 updates）链路
+  通过；观测到 v3 几何下的真实动力学：随机 init → 锁死
+  （queue 224/TT 1155），~360 updates 即塌缩至"单相位不放行"
+  固定点（action 2 占比 100%、sw=0、TT 108/thr 1534）并维持至
+  update 1800，后段转向 action 3 主导更劣区域——loss 82→~15 后
+  振荡。判读：v2 截断几何掩盖了坏策略代价（cap ~3/lane），v3 下
+  离线 DQN 的外推误差/退化策略问题被真实暴露——这正是 E0 与
+  CQL 对照臂要刻画的量；小预算冒烟不下学习结论。
+
 ## 5. 结论与后续
 
-- campaign 作废，无实验结论；数据问题修复后按本设计重新构建
-  `v2_hetero`（或同名递增）数据集索引并重登记队列；
+- v1 campaign 作废（v2 截断几何）；v2 campaign
+  （`xiasha1_offline_v2`，v3 源）数据集/队列/台账就绪，待派发；
 - 阶段②（自主价值利用）与 E6 阶段投喂族仍待数据就绪后另行立项。
 
 ## 勘误（2026-10-22，几何截断缺陷）
 
-本文档全部指标采集自**截断几何**的 xiasha1 路网：进口车道仅 106.4m，
+本文档 §4.1 及 v1 campaign（`xi1off_*`）的全部指标采集自**截断几何**
+的 xiasha1 路网（§4.3 起的 v2 campaign 指标为修复后几何）：进口车道
+仅 106.4m，
 且路由 `departPos≈80`（车辆自距停车线 ~22-27m 处、以 10m/s 凭空插入——
 源自 `tools/xiasha_sumo/converter.py` 相机视野重建遗留语义，经
 `dev/demand_packs/build_xiasha_demands.py` 传播至全部 14 包）。

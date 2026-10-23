@@ -764,9 +764,10 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
   tensorboard.main 子进程；纯只读、幂等增量、可随时停起，输出归
   `artifacts/xiasha1_online_v1/tb/`（不入库）。不投影 reward 跨臂比较
   以外的语义判断；监控异常判读仍由人工盯守完成。
-- `dev/xiasha1_offline/`：xiasha1_offline_v1 异构历史经验离线矩阵
-  （E0–E5，campaign 绑定构建件）——`build_datasets.py` 扫描
-  `xi2on_<arm>_<pack>_s<seed>` 已完成源 run（27 个：A=asym_ns×{d3qn,
+- `dev/xiasha1_offline/`：xiasha1_offline_v1（已作废）/ v2 异构历史经验
+  离线矩阵（E0–E5，campaign 绑定构建件）——`build_datasets.py` 扫描
+  `<prefix>_<arm>_<pack>_s<seed>` 已完成源 run（v1 用 xi2on，
+  v2 起用 xi3re 几何修复版）（27 个：A=asym_ns×{d3qn,
   sac,frap,mplight}、B=dense_extreme×{d3qn,frap}、C=fluct_burst×{d3qn}、
   D=asym_nonly×{d3qn,mplight}，各 s0–s2），产出
   `artifacts/xiasha1_offline_v1/source_run_list.csv`（含 arm 列）+

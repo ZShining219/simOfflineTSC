@@ -20,8 +20,8 @@ import json
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-ARTIFACT_DIR = ROOT / 'artifacts' / 'xiasha1_offline_v1'
-DATASET_ROOT = ROOT / 'data' / 'output_data' / 'offline_datasets' / 'xiasha1' / 'v1_hetero'
+ARTIFACT_DIR = ROOT / 'artifacts' / 'xiasha1_offline_v2'
+DATASET_ROOT = ROOT / 'data' / 'output_data' / 'offline_datasets' / 'xiasha1' / 'v2_hetero'
 PYTHON = '/home/dev/miniforge3/envs/colight/bin/python'
 EVAL_NETWORK = 'xiasha1_asym_ns'
 OVERLAY = 'configs/offline_tsc/xiasha1_v1.yml'
@@ -58,7 +58,7 @@ def main():
             manifest = manifest_by_name[spec_name]
             for algorithm in ALGORITHMS:
                 for seed in OFFLINE_SEEDS:
-                    prefix = f'xi1off_{spec_name}_{algorithm}_o{seed}'
+                    prefix = f'xi2off_{spec_name}_{algorithm}_o{seed}'
                     output_path = (
                         ROOT / 'data' / 'output_data' / 'offline_tsc'
                         / f'sumo_{algorithm}' / EVAL_NETWORK / prefix
@@ -102,13 +102,14 @@ def main():
 
     queue = {
         'schema_version': 1,
-        'plan': 'xiasha1_offline_v1',
+        'plan': 'xiasha1_offline_v2',
         'expected_tasks': len(tasks),
         'note': (
-            'heterogeneous-history offline matrix E0-E5: fixed pools of '
-            'complete xi2on runs (72k transitions each), uniform sampling, '
-            'no quality filtering; 144k updates; 81 evaluation nodes at '
-            '1800-update spacing; native backend; eval on xiasha1_asym_ns'
+            'heterogeneous-history offline matrix E0-E5 on geometry-fixed '
+            'v3 sources: fixed pools of complete xi3re runs (72k transitions '
+            'each), uniform sampling, no quality filtering; 144k updates; '
+            '81 evaluation nodes at 1800-update spacing; native backend; '
+            'eval on xiasha1_asym_ns'
         ),
         'tasks': tasks,
         'dropped': [],

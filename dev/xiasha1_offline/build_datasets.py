@@ -24,9 +24,10 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[2]
 SOURCE_ROOT = ROOT / 'data' / 'output_data' / 'tsc'
-ARTIFACT_DIR = ROOT / 'artifacts' / 'xiasha1_offline_v1'
+ARTIFACT_DIR = ROOT / 'artifacts' / 'xiasha1_offline_v2'
 OUTPUT_ROOT = ROOT / 'data' / 'output_data' / 'offline_datasets' / 'xiasha1'
-DATASET_ID = 'v1_hetero'
+DATASET_ID = 'v2_hetero'
+SOURCE_PREFIX = 'xi3re'  # xiasha1_online_v3 (geometry-fixed); v1 用 xi2on 已作废
 
 # Scenario letters -> demand pack; controller letters -> arm.
 NET = {
@@ -66,7 +67,7 @@ def _scan_required_runs():
             for seed in SEEDS:
                 run_dir = (
                     SOURCE_ROOT / ARM_DIR[arm] / pack_net
-                    / f'xi2on_{arm}_{pack}_s{seed}'
+                    / f'{SOURCE_PREFIX}_{arm}_{pack}_s{seed}'
                 )
                 manifest_path = run_dir / 'run_manifest.json'
                 if not manifest_path.is_file():
@@ -202,7 +203,7 @@ def main():
         '--output-root', str(OUTPUT_ROOT),
         '--dataset-id', DATASET_ID,
         '--source-root', str(SOURCE_ROOT),
-        '--source-root-id', 'xiasha1_online_v2_root',
+        '--source-root-id', 'xiasha1_online_v3_root',
         '--expected-episodes', '200',
         '--no-plan1-formal',
         '--allowed-agents', 'dqn,sac,frap,mplight',

@@ -1,6 +1,6 @@
 # xiasha1_online_v3（几何修复版重跑）
 
-> 状态：进行中
+> 状态：已完成
 > 发起日期：2026-10-22　｜　负责人/Agent：Devin
 > 最近更新：2026-10-22
 
@@ -57,16 +57,33 @@ uninserted、TT 绝对值全部失真——v2 期 D3QN 问题挖掘中
 
 ## 4. 实验结果
 
-进行中（队列 288 run 派发后回填）。冒烟证据：
+288/288 DONE（32 并行 ~11.5h），台账已回填。臂级 final-20 均值：
 
-- `dev/checks/check_xiasha1_geometry.py`：16 nets ×280、15 rous
-  起点插入、max_distance 动态 —— OK；
-- libsumo 加载 `xiasha1_asym_nonly_1h`：车道 280m，车辆 pos≈0 插入；
-- `xi3_smoke_fixedtime`（1 ep 全周期）与 `xi3smk_d3qn`
-  （smoke overlay，train+test）：均正常完成，queue ~52-62
-  （修复前物理上限 ~3，真实排队现已可观测）。
+| arm | TT | throughput | unfinished | queue | waiting |
+|---|---:|---:|---:|---:|---:|
+| ddqn | 39.12 | 1638.5 | 16.9 | 5.48 | 5.4 |
+| d3qn | 39.57 | 1637.9 | 17.4 | 5.83 | 5.7 |
+| sac | 39.69 | 1637.6 | 17.7 | 5.89 | 8.4 |
+| dueling | 40.01 | 1638.3 | 17.0 | 5.86 | 6.0 |
+| dqn | 40.35 | 1638.0 | 17.2 | 6.02 | 5.2 |
+| frap | 42.07 | 1637.0 | 18.4 | 6.86 | 7.4 |
+| mplight | 42.17 | 1636.4 | 18.4 | 7.02 | 7.8 |
+| presslight | 42.50 | 1637.3 | 17.6 | 6.97 | 7.2 |
+
+关键发现：**修复几何后 uninserted 机制基本消失**——各臂 throughput
+≈1637（包均需求 ~1655，unfinished ~17），隐含 uninserted ≈1，
+而 v2 同口径为 42–151（PressLight 最差）。v2 期"D3QN 靠饿死
+左转换 TT"的叙事中，**uninserted 通道主要是截断几何伪影**；
+饥饿机制是否仍在网内以排队/等待形式存在，需基于 v3 per-lane/
+per-second 数据重新挖掘（v2 的 N2"常驻 2 辆"观测本身即截断产物）。
+
+冒烟证据（修复当时）：几何守卫 OK；libsumo 280m+pos≈0 插入；
+fixedtime/D3QN 冒烟通过，queue ~52-62（截断期上限 ~3）。
 
 ## 5. 结论与后续
 
-待队列完成：收割 final-20 三指标，与 v2 做臂间相对结构对照
-（饥饿/抖动/长尾机制是否随几何复原而变化），重建正式排名口径。
+修复口径建立：**v3 起 xiasha1 指标为正式口径，v1/v2 仅作机制参考**
+（相对臂间结论在同几何内有效，绝对值不可比）。下一步：
+- 基于 v3 数据重跑 D3QN 问题挖掘（长尾/饥饿/抖动是否在真实几何上
+  复现），重点 asym_nonly 相位3 分配与 waiting 长尾；
+- cross_eval / bestckpt_ts 若需正式口径，按 v3 checkpoint 重评。

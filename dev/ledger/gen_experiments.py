@@ -199,7 +199,7 @@ META = {
  "hypothesis": "在修复后 xiasha1 几何（进口车道 280m、车道起点插入）上按 v2 逐位协议重跑 8 臂×12 包×3 seeds，重建正式对比口径；历史 v1/v2 系列指标受截断几何污染（errata=geometry_truncated_v1v2）。",
  "plan_id": "xiasha1_online_v3",
  "design": "docs/experiments/2026-10-22_xiasha1_online_v3.md；configs/tsc/xiasha1_online_v3/{dqn,ddqn,dueling,d3qn,presslight,frap,sac,mplight}.yml；协议与 v2 完全一致（200ep+每ep贪心评估+pseudo_step）；run_id 前缀 xi3re_。",
- "conclusion": "进行中（2026-10-22 队列派发）：288 run，16 并行。",
+ "conclusion": "已完成（2026-10-22）：288/288 DONE。final-20 TT：ddqn 39.12/d3qn 39.57/sac 39.69/dueling 40.01/dqn 40.35/frap 42.07/mplight 42.17/presslight 42.50；queue 5.48–7.02；uninserted≈1（v2 为 42–151）——截断几何伪影被修复口径取代，正式对比以 v3 为准。",
  "queues": "artifacts/xiasha1_online_v3/run_queue.json",
 },
 "xiasha1_cross_eval_v1": {
@@ -243,7 +243,7 @@ SHORT = {
 "xiasha1_explore_v1": "xiasha1 充分探索验证（已暂停：slow 6 DONE，full 6 ABORTED；转 v2）",
 "xiasha1_online_v2": "已完成 288/288（几何截断 errata，指标以 v3 为准）：DQN 家族仍早收敛；PressLight 最差，FRAP/MPLight 服务更好但 TT 更高",
 "xiasha1_cross_eval_v1": "已完成 384/384（几何截断 errata）：FRAP/MPLight 相对泛化最好；DQN 家族绝对跨源 TT 最好；PressLight 最差",
-"xiasha1_online_v3": "进行中：280m 几何修复版 v2 全量重跑（288 run，16 并行，TB :6008）",
+"xiasha1_online_v3": "已完成 288/288（几何修复正式口径）：ddqn/d3qn/sac TT 领先；uninserted≈1（v2 为 42–151，截断伪影消除）",
 }
 
 camps = collections.Counter(r["campaign"] for r in ROWS)

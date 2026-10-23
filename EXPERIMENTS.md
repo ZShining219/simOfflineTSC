@@ -24,7 +24,7 @@
 
 ## 0. 总览
 
-登记 run 总数：**14603**（train 2765、eval attempt 11506、smoke 140、calibration 18、batch 46）
+登记 run 总数：**14987**（train 2765、eval attempt 11890、smoke 140、calibration 18、batch 46）
 
 | campaign | DONE | FAILED | ABORTED | SUPERSEDED | REGISTERED | SCOPE_DISCARD | LEGACY_UNCLEAR | 合计 |
 |---|---|---|---|---|---|---|---|---|
@@ -45,6 +45,7 @@
 | xiasha1_online_v2 | 288 | 0 | 0 | 0 | 0 | 0 | 0 | 288 |
 | xiasha1_cross_eval_v1 | 384 | 0 | 0 | 0 | 0 | 0 | 0 | 384 |
 | xiasha1_online_v3 | 288 | 0 | 0 | 0 | 0 | 0 | 0 | 288 |
+| xiasha1_v3_cross_eval_v1 | 384 | 0 | 0 | 0 | 0 | 0 | 0 | 384 |
 | cl_hz1x1 | 5368 | 0 | 0 | 0 | 0 | 216 | 0 | 5584 |
 | hitl_live_ab | 6 | 0 | 0 | 0 | 0 | 0 | 0 | 6 |
 | hitl_live_baseline | 2 | 0 | 0 | 0 | 0 | 0 | 0 | 2 |
@@ -63,7 +64,7 @@
 | xiasha1_compound_train_v1 | 0 | 0 | 0 | 0 | 30 | 0 | 0 | 30 |
 | xiasha1_offline_v1 | 0 | 0 | 0 | 0 | 0 | 126 | 0 | 126 |
 | xiasha1_v2_bestckpt_ts_v1 | 96 | 0 | 0 | 0 | 0 | 0 | 0 | 96 |
-| **合计** | 13582 | 243 | 113 | 4 | 36 | 624 | 0 | **14603** |
+| **合计** | 13966 | 243 | 113 | 4 | 36 | 624 | 0 | **14987** |
 
 状态语义见 GOVERNANCE.md §2。LEGACY_UNCLEAR=0 表示全部可识别 run 均通过队列/状态文件/目录归属证据还原出 campaign；个别 run 的臂内身份仍以命名约定为据，已在 notes 标注处保持保守。
 
@@ -88,6 +89,7 @@
 | `xiasha1_online_v2` | 288 | 288/0/0/0 | 已完成 288/288（几何截断 errata，指标以 v3 为准）：DQN 家族仍早收敛；PressLight 最差，FRAP/MPLight 服务更好但 TT 更高 | [明细](EXPERIMENTS/xiasha1_online_v2.md) |
 | `xiasha1_cross_eval_v1` | 384 | 384/0/0/0 | 已完成 384/384（几何截断 errata）：FRAP/MPLight 相对泛化最好；DQN 家族绝对跨源 TT 最好；PressLight 最差 | [明细](EXPERIMENTS/xiasha1_cross_eval_v1.md) |
 | `xiasha1_online_v3` | 288 | 288/0/0/0 | 已完成 288/288（几何修复正式口径）：ddqn/d3qn/sac TT 领先；uninserted≈1（v2 为 42–151，截断伪影消除） | [明细](EXPERIMENTS/xiasha1_online_v3.md) |
+| `xiasha1_v3_cross_eval_v1` | 384 | 384/0/0/0 | 已完成 384/384：SAC/PressLight 泛化最稳（gap 9.0/15.4%），DQN 家族最差（27.5–49.0%），v1 排序翻转 | [明细](EXPERIMENTS/xiasha1_v3_cross_eval_v1.md) |
 | `cl_hz1x1` | 5584 | 5368/0/0/216 | hz1x1 持续学习：off-policy 机制性遗忘三骨干证实；+policy 锚 λπ=1 把 worst 退化压至 ≤1.0s 近零塑性代价；ρ 剂量响应显示锚定可省回放预算且 ρ=0.25 为甜点 | [明细](EXPERIMENTS/cl_hz1x1.md) |
 | `hitl_live_ab` | 6 | 6/0/0/0 | — | [明细](EXPERIMENTS/hitl_live_ab.md) |
 | `hitl_live_baseline` | 2 | 2/0/0/0 | — | [明细](EXPERIMENTS/hitl_live_baseline.md) |

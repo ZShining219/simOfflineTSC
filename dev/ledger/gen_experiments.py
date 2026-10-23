@@ -202,6 +202,14 @@ META = {
  "conclusion": "已完成（2026-10-22）：288/288 DONE。final-20 TT：ddqn 39.12/d3qn 39.57/sac 39.69/dueling 40.01/dqn 40.35/frap 42.07/mplight 42.17/presslight 42.50；queue 5.48–7.02；uninserted≈1（v2 为 42–151）——截断几何伪影被修复口径取代，正式对比以 v3 为准。",
  "queues": "artifacts/xiasha1_online_v3/run_queue.json",
 },
+"xiasha1_v3_cross_eval_v1": {
+ "title": "xiasha1 v3 best-checkpoint 跨场景评估",
+ "hypothesis": "用 xiasha1_online_v3（280m 修复几何）的 best checkpoint 在未参与训练的需求包上评估，测量修复口径下单场景专训策略的泛化差；与 cross_eval_v1 设计逐位一致，可直接做几何前后对照。",
+ "plan_id": "xiasha1_v3_cross_eval_v1",
+ "design": "8 臂 × 4 source（asym_nonly/asym_ns/dense_extreme/fluct_burst）× 3 train seeds × 4 target × 1 SUMO seed(10000)=384 eval；eval-only overlay configs/tsc/eval_baseline_checkpoint*.yml；run_id 前缀 xi3x_。",
+ "conclusion": "已完成（2026-10-22）：384/384 DONE。相对 TT gap：SAC 9.0%、PressLight 15.4%、dueling 27.5%、ddqn 38.9%、FRAP 41.6%、MPLight 46.3%、D3QN 47.6%、DQN 49.0%——v1 截断期 DQN 家族泛化'尚可'的假象被推翻；DQN 家族灾难单元如 d3qn asym_ns→asym_nonly TT 148.9（域内 36.8），饥饿策略跨场景脆断。",
+ "queues": "artifacts/xiasha1_v3_cross_eval_v1/run_queue.json",
+},
 "xiasha1_cross_eval_v1": {
  "title": "xiasha1 v2 best-checkpoint 跨场景评估",
  "hypothesis": "用 xiasha1_online_v2 的 best checkpoint 在未参与训练的需求包上评估，测量单场景专训策略的泛化差；比较 8 臂在 TT/throughput/uninserted/queue 上的跨场景退化。",
@@ -244,6 +252,7 @@ SHORT = {
 "xiasha1_online_v2": "已完成 288/288（几何截断 errata，指标以 v3 为准）：DQN 家族仍早收敛；PressLight 最差，FRAP/MPLight 服务更好但 TT 更高",
 "xiasha1_cross_eval_v1": "已完成 384/384（几何截断 errata）：FRAP/MPLight 相对泛化最好；DQN 家族绝对跨源 TT 最好；PressLight 最差",
 "xiasha1_online_v3": "已完成 288/288（几何修复正式口径）：ddqn/d3qn/sac TT 领先；uninserted≈1（v2 为 42–151，截断伪影消除）",
+"xiasha1_v3_cross_eval_v1": "已完成 384/384：SAC/PressLight 泛化最稳（gap 9.0/15.4%），DQN 家族最差（27.5–49.0%），v1 排序翻转",
 }
 
 camps = collections.Counter(r["campaign"] for r in ROWS)
@@ -251,7 +260,8 @@ order = ["att_entity_004", "att_entity_003", "att_entity_002", "arterial_1x6",
          "tarl_reproduction", "tarl_v21_formal", "plan5_b100", "plan1_dqn",
          "ha_sodqn", "milestone0_infra", "paper_infra_validation", "misc_probes",
          "xiasha1_online_v1", "xiasha1_explore_v1", "xiasha1_online_v2",
-         "xiasha1_cross_eval_v1", "xiasha1_online_v3"]
+         "xiasha1_cross_eval_v1", "xiasha1_online_v3",
+         "xiasha1_v3_cross_eval_v1"]
 
 # ---------- 明细文件：每 campaign 一篇 ----------
 DETAIL = ROOT / "EXPERIMENTS"

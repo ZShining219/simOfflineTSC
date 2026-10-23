@@ -795,6 +795,10 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
   前缀 `xi3re_`，协议与 v2 逐位一致）。
 - `dev/ledger/register_xiasha1_online_v3.py`——v3 台账登记器
   （288 REGISTERED，config_sha 含 v3 overlay）。
+- `dev/ledger/backfill_xiasha1_online_v3.py`——v3 收割回填器
+  （records.jsonl 末 20 条评估均值 → 台账 DONE+metrics）。
+- `dev/xiasha1_online_v3/build_cross_eval_queue.py`——v3 best-ckpt
+  跨场景评估队列构建器（384 eval，`xi3x_` 前缀，与 v1 同构）。
 - 相关文档：`docs/experiments/2026-10-22_xiasha1_online_v3.md`；
   全部 xiasha1* 台账行已标 `errata=geometry_truncated_v1v2`。
 

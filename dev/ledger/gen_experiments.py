@@ -202,6 +202,14 @@ META = {
  "conclusion": "已完成（2026-10-22）：288/288 DONE。final-20 TT：ddqn 39.12/d3qn 39.57/sac 39.69/dueling 40.01/dqn 40.35/frap 42.07/mplight 42.17/presslight 42.50；queue 5.48–7.02；uninserted≈1（v2 为 42–151）——截断几何伪影被修复口径取代，正式对比以 v3 为准。",
  "queues": "artifacts/xiasha1_online_v3/run_queue.json",
 },
+"hz1x1_sanity_v1": {
+ "title": "hz1x1 口径体检（对照 v3 协议）",
+ "hypothesis": "在已验证干净的 hz1x1 原始真实包上用与 v3 逐位一致的协议训练 4 臂，验证训练+eval 记录口径是否正常——若形态健康则确认 xiasha1 异常为数据专属，若异常则管线有更深缺陷。",
+ "plan_id": "hz1x1_sanity_v1",
+ "design": "docs/experiments/2026-10-23_hz1x1_sanity.md；4 臂(d3qn/frap/sac/presslight)×4 原始包(bc-tyc/qc-yn/kn-hz/sb-sx)×3 seeds=48 run；200ep+每ep贪心评估+pseudo_step，协议同 v3。",
+ "conclusion": "进行中（2026-10-23 队列派发）。",
+ "queues": "artifacts/hz1x1_sanity_v1/run_queue.json",
+},
 "xiasha1_v3_cross_eval_v1": {
  "title": "xiasha1 v3 best-checkpoint 跨场景评估",
  "hypothesis": "用 xiasha1_online_v3（280m 修复几何）的 best checkpoint 在未参与训练的需求包上评估，测量修复口径下单场景专训策略的泛化差；与 cross_eval_v1 设计逐位一致，可直接做几何前后对照。",
@@ -253,6 +261,7 @@ SHORT = {
 "xiasha1_cross_eval_v1": "已完成 384/384（几何截断 errata）：FRAP/MPLight 相对泛化最好；DQN 家族绝对跨源 TT 最好；PressLight 最差",
 "xiasha1_online_v3": "已完成 288/288（几何修复正式口径）：ddqn/d3qn/sac TT 领先；uninserted≈1（v2 为 42–151，截断伪影消除）",
 "xiasha1_v3_cross_eval_v1": "已完成 384/384：SAC/PressLight 泛化最稳（gap 9.0/15.4%），DQN 家族最差（27.5–49.0%），v1 排序翻转",
+"hz1x1_sanity_v1": "进行中：hz1x1 原始真实包口径体检（4臂×4包×3seed=48，协议同 v3）",
 }
 
 camps = collections.Counter(r["campaign"] for r in ROWS)
@@ -261,7 +270,7 @@ order = ["att_entity_004", "att_entity_003", "att_entity_002", "arterial_1x6",
          "ha_sodqn", "milestone0_infra", "paper_infra_validation", "misc_probes",
          "xiasha1_online_v1", "xiasha1_explore_v1", "xiasha1_online_v2",
          "xiasha1_cross_eval_v1", "xiasha1_online_v3",
-         "xiasha1_v3_cross_eval_v1"]
+         "xiasha1_v3_cross_eval_v1", "hz1x1_sanity_v1"]
 
 # ---------- 明细文件：每 campaign 一篇 ----------
 DETAIL = ROOT / "EXPERIMENTS"

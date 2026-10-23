@@ -812,3 +812,10 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
 3. 台账 6 个 REGISTERED → SCOPE_DISCARD：`att004__a2_stg2_s{7,17,27,37,47}`
    （a2s 臂 stg2 已挂起）与 `inspect_mplight`（基线已被 baseline_eval 覆盖）。
    附注已写入 runs.jsonl 各行 notes，EXPERIMENTS.md 已重生成。
+
+## hz1x1 口径体检（2026-10-23）
+
+- `dev/hz1x1_sanity/build_queue.py`——hz1x1_sanity_v1 队列构建器
+  （48 tasks，`hz1sn_` 前缀，4 臂×4 原始真实包×3 seeds，协议同 v3）。
+- `dev/ledger/register_hz1x1_sanity.py`——台账登记器（48 REGISTERED）。
+- 相关文档：`docs/experiments/2026-10-23_hz1x1_sanity.md`。

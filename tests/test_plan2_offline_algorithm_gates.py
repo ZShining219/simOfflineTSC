@@ -116,6 +116,46 @@ class BatchCQLExactEquivalenceTest(unittest.TestCase):
         self.assertTrue(torch.equal(batch_agent.target_model.values, batch_agent.model.values))
 
 
+class EpisodeBoundaryTargetTest(unittest.TestCase):
+    def test_terminated_and_truncated_targets_contain_only_current_reward(self):
+        for alpha in (0., 1.):
+            with self.subTest(cql_alpha=alpha):
+                model = TableQNet([[0., 0.]] * 4)
+                target = TableQNet([[10., 20.]] * 4)
+                tensors = compute_offline_loss_tensors(
+                    model, target, np.zeros((4, 1), np.float32),
+                    np.zeros((4, 1), np.float32), np.zeros(4, np.int64),
+                    np.ones(4, np.float32), .5, alpha, nn.MSELoss(),
+                    terminated=np.asarray([False, True, False, True]),
+                    truncated=np.asarray([False, False, True, True]),
+                )
+                torch.testing.assert_close(tensors.td_target, torch.tensor([11., 1., 1., 1.]))
+                self.assertFalse(tensors.td_target.requires_grad)
+
+    def test_agent_passes_actual_batch_boundaries_to_loss(self):
+        for cls, alpha in ((BatchDQNAgent, 0.), (CQLDQNAgent, 1.)):
+            with self.subTest(agent=cls.__name__):
+                agent = make_agent(cls, alpha, [[0., 0.], [0., 0.]], [[20., 20.], [20., 20.]])
+                batch = OfflineBatch(
+                    observations=np.zeros((2, 1), np.float32),
+                    next_observations=np.zeros((2, 1), np.float32),
+                    actions=np.zeros(2, np.int64), rewards=np.ones(2, np.float32),
+                    terminated=np.zeros(2, bool), truncated=np.asarray([False, True]),
+                    source_network='n',
+                )
+                result = agent.train_offline_batch(batch)
+                self.assertEqual(result['td_loss'], (11. ** 2 + 1.) / 4)
+
+    def test_malformed_boundaries_fail_before_optimization(self):
+        for flags in (np.asarray([1]), np.asarray([True, False])):
+            with self.subTest(flags=flags), self.assertRaisesRegex(ValueError, 'bool vector'):
+                compute_offline_loss_tensors(
+                    TableQNet([[0., 0.]]), TableQNet([[20., 20.]]),
+                    np.zeros((1, 1)), np.zeros((1, 1)), np.asarray([0]),
+                    np.ones(1), .95, 0., nn.MSELoss(), truncated=flags,
+                )
+
+
 class CQLNumericalStabilityTest(unittest.TestCase):
     def test_extreme_q_values_have_finite_mean_loss_and_gradients(self):
         for values, action in (([[1000., 999., -1000.]], 1), ([[-1000., -1001., -999.]], 0)):

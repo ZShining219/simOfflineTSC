@@ -71,6 +71,7 @@ def build_full_q_mse_target(q_values, actions, td_target):
 def compute_offline_loss_tensors(
     model, target_model, observations, next_observations, actions, rewards,
     gamma, cql_alpha, criterion, retain_q_grad=False,
+    terminated=None, truncated=None,
 ):
     observations = torch.as_tensor(observations, dtype=torch.float32)
     next_observations = torch.as_tensor(next_observations, dtype=torch.float32)
@@ -79,10 +80,20 @@ def compute_offline_loss_tensors(
         raise ValueError('Offline observations must be matching rank-2 tensors')
     if rewards.shape != (len(observations),):
         raise ValueError('Offline rewards must contain one value per observation')
+    episode_end = torch.zeros(len(rewards), dtype=torch.bool)
+    for name, flags in (('terminated', terminated), ('truncated', truncated)):
+        if flags is None:
+            continue
+        flags = torch.as_tensor(flags)
+        if flags.dtype != torch.bool or flags.shape != rewards.shape:
+            raise ValueError(f'{name} must be a bool vector matching rewards')
+        episode_end |= flags
     alpha = float(cql_alpha)
     with torch.no_grad():
         next_q = target_model(next_observations, train=True)
-        td_target = rewards + float(gamma) * torch.max(next_q, dim=1)[0]
+        # This offline protocol treats both kinds of episode boundary as final.
+        continuation = torch.where(episode_end, 0., torch.max(next_q, dim=1)[0])
+        td_target = rewards + float(gamma) * continuation
     q_values = model(observations, train=True)
     if retain_q_grad:
         q_values.retain_grad()
@@ -182,13 +193,20 @@ class OfflineDQNMixin:
         else:
             self.backend['upstream_components'] = []
         self.cql_alpha = float(model.get('cql_alpha', 0.0))
+        self.offline_reward_scale = float(model.get('offline_reward_scale', 12.0))
+        if not np.isfinite(self.offline_reward_scale) or self.offline_reward_scale <= 0:
+            raise ValueError('offline_reward_scale must be finite and positive')
         self.epsilon = 0.0
+
+    def get_reward(self):
+        return super().get_reward() * (self.offline_reward_scale / 12.0)
 
     def train_offline_batch(self, batch):
         loss_tensors = compute_offline_loss_tensors(
             self.model, self.target_model, batch.observations,
             batch.next_observations, batch.actions, batch.rewards, self.gamma,
             self.cql_alpha, self.criterion,
+            terminated=batch.terminated, truncated=batch.truncated,
         )
         self.optimizer.zero_grad()
         loss_tensors.total_loss.backward()

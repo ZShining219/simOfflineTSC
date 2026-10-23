@@ -1,0 +1,47 @@
+# Fixed, unfiltered history pools. Preparation only; dispatch is separate.
+model:
+  offline_reward_scale: 1.0
+trainer:
+  total_updates: 144000
+  evaluation_updates: [0, 1800, 3600, 5400, 7200, 9000, 10800, 12600, 14400, 16200, 18000, 19800, 21600, 23400, 25200, 27000, 28800, 30600, 32400, 34200, 36000, 37800, 39600, 41400, 43200, 45000, 46800, 48600, 50400, 52200, 54000, 55800, 57600, 59400, 61200, 63000, 64800, 66600, 68400, 70200, 72000, 73800, 75600, 77400, 79200, 81000, 82800, 84600, 86400, 88200, 90000, 91800, 93600, 95400, 97200, 99000, 100800, 102600, 104400, 106200, 108000, 109800, 111600, 113400, 115200, 117000, 118800, 120600, 122400, 124200, 126000, 127800, 129600, 131400, 133200, 135000, 136800, 138600, 140400, 142200, 144000]
+offline_campaign:
+  name: hz1x1_offline_v1
+  revision: mplight_r1
+  plan_id: hz1x1_offline_v1_mplight_r1
+  dataset_id: v1_hetero_mplight
+  source_campaign: hz1x1_sanity_v1
+  source_prefix: hz1sn
+  run_prefix: hz1ofm
+  episodes: 200
+  decisions_per_episode: 360
+  pool_seeds: [0, 1, 2]
+  offline_seeds: [1000, 1001, 1002]
+  algorithms: [batch_dqn, cql_dqn]
+  target: A
+  scenes:
+    A: {network: sumohz1x1, pack: bctyc}
+    B: {network: sumohz1x1_config2, pack: qcyn}
+    C: {network: sumohz1x1_config3, pack: knhz}
+    D: {network: sumohz1x1_config4, pack: sbsx}
+  arms:
+    d3qn: {agent: dqn, directory: sumo_dqn}
+    frap: {agent: frap, directory: sumo_frap}
+    sac: {agent: sac, directory: sumo_sac}
+    mplight: {agent: mplight, directory: sumo_mplight}
+  reward_alignment:
+    semantic_id: negative_incoming_waiting_road_mean_v1
+    target_scale: 1.0
+    source_scales: {d3qn: 12.0, frap: 1.0, sac: 1.0, mplight: 1.0}
+  # Each cell is a complete run at pool seed s. E1 uses the listed seed pair.
+  e1_seed_pairs: [[0, 1], [1, 2], [0, 2]]
+  conditions:
+    e0: {kind: single_scene, cells: [[A, d3qn]]}
+    e1: {kind: single_scene, cells: [[A, d3qn]], paired_seeds: true}
+    e2frap: {kind: single_scene, cells: [[A, d3qn], [A, frap]]}
+    e2sac: {kind: single_scene, cells: [[A, d3qn], [A, sac]]}
+    e2mplight: {kind: single_scene, cells: [[A, d3qn], [A, mplight]]}
+    e3: {kind: single_scene, cells: [[A, d3qn], [A, frap], [A, sac], [A, mplight]]}
+    e4: {kind: multi_scene, cells: [[A, d3qn], [B, d3qn], [C, d3qn]]}
+    e4loo: {kind: leave_one_out, cells: [[B, d3qn], [C, d3qn], [D, d3qn]]}
+    # Balanced sparse diagonal mixture; E5 is a mixed-pool stress test, not a causal comparison.
+    e5: {kind: multi_scene, cells: [[A, d3qn], [B, frap], [C, sac], [D, mplight]]}

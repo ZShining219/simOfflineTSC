@@ -112,6 +112,13 @@ def _json_safe(value):
     return value
 
 
+def source_network_counts(batch):
+    if batch.source_networks is None:
+        return {batch.source_network: len(batch.actions)}
+    networks, counts = np.unique(batch.source_networks, return_counts=True)
+    return {str(network): int(count) for network, count in zip(networks, counts)}
+
+
 class OfflineMetricLogger:
     REQUIRED_FIELDS = {
         'schema_version', 'record_type', 'logical_run_id', 'physical_run_id',
@@ -284,6 +291,10 @@ class OfflineTSCTrainer(TSCTrainer):
             raise ValueError('Offline action dimension does not match evaluation agent')
         if self.offline_dataset.manifest['evaluation_network'] != command['network']:
             raise ValueError('Dataset evaluation network does not match --network')
+        scales = {row['transform']['training']['scale'] for row in
+                  self.offline_dataset.manifest['reward_view']['sources'].values()}
+        if scales != {agent.offline_reward_scale}:
+            raise ValueError('Offline training/evaluation reward scales differ')
 
         self.dataset_manifest_sha256 = _sha256(self.offline_dataset.manifest_path)
         self.resume_fingerprint = self._build_resume_fingerprint()
@@ -316,6 +327,8 @@ class OfflineTSCTrainer(TSCTrainer):
         agent = self.agents[0]
         payload = {
             'algorithm': agent.offline_algorithm,
+            'episode_end_policy': 'no_bootstrap_on_terminated_or_truncated',
+            'offline_reward_scale': getattr(agent, 'offline_reward_scale', 12.0),
             'dataset_manifest_sha256': self.dataset_manifest_sha256,
             'observation_dim': self.offline_dataset.observation_dim,
             'action_dim': self.offline_dataset.action_dim,
@@ -347,6 +360,7 @@ class OfflineTSCTrainer(TSCTrainer):
             'schema_version': 1,
             'created_by_commit': _git_commit(),
             'training_mode': 'pure_offline',
+            'episode_end_policy': 'no_bootstrap_on_terminated_or_truncated',
             'algorithm': agent.offline_algorithm,
             'backend': agent.backend,
             'offline_training_seed': self.offline_training_seed,
@@ -402,7 +416,7 @@ class OfflineTSCTrainer(TSCTrainer):
                 'optimizer_eps': 1e-7,
                 'target_update_interval': self.target_update_interval,
                 'cql_alpha': agent.cql_alpha,
-                'td_target_terminal_mask': False,
+                'td_target_terminal_mask': True,
                 'td_target_double_dqn': False,
                 'loss': 'full_q_vector_mse',
             },
@@ -706,7 +720,8 @@ class OfflineTSCTrainer(TSCTrainer):
             batch = self.offline_dataset.sample_batch(self.batch_size)
             losses = self.agents[0].train_offline_batch(batch)
             accumulated.append(losses)
-            source_counts[batch.source_network] = source_counts.get(batch.source_network, 0) + 1
+            for network, count in source_network_counts(batch).items():
+                source_counts[network] = source_counts.get(network, 0) + count
             self.current_update = update
             self.global_decision_step = update
             self.gradient_updates += 1

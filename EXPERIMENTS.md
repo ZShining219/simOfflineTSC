@@ -6,9 +6,10 @@
 > 机器一律代号 34/73；路径均为仓内相对路径。
 
 <!-- PANEL-BEGIN -->
-## 当前面板（2026-10-07，campaign 收官时刷新）
+## 当前面板（2026-10-23，campaign 状态刷新）
 
 - **当前有效设计栈**：`agent/scene_attention.py` + `agent/tarl.py`——per-node z_task 结构化槽位 + SemanticAuxHead 辅助监督 + 反事实探针四层判定；配置族 `configs/tsc/att_entity_004/`；参考臂 `a3s`，最新修复线 `fixG`（收官测评已收割：vs a3s 收敛更快更优 ep100 −8.9s，但效用层未翻正 canonical−empty 中位 +0.58s）。
+- **纯离线基线（新登记）**：`hz1x1_offline_v1` 使用同构路口上的三类 DONE 源（d3qn/FRAP/SAC），d3qn reward 在离线视图乘 `1/12`；24 池与 144 行 REGISTERED 已准备，队列未派发。xiasha1_offline_v1/v2 全部作废。
 - **代码位置**：`codex/milestone0-experiment-infrastructure` 分支（收编点 c8be158..32d3e18，已与主干合并 70f3dbf）；main=治理层+半离线基线。
 - **代号地图**（历史代际，明细在各 campaign 节）：
   - `tarl_reproduction`/`tarl_v21_formal` = TARL 论文复现基线（完结，仅对照用）
@@ -19,12 +20,12 @@
   - `arterial_1x6`/`plan5_b100` = 半离线线（技术点3，独立于注意力线）
 - **最新结论**：z_task 语义保真达标、held-out 证实文本携场景身份（t34_devin）；"canonical≈empty"修正为"事件窗内小幅净负"（t34_cc，配对 n=59）；road_closure 覆盖缺口待裁决修复。
 - **接管测试**：t34_devin / t34_cc 均 DONE（test/t34_* 分支）。
-- **证据完整性**：台账 7066 行（2026-10-15 补登 ha_sodqn 174 单元），evidence_lost=0。
+- **证据完整性**：台账 15317 行，evidence_lost=0。
 <!-- PANEL-END -->
 
 ## 0. 总览
 
-登记 run 总数：**15173**（train 2951、eval attempt 11890、smoke 140、calibration 18、batch 46）
+登记 run 总数：**15317**（train 3095、eval attempt 11890、smoke 140、calibration 18、batch 46）
 
 | campaign | DONE | FAILED | ABORTED | SUPERSEDED | REGISTERED | SCOPE_DISCARD | LEGACY_UNCLEAR | 合计 |
 |---|---|---|---|---|---|---|---|---|
@@ -46,9 +47,10 @@
 | xiasha1_cross_eval_v1 | 384 | 0 | 0 | 0 | 0 | 0 | 0 | 384 |
 | xiasha1_online_v3 | 288 | 0 | 0 | 0 | 0 | 0 | 0 | 288 |
 | xiasha1_v3_cross_eval_v1 | 384 | 0 | 0 | 0 | 0 | 0 | 0 | 384 |
-| hz1x1_sanity_v1 | 48 | 0 | 0 | 0 | 12 | 0 | 0 | 60 |
+| hz1x1_sanity_v1 | 60 | 0 | 0 | 0 | 0 | 0 | 0 | 60 |
 | xiasha1_offline_v1 | 0 | 0 | 0 | 0 | 0 | 126 | 0 | 126 |
-| xiasha1_offline_v2 | 0 | 0 | 0 | 0 | 126 | 0 | 0 | 126 |
+| xiasha1_offline_v2 | 0 | 0 | 0 | 0 | 0 | 126 | 0 | 126 |
+| hz1x1_offline_v1 | 0 | 0 | 0 | 0 | 144 | 0 | 0 | 144 |
 | cl_hz1x1 | 5368 | 0 | 0 | 0 | 0 | 216 | 0 | 5584 |
 | hitl_live_ab | 6 | 0 | 0 | 0 | 0 | 0 | 0 | 6 |
 | hitl_live_baseline | 2 | 0 | 0 | 0 | 0 | 0 | 0 | 2 |
@@ -66,7 +68,7 @@
 | xiasha1_compound_probe_v1 | 22 | 0 | 0 | 0 | 0 | 0 | 0 | 22 |
 | xiasha1_compound_train_v1 | 0 | 0 | 0 | 0 | 30 | 0 | 0 | 30 |
 | xiasha1_v2_bestckpt_ts_v1 | 96 | 0 | 0 | 0 | 0 | 0 | 0 | 96 |
-| **合计** | 14014 | 243 | 113 | 4 | 174 | 624 | 0 | **15173** |
+| **合计** | 14026 | 243 | 113 | 4 | 180 | 750 | 0 | **15317** |
 
 状态语义见 GOVERNANCE.md §2。LEGACY_UNCLEAR=0 表示全部可识别 run 均通过队列/状态文件/目录归属证据还原出 campaign；个别 run 的臂内身份仍以命名约定为据，已在 notes 标注处保持保守。
 
@@ -92,9 +94,10 @@
 | `xiasha1_cross_eval_v1` | 384 | 384/0/0/0 | 已完成 384/384（几何截断 errata）：FRAP/MPLight 相对泛化最好；DQN 家族绝对跨源 TT 最好；PressLight 最差 | [明细](EXPERIMENTS/xiasha1_cross_eval_v1.md) |
 | `xiasha1_online_v3` | 288 | 288/0/0/0 | 已完成 288/288（几何修复正式口径）：ddqn/d3qn/sac TT 领先；uninserted≈1（v2 为 42–151，截断伪影消除） | [明细](EXPERIMENTS/xiasha1_online_v3.md) |
 | `xiasha1_v3_cross_eval_v1` | 384 | 384/0/0/0 | 已完成 384/384：SAC/PressLight 泛化最稳（gap 9.0/15.4%），DQN 家族最差（27.5–49.0%），v1 排序翻转 | [明细](EXPERIMENTS/xiasha1_v3_cross_eval_v1.md) |
-| `hz1x1_sanity_v1` | 60 | 48/0/0/0 | 48/48 DONE+mplight 12 追加在跑：体检签名全过（thr≈需求、uninserted≈0、量级正常）——记录管线无罪，xiasha1 异常为数据专属 | [明细](EXPERIMENTS/hz1x1_sanity_v1.md) |
-| `xiasha1_offline_v1` | 126 | 0/0/0/126 | 作废：异构历史经验离线矩阵（v2 截断几何源，36 DONE+12 RUNNING 关停，产物已清理；xi2on 源 run 保留） | [明细](EXPERIMENTS/xiasha1_offline_v1.md) |
-| `xiasha1_offline_v2` | 126 | 0/0/0/0 | 待派发：同矩阵基于 v3 修复源重建（v2_hetero/126 REGISTERED/81 评估节点） | [明细](EXPERIMENTS/xiasha1_offline_v2.md) |
+| `hz1x1_sanity_v1` | 60 | 60/0/0/0 | 已完成 60/60（5 臂）：体检签名全过（thr≈需求、uninserted≈0、量级正常）——记录管线无罪，xiasha1 异常为数据专属 | [明细](EXPERIMENTS/hz1x1_sanity_v1.md) |
+| `xiasha1_offline_v1` | 126 | 0/0/0/126 | 作废：xiasha 数据不再用于 offline；126 SCOPE_DISCARD；相关历史源仅留档 | [明细](EXPERIMENTS/xiasha1_offline_v1.md) |
+| `xiasha1_offline_v2` | 126 | 0/0/0/126 | 作废：xiasha 源全量弃用，126 SCOPE_DISCARD，队列 dropped；转 hz1x1_offline_v1 | [明细](EXPERIMENTS/xiasha1_offline_v2.md) |
+| `hz1x1_offline_v1` | 144 | 0/0/0/0 | 准备未派发：24 池/144 REGISTERED；d3qn÷12 对齐 FRAP/SAC；末端关闭 bootstrap | [明细](EXPERIMENTS/hz1x1_offline_v1.md) |
 | `cl_hz1x1` | 5584 | 5368/0/0/216 | hz1x1 持续学习：off-policy 机制性遗忘三骨干证实；+policy 锚 λπ=1 把 worst 退化压至 ≤1.0s 近零塑性代价；ρ 剂量响应显示锚定可省回放预算且 ρ=0.25 为甜点 | [明细](EXPERIMENTS/cl_hz1x1.md) |
 | `hitl_live_ab` | 6 | 6/0/0/0 | — | [明细](EXPERIMENTS/hitl_live_ab.md) |
 | `hitl_live_baseline` | 2 | 2/0/0/0 | — | [明细](EXPERIMENTS/hitl_live_baseline.md) |

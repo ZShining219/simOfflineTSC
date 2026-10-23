@@ -207,7 +207,7 @@ META = {
  "hypothesis": "在已验证干净的 hz1x1 原始真实包上用与 v3 逐位一致的协议训练 4 臂，验证训练+eval 记录口径是否正常——若形态健康则确认 xiasha1 异常为数据专属，若异常则管线有更深缺陷。",
  "plan_id": "hz1x1_sanity_v1",
  "design": "docs/experiments/2026-10-23_hz1x1_sanity.md；5 臂(d3qn/frap/sac/presslight/mplight)×4 原始包(bc-tyc/qc-yn/kn-hz/sb-sx)×3 seeds=60 run；200ep+每ep贪心评估+pseudo_step，协议同 v3。",
- "conclusion": "已完成（2026-10-23）：48+12(mplight 追加在跑)。final-20 TT 74.6–78.3、queue 5.3–7.2、thr≈需求 97-98%、uninserted≈0-3、收敛正常——体检签名全过，判定记录管线无罪，xiasha1 历史异常为截断几何数据专属问题，v3 口径可信。",
+ "conclusion": "已完成（2026-10-23）：60/60 DONE。final-20 TT 73.6–78.3、queue 5.1–7.2、thr≈需求 97-98%、uninserted≈0-3、收敛正常——体检签名全过，判定记录管线无罪，xiasha1 历史异常为截断几何数据专属问题，v3 口径可信。",
  "queues": "artifacts/hz1x1_sanity_v1/run_queue.json",
 },
 "xiasha1_v3_cross_eval_v1": {
@@ -231,7 +231,7 @@ META = {
  "hypothesis": "逐步增加离线经验池异构性（单 run→多 seed→多控制器→多场景→双轴稀疏），刻画 batch_dqn/cql_dqn 在未筛选历史交互数据上的学习表现与失效边界，为数据价值自主利用方法提供基线。",
  "plan_id": "xiasha1_offline_v1",
  "design": "docs/experiments/2026-10-22_xiasha1_offline_hetero.md；v1_hetero 数据集索引（27 xi2on 源 run/5400 shards/1.944M transitions）；configs/offline_tsc/xiasha1_v1.yml（81 评估节点）；dev/xiasha1_offline/。",
- "conclusion": "作废（2026-10-22 派发，36 DONE+12 RUNNING 后 Z 裁关停）：源 run 属 v2 截断几何（进口道 106.4m+departPos≈80），126 行 SCOPE_DISCARD；2026-10-23 v1 离线训练产物（run 目录/v1_hetero 索引/队列 artifacts）按裁清理，xi2on 在线源 run 保留作历史证据。由 xiasha1_offline_v2（v3 修复源）替代。",
+ "conclusion": "作废：xiasha v1 使用截断几何数据；后续 v2 曾以几何修复源重建并登记，但用户于 2026-10-23 裁定 xiasha 数据全部退出本离线实验，v1/v2 均不再作为有效替代。",
  "queues": "artifacts/xiasha1_offline_v1/run_queue.json（已随产物清理）",
 },
 "xiasha1_offline_v2": {
@@ -239,8 +239,18 @@ META = {
  "hypothesis": "同 xiasha1_offline_v1；在修复后 v3 源轨迹（xi3re_*，280m 进口道、车道起点插入）上重建，替代作废的 v1。",
  "plan_id": "xiasha1_offline_v2",
  "design": "docs/experiments/2026-10-22_xiasha1_offline_hetero.md；v2_hetero 数据集索引（27 xi3re 源 run/5400 shards/1.944M transitions，source_root_id=xiasha1_online_v3_root）；configs/offline_tsc/xiasha1_v1.yml；dev/xiasha1_offline/（SOURCE_PREFIX=xi3re）。",
- "conclusion": "待派发（2026-10-22 登记 126 REGISTERED）：E0–E5/E4-LOO×3 池复本×{batch_dqn,cql_dqn}×3 离线 seeds；v3 冒烟链路通过（3600 updates），出现单相位固定点塌缩观察，待正式 144k 曲线判定。",
+ "conclusion": "作废（2026-10-23 用户裁定）：xiasha 数据全部退出本轮离线训练，v3 源亦不采用；126 REGISTERED→SCOPE_DISCARD，正式队列未派发且已标 dropped，历史资产留档；当前离线基线改用 hz1x1_sanity_v1 中 DONE 的 d3qn/FRAP/SAC 源。",
  "queues": "artifacts/xiasha1_offline_v2/run_queue.json",
+},
+"hz1x1_offline_v1": {
+ "registration_label": "正式登记 2026-10-23",
+ "full_row_paths": True,
+ "title": "hz1x1 异构历史经验纯离线基线（d3qn/FRAP/SAC，准备未派发）",
+ "hypothesis": "在同构控制结构、不同车流场景下，以未经质量筛选的完整在线 run 为固定池，刻画 batch_dqn/cql_dqn 在多 seed、多控制器、多场景及双轴稀疏经验下的学习表现与失效边界。",
+ "plan_id": "hz1x1_offline_v1",
+ "design": "configs/offline_tsc/hz1x1_v1.yml（8 条件×3 池复本×2 算法×3 离线 seeds=144）；dev/hz1x1_offline/prepare.py；data/output_data/offline_datasets/hz1x1/v1_hetero/（36 源 run/7200 shards/2.592M transitions，24 池 manifests）；d3qn /12、FRAP/SAC 原值，原始 shard 不改；全池均匀采样；terminated 或 truncated 关闭 bootstrap；144k updates/batch64/81 eval 节点，评估目标 A=sumohz1x1。",
+ "conclusion": "REGISTERED：仅准备和代码/数据可用性验证，未派发、未启动训练或 SUMO 实验，无正式指标或科研结论；MPLight 与 PressLight 均不入池。",
+ "queues": "artifacts/hz1x1_offline_v1/run_queue.json（144 任务，仅准备）",
 },
 }
 
@@ -277,9 +287,10 @@ SHORT = {
 "xiasha1_cross_eval_v1": "已完成 384/384（几何截断 errata）：FRAP/MPLight 相对泛化最好；DQN 家族绝对跨源 TT 最好；PressLight 最差",
 "xiasha1_online_v3": "已完成 288/288（几何修复正式口径）：ddqn/d3qn/sac TT 领先；uninserted≈1（v2 为 42–151，截断伪影消除）",
 "xiasha1_v3_cross_eval_v1": "已完成 384/384：SAC/PressLight 泛化最稳（gap 9.0/15.4%），DQN 家族最差（27.5–49.0%），v1 排序翻转",
-"hz1x1_sanity_v1": "48/48 DONE+mplight 12 追加在跑：体检签名全过（thr≈需求、uninserted≈0、量级正常）——记录管线无罪，xiasha1 异常为数据专属",
-"xiasha1_offline_v1": "作废：异构历史经验离线矩阵（v2 截断几何源，36 DONE+12 RUNNING 关停，产物已清理；xi2on 源 run 保留）",
-"xiasha1_offline_v2": "待派发：同矩阵基于 v3 修复源重建（v2_hetero/126 REGISTERED/81 评估节点）",
+"hz1x1_sanity_v1": "已完成 60/60（5 臂）：体检签名全过（thr≈需求、uninserted≈0、量级正常）——记录管线无罪，xiasha1 异常为数据专属",
+"xiasha1_offline_v1": "作废：xiasha 数据不再用于 offline；126 SCOPE_DISCARD；相关历史源仅留档",
+"xiasha1_offline_v2": "作废：xiasha 源全量弃用，126 SCOPE_DISCARD，队列 dropped；转 hz1x1_offline_v1",
+"hz1x1_offline_v1": "准备未派发：24 池/144 REGISTERED；d3qn÷12 对齐 FRAP/SAC；末端关闭 bootstrap",
 }
 
 camps = collections.Counter(r["campaign"] for r in ROWS)
@@ -289,7 +300,7 @@ order = ["att_entity_004", "att_entity_003", "att_entity_002", "arterial_1x6",
          "xiasha1_online_v1", "xiasha1_explore_v1", "xiasha1_online_v2",
          "xiasha1_cross_eval_v1", "xiasha1_online_v3",
          "xiasha1_v3_cross_eval_v1", "hz1x1_sanity_v1",
-         "xiasha1_offline_v1", "xiasha1_offline_v2"]
+         "xiasha1_offline_v1", "xiasha1_offline_v2", "hz1x1_offline_v1"]
 
 # ---------- 明细文件：每 campaign 一篇 ----------
 DETAIL = ROOT / "EXPERIMENTS"
@@ -315,7 +326,7 @@ for camp in order + sorted(set(camps) - set(order)):
              f"{collections.Counter(r['run_kind'] for r in rs).get('smoke',0)}/"
              f"{collections.Counter(r['run_kind'] for r in rs).get('batch',0)}/"
              f"{collections.Counter(r['run_kind'] for r in rs).get('calibration',0)}）"
-             f"（追溯登记 2026-10-07）")
+             f"（{meta.get('registration_label', '追溯登记 2026-10-07')}）")
     d.append("")
     core = [r for r in rs if r["run_kind"] != "eval"]
     core.sort(key=lambda r: (r["run_kind"], r["run_id"]))
@@ -325,11 +336,14 @@ for camp in order + sorted(set(camps) - set(order)):
         for r in core:
             sid = f"{r.get('arm') or '—'}/{r.get('net') or '—'}/s{r.get('seed') if r.get('seed') is not None else '—'}"
             ep = r.get("episodes_total")
-            note = (r.get("notes") or "").replace("|", "／")[:80]
+            note = (r.get("notes") or "").replace("|", "／")
+            run_dir = r.get('run_dir') or '—'
+            if not meta.get('full_row_paths'):
+                note, run_dir = note[:80], run_dir[:80]
             if r.get("alias_of"): note = f"alias→{r['alias_of'][:40]}; " + note
             d.append(f"| `{r['run_id'][:60]}` | {sid} | {ep if ep is not None else '—'} | "
                      f"{r['status']} | {(r.get('started') or '—')[:10]} | {fmt_metrics(r.get('metrics'))} | "
-                     f"`{(r.get('run_dir') or '—')[:80]}` | {note} |")
+                     f"`{run_dir}` | {note} |")
         d.append("")
     evs = [r for r in rs if r["run_kind"] == "eval"]
     if evs:

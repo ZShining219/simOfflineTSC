@@ -5,7 +5,7 @@
 - 假设：逐步增加离线经验池异构性（单 run→多 seed→多控制器→多场景→双轴稀疏），刻画 batch_dqn/cql_dqn 在未筛选历史交互数据上的学习表现与失效边界，为数据价值自主利用方法提供基线。
 - plan_id/队列：xiasha1_offline_v1
 - 设计稿/证据位置：docs/experiments/2026-10-22_xiasha1_offline_hetero.md；v1_hetero 数据集索引（27 xi2on 源 run/5400 shards/1.944M transitions）；configs/offline_tsc/xiasha1_v1.yml（81 评估节点）；dev/xiasha1_offline/。
-- 结论：作废（2026-10-22 派发，36 DONE+12 RUNNING 后 Z 裁关停）：源 run 属 v2 截断几何（进口道 106.4m+departPos≈80），126 行 SCOPE_DISCARD；2026-10-23 v1 离线训练产物（run 目录/v1_hetero 索引/队列 artifacts）按裁清理，xi2on 在线源 run 保留作历史证据。由 xiasha1_offline_v2（v3 修复源）替代。
+- 结论：作废：xiasha v1 使用截断几何数据；后续 v2 曾以几何修复源重建并登记，但用户于 2026-10-23 裁定 xiasha 数据全部退出本离线实验，v1/v2 均不再作为有效替代。
 - 登记单元 126（train/eval/smoke/batch/calibration = 126/0/0/0/0）（追溯登记 2026-10-07）
 
 | run_id | 臂/net/seed | ep | 状态 | 起始 | TT/th/unfinished | 产物路径 | 备注 |

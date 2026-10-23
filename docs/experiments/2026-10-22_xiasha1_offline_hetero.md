@@ -1,26 +1,32 @@
-# xiasha1_offline_v1：异构历史经验的纯离线学习刻画实验（E0–E5）
+# xiasha1_offline：异构历史经验的纯离线学习刻画实验（E0–E5）
 
-> 状态：**v2 待派发**（v1 `xiasha1_offline_v1` 已关闭作废：v2 源数据
-> 截断几何缺陷，126 行 SCOPE_DISCARD；v2 `xiasha1_offline_v2` 基于
-> 几何修复版 v3 源 `xi3re_*` 重建完成——数据集 `v2_hetero`、队列、
-> 台账 126 行 REGISTERED，见 §4.3）
+> 状态：**v2 待派发**（v1 `xiasha1_offline_v1` 已关闭作废且产物已
+> 清理：v2 源数据截断几何缺陷，126 行 SCOPE_DISCARD，离线训练产物
+> 于 2026-10-23 按裁删除，`xi2on_*` 在线源 run 保留作历史证据，
+> 见 §4.4；v2 `xiasha1_offline_v2` 基于几何修复版 v3 源 `xi3re_*`
+> 重建完成——数据集 `v2_hetero`、队列、台账 126 行 REGISTERED，
+> 见 §4.3）
 > 发起日期：2026-10-22 ｜ 负责人/Agent：Z / Devin
-> 最近更新：2026-10-22
+> 最近更新：2026-10-23
 
 ## 关联
 
-- campaign：`xiasha1_offline_v1`（台账已登记 126 行 REGISTERED）
-- 队列文件：`artifacts/xiasha1_offline_v1/run_queue.json`
+- 当前有效 campaign：`xiasha1_offline_v2`（台账 126 行 REGISTERED）
+- 历史 campaign：`xiasha1_offline_v1`（126 行 SCOPE_DISCARD，产物
+  已清理，见 §4.4）
+- 队列文件：`artifacts/xiasha1_offline_v2/run_queue.json`
   （artifacts 为 gitignore 仓外资产）
-- 数据集：`data/output_data/offline_datasets/xiasha1/v1_hetero/`
+- 数据集：`data/output_data/offline_datasets/xiasha1/v2_hetero/`
   （只读索引根，27 源 run / 5400 shards / 1.944M transitions；
   21 个 spec manifest 于 `datasets/<spec>/manifest.json`，
-  不复制源分片）
-- 数据源：`xiasha1_online_v2` 的 DONE run 轨迹
-  `trajectory/episodes/episode_*.npz`（schema A，72k transitions/run）
-- 评估协议：与 v2 训练期评估同口径（贪心 episode、SUMO
+  不复制源分片；`source_root_id=xiasha1_online_v3_root`）
+- 数据源：`xiasha1_online_v3` 的 DONE run 轨迹
+  `trajectory/episodes/episode_*.npz`（schema A，72k transitions/run；
+  v1 曾用 `xiasha1_online_v2` 同构轨迹，因截断几何作废——`xi2on_*`
+  源 run 保留作历史证据，不再用于训练）
+- 评估协议：与 v3 训练期评估同口径（贪心 episode、SUMO
   `fixed_default`、legacy `pseudo_step`）
-- 产物目录：`data/output_data/offline_tsc/sumo_{batch_dqn,cql_dqn}/xiasha1_asym_ns/xi1off_*`
+- 产物目录：`data/output_data/offline_tsc/sumo_{batch_dqn,cql_dqn}/xiasha1_asym_ns/xi2off_*`
 
 ## 1. 改动意图
 
@@ -203,9 +209,27 @@ SUMO），区别于 ha_sodqn/cl_hz1x1 半离线线（在线交互+历史归档�
   离线 DQN 的外推误差/退化策略问题被真实暴露——这正是 E0 与
   CQL 对照臂要刻画的量；小预算冒烟不下学习结论。
 
+### 4.4 v1 离线产物清理（2026-10-23）
+
+- Z 裁：清理 v1 离线训练产物，v2 在线源数据本身不动——
+  - 已删：`data/output_data/offline_tsc/sumo_{batch,cql}_dqn/
+    xiasha1_asym_ns/xi1off*` 49 个 run 目录（~5.6 GB，含冒烟
+    `xi1offsmoke_*`）、数据集索引 `v1_hetero`、派发 artifacts
+    `artifacts/xiasha1_offline_v1/`（~161 MB，含队列/run_state/
+    TB 投影）；
+  - 保留：`xi2on_*` v2 在线源 run（290 目录，历史证据）、
+    `v2_hetero` 数据集、`artifacts/xiasha1_offline_v2/` 队列、
+    v3 冒烟产物 `xi2offsmoke_*`；
+- 台账：v1 126 行 notes 追加清理记录（SCOPE_DISCARD 状态不变）；
+  `gen_experiments.py` 补登两 campaign META/SHORT/order，
+  EXPERIMENTS 索引与明细重生成；
+- 工程资产（构建器扩展、CLI 参数、overlay、dev 三件、登记件）
+  与数据无关，继续服务 v2 campaign。
+
 ## 5. 结论与后续
 
-- v1 campaign 作废（v2 截断几何）；v2 campaign
+- v1 campaign 作废且离线训练产物已清理（2026-10-23，§4.4；
+  `xi2on_*` 源 run 保留）；v2 campaign
   （`xiasha1_offline_v2`，v3 源）数据集/队列/台账就绪，待派发；
 - 阶段②（自主价值利用）与 E6 阶段投喂族仍待数据就绪后另行立项。
 

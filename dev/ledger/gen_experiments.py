@@ -226,6 +226,22 @@ META = {
  "conclusion": "已完成（2026-10-22）：384/384 DONE。目标相对 TT gap：FRAP 0.9%、MPLight 1.6%、DQN 家族 3.9–4.8%、SAC 7.6%、PressLight 12.0%；绝对跨源 TT：DQN 家族 13.87–13.97 最好，FRAP/MPLight 14.15–14.17，SAC 14.44，PressLight 15.33。uninserted 受同场景 checkpoint 选择影响，不能直接当泛化增益。",
  "queues": "artifacts/xiasha1_cross_eval_v1/run_queue.json",
 },
+"xiasha1_offline_v1": {
+ "title": "xiasha1 异构历史经验离线矩阵 E0–E5（v2 截断几何源，作废）",
+ "hypothesis": "逐步增加离线经验池异构性（单 run→多 seed→多控制器→多场景→双轴稀疏），刻画 batch_dqn/cql_dqn 在未筛选历史交互数据上的学习表现与失效边界，为数据价值自主利用方法提供基线。",
+ "plan_id": "xiasha1_offline_v1",
+ "design": "docs/experiments/2026-10-22_xiasha1_offline_hetero.md；v1_hetero 数据集索引（27 xi2on 源 run/5400 shards/1.944M transitions）；configs/offline_tsc/xiasha1_v1.yml（81 评估节点）；dev/xiasha1_offline/。",
+ "conclusion": "作废（2026-10-22 派发，36 DONE+12 RUNNING 后 Z 裁关停）：源 run 属 v2 截断几何（进口道 106.4m+departPos≈80），126 行 SCOPE_DISCARD；2026-10-23 v1 离线训练产物（run 目录/v1_hetero 索引/队列 artifacts）按裁清理，xi2on 在线源 run 保留作历史证据。由 xiasha1_offline_v2（v3 修复源）替代。",
+ "queues": "artifacts/xiasha1_offline_v1/run_queue.json（已随产物清理）",
+},
+"xiasha1_offline_v2": {
+ "title": "xiasha1 异构历史经验离线矩阵 E0–E5（v3 几何修复源）",
+ "hypothesis": "同 xiasha1_offline_v1；在修复后 v3 源轨迹（xi3re_*，280m 进口道、车道起点插入）上重建，替代作废的 v1。",
+ "plan_id": "xiasha1_offline_v2",
+ "design": "docs/experiments/2026-10-22_xiasha1_offline_hetero.md；v2_hetero 数据集索引（27 xi3re 源 run/5400 shards/1.944M transitions，source_root_id=xiasha1_online_v3_root）；configs/offline_tsc/xiasha1_v1.yml；dev/xiasha1_offline/（SOURCE_PREFIX=xi3re）。",
+ "conclusion": "待派发（2026-10-22 登记 126 REGISTERED）：E0–E5/E4-LOO×3 池复本×{batch_dqn,cql_dqn}×3 离线 seeds；v3 冒烟链路通过（3600 updates），出现单相位固定点塌缩观察，待正式 144k 曲线判定。",
+ "queues": "artifacts/xiasha1_offline_v2/run_queue.json",
+},
 }
 
 def fmt_metrics(m):
@@ -262,6 +278,8 @@ SHORT = {
 "xiasha1_online_v3": "已完成 288/288（几何修复正式口径）：ddqn/d3qn/sac TT 领先；uninserted≈1（v2 为 42–151，截断伪影消除）",
 "xiasha1_v3_cross_eval_v1": "已完成 384/384：SAC/PressLight 泛化最稳（gap 9.0/15.4%），DQN 家族最差（27.5–49.0%），v1 排序翻转",
 "hz1x1_sanity_v1": "进行中：hz1x1 原始真实包口径体检（4臂×4包×3seed=48，协议同 v3）",
+"xiasha1_offline_v1": "作废：异构历史经验离线矩阵（v2 截断几何源，36 DONE+12 RUNNING 关停，产物已清理；xi2on 源 run 保留）",
+"xiasha1_offline_v2": "待派发：同矩阵基于 v3 修复源重建（v2_hetero/126 REGISTERED/81 评估节点）",
 }
 
 camps = collections.Counter(r["campaign"] for r in ROWS)
@@ -270,7 +288,8 @@ order = ["att_entity_004", "att_entity_003", "att_entity_002", "arterial_1x6",
          "ha_sodqn", "milestone0_infra", "paper_infra_validation", "misc_probes",
          "xiasha1_online_v1", "xiasha1_explore_v1", "xiasha1_online_v2",
          "xiasha1_cross_eval_v1", "xiasha1_online_v3",
-         "xiasha1_v3_cross_eval_v1", "hz1x1_sanity_v1"]
+         "xiasha1_v3_cross_eval_v1", "hz1x1_sanity_v1",
+         "xiasha1_offline_v1", "xiasha1_offline_v2"]
 
 # ---------- 明细文件：每 campaign 一篇 ----------
 DETAIL = ROOT / "EXPERIMENTS"

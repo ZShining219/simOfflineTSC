@@ -1,7 +1,7 @@
 # scen_cov_v1 场景覆盖率：半离线 vs 纯在线（pilot）
 
 > 索引：[EXPERIMENTS.md](../EXPERIMENTS.md)；事实源 `ledger/runs.jsonl`
-> 状态：设计完成，待 P5 派发（无结果）
+> 状态：P5 已收官（attempt2 256/256 SUCCEEDED、0 FAILED；台账 256 行全 DONE，结果已回填见下）。P6 结论另存本机 `agenthub/lab/ledger-notes/2026-11-03-P6-结论.md`（本机路径，不在仓内、不入 git，非仓内链接）
 
 - 假设：同一训练预算 / 同一场景顺序 / 同一 seeds 下，半离线（`offline_ratio=0.25` 仅 st2–4 生效，全程有效混合比 ≈18.75%）控制器的场景覆盖率高于纯在线控制器；即 ΔCoverage_L1 ≥ +0.25 且逐 cell 方向 ≥3/4 一致，覆盖裕度同步更高。
 - 场景与口径：[docs/scenario_taxonomy.md](../docs/scenario_taxonomy.md)（δ=0.05、η=0.10 冻结；**v1.1 已批，只批 L2**：`unfinished` 加绝对地板 `max(1.10·MP, MP+2)`，L1 原式不动，见卡 §3.3）

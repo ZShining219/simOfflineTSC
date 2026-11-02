@@ -48,3 +48,9 @@ data/output_data/
 
 # feishu 实例指针配置（本地部署用，勿入库）
 configs/feishu.json
+
+# Derived analysis caches and plots; retain reproducible scripts.
+/dev/coverage_figs/cache/
+/dev/coverage_figs/figs/
+/dev/transition_dist/cache/
+/dev/transition_dist/figs/

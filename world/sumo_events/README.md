@@ -232,7 +232,7 @@ traffic = [g.generate() for g in generators]
 
 2026-09-18 的四个相关测试文件合计 **66 passed**。真实链路使用 Python 3.10.18、SUMO 1.27.1/libsumo、现有 FixedTimeAgent、hz4x4、seed 7，两次各 245 秒，覆盖三类事件的发生/解除；60,852 次特征值核对通过，两次轨迹与映射哈希一致。该计数是重复时间步上的特征检查次数，不是独立文本数；该控制器仅驱动映射验证，不作为标准固定时制性能基线。
 
-本地证据：[validation.json](../../data/output_data/sumo_events/grounding_validation_20260918_v2/test_hz4x4_report_feature_roun0/validation.json)，包含完整命令、源文件哈希、仿真命令、状态转换和每次重放结果；大规模产物不随 Git 分发。模块测试另含手工报告与小目录、错误关系、相似 ID、空报告、重叠解除、补零、顺序和 stale-generator 检查。路网目录作为共同静态输入，未声明独立测绘验证或自由文本泛化。
+本地证据：`data/output_data/sumo_events/grounding_validation_20260918_v2/test_hz4x4_report_feature_roun0/validation.json`（本地运行产物，不入库），包含完整命令、源文件哈希、仿真命令、状态转换和每次重放结果；大规模产物不随 Git 分发。模块测试另含手工报告与小目录、错误关系、相似 ID、空报告、重叠解除、补零、顺序和 stale-generator 检查。路网目录作为共同静态输入，未声明独立测绘验证或自由文本泛化。
 
 在仓库根目录、`colight` 环境复验：
 

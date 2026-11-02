@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""xiasha1 几何守卫：防 106.4m 车道 + departPos 截断观测问题复发。
+"""xiasha1 几何守卫：防进口截断和过早出口到达问题复发。
 
 检查项：
   1. 16 个 xiasha1 net.xml 的受控进口车道 length == 280.00；
   2. 15 个 xiasha1 rou.xml 无 departPos（车道起点插入）；
-  3. world/world_sumo.py 的 max_distance 为动态取值（无裸数字硬编码）。
+  3. 14 个生成包 rou.xml 无 arrivalPos（车辆驶至出口道末端）；
+  4. world/world_sumo.py 的 max_distance 为动态取值（无裸数字硬编码）。
 
 用法: python dev/checks/check_xiasha1_geometry.py
 退出码 0=全过, 1=存在违例。供 v3 冒烟及后续 pack 生成后复跑。
@@ -12,6 +13,7 @@
 import re
 import sys
 import xml.etree.ElementTree as ET
+from collections import defaultdict
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -21,10 +23,13 @@ EXPECTED_LEN = "280.00"
 NETS = [RAW / "xiasha1*1" / "xiasha1_sumo_signal.net.xml",
         RAW / "xiasha1*1" / "xiasha1_sumo_lane_aligned_base.net.xml"]
 ROUS = [RAW / "xiasha1*1" / "xiasha1_sumo_vehicles.rou.xml"]
+GENERATED = []
 for p in sorted(RAW.glob("xiasha1_*_1h")):
     name = p.name
     NETS.append(p / f"{name}_signal.net.xml")
-    ROUS.append(p / f"{name}.rou.xml")
+    route_file = p / f"{name}.rou.xml"
+    ROUS.append(route_file)
+    GENERATED.append((p / f"{name}_signal.net.xml", route_file))
 
 fails = []
 for net in NETS:
@@ -46,6 +51,52 @@ for rou in ROUS:
             if v.get("departPos") not in (None, "0", "0.00", "0.0"))
     if n:
         fails.append(f"{rou.relative_to(ROOT)}: {n} 辆车仍带非零 departPos")
+    if rou.parent.name.startswith("xiasha1_"):
+        early_arrivals = sum(
+            1 for v in ET.parse(str(rou)).getroot().iter("vehicle")
+            if v.get("arrivalPos") is not None)
+        if early_arrivals:
+            fails.append(
+                f"{rou.relative_to(ROOT)}: {early_arrivals} 辆车指定了提前终点"
+            )
+
+for net_path, rou_path in GENERATED:
+    if not net_path.exists() or not rou_path.exists():
+        continue
+    net = ET.parse(str(net_path)).getroot()
+    routes_root = ET.parse(str(rou_path)).getroot()
+    edges = {edge.get("id"): edge for edge in net.findall("edge")}
+    connections = defaultdict(set)
+    lane_counts = {}
+    for edge_id, edge in edges.items():
+        lane_counts[edge_id] = len(edge.findall("lane"))
+    for conn in net.findall("connection"):
+        connections[(conn.get("from"), conn.get("to"))].add(
+            conn.get("fromLane"))
+    routes = {route.get("id"): route.get("edges").split()
+              for route in routes_root.findall("route")}
+    mismatched_start_lanes = 0
+    for vehicle in routes_root.findall("vehicle"):
+        route = (vehicle.find("route").get("edges").split()
+                 if vehicle.find("route") is not None
+                 else routes.get(vehicle.get("route"), []))
+        lane = vehicle.get("departLane")
+        if len(route) < 2 or any(edge_id not in edges for edge_id in route):
+            fails.append(f"{rou_path.relative_to(ROOT)}: invalid vehicle route")
+            continue
+        if lane is None or not lane.isdigit() or int(lane) >= lane_counts[route[0]]:
+            fails.append(f"{rou_path.relative_to(ROOT)}: invalid departLane {lane}")
+            continue
+        if any((left, right) not in connections
+               for left, right in zip(route, route[1:])):
+            fails.append(f"{rou_path.relative_to(ROOT)}: disconnected vehicle route")
+            continue
+        if lane not in connections[(route[0], route[1])]:
+            mismatched_start_lanes += 1
+    if not mismatched_start_lanes:
+        fails.append(
+            f"{rou_path.relative_to(ROOT)}: no route-conditioned lane changes"
+        )
 
 world = (ROOT / "world" / "world_sumo.py").read_text(encoding="utf-8")
 if re.search(r"self\.max_distance\s*=\s*\d", world):
@@ -57,4 +108,5 @@ if fails:
         print(" -", f_)
     sys.exit(1)
 print(f"OK: {len(NETS)} nets x {EXPECTED_LEN}, {len(ROUS)} rous 起点插入, "
+      "generated routes use full exit edges and route-conditioned lanes, "
       "max_distance 动态")

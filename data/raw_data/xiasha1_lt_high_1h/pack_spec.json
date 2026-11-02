@@ -6,5 +6,13 @@
   "n_vehicles": 1477,
   "seed": 763738996,
   "base": "data/raw_data/xiasha1*1/xiasha1_sumo_vehicles.rou.xml",
-  "horizon_s": 3600
+  "horizon_s": 3600,
+  "demand_semantics": "synthetic OD demand for varying volume, turn mix, directional load, and temporal profile; not a trajectory replay",
+  "lane_assignment": {
+    "mode": "empirical_inbound_arm_marginal",
+    "source": "data/raw_data/xiasha1*1/xiasha1_sumo_vehicles.rou.xml",
+    "independent_of_route": true,
+    "lane_change_model": "SUMO default"
+  },
+  "trip_end": "end_of_final_route_edge"
 }

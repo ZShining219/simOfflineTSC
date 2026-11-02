@@ -10,21 +10,25 @@
   EW 直 34+3+2、EW 左 19+3、全红 5），右转恒绿。
 - 基准需求取自 xiasha1_sumo_vehicles.rou.xml（实测语义事件表转换）：
   350 veh / 约 867s 观测窗（等效 ~1450 veh/h），12 条 OD，NS 主导 ~61%。
+- 每车 OD 表达行驶意图；出发车道按原始数据的进口车道边际比例抽样，
+  与 OD 独立，车辆由 SUMO 默认变道模型在进口道上寻找路线可行车道。
+- 需求包车辆驶至最后一条路线边的末端完成行程，不继承源记录的短 arrivalPos。
 
-分类（4 大类 12 包，目录命名 xiasha1_<sub>_1h）：
+分类（5 大类 14 包，目录命名 xiasha1_<sub>_1h）：
   sparse  稀疏强度:   low(×0.5)
   dense   高流量:     high(×1.5) extreme(×2.0, 过饱和压力)
   turn    转向结构:   rt_high(全臂右→35%) lt_high(全臂左→35%) st_dom(直→90%)
   asym    方向不对称: ns(N,S×1.8/E,W×0.4) we(镜像) nonly(N×3.0 其余×0.5, 不归一)
   fluct   时变波动:   sin(±45%,T=600s) burst(1800-2400×2.5)
-                      ramp(0.4→1.6 线性爬坡) —— 全部归一化到基线总流量
+                      ramp(0.4→1.6 线性爬坡)
+  compound 综合难度:  compound_a/b（强度、方向、转向和时变分布组合）
 
 生成物（每包一个 raw 目录）：
   data/raw_data/xiasha1_<sub>_1h/
       xiasha1_<sub>_1h_signal.net.xml + _signal.add.xml 复制基准；
       _logic_lines.add.xml 剔除基准里 file= 指向仓内绝对路径的
       instantInductionLoop 检测器（纯输出仪表，防每次仿真覆写仓内文件）
-      xiasha1_<sub>_1h.rou.xml（新生成，逐车 + departLane 语义分配）
+      xiasha1_<sub>_1h.rou.xml（逐车 OD、出发时刻和经验车道分布）
       xiasha1_<sub>_1h.sumocfg（路径改写，0–3600s）
       pack_spec.json（参数与意图自述）
   data/raw_data/xiasha1_demand_packs.json（集合清单）
@@ -134,25 +138,18 @@ def load_base():
     vtype = ET.tostring(root.find("vType"), encoding="unicode").strip()
     routes = {rt.get("id"): rt.get("edges").split()
               for rt in root.findall("route")}
-    deps, dep_pos, arr_pos, st_lane0 = [], {}, {}, {}
-    pos_cnt, arr_cnt = {a: Counter() for a in ARMS}, {}
+    deps, lane_shares = [], {}
     lane_cnt = {a: Counter() for a in ARMS}
     for v in root.findall("vehicle"):
         e0, e1 = routes[v.get("route")]
         deps.append(float(v.get("depart")))
-        pos_cnt[e0][v.get("departPos")] += 1
-        arr_cnt.setdefault((e0, e1), Counter())[v.get("arrivalPos")] += 1
-        if MOVES[e0][e1] == "s":
-            lane_cnt[e0][v.get("departLane")] += 1
+        lane_cnt[e0][v.get("departLane")] += 1
     for a in ARMS:
-        dep_pos[a] = pos_cnt[a].most_common(1)[0][0]
-        st_lane0[a] = lane_cnt[a]["0"] / max(1, sum(lane_cnt[a].values()))
-    arr_exit = {}
-    for (e0, e1), c in arr_cnt.items():
-        arr_exit.setdefault(e1, Counter()).update(c)
-    arr_pos = {e: c.most_common(1)[0][0] for e, c in arr_exit.items()}
+        total = sum(lane_cnt[a].values())
+        lane_shares[a] = np.array(
+            [lane_cnt[a][str(i)] / total for i in range(3)], dtype=float)
     span = max(deps) - min(deps)
-    return vtype, span, dep_pos, arr_pos, st_lane0
+    return vtype, span, lane_shares
 
 
 def build_lambda(spec, obs_span):
@@ -225,17 +222,12 @@ def gen_route(rates, seed):
     return out
 
 
-def assign_lane(e0, e1, rng, st_lane0):
-    m = MOVES[e0][e1]
-    if m == "l":
-        return "2"
-    if m == "r":
-        return "0"
-    return "0" if rng.random() < st_lane0[e0] else "1"
+def assign_lane(e0, rng, lane_shares):
+    return str(rng.choice(3, p=lane_shares[e0]))
 
 
 def emit_pack(name, spec, vehicles, meta):
-    vtype_xml, dep_pos, arr_pos, st_lane0 = meta
+    vtype_xml, lane_shares = meta
     pdir = pathlib.Path("data/raw_data") / f"xiasha1_{name}_1h"
     pdir.mkdir(parents=True, exist_ok=True)
     pname = pdir.name
@@ -250,15 +242,15 @@ def emit_pack(name, spec, vehicles, meta):
         "<!-- instantInductionLoop detectors stripped: baseline file= attrs "
         "pointed at an absolute in-repo path; output-only instrumentation, "
         "no effect on dynamics. -->\n<additional/>\n")
-    # rou.xml：逐车 + departLane 语义分配（左→2 右→0 直→0/1 按臂实测比）
+    # Sample entry lanes independently of OD to retain realistic lane changes.
     rng = np.random.default_rng(vehicles_seed(name) ^ 0x5EED)
     rou = [f"\t{vtype_xml}"]
     for i, (dep, (e0, e1)) in enumerate(vehicles):
-        lane = assign_lane(e0, e1, rng, st_lane0)
+        lane = assign_lane(e0, rng, lane_shares)
         rou.append(
             f'\t\t<vehicle depart="{dep:.2f}" departLane="{lane}" '
             f'departPos="0.00" departSpeed="10.00" '
-            f'arrivalPos="{arr_pos[e1]}" id="{i}" type="xiasha_passenger">\n'
+            f'id="{i}" type="xiasha_passenger">\n'
             f"\t\t\t<route edges=\"{e0} {e1}\"/>\n\t\t</vehicle>")
     (pdir / f"{pname}.rou.xml").write_text(
         '<?xml version="1.0" encoding="utf-8"?>\n'
@@ -281,6 +273,16 @@ def emit_pack(name, spec, vehicles, meta):
     spec_out["seed"] = vehicles_seed(name)
     spec_out["base"] = f"{BASE_DIR}/{BASE_ROU}"
     spec_out["horizon_s"] = HORIZON
+    spec_out["demand_semantics"] = (
+        "synthetic OD demand for varying volume, turn mix, directional load, "
+        "and temporal profile; not a trajectory replay")
+    spec_out["lane_assignment"] = {
+        "mode": "empirical_inbound_arm_marginal",
+        "source": f"{BASE_DIR}/{BASE_ROU}",
+        "independent_of_route": True,
+        "lane_change_model": "SUMO default",
+    }
+    spec_out["trip_end"] = "end_of_final_route_edge"
     (pdir / "pack_spec.json").write_text(
         json.dumps(spec_out, ensure_ascii=False, indent=2))
     return pdir
@@ -295,17 +297,16 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--only", nargs="*", default=None)
     args = ap.parse_args()
-    vtype, span, dep_pos, arr_pos, st_lane0 = load_base()
-    print(f"base span={span:.1f}s dep_pos={dep_pos} arr_pos={arr_pos} "
-          f"st_lane0={ {a: round(p, 3) for a, p in st_lane0.items()} }")
+    vtype, span, lane_shares = load_base()
+    print(f"base span={span:.1f}s lane_shares="
+          f"{ {a: lane_shares[a].round(3).tolist() for a in ARMS} }")
     names = args.only or list(PACKS)
     summary = []
     for name in names:
         spec = PACKS[name]
         rates = build_lambda(spec, span)
         veh = gen_route(rates, vehicles_seed(name))
-        pdir = emit_pack(name, spec, veh,
-                         (vtype, dep_pos, arr_pos, st_lane0))
+        pdir = emit_pack(name, spec, veh, (vtype, lane_shares))
         summary.append((name, spec["cat"], len(veh), spec.get("note", "")))
         print(f"{name:16s} cat={spec['cat']:6s} n={len(veh):5d} -> {pdir}")
 

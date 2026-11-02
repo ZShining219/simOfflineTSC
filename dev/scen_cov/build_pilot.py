@@ -249,6 +249,7 @@ def main():
             spec = ARMS[arm]
             agent = spec['agent']
             cond = spec['condition']
+            is_semi = cond == 'semi_offline'
             prev_ckpt = None
             prev_rid = None
             history_paths = []
@@ -276,9 +277,14 @@ def main():
                 if prev_rid:
                     task['depends_on'] = [prev_rid]
                     requires.append({'path': str(prev_ckpt)})
-                    requires.extend(
-                        {'path': str(p / 'manifest.json')}
-                        for p in history_paths)
+                    # p5-04 fix: only the semi-offline arm archives
+                    # history; the clear arm chains via
+                    # stage_checkpoint only (cl1 protocol) and must
+                    # not require history_archive/manifest.json.
+                    if is_semi:
+                        requires.extend(
+                            {'path': str(p / 'manifest.json')}
+                            for p in history_paths)
                 if requires:
                     task['requires'] = requires
                 add_task(task)
@@ -319,7 +325,8 @@ def main():
                             behavior=rid, condition=cond,
                             notes=('REGISTERED: scen_cov_v1 lower-triangle '
                                    f'eval stage={st + 1} sumo_seed={es}'))
-                history_paths.append(odir / 'history_archive')
+                if is_semi:
+                    history_paths.append(odir / 'history_archive')
                 prev_ckpt, prev_rid = ckpt, rid
 
             # final coverage eval: L1 4 cells + L2 4 unseen cells

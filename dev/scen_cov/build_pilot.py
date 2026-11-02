@@ -169,14 +169,20 @@ def main():
     def train_overlay(run_id, arm, stage_idx, history_paths, prev_ckpt):
         me = dict(ARMS[arm]['model_extra'])
         me['double_dqn'] = True
-        me['scene_id'] = ORDER[stage_idx]
-        me['roadnet_id'] = 'hz1x1'
-        me['training_stage'] = stage_idx
-        me['scene_order'] = list(ORDER)
-        me['offline_ratio'] = (
-            0.0 if stage_idx == 0 else args.offline_ratio)
-        if history_paths:
-            me['history_paths'] = [str(p) for p in history_paths]
+        # p5-04 follow-up: the clear arm runs pure online (cl1 protocol) --
+        # no scene/history identity keys and no offline_ratio at all, it
+        # chains across stages only via stage_checkpoint.  The semi-offline
+        # arm is the only one that mixes archived history.
+        is_semi = ARMS[arm]['condition'] == 'semi_offline'
+        if is_semi:
+            me['scene_id'] = ORDER[stage_idx]
+            me['roadnet_id'] = 'hz1x1'
+            me['training_stage'] = stage_idx
+            me['scene_order'] = list(ORDER)
+            me['offline_ratio'] = (
+                0.0 if stage_idx == 0 else args.offline_ratio)
+            if history_paths:
+                me['history_paths'] = [str(p) for p in history_paths]
         if stage_idx > 0:
             me['stage_checkpoint'] = str(prev_ckpt)
             me['replay_policy'] = 'clear'

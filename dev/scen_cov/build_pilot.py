@@ -18,13 +18,14 @@ Outputs (under --out-dir, default <run-root>/artifacts/scen_cov_v1):
 The script only writes files; it never launches runs.
 
 Usage:
-    python dev/scen_cov/build_pilot.py --run-root ~/worktrees/dsh-ops
-    python dev/scen_cov/build_pilot.py --run-root ~/worktrees/dsh-eng \
+    python dev/scen_cov/build_pilot.py --run-root <run-worktree>
+    python dev/scen_cov/build_pilot.py --run-root <run-worktree> \
         --stage-episodes 2 --train-seeds 0 --arms ddqn_clear \
         --out-dir /tmp/scv1_smoke --tag smoke
 """
 import argparse
 import json
+import subprocess
 import sys
 from pathlib import Path
 
@@ -111,6 +112,21 @@ def main():
     overlay_dir = out_dir / 'overlays'
     out_dir.mkdir(parents=True, exist_ok=True)
     overlay_dir.mkdir(parents=True, exist_ok=True)
+
+    script_root = Path(__file__).resolve().parents[2]
+
+    def _git(*cmd):
+        try:
+            return subprocess.run(
+                ['git', '-C', str(script_root), *cmd],
+                capture_output=True, text=True, timeout=10,
+            ).stdout.strip()
+        except Exception:
+            return ''
+
+    builder_commit = _git('rev-parse', '--short', 'HEAD') or 'unknown'
+    if _git('status', '--porcelain'):
+        builder_commit += '-dirty'
 
     py = sys.executable
     train_seeds = [int(x) for x in args.train_seeds.split(',') if x.strip()]
@@ -202,7 +218,8 @@ def main():
             'run_dir': None, 'tmux': None, 'started': None,
             'eval_mode': eval_mode, 'behavior_source': behavior,
             'metrics': {}, 'abort_reason': None, 'error': None,
-            'evidence_lost': False, 'notes': notes,
+            'evidence_lost': False,
+            'notes': notes + f' | builder_commit={builder_commit}',
             'run_kind': kind, 'config_sha': None,
             'sumo_seed_mode': 'explicit' if sumo_seed is not None else None,
             'sumo_seed': sumo_seed, 'eval_seed': sumo_seed,
@@ -371,6 +388,7 @@ def main():
         'spec': 'docs/experiments/2026-11-02_scen_cov_v1.md',
         'run_root': str(run_root),
         'code_commit_at_build': None,
+        'builder_commit': builder_commit,
         'order': ORDER,
         'l1_cells': NET_TAG,
         'l2_cells': L2_NETS,
@@ -395,7 +413,8 @@ def main():
         '\n'.join(json.dumps(r, ensure_ascii=False) for r in ledger) + '\n',
         encoding='utf-8')
     print(f'tasks={len(tasks)} train={n_train} eval={n_eval} '
-          f'train_episodes={train_episodes} ledger_rows={len(ledger)}')
+          f'train_episodes={train_episodes} ledger_rows={len(ledger)} '
+          f'builder={builder_commit}')
     print(f'queue -> {queue_path}')
     print(f'ledger rows -> {ledger_path}')
     if train_episodes > 600:

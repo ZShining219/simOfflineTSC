@@ -21,7 +21,7 @@ Reads (all under --run-root/data/output_data/tsc):
 Writes: coverage_report.json + coverage_cells.csv (under --out-dir).
 
 Usage:
-    python dev/scen_cov/harvest_coverage.py --run-root ~/worktrees/dsh-ops
+    python dev/scen_cov/harvest_coverage.py --run-root <run-worktree>
 """
 import argparse
 import csv
@@ -41,39 +41,58 @@ AGR = ['ddqn_clear', 'soddqn']
 METRICS = ['travel_time', 'throughput', 'unfinished_vehicles', 'queue', 'delay']
 
 
-def load_final_eval(run_dir):
-    """Return the last FINAL_EVALUATION metric dict, or None if unavailable."""
-    run_dir = Path(run_dir)
-    path = run_dir / 'evaluation' / 'summary.json'
-    if path.is_file():
-        try:
-            data = json.loads(path.read_text(encoding='utf-8'))
-        except json.JSONDecodeError:
-            data = {}
-        evals = [e for e in data.get('evaluations', [])
-                 if e.get('record_type') == 'FINAL_EVALUATION']
-        if not evals:
-            evals = data.get('evaluations') or []
-        if evals:
-            record = evals[-1]
-            return {m: record.get(m) for m in METRICS}
-    path = run_dir / 'metrics' / 'records.jsonl'
-    if path.is_file():
-        found = None
-        with path.open(encoding='utf-8') as handle:
-            for line in handle:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    record = json.loads(line)
-                except json.JSONDecodeError:
-                    continue
-                if record.get('record_type') == 'FINAL_EVALUATION':
-                    found = record
-        if found is not None:
-            return {m: found.get(m) for m in METRICS}
-    return None
+def _pick(record):
+    return {m: record.get(m) for m in METRICS} if record else None
+
+
+def load_summary_final(run_dir):
+    """Last FINAL_EVALUATION from evaluation/summary.json (own eval runs)."""
+    path = Path(run_dir) / 'evaluation' / 'summary.json'
+    if not path.is_file():
+        return None
+    try:
+        data = json.loads(path.read_text(encoding='utf-8'))
+    except json.JSONDecodeError:
+        return None
+    evals = [e for e in data.get('evaluations', [])
+             if e.get('record_type') == 'FINAL_EVALUATION']
+    if not evals:
+        evals = data.get('evaluations') or []
+    return _pick(evals[-1]) if evals else None
+
+
+def load_records_final(run_dir):
+    """Last FINAL_EVALUATION from metrics/records.jsonl (maxpressure runs)."""
+    path = Path(run_dir) / 'metrics' / 'records.jsonl'
+    if not path.is_file():
+        return None
+    found = None
+    with path.open(encoding='utf-8') as handle:
+        for line in handle:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                record = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if record.get('record_type') == 'FINAL_EVALUATION':
+                found = record
+    return _pick(found)
+
+
+def load_final_eval(run_dir, prefer='summary'):
+    """Read a run's final evaluation.
+
+    P4 card r2 (dsh/design@23dfdfc) splits the two sources: our own eval
+    attempts are read from evaluation/summary.json, maxpressure baselines
+    from metrics/records.jsonl.  The other source stays as a fallback so a
+    partially-written run degrades to "missing" instead of a crash.
+    """
+    first, second = ((load_summary_final, load_records_final)
+                     if prefer == 'summary'
+                     else (load_records_final, load_summary_final))
+    return first(run_dir) or second(run_dir)
 
 
 def mean(values):
@@ -113,7 +132,8 @@ def main():
         per_seed = {}
         for es in eval_seeds:
             rid = f'scv1_mp_{tag}_es{es}'
-            got = load_final_eval(eval_dir('maxpressure', net, rid))
+            got = load_final_eval(eval_dir('maxpressure', net, rid),
+                                  prefer='records')
             if got is None:
                 missing.append(f'mp/{tag}/es{es}')
                 continue
@@ -142,7 +162,8 @@ def main():
                 rid_seed = {}
                 for es in eval_seeds:
                     rid = f'scv1_{arm}_o2_sd{k}_cov_{tag}_es{es}'
-                    got = load_final_eval(eval_dir('dqn', net, rid))
+                    got = load_final_eval(eval_dir('dqn', net, rid),
+                                          prefer='summary')
                     if got is None:
                         missing.append(f'{arm}/{tag}/sd{k}/es{es}')
                         continue

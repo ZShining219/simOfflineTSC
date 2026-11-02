@@ -30,13 +30,24 @@ c = (network, demand, event, protocol, seed_bundle)
 - 单场景覆盖判定：
 
 ```text
-cov(π,c) = 1[ ATT(π,c) ≤ (1+δ)·ATT_b(c) 且 unfinished(π,c) ≤ (1+η)·unfinished_b(c) ]
-δ = 0.05，η = 0.10   （事先冻结）
+cov(π,c) = 1[ ATT(π,c) ≤ (1+δ)·ATT_b(c) 且 unfinished(π,c) ≤ unfinished_cap(c) ]
+δ = 0.05，η = 0.10   （事先冻结，两版都不动）
+
+L1（主结论）  unfinished_cap(c)    = (1+η)·unfinished_b(c)
+L2（exploratory，双报）unfinished_cap_L2(c) = max((1+η)·unfinished_b(c), unfinished_b(c)+2)
 ```
 
 - **二值覆盖率**：`Coverage(π) = (1/K) Σ_k cov(π,c_k)`，取值 [0,1]
 - **覆盖裕度**（防二值饱和）：`Margin(π) = (1/K) Σ_k clip((τ_k − ATT(π,c_k))/τ_k, −1, +1)`，`τ_k = (1+δ)·ATT_b(c_k)`
 - 分组报告：L1 训练见过 / L2 训练未见 / L3 事件场景（本卡只跑 L1+L2）
+
+**版本与修订记录**
+
+- **v1.0**（2026-11-02 建卡时冻结）：上式为原口径，**L1 主结论只用此式**。
+- **v1.1**（2026-11-03 00:10，课题主管批，**只批 L2**）：L2 层加绝对地板护栏 `max((1+η)·MP, MP+2)`。
+  缘起：空载格基线 `unfinished_b=0` 时 `1.10×0=0`，阈值退化为 0，多 1 辆未插入即判不覆盖，该 cell 恒不覆盖、失去分辨力。
+  约束：**原式与护栏式双报**；哪格护栏真正生效要在结论里逐格点名；L1 四格原式不动、主结论不受影响。地板项仅在 `unfinished_b < 20` 时生效。
+- 生效范围：L1 原式 / L2 双报。**跑后不许再改**，改就是新口径（GOVERNANCE §5 指标定义最重一档，须重开 campaign 并重打基线）。
 
 ## 3. 为什么不用均值
 

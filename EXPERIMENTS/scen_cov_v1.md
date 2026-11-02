@@ -3,8 +3,9 @@
 > 索引：[EXPERIMENTS.md](../EXPERIMENTS.md)；事实源 `ledger/runs.jsonl`
 > 状态：设计完成，待 P5 派发（无结果）
 
-- 假设：同一训练预算 / 同一场景顺序 / 同一 seeds 下，半离线（25% 因果历史混合）控制器的场景覆盖率高于纯在线控制器；即 ΔCoverage_L1 ≥ +0.25 且逐 cell 方向 ≥3/4 一致，覆盖裕度同步更高。
-- 场景与口径：[docs/scenario_taxonomy.md](../docs/scenario_taxonomy.md)（δ=0.05、η=0.10、τ 事先冻结）
+- 假设：同一训练预算 / 同一场景顺序 / 同一 seeds 下，半离线（`offline_ratio=0.25` 仅 st2–4 生效，全程有效混合比 ≈18.75%）控制器的场景覆盖率高于纯在线控制器；即 ΔCoverage_L1 ≥ +0.25 且逐 cell 方向 ≥3/4 一致，覆盖裕度同步更高。
+- 场景与口径：[docs/scenario_taxonomy.md](../docs/scenario_taxonomy.md)（δ=0.05、η=0.10 冻结；**v1.1 已批，只批 L2**：`unfinished` 加绝对地板 `max(1.10·MP, MP+2)`，L1 原式不动，见卡 §3.3）
+- 口径变更记录：v1.0 冻结于 2026-11-02 设计时；v1.1（2026-11-03 00:10 课题主管批，只批 L2）因 L2 空载格阈值退化提出（数据评测复核 2.1），**派发前 0 run，不触发重打基线**
 - 实验卡：[docs/experiments/2026-11-02_scen_cov_v1.md](../docs/experiments/2026-11-02_scen_cov_v1.md)
 - plan_id / 队列：`scen_cov_v1`；队列由 `dev/scen_cov/build_pilot.py` 生成（待工程开发产出），落执行运维工作树 `artifacts/scen_cov_v1/run_queue.json`（落点待裁决，见卡片 §3.9）
 - 场景集（冻结）：L1 = s1 / c4 / c2 / c3（order o2，训练见过）；L2 = sparse_ultra / dense_extreme / lt_extreme / asym_wonly（训练未见，exploratory）；L3 事件层只定义不跑

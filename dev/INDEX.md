@@ -806,3 +806,12 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
   （48 tasks，`hz1sn_` 前缀，4 臂×4 原始真实包×3 seeds，协议同 v3）。
 - `dev/ledger/register_hz1x1_sanity.py`——台账登记器（48 REGISTERED）。
 - 相关文档：`docs/experiments/2026-10-23_hz1x1_sanity.md`。
+
+## 盘点补登（2026-11-02 治理管家）
+
+- `dev/hitl_live/`：HITL 实时通道落地脚本目录（仅含 README.md），盘点前未在本
+  INDEX 登记，现补登；归属 HITL live 实验线，见 `EXPERIMENTS/hitl_live_*.md` 与
+  `docs/hitl_h1_experiment_design.md`。
+- 补登依据：2026-11-02 只读盘点，`dev/` 实有 27 个子目录、INDEX 原登记 26 个，
+  唯一缺口即本目录（盘点记录：`agenthub/lab/ledger-notes/2026-11-02-盘点.md`，
+  本次整理不删除任何文件）。

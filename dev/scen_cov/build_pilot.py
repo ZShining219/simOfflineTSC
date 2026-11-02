@@ -24,6 +24,7 @@ Usage:
         --out-dir /tmp/scv1_smoke --tag smoke
 """
 import argparse
+import hashlib
 import json
 import subprocess
 import sys
@@ -125,8 +126,21 @@ def main():
             return ''
 
     builder_commit = _git('rev-parse', '--short', 'HEAD') or 'unknown'
-    if _git('status', '--porcelain'):
-        builder_commit += '-dirty'
+    builder_branch = _git('rev-parse', '--abbrev-ref', 'HEAD') or 'unknown'
+    builder_dirty = bool(_git('status', '--porcelain'))
+    script_hashes = {}
+    for name in ('build_pilot.py', 'harvest_coverage.py'):
+        path = script_root / 'dev' / 'scen_cov' / name
+        script_hashes[name] = (
+            hashlib.sha256(path.read_bytes()).hexdigest()
+            if path.is_file() else 'missing')
+    scripts_sha256 = ','.join(
+        f'{name}:{digest}' for name, digest in script_hashes.items())
+    # r2 audit fields (P5 card ad66a8b): the three items ledger notes must
+    # carry so "which code ran" stays reconstructable without merging main.
+    audit_note = (f'scen_cov_scripts={builder_branch}@{builder_commit}; '
+                  f'scripts_sha256={scripts_sha256}; '
+                  f'workspace_dirty={str(builder_dirty).lower()}')
 
     py = sys.executable
     train_seeds = [int(x) for x in args.train_seeds.split(',') if x.strip()]
@@ -219,7 +233,7 @@ def main():
             'eval_mode': eval_mode, 'behavior_source': behavior,
             'metrics': {}, 'abort_reason': None, 'error': None,
             'evidence_lost': False,
-            'notes': notes + f' | builder_commit={builder_commit}',
+            'notes': notes + f' | {audit_note}',
             'run_kind': kind, 'config_sha': None,
             'sumo_seed_mode': 'explicit' if sumo_seed is not None else None,
             'sumo_seed': sumo_seed, 'eval_seed': sumo_seed,
@@ -389,6 +403,9 @@ def main():
         'run_root': str(run_root),
         'code_commit_at_build': None,
         'builder_commit': builder_commit,
+        'builder_branch': builder_branch,
+        'builder_dirty': builder_dirty,
+        'scripts_sha256': script_hashes,
         'order': ORDER,
         'l1_cells': NET_TAG,
         'l2_cells': L2_NETS,
@@ -414,7 +431,8 @@ def main():
         encoding='utf-8')
     print(f'tasks={len(tasks)} train={n_train} eval={n_eval} '
           f'train_episodes={train_episodes} ledger_rows={len(ledger)} '
-          f'builder={builder_commit}')
+          f'builder={builder_branch}@{builder_commit} '
+          f'dirty={builder_dirty}')
     print(f'queue -> {queue_path}')
     print(f'ledger rows -> {ledger_path}')
     if train_episodes > 600:

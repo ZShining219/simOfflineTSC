@@ -1,21 +1,18 @@
 # xiasha1_offline：异构历史经验的纯离线学习刻画实验（E0–E5）
 
-> 状态：**v2 待派发**（v1 `xiasha1_offline_v1` 已关闭作废且产物已
-> 清理：v2 源数据截断几何缺陷，126 行 SCOPE_DISCARD，离线训练产物
-> 于 2026-10-23 按裁删除，`xi2on_*` 在线源 run 保留作历史证据，
-> 见 §4.4；v2 `xiasha1_offline_v2` 基于几何修复版 v3 源 `xi3re_*`
-> 重建完成——数据集 `v2_hetero`、队列、台账 126 行 REGISTERED，
-> 见 §4.3）
+> 状态：**已作废**（2026-10-23 用户裁定 xiasha1 数据全部退出本轮离线训练；
+> `xiasha1_offline_v1/v2` 的 252 行均为 `SCOPE_DISCARD`，v2 队列已标 dropped；
+> 在线源数据留作历史证据，当前基线转由 `hz1x1_offline_v1` 承载）
 > 发起日期：2026-10-22 ｜ 负责人/Agent：Z / Devin
 > 最近更新：2026-10-23
 
 ## 关联
 
-- 当前有效 campaign：`xiasha1_offline_v2`（台账 126 行 REGISTERED）
+- 当前有效 campaign：无；离线基线转为 `hz1x1_offline_v1`
 - 历史 campaign：`xiasha1_offline_v1`（126 行 SCOPE_DISCARD，产物
   已清理，见 §4.4）
-- 队列文件：`artifacts/xiasha1_offline_v2/run_queue.json`
-  （artifacts 为 gitignore 仓外资产）
+- 历史队列：`artifacts/xiasha1_offline_v2/run_queue.json`（已标 dropped，
+  不得派发；artifacts 为 gitignore 仓外资产）
 - 数据集：`data/output_data/offline_datasets/xiasha1/v2_hetero/`
   （只读索引根，27 源 run / 5400 shards / 1.944M transitions；
   21 个 spec manifest 于 `datasets/<spec>/manifest.json`，
@@ -226,11 +223,22 @@ SUMO），区别于 ha_sodqn/cl_hz1x1 半离线线（在线交互+历史归档�
 - 工程资产（构建器扩展、CLI 参数、overlay、dev 三件、登记件）
   与数据无关，继续服务 v2 campaign。
 
+## 4.5 xiasha 数据全量退出离线范围（2026-10-23）
+
+- 用户裁定：xiasha 的 v1/v2 轨迹均不用于本轮离线训练；v2 的 126 条
+  REGISTERED 转 `SCOPE_DISCARD`，队列标记 dropped，数据资产留档；
+- 后续基线使用 `hz1x1_sanity_v1` 的 d3qn/FRAP/SAC/MPLight 源，详见
+  `docs/experiments/2026-10-23_hz1x1_offline_mplight.md`。
+
 ## 5. 结论与后续
 
-- v1 campaign 作废且离线训练产物已清理（2026-10-23，§4.4；
-  `xi2on_*` 源 run 保留）；v2 campaign
-  （`xiasha1_offline_v2`，v3 源）数据集/队列/台账就绪，待派发；
+- v1 campaign 作废且离线训练产物已清理（2026-10-23，§4.4）；随后
+  用户裁定 xiasha 全部数据退出 offline 范围，v1/v2 的 252 行均为
+  `SCOPE_DISCARD`，v2 队列 dropped，数据不派发；在线源 run 与离线源索引
+  只保留为历史证据；
+- 当前基线为 `hz1x1_offline_v1` MPLight 修订：四控制器、同构路口不同车流，
+  27 池/162 REGISTERED，准备未派发，见
+  `EXPERIMENTS/hz1x1_offline_v1.md`；
 - 阶段②（自主价值利用）与 E6 阶段投喂族仍待数据就绪后另行立项。
 
 ## 勘误（2026-10-22，几何截断缺陷）

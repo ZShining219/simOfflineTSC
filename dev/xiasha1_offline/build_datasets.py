@@ -164,6 +164,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--dry-run', action='store_true')
     args = parser.parse_args()
+    raise SystemExit('SCOPE_DISCARD: xiasha offline sources withdrawn; use python -m dev.hz1x1_offline.prepare')
 
     rows = _scan_required_runs()
     specs = build_specs()

@@ -35,6 +35,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--out', default=str(ARTIFACT_DIR / 'run_queue.json'))
     args = parser.parse_args()
+    raise SystemExit('SCOPE_DISCARD: xiasha1_offline_v2 is closed; use python -m dev.hz1x1_offline.prepare')
 
     specs = json.loads(
         (ARTIFACT_DIR / 'dataset_specs.json').read_text(encoding='utf-8')

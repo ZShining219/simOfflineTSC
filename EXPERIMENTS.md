@@ -9,7 +9,7 @@
 ## 当前面板（2026-10-23，campaign 状态刷新）
 
 - **当前有效设计栈**：`agent/scene_attention.py` + `agent/tarl.py`——per-node z_task 结构化槽位 + SemanticAuxHead 辅助监督 + 反事实探针四层判定；配置族 `configs/tsc/att_entity_004/`；参考臂 `a3s`，最新修复线 `fixG`（收官测评已收割：vs a3s 收敛更快更优 ep100 −8.9s，但效用层未翻正 canonical−empty 中位 +0.58s）。
-- **纯离线基线（新登记）**：`hz1x1_offline_v1` 使用同构路口上的三类 DONE 源（d3qn/FRAP/SAC），d3qn reward 在离线视图乘 `1/12`；24 池与 144 行 REGISTERED 已准备，队列未派发。xiasha1_offline_v1/v2 全部作废。
+- **纯离线基线（MPLight 修订）**：`hz1x1_offline_v1` 使用同一控制拓扑、四种车流上的四类 DONE 源（d3qn/FRAP/SAC/MPLight）；d3qn reward 在离线视图乘 `1/12`，其余倍率为 1；27 池与 162 行 REGISTERED 已准备，旧三控制器方案 144 行 SCOPE_DISCARD，训练队列未派发。E5 是四臂×四车流各一来源的平衡稀疏混合池。xiasha1_offline_v1/v2 全部作废。
 - **代码位置**：`codex/milestone0-experiment-infrastructure` 分支（收编点 c8be158..32d3e18，已与主干合并 70f3dbf）；main=治理层+半离线基线。
 - **代号地图**（历史代际，明细在各 campaign 节）：
   - `tarl_reproduction`/`tarl_v21_formal` = TARL 论文复现基线（完结，仅对照用）
@@ -25,7 +25,7 @@
 
 ## 0. 总览
 
-登记 run 总数：**15317**（train 3095、eval attempt 11890、smoke 140、calibration 18、batch 46）
+登记 run 总数：**15479**（train 3257、eval attempt 11890、smoke 140、calibration 18、batch 46）
 
 | campaign | DONE | FAILED | ABORTED | SUPERSEDED | REGISTERED | SCOPE_DISCARD | LEGACY_UNCLEAR | 合计 |
 |---|---|---|---|---|---|---|---|---|
@@ -50,7 +50,7 @@
 | hz1x1_sanity_v1 | 60 | 0 | 0 | 0 | 0 | 0 | 0 | 60 |
 | xiasha1_offline_v1 | 0 | 0 | 0 | 0 | 0 | 126 | 0 | 126 |
 | xiasha1_offline_v2 | 0 | 0 | 0 | 0 | 0 | 126 | 0 | 126 |
-| hz1x1_offline_v1 | 0 | 0 | 0 | 0 | 144 | 0 | 0 | 144 |
+| hz1x1_offline_v1 | 0 | 0 | 0 | 0 | 154 | 144 | 0 | 306 |
 | cl_hz1x1 | 5368 | 0 | 0 | 0 | 0 | 216 | 0 | 5584 |
 | hitl_live_ab | 6 | 0 | 0 | 0 | 0 | 0 | 0 | 6 |
 | hitl_live_baseline | 2 | 0 | 0 | 0 | 0 | 0 | 0 | 2 |
@@ -68,7 +68,7 @@
 | xiasha1_compound_probe_v1 | 22 | 0 | 0 | 0 | 0 | 0 | 0 | 22 |
 | xiasha1_compound_train_v1 | 0 | 0 | 0 | 0 | 30 | 0 | 0 | 30 |
 | xiasha1_v2_bestckpt_ts_v1 | 96 | 0 | 0 | 0 | 0 | 0 | 0 | 96 |
-| **合计** | 14026 | 243 | 113 | 4 | 180 | 750 | 0 | **15317** |
+| **合计** | 14026 | 243 | 113 | 4 | 190 | 894 | 0 | **15479** |
 
 状态语义见 GOVERNANCE.md §2。LEGACY_UNCLEAR=0 表示全部可识别 run 均通过队列/状态文件/目录归属证据还原出 campaign；个别 run 的臂内身份仍以命名约定为据，已在 notes 标注处保持保守。
 
@@ -97,7 +97,7 @@
 | `hz1x1_sanity_v1` | 60 | 60/0/0/0 | 已完成 60/60（5 臂）：体检签名全过（thr≈需求、uninserted≈0、量级正常）——记录管线无罪，xiasha1 异常为数据专属 | [明细](EXPERIMENTS/hz1x1_sanity_v1.md) |
 | `xiasha1_offline_v1` | 126 | 0/0/0/126 | 作废：xiasha 数据不再用于 offline；126 SCOPE_DISCARD；相关历史源仅留档 | [明细](EXPERIMENTS/xiasha1_offline_v1.md) |
 | `xiasha1_offline_v2` | 126 | 0/0/0/126 | 作废：xiasha 源全量弃用，126 SCOPE_DISCARD，队列 dropped；转 hz1x1_offline_v1 | [明细](EXPERIMENTS/xiasha1_offline_v2.md) |
-| `hz1x1_offline_v1` | 144 | 0/0/0/0 | 准备未派发：24 池/144 REGISTERED；d3qn÷12 对齐 FRAP/SAC；末端关闭 bootstrap | [明细](EXPERIMENTS/hz1x1_offline_v1.md) |
+| `hz1x1_offline_v1` | 306 | 0/0/0/144 | MPLight 修订准备未派发：27 池/162 REGISTERED，旧矩阵 144 SCOPE_DISCARD；d3qn÷12 对齐 FRAP/SAC/MPLight；末端关闭 bootstrap | [明细](EXPERIMENTS/hz1x1_offline_v1.md) |
 | `cl_hz1x1` | 5584 | 5368/0/0/216 | hz1x1 持续学习：off-policy 机制性遗忘三骨干证实；+policy 锚 λπ=1 把 worst 退化压至 ≤1.0s 近零塑性代价；ρ 剂量响应显示锚定可省回放预算且 ρ=0.25 为甜点 | [明细](EXPERIMENTS/cl_hz1x1.md) |
 | `hitl_live_ab` | 6 | 6/0/0/0 | — | [明细](EXPERIMENTS/hitl_live_ab.md) |
 | `hitl_live_baseline` | 2 | 2/0/0/0 | — | [明细](EXPERIMENTS/hitl_live_baseline.md) |

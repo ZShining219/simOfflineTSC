@@ -17,6 +17,7 @@ from data.dataset.offline_trajectory_dataset import (
     OfflineBatch,
     OfflineTrajectoryDataset,
     prepare_plan2_datasets,
+    WAITING_REWARD_SEMANTIC,
     validate_offline_dataset,
 )
 from tools.experiment_plotting.plan2 import run_plan2_analysis
@@ -34,7 +35,8 @@ def sha256(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def write_source_run(root, network, seed, episodes=4, per_episode=2):
+def write_source_run(root, network, seed, episodes=4, per_episode=2,
+                     agent='dqn', reward_multiplier=1.):
     run = root / f'p1_formal_{network}_seed{seed}'
     config = run / 'config'
     trajectory = run / 'trajectory'
@@ -53,7 +55,7 @@ def write_source_run(root, network, seed, episodes=4, per_episode=2):
 
     resolved = {
         'command': {
-            'task': 'tsc', 'world': 'sumo', 'agent': 'dqn',
+            'task': 'tsc', 'world': 'sumo', 'agent': agent,
             'network': network, 'prefix': run.name, 'seed': seed,
         },
         'world': {
@@ -99,7 +101,7 @@ def write_source_run(root, network, seed, episodes=4, per_episode=2):
     config_hash = sha256(config / 'resolved_config.yaml')
     write_json(run / 'run_manifest.json', {
         'schema_version': 1, 'run_id': run.name, 'task': 'tsc',
-        'world': 'sumo', 'agent': 'dqn', 'network': network,
+        'world': 'sumo', 'agent': agent, 'network': network,
         'prefix': run.name, 'training_seed': seed, 'config_hash': config_hash,
     })
     write_json(run / 'run_status.json', {
@@ -125,7 +127,7 @@ def write_source_run(root, network, seed, episodes=4, per_episode=2):
             state=np.stack((values, values + .5), axis=1).reshape(per_episode, 1, 1, 2),
             current_phase=np.asarray([0, 1], dtype=np.int64).reshape(per_episode, 1, 1),
             action=np.asarray([0, 1], dtype=np.int64).reshape(per_episode, 1, 1),
-            reward=(-values).reshape(per_episode, 1, 1),
+            reward=(-values * reward_multiplier).reshape(per_episode, 1, 1),
             next_state=np.stack((values + 1, values + 1.5), axis=1).reshape(per_episode, 1, 1, 2),
             next_phase=np.asarray([1, 0], dtype=np.int64).reshape(per_episode, 1, 1),
             terminated=np.asarray([False, False]),
@@ -284,6 +286,86 @@ class Plan2OfflineDatasetTest(unittest.TestCase):
         shard.write_bytes(b'corrupt')
         with self.assertRaisesRegex(ValueError, 'hash mismatch'):
             validate_offline_dataset(manifest)
+
+
+class RewardAlignmentTest(unittest.TestCase):
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.root = Path(self.temporary.name)
+        self.policy = {'semantic_id': WAITING_REWARD_SEMANTIC, 'target_scale': 1.,
+                       'source_scales': {'d3qn': 12., 'frap': 1., 'sac': 1.}}
+        self.runs = [write_source_run(self.root / arm, 'n1', seed, episodes=2,
+                                     agent=agent, reward_multiplier=scale)
+                     for seed, (arm, agent, scale) in enumerate(
+                         (('d3qn', 'dqn', 12.), ('frap', 'frap', 1.), ('sac', 'sac', 1.)))]
+        self.rows = [{'run_path': str(run), 'network': 'n1', 'arm': arm,
+                      'behavior_training_seed': seed}
+                     for seed, (run, arm) in enumerate(zip(self.runs, ('d3qn', 'frap', 'sac')))]
+        self.run_list = self.root / 'runs.csv'
+        with self.run_list.open('w', newline='') as handle:
+            writer = csv.DictWriter(handle, fieldnames=list(self.rows[0]))
+            writer.writeheader()
+            writer.writerows(self.rows)
+        self.spec = {'name': 'mixed', 'dataset_kind': 'single_scene',
+                     'source_networks': ['n1'], 'evaluation_network': 'n1',
+                     'episode_range': [1, 2], 'sampling_strategy': 'uniform_transition'}
+
+    def prepare(self, name='aligned', alignment=True):
+        return Path(prepare_plan2_datasets(
+            self.run_list, self.root / 'datasets', name, expected_episodes=2,
+            allowed_agents=('dqn', 'frap', 'sac'), relaxed_compatibility=True,
+            dataset_specs=[self.spec], reward_alignment=self.policy if alignment else None,
+        ))
+
+    def test_single_and_mixed_controller_views_align_without_modifying_shards(self):
+        original = {path: sha256(path) for run in self.runs for path in (run / 'trajectory/episodes').glob('*.npz')}
+        root = self.prepare()
+        dataset = OfflineTrajectoryDataset(root / 'datasets/mixed/manifest.json', seed=1000)
+        expected = np.asarray([-10., -11., -20., -21.] * 3, np.float32)
+        np.testing.assert_allclose(dataset._arrays['n1']['rewards'], expected)
+        self.assertEqual(original, {path: sha256(path) for path in original})
+        source_rules = dataset.manifest['reward_view']['sources']
+        self.assertEqual({1., 1. / 12.}, {row['transform']['multiplier'] for row in source_rules.values()})
+        self.assertEqual({1.}, {row['transform']['training']['scale'] for row in source_rules.values()})
+        for row in source_rules.values():
+            self.assertAlmostEqual(-15.5, row['statistics']['training_mean'])
+        self.spec['source_arms'] = ['d3qn']
+        solo_root = self.prepare('solo')
+        solo = OfflineTrajectoryDataset(solo_root / 'datasets/mixed/manifest.json', seed=1000)
+        np.testing.assert_allclose(solo._arrays['n1']['rewards'], expected[:4])
+
+    def test_unaligned_scales_unknown_semantics_and_incorrect_policies_are_rejected(self):
+        with self.assertRaisesRegex(ValueError, 'reward_definition'):
+            self.prepare(alignment=False)
+        self.policy['source_scales']['d3qn'] = 1.
+        with self.assertRaisesRegex(ValueError, 'source scale'):
+            self.prepare()
+        self.policy['source_scales']['d3qn'] = 12.
+        self.policy['semantic_id'] = 'pressure'
+        with self.assertRaisesRegex(ValueError, 'different reward semantics'):
+            self.prepare()
+
+
+class UniformMixedSceneSamplingTest(unittest.TestCase):
+    setUp = Plan2OfflineDatasetTest.setUp
+    tearDown = Plan2OfflineDatasetTest.tearDown
+
+    def test_uniform_transition_sampling_retains_provenance_and_weights_by_pool_size(self):
+        path = self.dataset_root / 'datasets/leave_one_out/n1/manifest.json'
+        manifest = json.loads(path.read_text())
+        manifest['sampling_strategy'] = 'uniform_transition'
+        write_json(path, manifest)
+        data = OfflineTrajectoryDataset(path, seed=11000)
+        batch = data.sample_batch(len(data))
+        self.assertEqual('mixed', batch.source_network)
+        self.assertEqual({'n2', 'n3'}, set(batch.source_networks))
+        self.assertEqual(len(data), len(set(batch.transition_ids)))
+        for network in ('n2', 'n3'):
+            self.assertEqual(8, int(np.sum(batch.source_networks == network)))
+        data._arrays['n3'] = {key: value[:4] for key, value in data._arrays['n3'].items()}
+        counts = sum(int(np.sum(data.sample_batch(1).source_networks == 'n2')) for _ in range(1200))
+        self.assertTrue(730 < counts < 870, counts)  # 8 / (8 + 4), not 1 / 2.
 
 
 class OfflineDQNLossTest(unittest.TestCase):

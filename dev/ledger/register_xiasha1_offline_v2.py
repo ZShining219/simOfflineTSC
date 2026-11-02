@@ -99,6 +99,7 @@ def main():
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--code-commit", default="PENDING")
     args = parser.parse_args()
+    raise SystemExit('SCOPE_DISCARD: xiasha1_offline_v2 must not be registered again')
 
     spec = json.loads(QUEUE.read_text(encoding="utf-8"))
     existing = set()

@@ -243,14 +243,14 @@ META = {
  "queues": "artifacts/xiasha1_offline_v2/run_queue.json",
 },
 "hz1x1_offline_v1": {
- "registration_label": "正式登记 2026-10-23",
+ "registration_label": "修订登记 2026-10-23",
  "full_row_paths": True,
- "title": "hz1x1 异构历史经验纯离线基线（d3qn/FRAP/SAC，准备未派发）",
+ "title": "hz1x1 异构历史经验纯离线基线（d3qn/FRAP/SAC/MPLight，准备未派发）",
  "hypothesis": "在同构控制结构、不同车流场景下，以未经质量筛选的完整在线 run 为固定池，刻画 batch_dqn/cql_dqn 在多 seed、多控制器、多场景及双轴稀疏经验下的学习表现与失效边界。",
- "plan_id": "hz1x1_offline_v1",
- "design": "configs/offline_tsc/hz1x1_v1.yml（8 条件×3 池复本×2 算法×3 离线 seeds=144）；dev/hz1x1_offline/prepare.py；data/output_data/offline_datasets/hz1x1/v1_hetero/（36 源 run/7200 shards/2.592M transitions，24 池 manifests）；d3qn /12、FRAP/SAC 原值，原始 shard 不改；全池均匀采样；terminated 或 truncated 关闭 bootstrap；144k updates/batch64/81 eval 节点，评估目标 A=sumohz1x1。",
- "conclusion": "REGISTERED：仅准备和代码/数据可用性验证，未派发、未启动训练或 SUMO 实验，无正式指标或科研结论；MPLight 与 PressLight 均不入池。",
- "queues": "artifacts/hz1x1_offline_v1/run_queue.json（144 任务，仅准备）",
+ "plan_id": "hz1x1_offline_v1_mplight_r1",
+ "design": "configs/offline_tsc/hz1x1_v1.yml（9 条件×3 池复本×2 算法×3 离线 seeds=162）；E5 为 A/d3qn+B/frap+C/sac+D/mplight 平衡稀疏池，仅作混合池压力测试；dev/hz1x1_offline/prepare.py；data/output_data/offline_datasets/hz1x1/v1_hetero_mplight/（48 源 run/9600 shards/3.456M transitions，27 池 manifests）；d3qn /12、FRAP/SAC/MPLight 原值，原始 shard 不改；全池均匀采样；terminated 或 truncated 关闭 bootstrap；144k updates/batch64/81 eval 节点，评估目标 A=sumohz1x1。",
+ "conclusion": "REGISTERED：MPLight 修订方案仅完成登记与数据/代码可用性验证，未派发、未启动训练或 SUMO 实验，无正式指标或科研结论。旧三控制器设计 144 行已 SCOPE_DISCARD，旧数据集和队列留档。",
+ "queues": "artifacts/hz1x1_offline_v1/mplight_r1/run_queue.json（162 任务，仅准备）",
 },
 }
 
@@ -290,7 +290,7 @@ SHORT = {
 "hz1x1_sanity_v1": "已完成 60/60（5 臂）：体检签名全过（thr≈需求、uninserted≈0、量级正常）——记录管线无罪，xiasha1 异常为数据专属",
 "xiasha1_offline_v1": "作废：xiasha 数据不再用于 offline；126 SCOPE_DISCARD；相关历史源仅留档",
 "xiasha1_offline_v2": "作废：xiasha 源全量弃用，126 SCOPE_DISCARD，队列 dropped；转 hz1x1_offline_v1",
-"hz1x1_offline_v1": "准备未派发：24 池/144 REGISTERED；d3qn÷12 对齐 FRAP/SAC；末端关闭 bootstrap",
+"hz1x1_offline_v1": "MPLight 修订准备未派发：27 池/162 REGISTERED，旧矩阵 144 SCOPE_DISCARD；d3qn÷12 对齐 FRAP/SAC/MPLight；末端关闭 bootstrap",
 }
 
 camps = collections.Counter(r["campaign"] for r in ROWS)

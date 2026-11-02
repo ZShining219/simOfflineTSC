@@ -764,29 +764,13 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
   tensorboard.main 子进程；纯只读、幂等增量、可随时停起，输出归
   `artifacts/xiasha1_online_v1/tb/`（不入库）。不投影 reward 跨臂比较
   以外的语义判断；监控异常判读仍由人工盯守完成。
-- `dev/xiasha1_offline/`：xiasha1_offline_v1（已作废、产物 2026-10-23
-  清理）/ v2（现行）异构历史经验离线矩阵（E0–E5，campaign 绑定
-  构建件）——`build_datasets.py` 扫描 `<prefix>_<arm>_<pack>_s<seed>`
-  已完成源 run（v1 用 xi2on，v2 起用 xi3re 几何修复版）（27 个：
-  A=asym_ns×{d3qn,sac,frap,mplight}、B=dense_extreme×{d3qn,frap}、
-  C=fluct_burst×{d3qn}、D=asym_nonly×{d3qn,mplight}，各 s0–s2），
-  产出 `artifacts/<campaign>/source_run_list.csv`（含 arm 列）+
-  `dataset_specs.json`（7 实验×3 池复本=21 spec）并调
-  `sequential.offline prepare-plan2` 建只读索引（v2 现行=
-  `data/output_data/offline_datasets/xiasha1/v2_hetero`，v1 索引
-  `v1_hetero` 已随产物清理删除；
-  `--no-plan1-formal --allowed-agents dqn,sac,frap,mplight
-  --relaxed-compatibility`）；`build_queue.py` 产
-  `run_queue.json`（126 任务：7 spec×3 复本×{batch_dqn,cql_dqn}×
-  离线 seeds 1000–1002，144k updates + xiasha1_v1.yml 81 评估节点
-  overlay + `--backend native`）；登记件
-  `dev/ledger/register_xiasha1_offline_{v1,v2}.py`（幂等 REGISTERED
-  行，condition=dataset_spec 名、behavior_source=<dataset>/<spec>，
-  v1 行已转 SCOPE_DISCARD）；监控件 `project_tb.py`——与
-  `dev/xiasha1_online_monitor/` 同源的只读 TB 投影器（离线适配：
-  records=`metrics/offline_records.jsonl`、横轴 `training_update`，
-  tag `train|eval|best|train_src/<net>`，`--serve` 拉起 tensorboard，
-  输出归 `artifacts/<campaign>/tb/`）。
+- `dev/hz1x1_offline/`：hz1x1_offline_v1 MPLight 修订（E0–E5，campaign
+  绑定构建/检查/登记件）；使用 hz1x1_sanity_v1 的 d3qn/FRAP/SAC/MPLight
+  四臂 × 同一拓扑上的四种车流 × 3 行为 seeds，生成 27 固定池和 162 任务；
+  E5 是四臂分别在一个车流包取完整 run 的平衡稀疏混合池，准备后未派发；
+- `dev/xiasha1_offline/`：xiasha1_offline_v1/v2 均作废、离线源全量退出本轮范围；
+  v1 产物于 2026-10-23 清理，v2 队列 dropped，在线源保留为历史证据；
+  `dev/xiasha1_offline/` 内旧构建器仅用于还原历史资产，不属于当前有效训练入口。
 
 ## 几何修复与 v3（2026-10-22）
 

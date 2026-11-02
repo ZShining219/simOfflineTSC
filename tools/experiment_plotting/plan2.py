@@ -281,7 +281,8 @@ def validate_plan2_run(spec, formal=True):
             'optimizer_eps': 1e-7,
             'target_update_interval': 10,
             'cql_alpha': 0.0 if spec.algorithm == 'batch_dqn' else 1.0,
-            'td_target_terminal_mask': False,
+            'td_target_terminal_mask': dataset.get('episode_end_policy') ==
+                                       'no_bootstrap_on_terminated_or_truncated',
             'td_target_double_dqn': False,
             'loss': 'full_q_vector_mse',
         }

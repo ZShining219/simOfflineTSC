@@ -112,6 +112,11 @@ def build_parser():
              'checks for approved heterogeneous mixtures',
     )
     prepare.add_argument(
+        '--reward-alignment', default=None,
+        help='JSON reward policy: semantic_id, target_scale, source_scales by arm; '
+             'applied only in the training view; source NPZ files remain unchanged',
+    )
+    prepare.add_argument(
         '--dataset-specs', default=None,
         help='JSON file with explicit dataset specs '
              '[{name,dataset_kind,evaluation_network,source_networks,'
@@ -153,6 +158,10 @@ def build_parser():
     train.add_argument('--evaluation-seed', type=int, default=None)
     train.add_argument('--sumo-seed', type=int, default=None)
     train.add_argument('--source-root', default=None)
+    train.add_argument(
+        '--output-path', default=None,
+        help='Override this run output directory for isolated code checkouts',
+    )
     train.add_argument('--backend', choices=('d3rlpy', 'native', 'auto'), default='d3rlpy')
     train.add_argument('--resume', default=None, help='Resumable offline checkpoint path')
     train.add_argument('--thread_num', type=int, default=4)
@@ -212,6 +221,8 @@ class OfflineRunner:
             )
             self.duplicate_config.update(overlay_duplicates)
         command = self.config['command']
+        if args.output_path is not None:
+            command['output_path'] = os.path.abspath(args.output_path)
         command['model_seed'] = args.seed if args.model_seed is None else args.model_seed
         command['dataset_sampler_seed'] = (
             args.seed + 10000 if args.dataset_sampler_seed is None
@@ -344,6 +355,9 @@ def main(argv=None):
     args = build_parser().parse_args(argv)
     if args.offline_command == 'prepare-plan2':
         kwargs = {}
+        if args.reward_alignment is not None:
+            with open(args.reward_alignment, encoding='utf-8') as handle:
+                kwargs['reward_alignment'] = json.load(handle)
         if args.dataset_specs is not None:
             with open(args.dataset_specs, encoding='utf-8') as handle:
                 kwargs['dataset_specs'] = json.load(handle)

@@ -12,13 +12,15 @@ import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 
 import numpy as np
+import yaml
 
 from common.registry import Registry
 from utils.run_config_compare import compare_runs
 
 
-OFFLINE_DATASET_SCHEMA_VERSION = 2
-OFFLINE_DATASET_BUILDER_VERSION = '2.0.0'
+OFFLINE_DATASET_SCHEMA_VERSION = 3
+OFFLINE_DATASET_BUILDER_VERSION = '3.0.0'
+WAITING_REWARD_SEMANTIC = 'negative_incoming_waiting_road_mean_v1'
 FEATURE_SCHEMA_VERSION = 1
 TRAJECTORY_SCHEMA_VERSION = 1
 DEFAULT_SOURCE_ROOT_ID = 'plan1_formal_root'
@@ -46,6 +48,7 @@ SOURCE_INDEX_REQUIRED_FIELDS = {
     'behavior_training_seed', 'episode_id', 'transition_count',
     'source_root_id', 'relative_path', 'original_absolute_path',
     'sha256', 'semantic_validation',
+    'reward_transform',
 }
 
 
@@ -107,6 +110,50 @@ def _stable_hash(payload):
     ).hexdigest()
 
 
+def _source_reward_descriptor(run_path):
+    manifest = _read_json(os.path.join(run_path, 'run_manifest.json'))
+    agent = manifest['agent']
+    with open(os.path.join(run_path, 'config', 'resolved_config.yaml'), encoding='utf-8') as handle:
+        model = (yaml.safe_load(handle) or {}).get('model', {})
+    if agent == 'dqn':
+        scale = 12.0  # DQNAgent.get_reward legacy multiplier, not a lane count.
+    elif agent == 'frap':
+        scale = 1.0
+    elif agent == 'sac':
+        scale = float(model.get('reward_scale', 1.0))
+    elif agent == 'mplight':
+        scale = 1.0
+    else:
+        raise ValueError(f'Unverified offline reward semantics for agent {agent!r}')
+    if not np.isfinite(scale) or scale <= 0:
+        raise ValueError(f'{run_path}: reward scale must be finite and positive')
+    return {
+        'semantic_id': WAITING_REWARD_SEMANTIC,
+        'source': 'LaneVehicleGenerator(lane_waiting_count,in_only=True,average=all,negative=True)',
+        'aggregation': 'negative mean of incoming-road lane means',
+        'scale': scale,
+        'dtype': 'float32',
+    }
+
+
+def _reward_transform(descriptor, arm, alignment):
+    target = dict(descriptor)
+    if alignment is not None:
+        if descriptor['semantic_id'] != alignment['semantic_id']:
+            raise ValueError('Reward alignment cannot convert different reward semantics')
+        expected = alignment['source_scales'].get(arm)
+        if expected is None or float(expected) != descriptor['scale']:
+            raise ValueError(f'Reward source scale for {arm!r} differs from approved alignment')
+        target['scale'] = float(alignment['target_scale'])
+        if not np.isfinite(target['scale']) or target['scale'] <= 0:
+            raise ValueError('Target reward scale must be finite and positive')
+    return {
+        'kind': 'scale_only', 'raw': descriptor, 'training': target,
+        'multiplier': target['scale'] / descriptor['scale'],
+        'offset': 0.0, 'raw_shards_modified': False,
+    }
+
+
 def _scene_semantics(run_path):
     resolved = os.path.join(run_path, 'config', 'simulator_resolved.cfg')
     config = _read_json(resolved)
@@ -131,11 +178,7 @@ def _scene_semantics(run_path):
         'phase': 'current green-action index one-hot appended after state',
         'dtype': 'float32',
     }
-    reward_descriptor = {
-        'source': 'LaneVehicleGenerator(lane_waiting_count,in_only=True,average=all,negative=True)',
-        'scale': 12,
-        'dtype': 'float32',
-    }
+    reward_descriptor = _source_reward_descriptor(run_path)
     topology = {
         'edges': sorted((
             edge.get('id'), edge.get('from'), edge.get('to'),
@@ -229,6 +272,10 @@ def _validate_shard_semantics(path, entry, source, action_dim):
         'first_global_step': int(entry['first_global_step']),
         'last_global_step': int(entry['last_global_step']),
         'state_width': int(state.reshape(len(state), -1).shape[1]),
+        'raw_reward_sum': float(np.sum(rewards, dtype=np.float64)),
+        'raw_reward_sum_squares': float(np.sum(np.square(rewards.astype(np.float64)))),
+        'raw_reward_min': float(np.min(rewards)),
+        'raw_reward_max': float(np.max(rewards)),
     }
 
 
@@ -432,10 +479,8 @@ def _emit_spec_manifest(
     if kind == 'multi_scene' and len(source_networks) < 2:
         raise ValueError(f'{name}: multi_scene spec requires at least two source networks')
     sampling = spec['sampling_strategy']
-    if len(source_networks) > 1 and sampling != 'scene_balanced_batch':
-        raise ValueError(
-            f'{name}: multi-network datasets require scene_balanced_batch sampling'
-        )
+    if sampling not in {'uniform_transition', 'scene_balanced_batch'}:
+        raise ValueError(f'{name}: unsupported sampling strategy {sampling!r}')
     selected = _spec_selected_entries(indexed_entries, spec)
     if not selected:
         raise ValueError(f'{name}: dataset spec selects zero source entries')
@@ -473,6 +518,8 @@ def _emit_spec_manifest(
             for network in source_networks
         },
         'semantic_compatibility_fields': list(semantic_fields),
+        'reward_view': _reward_view(selected),
+        'episode_end_policy': 'no_bootstrap_on_terminated_or_truncated',
     }
     if spec.get('source_arms') is not None:
         payload['source_arms'] = sorted(spec['source_arms'])
@@ -483,6 +530,29 @@ def _emit_spec_manifest(
         ]
     _atomic_json(path, payload)
     return path
+
+
+def _reward_view(entries):
+    result = {}
+    for entry in entries:
+        row = result.setdefault(entry['run_id'], {
+            'arm': entry.get('arm'), 'network': entry['network'],
+            'transform': entry['reward_transform'], 'count': 0,
+            'raw_sum': 0., 'raw_sum_squares': 0.,
+        })
+        stats = entry['semantic_validation']
+        row['count'] += entry['transition_count']
+        row['raw_sum'] += stats['raw_reward_sum']
+        row['raw_sum_squares'] += stats['raw_reward_sum_squares']
+    for row in result.values():
+        mean = row['raw_sum'] / row['count']
+        std = max(0., row['raw_sum_squares'] / row['count'] - mean ** 2) ** .5
+        multiplier = row['transform']['multiplier']
+        row['statistics'] = {
+            'raw_mean': mean, 'raw_std': std,
+            'training_mean': mean * multiplier, 'training_std': std * multiplier,
+        }
+    return {'sources': result, 'raw_shards_modified': False}
 
 
 def prepare_plan2_datasets(
@@ -499,6 +569,7 @@ def prepare_plan2_datasets(
     allowed_agents=('dqn',),
     relaxed_compatibility=False,
     dataset_specs=None,
+    reward_alignment=None,
 ):
     if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._-]*', dataset_id):
         raise ValueError('dataset_id contains unsupported characters')
@@ -548,6 +619,12 @@ def prepare_plan2_datasets(
         )
         for row in rows
     ]
+    for source in sources:
+        descriptor = source['scene_semantics']['reward_descriptor']
+        transform = _reward_transform(descriptor, source.get('arm'), reward_alignment)
+        source['reward_transform'] = transform
+        source['scene_semantics']['reward_descriptor'] = transform['training']
+        source['scene_semantics']['reward_definition_sha256'] = _stable_hash(transform['training'])
     if relaxed_compatibility:
         comparison = {
             'mode': 'relaxed',
@@ -628,6 +705,7 @@ def prepare_plan2_datasets(
                     'original_absolute_path': canonical_shard,
                     'sha256': entry['sha256'],
                     'semantic_validation': semantic_validation,
+                    'reward_transform': source['reward_transform'],
                 }
                 if source.get('arm') is not None:
                     indexed['arm'] = source['arm']
@@ -759,6 +837,8 @@ def prepare_plan2_datasets(
         'action_dim': next(iter(action_dims)),
         'dataset_manifests': [os.path.relpath(path, dataset_root) for path in dataset_manifests],
         'source_run_compatibility': comparison,
+        'reward_view': _reward_view(indexed_entries),
+        'episode_end_policy': 'no_bootstrap_on_terminated_or_truncated',
         'scene_semantics': scene_semantics,
         'semantic_compatibility_fields': list(semantic_fields),
         'raw_source_shard_count': len(seen_canonical_shards),
@@ -809,6 +889,11 @@ def _load_source_entries(manifest_path, verify_hashes=True, source_root=None):
     }
     if mismatched:
         raise ValueError(f'Incompatible offline dataset semantics: {mismatched}')
+    if manifest.get('episode_end_policy') != 'no_bootstrap_on_terminated_or_truncated':
+        raise ValueError('Offline episode-end policy mismatch; rebuild the dataset')
+    if (manifest['dataset_kind'] == 'leave_one_out'
+            and manifest['evaluation_network'] in manifest['source_networks']):
+        raise ValueError('Leave-one-out dataset contains target-network transitions')
     source_index = os.path.abspath(
         os.path.join(os.path.dirname(manifest_path), manifest['source_index'])
     )
@@ -858,6 +943,16 @@ def _load_source_entries(manifest_path, verify_hashes=True, source_root=None):
             if verify_hashes and _sha256(shard_path) != entry['sha256']:
                 raise ValueError(f'Offline source shard hash mismatch: {shard_path}')
             entry = dict(entry)
+            transform = entry['reward_transform']
+            approved = manifest.get('reward_view', {}).get('sources', {}).get(entry['run_id'])
+            if approved is None or approved['transform'] != transform:
+                raise ValueError('Offline reward transform differs from manifest')
+            if (transform != _reward_transform(transform['raw'], entry.get('arm'), {
+                'semantic_id': transform['training']['semantic_id'],
+                'source_scales': {entry.get('arm'): transform['raw']['scale']},
+                'target_scale': transform['training']['scale'],
+            })):
+                raise ValueError('Invalid offline reward transform')
             entry['resolved_shard_path'] = shard_path
             seen_logical.add(logical_key)
             seen_paths.add(shard_path)
@@ -929,6 +1024,7 @@ class OfflineBatch:
     decision_steps: np.ndarray = None
     run_ids: np.ndarray = None
     shard_sha256: np.ndarray = None
+    source_networks: np.ndarray = None
 
 
 class OfflineTrajectoryDataset:
@@ -1009,6 +1105,7 @@ class OfflineTrajectoryDataset:
                     if np.any(shard_actions < 0) or np.any(shard_actions >= self.action_dim):
                         raise ValueError('Offline trajectory contains an invalid action')
                     shard_rewards = np.asarray(data['reward'], dtype=np.float32).reshape(-1)
+                    shard_rewards = shard_rewards * np.float32(entry['reward_transform']['multiplier'])
                     if not np.all(np.isfinite(state)) or not np.all(np.isfinite(next_state)):
                         raise ValueError('Offline state contains NaN/Inf')
                     if not np.all(np.isfinite(shard_rewards)):
@@ -1101,6 +1198,7 @@ class OfflineTrajectoryDataset:
             decision_steps=arrays['decision_step'][indices],
             run_ids=arrays['run_id'][indices],
             shard_sha256=arrays['shard_sha256'][indices],
+            source_networks=np.full(len(indices), network, dtype=object),
         )
 
     def eligible_indices(self, network, behavior_seeds=None, episode_range=None):
@@ -1122,6 +1220,17 @@ class OfflineTrajectoryDataset:
 
     def sample_batch(self, batch_size):
         networks = sorted(self._arrays)
+        if self.manifest['sampling_strategy'] == 'uniform_transition' and len(networks) > 1:
+            sizes = np.asarray([len(self._arrays[n]['actions']) for n in networks])
+            offsets = np.concatenate(([0], np.cumsum(sizes)))
+            selected = np.asarray(self.rng.sample(range(int(offsets[-1])), batch_size))
+            parts = [self.select_indices(n, selected[(selected >= offsets[i]) &
+                     (selected < offsets[i + 1])] - offsets[i])
+                     for i, n in enumerate(networks)]
+            return OfflineBatch(source_network='mixed', **{
+                name: np.concatenate([getattr(part, name) for part in parts])
+                for name in OfflineBatch.__dataclass_fields__ if name != 'source_network'
+            })
         if self.manifest['sampling_strategy'] == 'scene_balanced_batch':
             network = networks[self.rng.randrange(len(networks))]
         else:

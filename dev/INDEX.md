@@ -263,6 +263,15 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
 - `dev/t34_stage1/`：t34/att004 stage-1 场景分类报告件——`scene_report.py`
   从 `tools/run_tarl_struct_cf.py --dump_dir` 产出（ep*.npz + records）
   拟合线性探针回答 stage-1 关卡问题。
+- `dev/scen_cov/`：scen_cov_v1 pilot（场景覆盖率：半离线 vs 纯在线）队列/收割件——
+  `build_pilot.py` 产出 `artifacts/scen_cov_v1/run_queue_<tag>.json`（默认
+  256 任务 = 2 臂 × 2 训练种子 × 4 stage × 25 ep 链 + 阶段末下三角冻结评估
+  + L1 四格/L2 四格覆盖评估 + 8 格 maxpressure 基线，eval sumo seeds
+  101/102/103）与台账 REGISTERED 行；`harvest_coverage.py` 产出
+  `coverage_report.json` + `coverage_cells.csv`（Coverage/Margin/Δ，δ=0.05、
+  η=0.10 冻结），口径见 `docs/experiments/2026-11-02_scen_cov_v1.md` 与
+  `docs/scenario_taxonomy.md`。两者均以 `--run-root` 指定执行用 worktree
+  （P5 = `~/worktrees/dsh-ops`，HEAD 1cb161a），脚本本身不派发 run。
 - `dev/cl_hz1x1/`：hz1x1 持续学习（sequential stage 链 + 冻结下三角评估矩阵）
   队列生成件——`build_queue.py` 产出 `artifacts/cl_hz1x1/run_queue_cl1.json`
   （1476 任务：ddqn/dueling_ddqn/frap×{clear,fifo}+ppo×{clear} 四阶段链 ×

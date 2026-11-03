@@ -1,0 +1,68 @@
+{
+ "schema_version": 1,
+ "campaign": "scen_cov_v1",
+ "plan": "scen_cov_v1_pilot",
+ "attempt": 2,
+ "code_commit": "1cb161a",
+ "code_tree_note": "代码树与 1cb161a 逐字节相同；L1/L2 只动 ledger 与 docs，L3 只新增本审计文件",
+ "dispatch_head": "05ec86c",
+ "attempt1": {
+  "queue_file": "artifacts/scen_cov_v1/run_queue_v2.json",
+  "queue_sha256": "0b0aef997e3c3bb087f10f072f15ef5633e3dc0113320e4c1de9d5bd325608cf",
+  "builder": "dsh/eng@e459702",
+  "ledger_commit": "6a6ec18",
+  "audit_commit": "05ec86c",
+  "started_at_utc": "2026-11-02T16:18:15Z",
+  "outcome": "SUCCEEDED 40 / FAILED 108 (dependency cascade, missing_requirement on clear-arm history_archive) / stale RUNNING 8 (stopped) / PENDING 100",
+  "manifest_backup": "artifacts/scen_cov_v1/run_manifest.attempt1.json",
+  "manifest_backup_sha256": "fa337e5398ebd590c3ba438ecd0682d0461fc6bb9eb246e19adc61791eb1a42e",
+  "quarantine_dir": "artifacts/scen_cov_v1/quarantine_attempt1",
+  "quarantine_run_ids": [
+   "scv1_soddqn_o2_sd0_ev2_c4_es101",
+   "scv1_soddqn_o2_sd0_ev2_c4_es102",
+   "scv1_soddqn_o2_sd0_ev2_c4_es103",
+   "scv1_soddqn_o2_sd0_ev2_s1_es101",
+   "scv1_soddqn_o2_sd0_ev2_s1_es102",
+   "scv1_soddqn_o2_sd0_ev2_s1_es103",
+   "scv1_soddqn_o2_sd0_st3",
+   "scv1_soddqn_o2_sd1_st2"
+  ]
+ },
+ "attempt2": {
+  "queue_file": "artifacts/scen_cov_v1/run_queue_v3.json",
+  "queue_sha256": "63b06331113154d60c6b79b95eb4d4e28a50e4ffb173a594278e7e9308aea7e6",
+  "builder_branch": "dsh/eng",
+  "builder_commit": "0fb9903",
+  "builder_dirty": false,
+  "builder_commits": [
+   "c4bfb0a",
+   "0fb9903"
+  ],
+  "scripts_sha256": {
+   "build_pilot.py": "6baa20ff1cb3634d1c8f706c606e514377ede2a28f93f4995e493fb8e8b16e22",
+   "harvest_coverage.py": "79bae65f3eb611135e830f6a97efa3ac704220790be7fd35c7d92a7f2e1396b5"
+  }
+ },
+ "ledger_pointer_note": "台账 256 行的 queue_file/notes 仍指 attempt1 的 run_queue_v2.json(0b0aef99…) 与 builder e459702；实跑用 v3(63b0633…) / builder 0fb9903 / build_pilot.py sha 6baa20ff…。run_id 与 v2 完全同集，不追加第二套行；attempt2 以本审计为准。",
+ "supervisor": {
+  "script": "artifacts/scen_cov_v1/supervisor_scv1.sh",
+  "sha256": "ad337dabd5082ab14c6d1173b3f92b363a665c8a978c2a0707fa6a0ad50dc94b",
+  "max_restarts": 2,
+  "restart_interval_s": 60,
+  "stall_s": 180,
+  "log": "artifacts/scen_cov_v1/runner_attempt2.log"
+ },
+ "resume_semantics": "同一 run_state：SUCCEEDED 40 保留不重跑；FAILED 108 由 runner requeue 为 PENDING；8 条 stale RUNNING 的 pid 已确认 dead，requeue 为 PENDING",
+ "tmux_session": "dsh_ops_scv1",
+ "runner": "tools/run_experiment_queue.py --queue artifacts/scen_cov_v1/run_queue_v3.json --state artifacts/scen_cov_v1/run_state --parallel 8 --stagger 2",
+ "started_at_utc": "2026-11-02T16:38:37Z",
+ "deadline_utc": "2026-11-02T17:45:00Z",
+ "preflight": {
+  "load_at_start": "4.01 2.84 3.41",
+  "gpu": "4x RTX2080Ti idle (3 MiB / 0%)",
+  "pytest_residue": "none",
+  "worktree_dirty": 0,
+  "ledger_lines": 15735
+ },
+ "legacy_runner_note": "旧 xi3re_queue runner（非 dsh_ 会话、idle、queue/state 不同）仅记录不 kill，不消费本队列"
+}

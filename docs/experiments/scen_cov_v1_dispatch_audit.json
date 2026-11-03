@@ -1,0 +1,28 @@
+{
+ "schema_version": 1,
+ "campaign": "scen_cov_v1",
+ "plan": "scen_cov_v1_pilot",
+ "code_commit": "1cb161a",
+ "code_tree_note": "派发时 HEAD 的代码树与 1cb161a 逐字节相同；L1 只改 ledger/runs.jsonl，L2 只新增本审计文件",
+ "ledger_commit": "6a6ec18",
+ "dispatch_head": "6a6ec18",
+ "dispatch_diff_check": "git diff --name-only 1cb161a..L1 == ledger/runs.jsonl",
+ "queue_file": "artifacts/scen_cov_v1/run_queue_v2.json",
+ "queue_sha256": "0b0aef997e3c3bb087f10f072f15ef5633e3dc0113320e4c1de9d5bd325608cf",
+ "builder_branch": "dsh/eng",
+ "builder_commit": "e459702",
+ "builder_dirty": false,
+ "scripts_sha256": {
+  "build_pilot.py": "ded8c24bb2a67b1edd678cef6e8dddc41674ba00f71bf36cf285aad61626a566",
+  "harvest_coverage.py": "79bae65f3eb611135e830f6a97efa3ac704220790be7fd35c7d92a7f2e1396b5"
+ },
+ "run_root": ".",
+ "tmux_session": "dsh_ops_scv1",
+ "runner": "tools/run_experiment_queue.py --queue artifacts/scen_cov_v1/run_queue_v2.json --state artifacts/scen_cov_v1/run_state --parallel 8 --stagger 2",
+ "ledger_rows_file": "artifacts/scen_cov_v1/ledger_rows_v2.jsonl",
+ "ledger_rows": 256,
+ "ledger_lines_before": 15479,
+ "ledger_lines_after": 15735,
+ "started_at_utc": "2026-11-02T16:18:15Z",
+ "legacy_runner_note": "旧 xi3re_queue runner（非 dsh_ 会话、idle、queue/state 均不同）只记录不 kill，不消费本队列"
+}

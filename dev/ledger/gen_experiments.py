@@ -7,6 +7,14 @@ ROOT = Path(__file__).resolve().parents[2]
 ROWS = [json.loads(l) for l in open(ROOT / "ledger" / "runs.jsonl")]
 
 META = {
+"scen_cov_v1": {
+ "title": "scen_cov_v1 场景覆盖率：半离线 vs 纯在线（pilot）",
+ "hypothesis": "同一训练预算 / 同一场景顺序 / 同一 seeds 下，半离线（offline_ratio=0.25 仅 st2–4 生效，全程有效混合比 ≈18.75%）控制器的场景覆盖率高于纯在线；即 ΔCoverage_L1 ≥ +0.25 且逐 cell 方向 ≥3/4 一致。",
+ "plan_id": "scen_cov_v1（v2 冻结队列 sha256 0b0aef99…，256 tasks = 16 train + 240 eval）",
+ "design": "artifacts/scen_cov_v1/{run_queue.json,run_state,coverage_report.json,coverage_cells.csv}；docs/scenario_taxonomy.md（δ=0.05/η=0.10，v1.1 只批 L2）；docs/experiments/2026-11-02_scen_cov_v1.md；configs/events/plans/hz1x1_single_v1.yml（L3 事件层只定义不跑）",
+ "conclusion": "pilot 档（25 ep/stage，train seeds n=2）：L1 覆盖 1.00（裕度 +0.078）vs 在线 0.25（−0.293），Δcov=+0.75、方向 4/4，主假设成立；L2 外推覆盖 0.375 vs 0.500 不支持\"半离线外推更强\"，但裕度 −0.013 vs −0.240；反例 sparse_ultra 半离线双指标均不过（比 MP 差 11.2%），须与 L1 同段引用。",
+ "queues": "artifacts/scen_cov_v1/run_queue.json",
+},
 "signal_control_v1": {
  "title": "SUMO 修正绿黄执行（sumo-green-yellow-v1）主线训练验证",
  "hypothesis": "在 run.py/TSCTrainer 主线启用 sumo-green-yellow-v1（5s 黄灯过渡、清空期锁相）后，DQN 在 hz4x4 上可正常训练收敛；与无过渡 legacy 臂的指标差异反映换相物理成本的口径变化（语义变更，GOVERNANCE §5.5，两臂指标不与历史无过渡 run 直接可比）。",
@@ -268,6 +276,7 @@ def fmt_metrics(m):
     return f"{f(vals[0])}/{f(vals[1])}/{f(vals[2])}"
 
 SHORT = {
+"scen_cov_v1": "半离线 L1 覆盖 1.00 vs 在线 0.25（pilot）；L2 不支持外推，sparse_ultra 反例须同段",
 "att_entity_004": "当前主线：保真达标；canonical≈empty 修正为窗内小幅净负；closure 缺口待修",
 "att_entity_003": "TARL 对齐/传感矩阵完成（flx）；文本反事实探针完成",
 "att_entity_002": "SGA/concat 文本注入矩阵：H2 支持、H3 未支持",
@@ -300,7 +309,8 @@ order = ["att_entity_004", "att_entity_003", "att_entity_002", "arterial_1x6",
          "xiasha1_online_v1", "xiasha1_explore_v1", "xiasha1_online_v2",
          "xiasha1_cross_eval_v1", "xiasha1_online_v3",
          "xiasha1_v3_cross_eval_v1", "hz1x1_sanity_v1",
-         "xiasha1_offline_v1", "xiasha1_offline_v2", "hz1x1_offline_v1"]
+         "xiasha1_offline_v1", "xiasha1_offline_v2", "hz1x1_offline_v1",
+         "scen_cov_v1"]
 
 # ---------- 明细文件：每 campaign 一篇 ----------
 DETAIL = ROOT / "EXPERIMENTS"

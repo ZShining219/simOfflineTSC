@@ -76,12 +76,12 @@
 | `sga_colight_text_event_200_s7` | sga_colight_text_event/hz4x4/s7 | — | ABORTED | 2026-09-24 | — | `artifacts/sga_concat_colight_200_v1/quarantine/dropped_stragglers_20260924/sga_c` | quarantined |
 | `sga_colight_text_normal_200_s17` | sga_colight_text_normal_200_s17/hz4x4/s17 | 200 | DONE | 2026-09-24 | 332.8/2739/244 | `data/output_data/tsc/sumo_sga_colight/hz4x4/sga_colight_text_normal_200_s17` |  |
 | `sga_colight_text_normal_200_s7` | sga_colight_text_normal/hz4x4/s7 | 16 | FAILED | 2026-09-24 | — | `artifacts/sga_concat_colight_200_v1/quarantine/misresolved_includes_20260924/sga` | quarantined |
-| `sga_concat_colight_200_v1__colight_normal_200_s17` | colight_normal_200_s17/hz4x4/s17 | — | FAILED | — | — | `—` | 队列登记无对应产物目录(prefix=colight_normal_200_s17); 目标目录不存在（计划输出位置仅作记录） |
-| `sga_concat_colight_200_v1__colight_normal_200_s7` | colight_normal_200_s7/hz4x4/s7 | — | FAILED | — | — | `—` | 队列登记无对应产物目录(prefix=colight_normal_200_s7); 目标目录不存在（计划输出位置仅作记录） |
-| `sga_concat_colight_200_v1__concat_colight_text_event_200_s7` | concat_colight_text_event_200_s7/hz4x4/s7 | — | FAILED | — | — | `—` | 队列登记无对应产物目录(prefix=concat_colight_text_event_200_s7); 目标目录不存在（计划输出位置仅作记录） |
-| `sga_concat_colight_200_v1__concat_colight_text_normal_200_s7` | concat_colight_text_normal_200_s7/hz4x4/s7 | — | FAILED | — | — | `—` | 队列登记无对应产物目录(prefix=concat_colight_text_normal_200_s7); 目标目录不存在（计划输出位置仅作记录） |
-| `sga_concat_colight_200_v1__sga_colight_text_event_200_s7` | sga_colight_text_event_200_s7/hz4x4/s7 | — | FAILED | — | — | `—` | 队列登记无对应产物目录(prefix=sga_colight_text_event_200_s7); 目标目录不存在（计划输出位置仅作记录） |
-| `sga_concat_colight_200_v1__sga_colight_text_normal_200_s7` | sga_colight_text_normal_200_s7/hz4x4/s7 | — | FAILED | — | — | `—` | 队列登记无对应产物目录(prefix=sga_colight_text_normal_200_s7); 目标目录不存在（计划输出位置仅作记录） |
+| `sga_concat_colight_200_v1__colight_normal_200_s17` | colight_normal_200_s17/hz4x4/s17 | — | FAILED | — | — | `—` | 队列登记无对应产物目录(prefix=colight_normal_200_s17); 目标目录不存在（计划输出位置仅作记录） ｜ 2026-11-06 巡检复 |
+| `sga_concat_colight_200_v1__colight_normal_200_s7` | colight_normal_200_s7/hz4x4/s7 | — | FAILED | — | — | `—` | 队列登记无对应产物目录(prefix=colight_normal_200_s7); 目标目录不存在（计划输出位置仅作记录） ｜ 2026-11-06 巡检复核 |
+| `sga_concat_colight_200_v1__concat_colight_text_event_200_s7` | concat_colight_text_event_200_s7/hz4x4/s7 | — | FAILED | — | — | `—` | 队列登记无对应产物目录(prefix=concat_colight_text_event_200_s7); 目标目录不存在（计划输出位置仅作记录） ｜ 2026 |
+| `sga_concat_colight_200_v1__concat_colight_text_normal_200_s7` | concat_colight_text_normal_200_s7/hz4x4/s7 | — | FAILED | — | — | `—` | 队列登记无对应产物目录(prefix=concat_colight_text_normal_200_s7); 目标目录不存在（计划输出位置仅作记录） ｜ 202 |
+| `sga_concat_colight_200_v1__sga_colight_text_event_200_s7` | sga_colight_text_event_200_s7/hz4x4/s7 | — | FAILED | — | — | `—` | 队列登记无对应产物目录(prefix=sga_colight_text_event_200_s7); 目标目录不存在（计划输出位置仅作记录） ｜ 2026-11 |
+| `sga_concat_colight_200_v1__sga_colight_text_normal_200_s7` | sga_colight_text_normal_200_s7/hz4x4/s7 | — | FAILED | — | — | `—` | 队列登记无对应产物目录(prefix=sga_colight_text_normal_200_s7); 目标目录不存在（计划输出位置仅作记录） ｜ 2026-1 |
 | `sga_sigmoid_text_150_s7` | sga_sigmoid_text_150_s7/hz4x4/s7 | 150 | DONE | 2026-09-24 | — | `data/output_data/tsc/sumo_sga_colight/hz4x4/sga_sigmoid_text_150_s7` |  |
 | `sumo_colight__hz4x4__colight_event_200_s27` | colight_event_200_s27/hz4x4/s27 | 200 | DONE | 2026-09-24 | 334.7/2742/241 | `data/output_data/tsc/sumo_colight/hz4x4/colight_event_200_s27` |  |
 | `sumo_colight__hz4x4__colight_event_200_s37` | colight_event_200_s37/hz4x4/s37 | 200 | DONE | 2026-09-24 | 337.0/2741/242 | `data/output_data/tsc/sumo_colight/hz4x4/colight_event_200_s37` |  |

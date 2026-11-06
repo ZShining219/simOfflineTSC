@@ -20,7 +20,7 @@ META = {
  "hypothesis": "在 run.py/TSCTrainer 主线启用 sumo-green-yellow-v1（5s 黄灯过渡、清空期锁相）后，DQN 在 hz4x4 上可正常训练收敛；与无过渡 legacy 臂的指标差异反映换相物理成本的口径变化（语义变更，GOVERNANCE §5.5，两臂指标不与历史无过渡 run 直接可比）。",
  "plan_id": "scv1_gy5_v1",
  "design": "artifacts/signal_control_v1/run_queue_dqn_gy5.json；configs/tsc/{dqn_gy5,dqn_gy5_smoke}.yml；适配器 world/sumo_signal_control.py；trainer/tsc_trainer.py signal_control 安装点",
- "conclusion": "进行中：2 臂 REGISTERED（dqn_gy5 + 同种子 legacy 对照），400ep train_frozen_eval seed=7。",
+ "conclusion": "未运行：2 臂（dqn_gy5 + 同种子 legacy 对照）及 2 条 eval 登记均无产物；队列文件与 run_dir 均不在盘，2026-11-06 核后登 SCOPE_DISCARD。",
  "queues": "artifacts/signal_control_v1/run_queue_dqn_gy5.json",
 },
 "att_entity_004": {
@@ -299,7 +299,7 @@ SHORT = {
 "hz1x1_sanity_v1": "已完成 60/60（5 臂）：体检签名全过（thr≈需求、uninserted≈0、量级正常）——记录管线无罪，xiasha1 异常为数据专属",
 "xiasha1_offline_v1": "作废：xiasha 数据不再用于 offline；126 SCOPE_DISCARD；相关历史源仅留档",
 "xiasha1_offline_v2": "作废：xiasha 源全量弃用，126 SCOPE_DISCARD，队列 dropped；转 hz1x1_offline_v1",
-"hz1x1_offline_v1": "MPLight 修订准备未派发：27 池/162 REGISTERED，旧矩阵 144 SCOPE_DISCARD；d3qn÷12 对齐 FRAP/SAC/MPLight；末端关闭 bootstrap",
+"hz1x1_offline_v1": "MPLight 修订离线基线已收官：162/162 DONE（batch_dqn/cql_dqn 各 81，末次 eval TT 均值 82.5/80.8s），旧矩阵 144 SCOPE_DISCARD；d3qn÷12 对齐 FRAP/SAC/MPLight；末端关闭 bootstrap",
 }
 
 camps = collections.Counter(r["campaign"] for r in ROWS)

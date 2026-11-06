@@ -5,7 +5,7 @@
 - 假设：在 run.py/TSCTrainer 主线启用 sumo-green-yellow-v1（5s 黄灯过渡、清空期锁相）后，DQN 在 hz4x4 上可正常训练收敛；与无过渡 legacy 臂的指标差异反映换相物理成本的口径变化（语义变更，GOVERNANCE §5.5，两臂指标不与历史无过渡 run 直接可比）。
 - plan_id/队列：scv1_gy5_v1
 - 设计稿/证据位置：artifacts/signal_control_v1/run_queue_dqn_gy5.json；configs/tsc/{dqn_gy5,dqn_gy5_smoke}.yml；适配器 world/sumo_signal_control.py；trainer/tsc_trainer.py signal_control 安装点
-- 结论：进行中：2 臂 REGISTERED（dqn_gy5 + 同种子 legacy 对照），400ep train_frozen_eval seed=7。
+- 结论：未运行：2 臂（dqn_gy5 + 同种子 legacy 对照）及 2 条 eval 登记均无产物；队列文件与 run_dir 均不在盘，2026-11-06 核后登 SCOPE_DISCARD。
 - 登记单元 4（train/eval/smoke/batch/calibration = 2/2/0/0/0）（追溯登记 2026-10-07）
 
 | run_id | 臂/net/seed | ep | 状态 | 起始 | TT/th/unfinished | 产物路径 | 备注 |

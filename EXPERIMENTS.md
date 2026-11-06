@@ -67,9 +67,9 @@
 | signal_control_v1 | 0 | 0 | 0 | 0 | 4 | 0 | 0 | 4 |
 | takeover_probe_sig15 | 24 | 0 | 0 | 0 | 0 | 0 | 0 | 24 |
 | xiasha1_compound_probe_v1 | 22 | 0 | 0 | 0 | 0 | 0 | 0 | 22 |
-| xiasha1_compound_train_v1 | 0 | 0 | 0 | 0 | 30 | 0 | 0 | 30 |
+| xiasha1_compound_train_v1 | 30 | 0 | 0 | 0 | 0 | 0 | 0 | 30 |
 | xiasha1_v2_bestckpt_ts_v1 | 96 | 0 | 0 | 0 | 0 | 0 | 0 | 96 |
-| **合计** | 14444 | 243 | 114 | 4 | 36 | 894 | 0 | **15735** |
+| **合计** | 14474 | 243 | 114 | 4 | 6 | 894 | 0 | **15735** |
 
 状态语义见 GOVERNANCE.md §2。LEGACY_UNCLEAR=0 表示全部可识别 run 均通过队列/状态文件/目录归属证据还原出 campaign；个别 run 的臂内身份仍以命名约定为据，已在 notes 标注处保持保守。
 
@@ -115,7 +115,7 @@
 | `signal_control_v1` | 4 | 0/0/0/0 | — | [明细](EXPERIMENTS/signal_control_v1.md) |
 | `takeover_probe_sig15` | 24 | 24/0/0/0 | — | [明细](EXPERIMENTS/takeover_probe_sig15.md) |
 | `xiasha1_compound_probe_v1` | 22 | 22/0/0/0 | — | [明细](EXPERIMENTS/xiasha1_compound_probe_v1.md) |
-| `xiasha1_compound_train_v1` | 30 | 0/0/0/0 | — | [明细](EXPERIMENTS/xiasha1_compound_train_v1.md) |
+| `xiasha1_compound_train_v1` | 30 | 30/0/0/0 | — | [明细](EXPERIMENTS/xiasha1_compound_train_v1.md) |
 | `xiasha1_v2_bestckpt_ts_v1` | 96 | 96/0/0/0 | — | [明细](EXPERIMENTS/xiasha1_v2_bestckpt_ts_v1.md) |
 
 ## 附：追溯口径说明

@@ -20,7 +20,7 @@
   - `arterial_1x6`/`plan5_b100` = 半离线线（技术点3，独立于注意力线）
 - **最新结论**：z_task 语义保真达标、held-out 证实文本携场景身份（t34_devin）；"canonical≈empty"修正为"事件窗内小幅净负"（t34_cc，配对 n=59）；road_closure 覆盖缺口待裁决修复。
 - **接管测试**：t34_devin / t34_cc 均 DONE（test/t34_* 分支）。
-- **证据完整性**：台账 15735 行，evidence_lost=19（18 条为历史 FAILED/ABORTED 的产物丢失；另 1 条为 `att004_surge_pair_s7` 僵尸清理时核定无产物。2026-11-06 巡检核定；`scen_cov_v1` 的 eval 产物完整性待另案核查）。
+- **证据完整性**：台账 15735 行，evidence_lost=19（18 条为历史 FAILED/ABORTED 的产物丢失；另 1 条为 `att004_surge_pair_s7` 僵尸清理时核定无产物。2026-11-06 巡检核定；`scen_cov_v1` 256/256 在盘（证据根见团队侧 decisions evidence-04）。
 <!-- PANEL-END -->
 
 ## 0. 总览

@@ -10,8 +10,8 @@
 
 | run_id | 臂/net/seed | ep | 状态 | 起始 | TT/th/unfinished | 产物路径 | 备注 |
 |---|---|---|---|---|---|---|---|
-| `scv1_dqn_gy5_s7` | dqn_gy5/hz4x4/s7 | 400 | REGISTERED | — | — | `data/output_data/tsc/sumo_dqn/hz4x4/scv1_dqn_gy5_s7` | REGISTERED 2026-10-08: sumo-green-yellow-v1, yellow_seconds=5, action_interval=1 |
-| `scv1_dqn_legacy_s7` | dqn/hz4x4/s7 | 400 | REGISTERED | — | — | `data/output_data/tsc/sumo_dqn/hz4x4/scv1_dqn_legacy_s7` | REGISTERED 2026-10-08: 同种子无过渡对照臂(legacy pseudo_step),仅作 dqn_gy5 对比参照,非正式基线 |
+| `scv1_dqn_gy5_s7` | dqn_gy5/hz4x4/s7 | 400 | SCOPE_DISCARD | — | — | `data/output_data/tsc/sumo_dqn/hz4x4/scv1_dqn_gy5_s7` | REGISTERED 2026-10-08: sumo-green-yellow-v1, yellow_seconds=5, action_interval=1 |
+| `scv1_dqn_legacy_s7` | dqn/hz4x4/s7 | 400 | SCOPE_DISCARD | — | — | `data/output_data/tsc/sumo_dqn/hz4x4/scv1_dqn_legacy_s7` | REGISTERED 2026-10-08: 同种子无过渡对照臂(legacy pseudo_step),仅作 dqn_gy5 对比参照,非正式基线 ｜ 202 |
 
 评估 attempt 共 2 行，按包/来源聚合：
 

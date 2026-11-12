@@ -1,7 +1,11 @@
 """Traffic-perturbation injection + event broadcast for SUMO worlds.
 
 Shared by ``scene_attention`` (offline fork probe) and the live
-``BroadcastEngine`` (interactive broadcast).  All specs are plain strings so
+``BroadcastEngine`` (interactive broadcast).
+
+2026-11-12 自 ``hitl/live/injects.py`` 迁入框架层（只依赖标准库，两条研究线共用）。与 ``world/sumo_events/``
+的分工：本模块是轻量的字符串规格扰动（lane_close/throttle/surge），供探针与实时转播；``sumo_events`` 是带
+同步事实文本报告的事件系统（阻塞/封路/降雨），供正式事件实验。两者语义不同，未合并。  All specs are plain strings so
 the same schedule can drive headless runs and the UI.
 
 Supported specs

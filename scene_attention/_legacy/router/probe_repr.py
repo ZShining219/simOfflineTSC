@@ -52,7 +52,7 @@ from scene_attention._legacy.router.router_runtime import (  # noqa: E402
     run_router_episode,
 )
 from scene_attention._legacy.router.eval_router import TEST_EVENTS  # noqa: E402
-from hitl.live.injects import parse_injects  # noqa: E402
+from world.sumo_injects import parse_injects  # noqa: E402
 
 ARMS3 = ['attn', 'selfattn', 'concat']
 

@@ -40,7 +40,7 @@ from scene_attention.dispatch_state import (  # noqa: E402
 from scene_attention._legacy.router.router_runtime import (  # noqa: E402
     run_router_episode,
 )
-from hitl.live.injects import parse_injects  # noqa: E402
+from world.sumo_injects import parse_injects  # noqa: E402
 
 # held-out combos: (edge, period, dur, onset) absent from train grid
 TEST_EVENTS = [

@@ -40,7 +40,7 @@ from hitl.live.controllers import (  # noqa: E402
     build_snapshot_controller,
 )
 from hitl.live.engine import DEFAULT_MODEL_PARAMS  # noqa: E402
-from hitl.live.injects import (  # noqa: E402
+from world.sumo_injects import (  # noqa: E402
     apply_injects as _apply_injects,
     parse_injects,
 )

@@ -31,7 +31,7 @@ from scene_attention.scene_mp import (  # noqa: E402
     SceneGuidedDQN, SceneGuidedMP, bound_dqn_agent,
 )
 from scene_attention.env import run_signal_episode  # noqa: E402
-from hitl.live.injects import parse_injects  # noqa: E402
+from world.sumo_injects import parse_injects  # noqa: E402
 from hitl.live.controllers import (  # noqa: E402
     _build_inference_agent, load_qnet_payload,
 )

@@ -43,7 +43,7 @@ from scene_attention.events import (  # noqa: E402
     DISCHARGE_OF, EDGE_TARGETS, FEEDER_OF, TRAIN_DURS, TRAIN_EDGES, TRAIN_ONSETS,
     TRAIN_PERIODS,
 )
-from hitl.live.injects import parse_injects  # noqa: E402
+from world.sumo_injects import parse_injects  # noqa: E402
 
 
 def sample_injects(rng, allow_none_p=0.25, p_corridor=0.0):

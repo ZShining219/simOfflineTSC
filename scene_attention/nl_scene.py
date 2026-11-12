@@ -59,7 +59,7 @@ from scene_attention.probe.dispatch_eval import SIG9, _EncoderShim  # noqa: E402
 from scene_attention.dispatch_specialist import (  # noqa: E402
     KeyDispatchAgent, wrap_controller,
 )
-from hitl.live.injects import (  # noqa: E402
+from world.sumo_injects import (  # noqa: E402
     EVENT_KIND_LABEL, EVENT_KINDS, parse_injects,
 )
 

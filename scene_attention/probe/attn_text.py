@@ -45,7 +45,7 @@ from scene_attention.env import (  # noqa: E402
 from scene_attention.events import (  # noqa: E402
     DISCHARGE_OF, EDGE_TARGETS, FEEDER_OF, TRAIN_EDGES,
 )
-from hitl.live.injects import parse_injects  # noqa: E402
+from world.sumo_injects import parse_injects  # noqa: E402
 
 
 def edge_mass(w, fb):

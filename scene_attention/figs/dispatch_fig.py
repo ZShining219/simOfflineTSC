@@ -39,7 +39,7 @@ from scene_attention.dispatch_specialist import (  # noqa: E402
 from scene_attention.probe.dispatch_eval import (  # noqa: E402
     _EncoderShim, SIG9,
 )
-from hitl.live.injects import parse_injects  # noqa: E402
+from world.sumo_injects import parse_injects  # noqa: E402
 
 
 class _SAShim(_EncoderShim):

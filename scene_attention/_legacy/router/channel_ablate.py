@@ -56,7 +56,7 @@ if str(_REPO_ROOT) not in sys.path:
 from scene_attention.dispatch_model import (  # noqa: E402
     DispatchRouter, collate,
 )
-from hitl.live.injects import EVENT_KINDS  # noqa: E402
+from world.sumo_injects import EVENT_KINDS  # noqa: E402
 
 ARMS3 = ['attn', 'selfattn', 'concat']
 N_KINDS = len(EVENT_KINDS)

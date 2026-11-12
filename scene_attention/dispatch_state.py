@@ -32,7 +32,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from hitl.live.injects import (
+from world.sumo_injects import (
     EVENT_KIND_ALIAS,
     EVENT_KINDS,
     active_event,

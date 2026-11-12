@@ -34,7 +34,7 @@ from scene_attention.eval import spec_list  # noqa: E402
 from scene_attention._legacy.router.train_router import (  # noqa: E402
     TRAIN_EDGES,
 )
-from hitl.live.injects import parse_injects  # noqa: E402
+from world.sumo_injects import parse_injects  # noqa: E402
 
 _EDGE_RE = re.compile(r'road_\d+_\d+_\d+')
 

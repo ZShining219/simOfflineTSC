@@ -220,5 +220,21 @@
     "tarl_paper_gating_rande_200.yml",
     "tarl_paper_sensor_rande_200.yml",
     "xiasha1_timeseries.yml"
+  ],
+  "cross_line_imports": [
+    "hitl/live/controllers.py -> scene_attention",
+    "hitl/live/controllers.py -> semi_offline",
+    "hitl/pipeline/filter_pool.py -> semi_offline",
+    "hitl/pipeline/package.py -> semi_offline",
+    "hitl/pipeline/train_reward.py -> semi_offline",
+    "hitl/probe/calibrate_adjudication.py -> semi_offline",
+    "hitl/probe/calibrate_reward.py -> semi_offline",
+    "hitl/probe/rm_env_corr.py -> semi_offline",
+    "scene_attention/eval.py -> hitl",
+    "scene_attention/figs/plot_scene_effect.py -> hitl",
+    "scene_attention/probe/takeover.py -> hitl",
+    "scene_attention/scene_mp.py -> hitl",
+    "scene_attention/signal_model.py -> semi_offline",
+    "scene_attention/train.py -> hitl"
   ]
 }

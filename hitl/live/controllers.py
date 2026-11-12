@@ -276,7 +276,7 @@ class DispatchController:
         from scene_attention.dispatch_model import DispatchRouter
         from scene_attention.dispatch_state import (
             FeatureBuilder, fb_kwargs_from_meta)
-        from hitl.live.injects import parse_injects
+        from world.sumo_injects import parse_injects
 
         self._router, payload = DispatchRouter.load(self.router_ckpt)
         meta = payload.get('meta') or {}

@@ -60,7 +60,7 @@ from scene_attention.events import (  # noqa: E402
 from hitl.live.controllers import (  # noqa: E402
     inference_q_values,
 )
-from hitl.live.injects import (  # noqa: E402
+from world.sumo_injects import (  # noqa: E402
     apply_injects, parse_injects,
 )
 

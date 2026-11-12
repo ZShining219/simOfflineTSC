@@ -113,6 +113,22 @@ def root_config_overlays():
     return sorted(p.name for p in configs.TSC_DIR.glob("*.yml") if p.stem not in agents)
 
 
+LINES = ("semi_offline", "scene_attention", "hitl")
+
+
+def cross_line_imports():
+    """研究线之间的依赖（文件级）。存量登记在基线，只许减少。"""
+    found = set()
+    for path in _tracked_py(*LINES):
+        if "/_legacy/" in path:
+            continue
+        source = path.split("/")[0]
+        for root in _imported_roots(path):
+            if root in LINES and root != source:
+                found.add(f"{path} -> {root}")
+    return sorted(found)
+
+
 def _baseline():
     return json.loads(BASELINE.read_text(encoding="utf-8"))
 
@@ -134,6 +150,14 @@ def test_no_imports_of_legacy_package_names():
     assert legacy_imports() == [], (
         "sequential/plan5/arterial 已迁入 infra/ 与 semi_offline/，旧名字仅供读取历史 checkpoint，"
         f"代码中请改用新路径：{legacy_imports()[:10]}")
+
+
+def test_no_new_cross_line_imports():
+    allowed = set(_baseline()["cross_line_imports"])
+    new = sorted(set(cross_line_imports()) - allowed)
+    assert not new, f"研究线之间新增了依赖（通用能力请下沉 infra/ 或框架层）：{new}"
+    fixed = sorted(allowed - set(cross_line_imports()))
+    assert not fixed, f"这些跨线依赖已消除，请从 {BASELINE.name} 删除以收紧基线：{fixed}"
 
 
 def test_lab_is_dependency_free():
@@ -189,5 +213,6 @@ if __name__ == "__main__" and "--write-baseline" in sys.argv:
         "hardcoded_output_paths": hardcoded_output_paths(),
         "absolute_paths": absolute_paths(),
         "configs_root_overlays": root_config_overlays(),
+        "cross_line_imports": cross_line_imports(),
     }, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print(f"已写出 {BASELINE}")

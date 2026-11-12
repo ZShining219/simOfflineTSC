@@ -79,7 +79,7 @@ dev/_legacy/<date>/      # 历史散件归档（移动非删除）
 
 约束：
 
-- 三层依赖（`tests/test_architecture.py` 校验）：框架层（`agent/ world/ trainer/ task/ common/ utils/ generator/ data/`）→ 实验基座（`infra/` 运行、`lab/` 管理）→ 研究线（`semi_offline/ scene_attention/ hitl/`）；只许上层依赖下层，禁跨研究线 import 内部实现（存量例外：`hitl` 训练通道复用 `semi_offline.sequential`）。
+- 三层依赖（`tests/test_architecture.py` 校验）：框架层（`agent/ world/ trainer/ task/ common/ utils/ generator/ data/`）→ 实验基座（`infra/` 运行、`lab/` 管理）→ 研究线（`semi_offline/ scene_attention/ hitl/`）；只许上层依赖下层，禁跨研究线 import 内部实现（存量跨线依赖 14 处登记于 `tests/architecture_baseline.json` 的 `cross_line_imports`，只许减少：主要是 `hitl` 训练通道复用 `semi_offline.sequential`、`scene_attention` 复用 `hitl.live` 的控制器与实时引擎）。
 - 工单放 `configs/<pkg>/`；实验参数禁内嵌在脚本里。
 - 不新增根级入口与根级研究包；新研究线放独立包并在本节登记，通用能力下沉 `infra/` 而不是留在方法包里。
 - 出图/一次性件不进面，按 dev/ 规则登记或归 `<pkg>/figs/`。

@@ -122,6 +122,10 @@
   - 评估结论：纯离线一组（4 个文件）框架层无其他使用者，已整组移入 `semi_offline/offline/`；
     论文基线中 `common/paper_experiment.py` 被事件系统 `world/sumo_events` 依赖，注意力线的 `scene_attention`/`scene_context`
     被 colight、mplight、dqn、trainer、world 等使用，均已织入框架，保留；`shared_dqn` 为冻结线的注册智能体，收益小，保留。
+  - 研究线互相依赖：`scene_attention` 借用 `hitl/live/injects.py`（通用 SUMO 扰动）→ 已移入 `world/sumo_injects.py`；
+    其余 14 处跨线依赖（hitl 训练通道复用 sequential、scene_attention 复用 hitl 控制器/实时引擎）登记为棘轮基线。
+  - 两套 SUMO 事件注入并存：`world/sumo_events/`（带同步文本报告）与 `world/sumo_injects.py`（字符串规格扰动），语义不同，未合并。
+  - 仓根 `arterial_run.py` 已移入 `semi_offline/arterial/`；仓根只剩 `run.py`、`environment.py`。
 
 ## 4.1 研究侧备忘（不属于本次整理，不安排执行）
 

@@ -59,5 +59,5 @@
 ## 边界
 
 - 只许被 `hitl.live.controllers` 以 adapter 方式引用（DispatchRouter/FeatureBuilder 懒加载）；
-- 依赖下层契约（`world/`、`hitl.live.injects` 播报 spec 解析）；
+- 依赖下层契约（`world/`、`world.sumo_injects` 播报 spec 解析）；
 - G3 router 双层架构已否决，`_legacy/` 内件不作架构参照。

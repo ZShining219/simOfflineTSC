@@ -53,7 +53,7 @@ from scene_attention.events import (  # noqa: E402
     DISCHARGE_OF, EDGE_TARGETS, FEEDER_OF, TRAIN_EDGES,
 )
 from scene_attention.eval import spec_list  # noqa: E402
-from hitl.live.injects import parse_injects  # noqa: E402
+from world.sumo_injects import parse_injects  # noqa: E402
 
 SIG9 = 'data/output_data/dev_takeover_probe/sig9_joint_bc/agent.pt'
 

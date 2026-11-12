@@ -54,7 +54,7 @@ from scene_attention._legacy.router.eval_router import eval_metrics  # noqa: E40
 from scene_attention._legacy.router.train_router import (  # noqa: E402
     EDGE_TARGETS, priority_lanes_for,
 )
-from hitl.live.injects import parse_injects  # noqa: E402
+from world.sumo_injects import parse_injects  # noqa: E402
 
 
 def main():

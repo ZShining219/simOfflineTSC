@@ -33,7 +33,7 @@ from scene_attention._legacy.router.router_runtime import (  # noqa: E402
     run_router_episode,
 )
 from scene_attention._legacy.router.eval_router import eval_metrics  # noqa: E402
-from hitl.live.injects import parse_injects  # noqa: E402
+from world.sumo_injects import parse_injects  # noqa: E402
 
 
 def main():

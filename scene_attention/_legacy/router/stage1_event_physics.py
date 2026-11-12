@@ -34,7 +34,7 @@ from scene_attention.probe.takeover import (  # noqa: E402
     build_controllers, build_world, _bind_all, run_episode,
     DEFAULT_DQN_S1,
 )
-from hitl.live.injects import parse_injects  # noqa: E402
+from world.sumo_injects import parse_injects  # noqa: E402
 
 
 CASES = {

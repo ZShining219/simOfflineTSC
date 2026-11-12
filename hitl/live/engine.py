@@ -446,7 +446,7 @@ class BroadcastEngine:
             self.network = load_network_geometry(new_config)
             self._prepare_static_payload()
             self._reset_session_state()
-            from hitl.live.injects import parse_injects
+            from world.sumo_injects import parse_injects
             self.injects = parse_injects(self.inject_specs)
             self._last_dispatch_child = None
             self._check_build_cancel()
@@ -547,7 +547,7 @@ class BroadcastEngine:
             # Every junction steps toward its held target; junctions the
             # controller does not drive keep their own virtual_phase (frozen).
             if self.injects:
-                from hitl.live.injects import apply_injects
+                from world.sumo_injects import apply_injects
                 apply_injects(self.world, self.injects, now)
             actions = [
                 self.held_actions.get(rank, int(inter.virtual_phase))

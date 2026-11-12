@@ -35,7 +35,7 @@ from scene_attention.dispatch_state import FeatureBuilder  # noqa: E402
 from scene_attention._legacy.router.router_runtime import (  # noqa: E402
     run_router_episode,
 )
-from hitl.live.injects import parse_injects  # noqa: E402
+from world.sumo_injects import parse_injects  # noqa: E402
 
 TRAIN_EDGES = ['road_0_1_0', 'road_1_0_1', 'road_2_1_2', 'road_1_2_3']
 EDGE_TARGETS = {

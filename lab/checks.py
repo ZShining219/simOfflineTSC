@@ -17,7 +17,7 @@ ROOT_ALLOWLIST = {
     "EXPERIMENTS", "agent", "bench", "common", "configs", "data", "dev",
     "docs", "generator", "hitl", "infra", "lab", "ledger", "scene_attention",
     "semi_offline", "task", "tests", "tools", "trainer", "utils", "world",
-    "run.py", "environment.py", "arterial_run.py",
+    "run.py", "environment.py",
     "requirements.txt", "requirements-colight.txt", "requirements-dashboard.txt",
     "requirements-offline.txt",
     "artifacts",  # 仅 artifacts/wiki_claims/README.md 入库，其余由 FORBIDDEN_PREFIXES 拦截

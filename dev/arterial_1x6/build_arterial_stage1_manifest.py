@@ -69,7 +69,7 @@ def main():
                 "training_seed": seed, "episode_budget": 400,
                 "config_path": str(config_path), "output_path": str(run_output),
                 "command": [
-                    sys.executable, "arterial_run.py", "--config", str(config_path),
+                    sys.executable, "-m", "semi_offline.arterial", "--config", str(config_path),
                     "--stage", "0", "--training-seed", str(seed),
                     "--scene", scene,
                     "--episode-budget", "400", "--prefix", prefix,

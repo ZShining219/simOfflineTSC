@@ -14,7 +14,7 @@
 - `semi_offline/arterial/control.py`：自然排序的稳定路口顺序、action mask 和 ID 到动作映射。
 - `semi_offline/arterial/replay.py`：可追溯本地 transition、在线 FIFO replay、历史池、causal/full 可见性、scene×intersection 分层采样、mixed batch、分块历史档案。
 - `semi_offline/arterial/experiment.py`：四场景映射、三种顺序、配置校验、stage overlay、跨场景 evaluation manifest 与矩阵行协议。
-- `arterial_run.py`：从实验配置生成或执行单个顺序 stage，显式传入历史路径与父 checkpoint。
+- `python -m semi_offline.arterial`（原 `arterial_run.py`）：从实验配置生成或执行单个顺序 stage，显式传入历史路径与父 checkpoint。
 - `environment.py`：MultiDiscrete 声明改为每个受控路口一个离散维度；单路口仍为单维。
 - `trainer/tsc_trainer.py`：共享 transition 写入、更新就绪条件、纯离线模式、updates-per-decision、流式 history archive、动作/路口/时间窗口日志、共享 checkpoint、stage 导入、冻结评估扩展。
 - `world/world_sumo.py`：稳定路口顺序、entered/exited 事件记录、teleport 场景下可靠 unfinished 口径；SUMO_HOME 不再是导入模块的硬条件。
@@ -35,10 +35,10 @@
 - full-history 非因果上界：`configs/arterial/semi_offline_full_history.yml`
 - 最小 smoke：`configs/arterial/smoke.yml`
 
-三种顺序以 `order_1`、`order_2`、`order_3` 表达。`arterial_run.py` 会解析顺序、场景、evaluation/checkpoint 周期并生成 resolved overlay。例如：
+三种顺序以 `order_1`、`order_2`、`order_3` 表达。`python -m semi_offline.arterial`（原 `arterial_run.py`） 会解析顺序、场景、evaluation/checkpoint 周期并生成 resolved overlay。例如：
 
 ```bash
-python arterial_run.py \
+python -m semi_offline.arterial \
   --config configs/arterial/semi_offline_causal.yml \
   --stage 1 \
   --history-path /absolute/path/to/300_0.6/history_archive \

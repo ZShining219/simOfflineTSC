@@ -99,7 +99,7 @@ def test_latest_checkpoint_and_resume_command(tmp_path):
     (checkpoints / 'episode_0025.pt').write_bytes(b'a')
     (checkpoints / 'episode_0050.pt').write_bytes(b'b')
     task = {
-        'run_id': 'resume', 'command': [sys.executable, 'arterial_run.py'],
+        'run_id': 'resume', 'command': [sys.executable, '-m', 'semi_offline.arterial'],
         'output_path': str(output),
     }
     assert QueueRunner._checkpoint_exists(task)

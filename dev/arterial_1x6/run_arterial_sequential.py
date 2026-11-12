@@ -162,7 +162,7 @@ def execute(spec_path):
                 history_paths = [path for visible_scene in visible
                                  for path in scene_indexes[visible_scene]['history_paths']]
             command = [
-                sys.executable, 'arterial_run.py', '--config', spec['config_path'],
+                sys.executable, "-m", "semi_offline.arterial", '--config', spec['config_path'],
                 '--stage', str(stage_index), '--scene-order', spec['scene_order'],
                 '--training-seed', str(spec['training_seed']),
                 '--episode-budget', str(budget), '--offline-ratio',

@@ -69,7 +69,7 @@ def main():
         run_output = (Path.cwd() / "data/output_data/tsc/sumo_shared_dqn" /
                       network / prefix).resolve()
         command = [
-            sys.executable, "arterial_run.py", "--config", str(config_path),
+            sys.executable, "-m", "semi_offline.arterial", "--config", str(config_path),
             "--stage", "0", "--training-seed", str(seed),
             "--prefix", prefix, "--output-overlay", str(overlay), "--execute",
         ]

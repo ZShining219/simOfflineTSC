@@ -21,9 +21,6 @@ ROOT_ALLOWLIST = {
     "requirements.txt", "requirements-colight.txt", "requirements-dashboard.txt",
     "requirements-offline.txt",
     "artifacts",  # 仅 artifacts/wiki_claims/README.md 入库，其余由 FORBIDDEN_PREFIXES 拦截
-    # 待迁入 docs/ 的历史散件，迁移后删除对应条目
-    "HITL_PRESENTATION_BRIEF.md", "awesome-RL-traffic-signal-control-papers.md",
-    "场景引导注意力机制项目总结_PPT素材.md",
 }
 
 # 产物区与产物类型：任何情况下都不入库（.gitignore 可被 git add -f 绕过，这里兜底）。

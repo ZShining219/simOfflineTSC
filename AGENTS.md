@@ -22,12 +22,34 @@
 ## 开发流程
 
 - 运行本项目时使用名为 colight 的 Conda 环境；执行项目命令前可运行 conda activate colight 激活环境。
-- 如需匹配原始项目环境，使用 Python 3.9。
+- colight 环境当前为 Python 3.10（原 LibSignal 为 3.9）。
 - 使用 pip install -r requirements.txt 安装核心依赖；仿真器依赖需要单独安装。
 - 使用 python run.py 启动实验，并通过命令行参数选择仿真器、智能体和路网。
 - 仿真器依赖可用时，使用 python run.py --help 查看支持的参数。
 - Git 提交信息必须使用中文，并清晰说明本次提交的主要修改内容。
 - 不要将生成的输出、缓存、IDE 文件和大型实验产物提交到 Git。
+- 每个克隆执行一次 `git config core.hooksPath .githooks` 启用提交闸门（`python -m lab check`）。
+
+## 实验基础设施（lab/）
+
+查结果、查数据、查证据一律用 `python -m lab`，不要临时写脚本扫目录：
+
+| 命令 | 回答的问题 |
+|---|---|
+| `python -m lab show <run_id>` | 这个结果是哪个 run：台账行、产物位置、代码版本可信等级、配置快照、数据来源、指标（台账值与评估摘要并列） |
+| `python -m lab find --campaign C --arm A --net N --status DONE` | 某条件下有哪些 run |
+| `python -m lab audit [--campaign C]` | 各 campaign 证据是否在盘、代码版本是否可信、配置哈希是否对得上、有无重复登记 |
+| `python -m lab data [NET]` | 某个路网/车流对应哪些文件、当前指纹、被多少 run 使用 |
+
+- 新 run 的 `run_manifest.json` 自动记录 `code`（运行时 HEAD/分支/dirty/改动指纹）、`data`（输入文件指纹）、`machine`。
+  在每台机器的 shell 配置中设置 `TSC_MACHINE=34` 或 `73`。
+- 代码版本可信等级：`verified`（运行时记录）> `registered`（仅登记时提交号）> `constant`（写死常量，等于没有）> `none`。
+  引用结果做结论时注明等级；2026-11-12 之前的 run 均不是 `verified`。
+- 产物路径一律经 `lab.paths`（`output_root()`/`report_dir(topic)`/`queue_dir(campaign)`）获取；分析、图表、汇报产物写
+  `<output_root>/reports/<topic>/`，不得再在仓根或 output_data 下新开散目录。`TSC_OUTPUT_ROOT` 可让多工作树共用产物根。
+- `tests/test_architecture.py` 是棘轮：核心层（agent/world/trainer/task/common/utils/generator/data）不得新增对研究线
+  （arterial/sequential/scene_attention/hitl/plan5/tools/dev）的 import，不得新增硬编码产物路径；存量登记在
+  `tests/architecture_baseline.json`，修掉一处就删一处。
 
 ## 修改规范
 
@@ -150,10 +172,14 @@ Agent 应帮助降低后续任务成本，而不仅是完成当前指令。
 
 ## 验证要求
 
-当前源码快照没有独立的自动化测试套件。仅修改代码时，应执行有针对性的导入或语法检查；修改运行行为时，应执行适用范围内最小规模的实验，并记录所用仿真器、智能体、路网、随机种子和完整命令。
+`tests/` 有约 600 个用例，全量运行耗时较长且存在历史失败（见 `docs/plan_refactor_202611.md` 测试基线一节）。
+每次提交至少运行快速门禁：`python -m pytest tests/test_lab.py tests/test_lab_checks.py tests/test_architecture.py`；
+改动模块再加跑对应的 `tests/test_<模块>*.py`。修改运行行为时，应执行适用范围内最小规模的实验，并记录所用仿真器、
+智能体、路网、随机种子和完整命令；同种子改动前后指标应逐条一致（除非改动本意就是改变行为）。
 
 ## 新 agent 上手 checklist
 
+0. 先跑 `python -m lab audit` 了解证据现状；引用任何结果前先 `python -m lab show <run_id>` 核对。
 1. 读 `EXPERIMENTS.md` 顶部「当前面板」（现状/当前设计栈/代号地图）→ 本文件；`GOVERNANCE.md` 按需查节；campaign 明细在 `EXPERIMENTS/<campaign>.md`（勿通读索引层以外内容）；机读事实源 `ledger/runs.jsonl`。
 2. 认领登记见 `artifacts/wiki_claims/`（历史追溯登记不进 claims）。
 3. 新实验：设计定稿→台账 REGISTERED→SMOKE→远端 tmux 自治派发→收割三指标+过程记录→回填台账；**同时在 `docs/experiments/` 按模板建/更实验叙事记录**（四节必填：意图/模块/设计/结果，规则见 `docs/README.md` 与 GOVERNANCE §4.5）。正式 run 只允许 队列 runner + `run_queue_*.json` 或 `bench/` profile 两条路径；禁止新写一次性驱动脚本直拉正式 run（一次性件归 `dev/<topic>/` 并登 `dev/INDEX.md`）。

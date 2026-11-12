@@ -42,7 +42,7 @@
 | `python -m sequential` / `python -m sequential.offline` | 顺序训练 / 纯离线训练面 | 正式入口 |
 | `tools/run_experiment_queue.py` | 队列派发（批量 run 与恢复） | 正式入口 |
 | `arterial_run.py` | arterial 1x6 线专用入口 | 正式入口 |
-| `offline_run.py` / `sequential_run.py` | 旧入口兼容 shim | 过渡态，按 GOVERNANCE §3.1 移除 |
+| ~~`offline_run.py` / `sequential_run.py`~~ | 旧入口兼容 shim | 已于 2026-11-12 移除，改用 `python -m sequential[.offline]` |
 
 完整派发/恢复流程见 `AGENTS.md`；台账回填规则见团队侧的 git 作业规程（不在本仓分发）。
 

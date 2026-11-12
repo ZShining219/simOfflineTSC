@@ -9,7 +9,7 @@
 | 路径 | 用途 | 关联 | 判定 |
 |---|---|---|---|
 | `run.py` | 实验主入口/参数定义 | 全仓 | 正式入口 |
-| `python -m sequential.offline` | 纯离线训练面（旧 `offline_run.py` 留 shim） | 半离线线 | 正式面 |
+| `python -m sequential.offline` | 纯离线训练面（旧 `offline_run.py` shim 已于 2026-11-12 移除） | 半离线线 | 正式面 |
 | `python -m sequential` | sequential 包门面 | sequential/ | 正式面 |
 | `python -m scene_attention` | 注意力方法包门面 | scene_attention/ | 正式面 |
 | `python -m hitl` | HITL 通道包门面 | hitl/ | 正式面 |

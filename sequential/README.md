@@ -24,7 +24,7 @@ LibSignal 基线之上的两个研究问题：
 | `python -m sequential.offline <verb>` | Plan 2 纯离线面：`prepare-plan2`/`validate-dataset`/`benchmark-dataset`/`train` |
 | `python -m sequential.legacy_calibration` | Plan 1 冻结评估器直跑（校准对照件） |
 
-兼容 shim（过渡，将移除）：`python sequential_run.py` → `-m sequential`；`python offline_run.py` → `-m sequential.offline`。
+旧兼容 shim 已于 2026-11-12 移除：原 `python sequential_run.py` → `-m sequential`；原 `python offline_run.py` → `-m sequential.offline`。
 
 ## 工单与产物
 

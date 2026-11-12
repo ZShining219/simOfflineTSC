@@ -33,7 +33,7 @@
 | HITL 实时服务 | `python -m hitl.serve` | `--scene/--dispatch/--gate/--record` | `data/output_data/hitl_probe/sessions/` |
 | HITL 数据面/plan/探针/审计 | `python -m hitl.pipeline <stage>` / `hitl.plans build --round <r>` / `hitl.probe.<x>` / `hitl.audit.<x>` | 见 `hitl/README.md` | `data/output_data/hitl_probe/` |
 
-兼容 shim（过渡，将移除）：`python sequential_run.py`→`-m sequential`，`python offline_run.py`→`-m sequential.offline`。
+旧兼容 shim `sequential_run.py`、`offline_run.py` 已于 2026-11-12 移除，请用 `python -m sequential` / `python -m sequential.offline`。
 
 调用规则：
 
@@ -165,7 +165,7 @@ cl_hz1x1 并存会造成「两套半离线口径」歧义，故冻结。
 - Plan 2 另需 `python -m pip install --no-deps -r requirements-offline.txt`（固定 `d3rlpy==2.0.4`，避免扰动现有 Torch/Gym/NumPy）。第三方来源与适配边界见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
 - 部分智能体有额外依赖，如 PPO/PFRL 需要 `pfrl`，CoLight 部分实现需要 PyTorch Geometric。
 
-seed 语义按入口区分：`run.py --seed` 是 Online 流程的 `training_seed`；`offline_run.py train --seed` 是 Plan 2 的 base seed，并默认派生 `model_init_seed=base`、`dataset_sampler_seed=base+10000`、`evaluation_seed=base+20000`（可覆盖，分别写入 metadata/checkpoint）。SUMO 默认采用固定默认随机实现（`sumo_seed_mode=fixed_default`），仅显式传 `--sumo-seed` 才生效。
+seed 语义按入口区分：`run.py --seed` 是 Online 流程的 `training_seed`；`python -m sequential.offline train --seed` 是 Plan 2 的 base seed，并默认派生 `model_init_seed=base`、`dataset_sampler_seed=base+10000`、`evaluation_seed=base+20000`（可覆盖，分别写入 metadata/checkpoint）。SUMO 默认采用固定默认随机实现（`sumo_seed_mode=fixed_default`），仅显式传 `--sumo-seed` 才生效。
 
 ## 快速开始
 
@@ -178,12 +178,12 @@ python run.py --agent maxpressure --world sumo --network sumo1x1 \
 
 # Plan 2 纯 Offline（prepare-plan2 / validate-dataset / train 三步，
 # manifest schema v2，详见 Plan 2 支持说明）
-python offline_run.py train --agent batch_dqn --network sumohz1x1 \
+python -m sequential.offline train --agent batch_dqn --network sumohz1x1 \
   --dataset-manifest /path/to/manifest.json --prefix p2_seed1000 --seed 1000
 
 # Sequential / HA-SODQN（❄️已冻结，manifest 驱动；新半离线实验用
 # cl_hz1x1 队列路径，见上表）
-python sequential_run.py --help
+python -m sequential --help
 ```
 
 正式 Sequential/HA 实验需先构建并 validate manifest，launch 会产生大规模 SUMO 训练并要求显式授权；执行顺序、资产清单与门禁见 [半离线复现指南](docs/semi_offline_cross_algorithm_reproduction.md)。
@@ -207,7 +207,7 @@ data/output_data/ha_sodqn/               # HA-SODQN engineering / 正式运行 /
 
 | 路径 | 说明 |
 | --- | --- |
-| run.py | Online/传统实验入口（offline_run.py/sequential_run.py 为过渡 shim） |
+| run.py | Online/传统实验入口 |
 | environment.py | 环境探测辅助 |
 | agent/ | 传统控制及强化学习智能体 |
 | world/ | CityFlow、SUMO 等仿真器适配层 |

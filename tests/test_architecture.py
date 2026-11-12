@@ -127,6 +127,15 @@ def test_no_new_root_config_overlays():
     assert not new, f"新 overlay 须放 configs/tsc/<campaign>/，不得放根目录：{new}"
 
 
+def test_dev_dirs_registered():
+    index = (ROOT / "dev" / "INDEX.md").read_text(encoding="utf-8")
+    out = subprocess.run(["git", "ls-files", "-z", "--cached", "--others", "--exclude-standard", "dev"],
+                         cwd=ROOT, capture_output=True, check=True).stdout.decode()
+    dirs = {p.split("/")[1] for p in out.split("\0") if p.count("/") >= 2}
+    missing = sorted(d for d in dirs if f"dev/{d}/" not in index and not d.startswith("_"))
+    assert not missing, f"dev/ 子目录须在 dev/INDEX.md 登记用途与所属 campaign：{missing}"
+
+
 def test_root_entries_registered():
     from lab.checks import ROOT_ALLOWLIST
     out = subprocess.run(["git", "-c", "core.quotepath=off", "ls-files", "-z"], cwd=ROOT,

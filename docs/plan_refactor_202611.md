@@ -87,12 +87,12 @@
 - [x] `common/experiment_queue.py` 对 `sequential` 的依赖反转（`9814bc7`）
 - [x] `tools/` 中 57 个 campaign 一次性脚本迁至 `dev/<campaign>/`（对照表在 `dev/INDEX.md`）；`tools/` 根目录 81 → 24
 - [ ] `scene_attention/_legacy/router/` 仍被 `scene_attention/figs/report_effect_fig.py` 引用且被汇报材料称为 HITL 调度工具，移出前需确认
-- [ ] 仓根兼容 shim（`offline_run.py`、`sequential_run.py`）按 README 承诺移除
+- [x] 仓根兼容 shim（`offline_run.py`、`sequential_run.py`）已移除（`4dcd01d`）
 
 ### D. 配置与文档
 - [x] `configs/tsc/`：评估后不搬迁（智能体默认配置按名加载且有 include 关系）；改为 `lab configs` 生成索引 + 根目录 overlay 只许减少
-- [ ] 收敛规则文档：README（门户）/ AGENTS.md（必须与禁止）/ GOVERNANCE.md（实验流程），去重
-- [ ] `dev/INDEX.md`（826 行手写）改为由各目录 README 生成
+- [x] 规则文档去重：变更日志迁至 `docs/architecture_changelog.md`；上手清单只留 AGENTS.md 一份；GOVERNANCE 与新机制对齐（`57b2ed2`）
+- [x] `dev/INDEX.md`：评估后保留手写（含大量历史裁决，34 个子目录仅 3 个有 README）；改为测试校验每个 `dev/<目录>` 均已登记，补登 `hitl_warmstart`
 - [ ] `EXPERIMENTS.md` 面板按台账刷新
 
 ### E. 测试与 CI

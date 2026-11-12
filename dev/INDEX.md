@@ -847,3 +847,12 @@ campaign 绑定的一次性脚本从 `tools/` 迁至 `dev/<campaign>/`（`git mv
 仍在 `tools/` 中但属于特定 campaign 的（被正式流程或研究线包引用，暂留）：
   `allocation_accuracy_counterfactual`、`analyze_repr_probe`、`att004_baseline_eval`、`att004_build_queue`、`att004_cond_eval`、`eval_baseline_checkpoint`、`feishu_wiki`、`run_arterial_experiment_queue`、`run_experiment_queue`、`run_paper_baseline`、`run_tarl_repr_probe`、`run_tarl_struct_cf`、`sumo_gui_comparison`、`sumo_html_comparison`、`training_dashboard`
 归属待定：`plot_s2_baseline_timeseries`。
+
+## 补登（2026-11-12 整理）
+
+- `dev/hitl_warmstart/`：HITL 暖启动验证链（campaign `hitl_warmloop`，台账 28 行）。
+  `convert_warm_init.py` 把任意 resumable checkpoint 改写为满足 sequential `from_initial_state` 入口的
+  ep0 语义暖启动初始态（保留权重/优化器/epsilon/RNG，清零计数器与 replay）；
+  `fig_queue_compare.py` 绘制 warmloop 三臂（M0 / 虚拟专家 / M1）queue 轨迹对比图。收编于 `1cb161a`。
+- 自本次起，`dev/` 下每个子目录都必须在本文件登记（`tests/test_architecture.py::test_dev_dirs_registered` 校验）。
+

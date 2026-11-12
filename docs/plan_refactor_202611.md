@@ -16,6 +16,21 @@
 4. 小步提交，每步中文提交信息；合入 `main`、推送远端均须用户确认。
 5. 整理期间其他 agent 暂停写仓（用户 2026-11-12 决定）。
 
+## 1.1 ⚠ 注意力线代码缺失（2026-11-12 发现，最高优先级）
+
+`tarl_*` 智能体（sensor/gat/concat/selfattn/attention/gating/crossq）与 `agent/scene_attention.py` 的文本编码器，
+实现都在 `reproduction/tarl_tsc/`。该目录约 3GB、**只有 2 个文件入过库**，其余（`models/tarl.py`、`text/encoder.py`、
+`events/runtime.py` 等）从未入库；2026-10-15 提交 `8bae003` 将其当作"未入库残留"整体删除。
+
+影响：`att_entity_003/004`（数千 run，面板所称"当前有效设计栈"）在本仓库**无法复现、无法继续开发**；
+正式验收工具 `tools/run_tarl_struct_cf.py`（bench/GOVERNANCE 引用）同样不可用。此前 `agent/__init__.py` 静默吞掉导入失败，
+现已改为显式警告。本机（73）、各工作树与 `/projects` 下其他项目均未找到副本；注意力线 run 多在机器 34 上执行，**34 上很可能仍有完整目录**。
+
+恢复步骤（需能访问机器 34）：
+1. 在 34 上确认 `<仓库>/reproduction/tarl_tsc/` 存在，只同步源码与小配置（`*.py/*.json/*.yml`），排除 checkpoint 与产物；
+2. 放回本仓同一路径（保持 `from reproduction.tarl_tsc...` 导入不变），在 `lab/checks.py` 仓根白名单登记 `reproduction`；
+3. 验证 `python -c "import agent.tarl"` 无警告，并为一个 tarl 臂新增黄金 smoke 用例后入库。
+
 ## 2. 诊断（2026-11-12，机器 73 视角，`python -m lab audit` 可复现）
 
 | 问题 | 数据 |

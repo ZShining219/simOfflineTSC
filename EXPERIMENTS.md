@@ -23,6 +23,7 @@
 - **证据完整性**：台账 15735 行，evidence_lost=19（18 条为历史 FAILED/ABORTED 的产物丢失；另 1 条为 `att004_surge_pair_s7` 僵尸清理时核定无产物。2026-11-06 巡检核定；`scen_cov_v1` 256/256 在盘（证据根见团队侧 decisions evidence-04）。
 - **推定写入（非实测终态，勿当实测结果）**：`att004_surge_pair_s7`（`ABORTED`；依据＝无存活进程 / 无 tmux / run_dir 与 artifacts 均无产物）；`signal_control_v1` 4 条（`SCOPE_DISCARD`；依据＝主树 / dsh-* / tmp 全根 find 不存在、队列文件不在盘）。依据已写入各条 `notes`，2026-11-06 治理核定。
 - **证据核查（2026-11-12，机器 73，`python -m lab audit` 可复现）**：上条 evidence_lost=19 只统计了已标记行。本机与各工作树中实际找不到 `run_dir` 的有 10,449 行（多数可能在机器 34，待在 34 上运行 `lab audit` 区分"在 34 上"与"真丢失"）；所有历史 run 的代码版本均非运行时记录（manifest 的 baseline_commit 是写死常量）；1,426 行台账 `config_sha` 与 run 目录不符；`xiasha1_online_v3`、`hz1x1_sanity_v1` 的台账指标混入了训练回合（最优臂不变，部分中间排名改变）。**已统一口径**：台账指标标准 = 最佳 checkpoint 评估，946 行已按此复算（旧值留在 `metrics_legacy`），其余行以 `metric_source` 标注口径，索引中非标准数字标 ⟨旧口径⟩/⟨评估⟩；本面板及各节手写结论中的数字仍为旧口径，引用前核对。引用任何结果前先 `python -m lab show <run_id>`。详见 `docs/plan_refactor_202611.md`。
+- **⚠ 注意力线代码缺失（2026-11-12）**：`tarl_*` 智能体与 scene_attention 文本编码器的实现 `reproduction/tarl_tsc/` 从未完整入库，已于 `8bae003` 删除；att_entity_003/004 当前无法复现。很可能仍存于机器 34，恢复步骤见 `docs/plan_refactor_202611.md` §1.1。
 <!-- PANEL-END -->
 
 ## 0. 总览

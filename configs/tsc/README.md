@@ -41,7 +41,7 @@
 | `concat_counterfactual_eval.yml` | 实验 overlay（存量） | 无 |
 | `dqn.yml` | 智能体默认配置 | `configs/tsc/xiasha1_online/dqn_full.yml`、`configs/tsc/xiasha1_online/dqn_slow.yml`、`dev/ledger/register_xiasha1_explore.py` 等 10 处 |
 | `dqn_backup.yml` | 实验 overlay（存量） | `configs/tsc/tarl_attention.yml`、`configs/tsc/tarl_concat.yml`、`configs/tsc/tarl_crossq.yml` 等 8 处 |
-| `dqn_gy5.yml` | 实验 overlay（存量） | `AGENTS.md` |
+| `dqn_gy5.yml` | 实验 overlay（存量） | `docs/architecture_changelog.md` |
 | `dqn_gy5_smoke.yml` | 实验 overlay（存量） | 无 |
 | `dqn_smoke.yml` | 实验 overlay（存量） | `bench/golden/online_dqn_hz1x1.json` |
 | `dqn_smoke_d3qn.yml` | 实验 overlay（存量） | 无 |

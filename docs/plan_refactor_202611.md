@@ -1,6 +1,6 @@
 # 整理与规范计划（2026-11）
 
-> 状态：执行中（分支 `gov/refactor`，锚点标签 `pre-refactor-20261112`）。最近更新：2026-11-12。
+> 状态：第一轮整理完成，待用户确认合入 main（分支 `gov/refactor` 已推送，锚点标签 `pre-refactor-20261112`）。最近更新：2026-11-12。
 > 本文是整理工作的执行依据与进度记录；完成后移入 `docs/done/`。
 
 ## 1. 目标
@@ -99,7 +99,17 @@
 - [x] 黄金 smoke：在线主路径 + cl_hz1x1 半离线两阶段，重构前后逐条一致（`python -m lab golden`）
 - [ ] 为注意力线（scene_attention）与纯离线（sequential.offline）补黄金用例（需先让其入口遵守 `TSC_OUTPUT_ROOT`）
 - [ ] 修复或标注历史失败用例（见第 5 节），拆出快速门禁集
-- [ ] 推送打通后接入 GitHub Actions：`lab check --all` + 快速门禁
+- [x] GitHub Actions `lab-checks`：每次 push/PR 执行 `lab check --all` 与台账/架构/lab 测试（首跑通过）
+
+## 3.1 剩余事项（需用户或其他机器）
+
+- **注意力线代码恢复**（§1.1）：需从机器 34 取回 `reproduction/tarl_tsc` 源码。
+- **机器 34 证据核查**：在 34 上运行 `python -m lab audit --json audit_34.json`，区分 10,449 行"在 34 上"与"真丢失"；
+  同时在 34 上运行 `python -m lab metrics` 把这些 run 的指标统一为标准口径。
+- **合入 main**：`gov/refactor` 包含 main 全部历史，可快进合入；合入并推送 main 需用户确认（GOVERNANCE §8.2）。
+- **渐进项（有棘轮约束，只减不增）**：存量 266 处硬编码产物路径改用 `lab.paths`；dev/ 下 27 处绝对路径；
+  `shared_dqn` 对 arterial 场景常量的依赖；`scene_attention/_legacy/` 移出（仍被 figs 与 HITL 引用）。
+- **其他 agent 恢复工作前**：各克隆执行 `git config core.hooksPath .githooks`；dsh 各工作树基于新 main 重建。
 
 ## 4.1 研究侧备忘（不属于本次整理，不安排执行）
 

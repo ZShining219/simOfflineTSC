@@ -72,7 +72,7 @@
 - [ ] 按既定约定回填 `config_sha ← run_manifest.config_hash`（1,426 行，可 git 回滚）
 - [x] 标准口径定为最佳 checkpoint 评估（用户 2026-11-12）：`lab metrics` 回填 3,291 行，946 行改为标准值，旧值保留（`4813e27`）
 - [x] 48 行绝对路径改为相对路径（`4813e27`）
-- [ ] 20 处重复登记交用户裁决；48 行绝对路径改为相对路径
+- [x] 20 处重复登记均为逐字段相同的重复追加，已删除（`945ff9d`）；48 行绝对路径改为相对路径
 - [ ] 机器 34 可连通后，在 34 上运行 `lab audit`，合并两机视角，区分"在 34 上"与"真丢失"
 
 ### B. 产物落点
@@ -90,7 +90,7 @@
 - [ ] 仓根兼容 shim（`offline_run.py`、`sequential_run.py`）按 README 承诺移除
 
 ### D. 配置与文档
-- [ ] `configs/tsc/` 根目录 111 个平铺 yml 按 `baselines/` 与 `<campaign>/` 分层
+- [x] `configs/tsc/`：评估后不搬迁（智能体默认配置按名加载且有 include 关系）；改为 `lab configs` 生成索引 + 根目录 overlay 只许减少
 - [ ] 收敛规则文档：README（门户）/ AGENTS.md（必须与禁止）/ GOVERNANCE.md（实验流程），去重
 - [ ] `dev/INDEX.md`（826 行手写）改为由各目录 README 生成
 - [ ] `EXPERIMENTS.md` 面板按台账刷新

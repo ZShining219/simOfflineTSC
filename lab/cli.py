@@ -7,6 +7,7 @@
     python -m lab metrics [--campaign C] [--apply]    按标准口径（最佳 checkpoint）复算并回填台账指标
     python -m lab golden [NAME] [--update]            黄金 smoke：改代码后指标须逐条一致
     python -m lab outputs [--root R] [--json OUT]    产物地图：每个产物目录属于谁、多大、台账是否引用
+    python -m lab configs [--write]                   configs/tsc 索引：智能体默认配置 vs 实验 overlay
     python -m lab check --staged | --all | --commit-msg FILE   提交闸门（git hook 调用）
 """
 from __future__ import annotations
@@ -17,7 +18,7 @@ import sys
 import unicodedata
 from collections import Counter, defaultdict
 
-from . import checks, evidence, golden, ledger, metrics, outputs
+from . import checks, configs, evidence, golden, ledger, metrics, outputs
 from .provenance import REPO_ROOT, data_identity
 
 
@@ -350,6 +351,15 @@ def cmd_outputs(args):
         print(f"已写出 {args.json}")
 
 
+def cmd_configs(args):
+    text = configs.render()
+    if args.write:
+        configs.README.write_text(text, encoding="utf-8")
+        print(f"已写出 {configs.README.relative_to(REPO_ROOT)}")
+    else:
+        print(text)
+
+
 def cmd_check(args):
     if args.commit_msg:
         with open(args.commit_msg, encoding="utf-8") as handle:
@@ -406,6 +416,10 @@ def main(argv=None):
     out.add_argument("--root", action="append", help="只扫该目录（可多次），如 data/output_data/tsc")
     out.add_argument("--json", help="同时写出机读结果")
     out.set_defaults(func=cmd_outputs)
+
+    cfg = sub.add_parser("configs", help="configs/tsc 索引：智能体默认配置 vs 实验 overlay")
+    cfg.add_argument("--write", action="store_true", help="写出 configs/tsc/README.md")
+    cfg.set_defaults(func=cmd_configs)
 
     check = sub.add_parser("check", help="提交闸门（git hook 调用）")
     mode = check.add_mutually_exclusive_group()

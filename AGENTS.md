@@ -42,6 +42,7 @@
 | `python -m lab data [NET]` | 某个路网/车流对应哪些文件、当前指纹、被多少 run 使用 |
 | `python -m lab metrics [--campaign C] [--apply]` | 按标准口径复算并回填台账指标（默认只预览） |
 | `python -m lab outputs [--root R]` | 每个产物目录多大、属于哪个 campaign、台账是否引用、未登记的由哪个脚本写出 |
+| `python -m lab configs [--write]` | configs/tsc 中哪些是智能体默认配置、哪些是实验 overlay、被谁引用（新增配置后 `--write` 更新索引） |
 | `python -m lab golden [NAME] [--update]` | 改了代码，主线训练结果变没变（固定种子小规模运行，逐条比对） |
 
 - 新 run 的 `run_manifest.json` 自动记录 `code`（运行时 HEAD/分支/dirty/改动指纹）、`data`（输入文件指纹）、`machine`。
@@ -226,3 +227,4 @@ Agent 应帮助降低后续任务成本，而不仅是完成当前指令。
 | 2026-11-12 | gov/refactor | 台账指标统一为最佳 checkpoint 评估（用户裁定）：新增 `lab/metrics.py` 与 `python -m lab metrics`；3,291 行回填 `metric_source`，其中 946 行改为标准值、旧值保留在 `metrics_legacy`（注明旧公式 final_eval / mixed_last20 等）；48 行绝对 `run_dir` 改为相对路径；`lab audit` 增加指标复核；`EXPERIMENTS/` 索引标注非标准口径；`tests/test_ledger_schema.py` 守台账结构 | 各 campaign 原用最终评估、末 20 均值、混入训练回合等不同公式，数字不可横向比较 | 台账 metrics 语义变更：标准口径行与旧数字不同；引用历史结论前用 `lab show` 核对 |
 | 2026-11-12 | gov/refactor | 新增黄金 smoke：`lab/golden.py` + `python -m lab golden`，用例 `bench/golden/online_dqn_hz1x1.json`、`cl_hz1x1_two_stage.json`（比对每条记录的指标、梯度更新数与训练诊断含锚定损失/历史采样数）；产物经 `TSC_OUTPUT_ROOT` 写临时目录用完即删 | 现有测试多绑定 campaign 资产，无法回答"改代码后结果变没变" | 验证：同代码两次一致；重构前锚点与当前分支逐条一致；人为把锚定损失放大 0.01% 可被精确检出 |
 | 2026-11-12 | gov/refactor | `tools/` 拆分：57 个 campaign 一次性脚本 `git mv` 至 `dev/{att_entity_002,att_entity_003,att_entity_004,arterial_1x6,plan1_4_ha_sodqn,reports}/`，仓库根推导改为 `parents[2]`，活跃代码/文档引用同步（历史记录不改，对照表见 `dev/INDEX.md`）；`tools/` 根目录 81 → 24 个脚本；产物区列表收口为 `lab.paths.OUTPUT_AREAS`；架构棘轮改为同时检查未跟踪的新文件 | 可复用工具与一次性脚本混放，无法判断哪些是正式能力 | 无行为变化：49 个脚本 `--help` 与迁移前一致、5 个导入正常、3 个无 main 保护的编译通过；相关测试失败项均在重构前基线中，黄金 smoke 一致 |
+| 2026-11-12 | gov/refactor | `configs/tsc` 不搬迁、改为索引+约束：`python -m lab configs --write` 生成 `configs/tsc/README.md`（30 个智能体默认配置须留根目录；81 个根目录 overlay 为存量，新 overlay 一律放 `configs/tsc/<campaign>/`）；架构测试校验索引与实际一致、根目录 overlay 只许减少 | 智能体默认配置按名自动加载且存在 include 关系，搬迁会破坏 tarl_*/paper_* 等智能体加载 | 无行为变化 |

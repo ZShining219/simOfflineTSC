@@ -12,6 +12,8 @@ from collections import Counter
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:  # 以脚本方式（--write-baseline）运行时也能 import lab
+    sys.path.insert(0, str(ROOT))
 BASELINE = Path(__file__).with_name("architecture_baseline.json")
 
 CORE = ("agent", "world", "trainer", "task", "common", "utils", "generator", "data")
@@ -76,6 +78,12 @@ def absolute_paths():
     return dict(sorted(counts.items()))
 
 
+def root_config_overlays():
+    from lab import configs
+    agents = configs.agent_names()
+    return sorted(p.name for p in configs.TSC_DIR.glob("*.yml") if p.stem not in agents)
+
+
 def _baseline():
     return json.loads(BASELINE.read_text(encoding="utf-8"))
 
@@ -107,6 +115,18 @@ def test_no_new_absolute_paths():
     assert not grown, f"新增了本机绝对路径（公网仓库禁止，GOVERNANCE §10）：{grown}"
 
 
+def test_configs_index_is_current():
+    from lab import configs
+    assert configs.README.read_text(encoding="utf-8") == configs.render(), (
+        "configs/tsc/README.md 与实际文件不一致，运行 python -m lab configs --write")
+
+
+def test_no_new_root_config_overlays():
+    allowed = set(_baseline()["configs_root_overlays"])
+    new = sorted(set(root_config_overlays()) - allowed)
+    assert not new, f"新 overlay 须放 configs/tsc/<campaign>/，不得放根目录：{new}"
+
+
 def test_root_entries_registered():
     from lab.checks import ROOT_ALLOWLIST
     out = subprocess.run(["git", "-c", "core.quotepath=off", "ls-files", "-z"], cwd=ROOT,
@@ -120,5 +140,6 @@ if __name__ == "__main__" and "--write-baseline" in sys.argv:
         "core_research_imports": core_research_imports(),
         "hardcoded_output_paths": hardcoded_output_paths(),
         "absolute_paths": absolute_paths(),
+        "configs_root_overlays": root_config_overlays(),
     }, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print(f"已写出 {BASELINE}")

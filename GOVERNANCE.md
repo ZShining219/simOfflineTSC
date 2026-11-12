@@ -98,6 +98,7 @@ eval_mode behavior_source metrics abort_reason error evidence_lost
 notes run_kind config_sha sumo_seed_mode sumo_seed eval_seed condition
 superseded_by runtime_env
 metric_source metric_detail metrics_legacy metric_source_legacy   # 2026-11-12 起
+end_time machine data_fingerprint config_sha_registered            # 2026-11-12 起（lab harvest 回填）
 ```
 
 - episode 三字段：`episodes_total`（终点）、`episodes_increment`（本次新增）、`resume_from`。
@@ -119,6 +120,13 @@ metric_source metric_detail metrics_legacy metric_source_legacy   # 2026-11-12 �
 
 设计定稿→campaign 节(DESIGN)；派发前→runs.jsonl REGISTERED；迁移→两行同步；
 收官 24h 内→metrics+结论回填。
+
+登记与回填一律用统一命令，不再为每个 campaign 写登记/回填脚本：
+
+- 派发前：`python -m lab register artifacts/<campaign>/run_queue.json --notes "<实验意图>"`（预览）→ `--apply`。
+  `code_commit` / `config_sha` 此时留空，不得填登记时的提交号冒充运行时版本。
+- 收割时：`python -m lab harvest --campaign <campaign>`（预览）→ `--apply`。从 run 目录回填状态、起止时间、
+  运行时代码版本（`run_manifest.code`）、配置哈希（原登记值存 `config_sha_registered`）、数据指纹、机器代号与标准口径指标。
 
 ### 4.4 seed 贯通自检
 

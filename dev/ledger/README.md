@@ -12,6 +12,7 @@ gen_experiments.py，inventory 级重建仅在全量盘点时需要。
 
 ## 2026-11-12 起
 
+- 新 campaign 的登记与回填统一用 `python -m lab register` / `python -m lab harvest`，不再新增 register_/backfill_ 脚本。
 - 指标回填统一用 `python -m lab metrics --campaign C [--apply]`（标准口径：最佳 checkpoint 评估），
   本目录各 register_/backfill_ 脚本中的指标公式已被取代，仅作历史留存，不得再用于新回填。
 - 台账读取/核查用 `python -m lab audit|show|find`；结构不变量见 `tests/test_ledger_schema.py`。

@@ -43,6 +43,7 @@
 | `python -m lab metrics [--campaign C] [--apply]` | 按标准口径复算并回填台账指标（默认只预览） |
 | `python -m lab outputs [--root R]` | 每个产物目录多大、属于哪个 campaign、台账是否引用、未登记的由哪个脚本写出 |
 | `python -m lab configs [--write]` | configs/tsc 中哪些是智能体默认配置、哪些是实验 overlay、被谁引用（新增配置后 `--write` 更新索引） |
+| `python -m lab register QUEUE` / `python -m lab harvest --campaign C` | 派发前登记、收割时回填台账（取代各 campaign 自写的登记/回填脚本；默认预览，`--apply` 写入） |
 | `python -m lab golden [NAME] [--update]` | 改了代码，主线训练结果变没变（固定种子小规模运行，逐条比对） |
 
 - 新 run 的 `run_manifest.json` 自动记录 `code`（运行时 HEAD/分支/dirty/改动指纹）、`data`（输入文件指纹）、`machine`。

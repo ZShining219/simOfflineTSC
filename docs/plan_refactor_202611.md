@@ -68,8 +68,8 @@
 ## 4. 待办
 
 ### A. 台账可信（优先）
-- [ ] `lab` 统一登记 API（schema 校验、唯一 `config_sha` 实现、幂等追加），替代 26 个一次性登记脚本
-- [ ] 按既定约定回填 `config_sha ← run_manifest.config_hash`（1,426 行，可 git 回滚）
+- [x] 统一登记/回填：`python -m lab register` / `harvest`（端到端经正式队列 runner 验证），取代 26 个一次性脚本
+- [x] 按既定约定回填 `config_sha ← run_manifest.config_hash`：1,426 行修正（旧值存 `config_sha_registered`）、548 行补齐，配置哈希不符 1,426 → 0
 - [x] 标准口径定为最佳 checkpoint 评估（用户 2026-11-12）：`lab metrics` 回填 3,291 行，946 行改为标准值，旧值保留（`4813e27`）
 - [x] 48 行绝对路径改为相对路径（`4813e27`）
 - [x] 20 处重复登记均为逐字段相同的重复追加，已删除（`945ff9d`）；48 行绝对路径改为相对路径

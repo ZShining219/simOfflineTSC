@@ -8,6 +8,8 @@
     python -m lab golden [NAME] [--update]            黄金 smoke：改代码后指标须逐条一致
     python -m lab outputs [--root R] [--json OUT]    产物地图：每个产物目录属于谁、多大、台账是否引用
     python -m lab configs [--write]                   configs/tsc 索引：智能体默认配置 vs 实验 overlay
+    python -m lab register QUEUE [--apply]            按队列登记 REGISTERED 行（取代各 campaign 的登记脚本）
+    python -m lab harvest --campaign C [--apply]      回填状态、运行时代码版本、配置/数据指纹与标准指标
     python -m lab check --staged | --all | --commit-msg FILE   提交闸门（git hook 调用）
 """
 from __future__ import annotations
@@ -18,7 +20,7 @@ import sys
 import unicodedata
 from collections import Counter, defaultdict
 
-from . import checks, configs, evidence, golden, ledger, metrics, outputs
+from . import checks, configs, evidence, golden, ledger, metrics, outputs, registry
 from .provenance import REPO_ROOT, data_identity
 
 
@@ -360,6 +362,28 @@ def cmd_configs(args):
         print(text)
 
 
+def cmd_register(args):
+    new, skipped = registry.register(args.queue, apply=args.apply, campaign=args.campaign,
+                                     line=args.line, run_kind=args.kind,
+                                     eval_mode=args.eval_mode, notes=args.notes)
+    print(f"新登记 {len(new)} 行，已存在跳过 {len(skipped)} 行")
+    for row in new[:5]:
+        print(f"   {row['run_id']}  arm={row['arm']} net={row['net']} seed={row['seed']} run_dir={row['run_dir']}")
+    if new and not args.apply:
+        print("预览模式，未写入；确认后加 --apply")
+
+
+def cmd_harvest(args):
+    changes = registry.harvest(args.campaign, apply=args.apply)
+    fields = Counter(key for update in changes.values() for key in update)
+    status = Counter(update.get("status") for update in changes.values() if "status" in update)
+    print(f"{args.campaign}：{len(changes)} 行有更新；字段 {dict(fields)}；状态变化 {dict(status)}")
+    if changes and not args.apply:
+        run_id, update = next(iter(changes.items()))
+        print(f"例 {run_id}: {json.dumps(update, ensure_ascii=False)[:300]}")
+        print("预览模式，未写入；确认后加 --apply")
+
+
 def cmd_check(args):
     if args.commit_msg:
         with open(args.commit_msg, encoding="utf-8") as handle:
@@ -420,6 +444,21 @@ def main(argv=None):
     cfg = sub.add_parser("configs", help="configs/tsc 索引：智能体默认配置 vs 实验 overlay")
     cfg.add_argument("--write", action="store_true", help="写出 configs/tsc/README.md")
     cfg.set_defaults(func=cmd_configs)
+
+    reg = sub.add_parser("register", help="按队列登记 REGISTERED 行")
+    reg.add_argument("queue", help="队列文件，如 artifacts/<campaign>/run_queue.json")
+    reg.add_argument("--campaign", help="队列未声明 campaign 时指定")
+    reg.add_argument("--line", help="研究线（缺省同 campaign）")
+    reg.add_argument("--kind", default="train", help="run_kind，缺省 train")
+    reg.add_argument("--eval-mode", default="train_frozen_eval")
+    reg.add_argument("--notes", default="", help="写入 notes 的一句话说明（实验意图）")
+    reg.add_argument("--apply", action="store_true")
+    reg.set_defaults(func=cmd_register)
+
+    har = sub.add_parser("harvest", help="回填状态、代码版本、配置/数据指纹与标准指标")
+    har.add_argument("--campaign", required=True)
+    har.add_argument("--apply", action="store_true")
+    har.set_defaults(func=cmd_harvest)
 
     check = sub.add_parser("check", help="提交闸门（git hook 调用）")
     mode = check.add_mutually_exclusive_group()

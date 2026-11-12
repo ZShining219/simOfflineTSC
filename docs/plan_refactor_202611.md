@@ -70,7 +70,8 @@
 ### C. 代码分层
 - [x] `arterial/` 的通用回放与归档迁入核心层，原位置保留兼容层（`9814bc7`）
 - [x] `common/experiment_queue.py` 对 `sequential` 的依赖反转（`9814bc7`）
-- [ ] `scene_attention/_legacy/` 移出活跃包；`tools/` 中 campaign 一次性脚本归 `dev/<campaign>/`
+- [x] `tools/` 中 57 个 campaign 一次性脚本迁至 `dev/<campaign>/`（对照表在 `dev/INDEX.md`）；`tools/` 根目录 81 → 24
+- [ ] `scene_attention/_legacy/router/` 仍被 `scene_attention/figs/report_effect_fig.py` 引用且被汇报材料称为 HITL 调度工具，移出前需确认
 - [ ] 仓根兼容 shim（`offline_run.py`、`sequential_run.py`）按 README 承诺移除
 
 ### D. 配置与文档

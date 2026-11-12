@@ -24,7 +24,7 @@ Protocols (`--eval_protocol`):
               (n>=30 with a 40-episode config); two runs differing only in
               TARL_TEXT_CONDITION give the per-episode paired contrast.
 
-Usage mirrors tools/run_tarl_text_cf.py but requires an event_input=structured
+Usage mirrors dev/att_entity_003/run_tarl_text_cf.py but requires an event_input=structured
 config and checkpoint.
 """
 from __future__ import annotations

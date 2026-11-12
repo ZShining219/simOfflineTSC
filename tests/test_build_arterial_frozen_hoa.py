@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from tools.build_arterial_frozen_hoa import build
+from dev.arterial_1x6.build_arterial_frozen_hoa import build
 
 
 def _fixtures(tmp_path, valid=True):

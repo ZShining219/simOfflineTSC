@@ -96,18 +96,20 @@ def check_sizes(repo, paths):
 
 
 def check_sensitive(repo, paths):
-    problems = []
-    for path in paths:
-        if path in SENSITIVE_EXEMPT:
+    """只看本次真正新增的行：整体 diff 开启重命名检测，搬迁文件的存量内容不算新增。"""
+    wanted = set(paths) - SENSITIVE_EXEMPT
+    diff = _git(repo, "diff", "--cached", "-M", "-U0", "--no-color").decode("utf-8", "replace")
+    problems, current = [], None
+    for line in diff.splitlines():
+        if line.startswith("+++ "):
+            current = line[6:] if line.startswith("+++ b/") else None
             continue
-        diff = _git(repo, "diff", "--cached", "-U0", "--no-color", "--", path)
-        for line in diff.decode("utf-8", "replace").splitlines():
-            if not line.startswith("+") or line.startswith("+++"):
-                continue
-            for label, pattern in SENSITIVE_PATTERNS:
-                match = pattern.search(line)
-                if match:
-                    problems.append(f"{label}「{match.group(0)}」：{path}")
+        if current not in wanted or not line.startswith("+"):
+            continue
+        for label, pattern in SENSITIVE_PATTERNS:
+            match = pattern.search(line)
+            if match:
+                problems.append(f"{label}「{match.group(0)}」：{current}")
     return problems
 
 

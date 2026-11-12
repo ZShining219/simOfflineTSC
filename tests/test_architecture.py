@@ -23,7 +23,9 @@ ABSOLUTE_PATH_EXEMPT = {"lab/checks.py", "tests/test_lab_checks.py", "tests/test
 
 
 def _tracked_py(*prefixes):
-    out = subprocess.run(["git", "ls-files", "-z", "--", *[f"{p}/*.py" for p in prefixes]],
+    # 含尚未 git add 的新文件（--others），否则新文件在提交前躲过检查。
+    out = subprocess.run(["git", "ls-files", "-z", "--cached", "--others", "--exclude-standard",
+                          "--", *[f"{p}/*.py" for p in prefixes]],
                          cwd=ROOT, capture_output=True, check=True).stdout.decode()
     return [p for p in out.split("\0") if p and (ROOT / p).exists()]
 

@@ -14,6 +14,8 @@ def _git(cwd, *args):
 @pytest.fixture
 def repo(tmp_path):
     _git(tmp_path, "init", "-q")
+    _git(tmp_path, "config", "user.email", "t@example.com")
+    _git(tmp_path, "config", "user.name", "t")
     (tmp_path / "lab").mkdir()
     (tmp_path / "lab" / "ok.py").write_text("x = 1\n")
     _git(tmp_path, "add", ".")
@@ -80,3 +82,15 @@ def test_relative_paths_and_localhost_allowed(repo):
 ])
 def test_commit_message(text, ok):
     assert (checks.check_commit_message(text) == []) is ok
+
+
+def test_renamed_file_legacy_content_not_flagged(repo):
+    _stage(repo, "lab/old.py", b"x = 1\nroot = '/home/dev/legacy'\n" + b"y = 2\n" * 20)
+    _git(repo, "commit", "-q", "-m", "init", "--no-verify")
+    _git(repo, "mv", "lab/old.py", "lab/new.py")
+    assert checks.check_staged(repo) == []
+    (repo / "lab" / "new.py").write_text("x = 1\nroot = '/home/dev/legacy'\n" + "y = 2\n" * 20
+                                          + "z = '/projects/added'\n")
+    _git(repo, "add", "lab/new.py")
+    problems = checks.check_staged(repo)
+    assert len(problems) == 1 and "/projects/" in problems[0]

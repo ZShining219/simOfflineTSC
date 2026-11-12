@@ -824,3 +824,26 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
 - 补登依据：2026-11-02 只读盘点，`dev/` 实有 27 个子目录、INDEX 原登记 26 个，
   唯一缺口即本目录（盘点记录为主管维护的本机团队笔记，随团队工作区分发，
   不在本仓；本次整理不删除任何文件）。
+
+## tools/ 拆分（2026-11-12 整理，分支 gov/refactor）
+
+campaign 绑定的一次性脚本从 `tools/` 迁至 `dev/<campaign>/`（`git mv` 保留历史；仓库根推导已改为 `parents[2]`，
+全仓活跃代码与文档中的引用已同步）。台账、`docs/experiments/`、`docs/done/` 等历史记录中的旧路径**未改写**，
+按下表对照。`tools/` 只保留可复用工具与被正式流程（bench/GOVERNANCE/README）引用的脚本。
+
+- `dev/arterial_1x6/`：arterial 1x6 半离线线（技术点 3）的 manifest 构建与审计
+  `analyze_arterial_stage0`、`audit_arterial_historical_archive`、`build_arterial_frozen_hoa`、`build_arterial_hoa_sampling_index`、`build_arterial_stage0_budget_manifest`、`build_arterial_stage0_manifest`、`build_arterial_stage1_manifest`、`build_arterial_stage2_manifest`、`capture_arterial_system_profile`、`run_arterial_sequential`
+- `dev/att_entity_002/`：SGA/concat/MPLight 文本注入矩阵（完结）
+  `build_sga_eval_manifests`、`run_sga_counterfactual`、`sga_attention_process`、`sga_counterfactual_report`、`sga_eval_report`、`sga_paired_stats`
+- `dev/att_entity_003/`：TARL 对齐/传感矩阵 flx 及阶段 2–5 评估（完结）
+  `aggregate_text_utility`、`analyze_flx_stage1`、`build_flx_eval_manifests`、`build_flx_stage2_queue`、`build_stage4_eval_manifests`、`flx_eval_report`、`run_align_retrieval`、`run_tarl_grad_diag`、`run_tarl_text_cf`、`run_tarl_text_utility`、`stage5_final_paired_stats`、`watch_stage5_eval`
+- `dev/att_entity_004/`：z_task+aux+反事实（注意力线当前主线）的一次性分析
+  `att004_focus_null`、`att004_focus_score`、`att004_holdout_plans`、`att004_paired_util`、`att004_probe3_sup`、`att004_probes`、`att004_single_cmp_layered`、`att004_status`、`mb_gate_precheck`
+- `dev/plan1_4_ha_sodqn/`：Plan 1–4 / HA-SODQN 冻结线的分析、审计与证据打包
+  `allocation_accuracy_ha_reward`、`allocation_accuracy_multiobjective`、`allocation_experience_traceability`、`build_fig2c_matched_group_audit`、`build_mechanism_completion`、`compact_sequential_checkpoints`、`complete_mechanism_bundle`、`evaluate_stage2_cell`、`export_compact_experiment_tables`、`export_fig2c_audit_from_existing`、`finalize_stage2_eval`、`ha_continuous_resource_audit`、`plan1_observation_conditioned_outcomes`、`plan1_transition_asset_audit`、`render_resource_efficiency_cei`、`resource_efficiency_audit`、`resource_evidence_dashboard`、`resource_metric_audit`、`run_stage2_old_eval`
+- `dev/reports/`：对外汇报一次性出图
+  `plot_guozhong_midterm_260804`
+
+仍在 `tools/` 中但属于特定 campaign 的（被正式流程或研究线包引用，暂留）：
+  `allocation_accuracy_counterfactual`、`analyze_repr_probe`、`att004_baseline_eval`、`att004_build_queue`、`att004_cond_eval`、`eval_baseline_checkpoint`、`feishu_wiki`、`run_arterial_experiment_queue`、`run_experiment_queue`、`run_paper_baseline`、`run_tarl_repr_probe`、`run_tarl_struct_cf`、`sumo_gui_comparison`、`sumo_html_comparison`、`training_dashboard`
+归属待定：`plot_s2_baseline_timeseries`。

@@ -12,7 +12,7 @@ def test_stage1_manifest_has_frozen_twenty_run_matrix(tmp_path):
     output = tmp_path / 'manifest.json'
     overlays = tmp_path / 'overlays'
     subprocess.run([
-        sys.executable, 'tools/build_arterial_stage1_manifest.py',
+        sys.executable, 'dev/arterial_1x6/build_arterial_stage1_manifest.py',
         '--output', str(output), '--overlay-dir', str(overlays),
     ], check=True)
     payload = json.loads(output.read_text(encoding='utf-8'))

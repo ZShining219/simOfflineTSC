@@ -17,6 +17,8 @@ from pathlib import Path
 from .provenance import REPO_ROOT
 
 OUTPUT_ENV = "TSC_OUTPUT_ROOT"
+# 产物区（仓内相对路径）：run 产物、队列状态，以及冻结只读的历史分析/汇报目录。
+OUTPUT_AREAS = ("data/output_data", "artifacts", "analysis", "final_result")
 DEFAULT_OUTPUT_ROOT = REPO_ROOT / "data" / "output_data"
 ARTIFACTS_ROOT = REPO_ROOT / "artifacts"
 

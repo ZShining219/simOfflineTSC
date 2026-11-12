@@ -100,7 +100,7 @@ CAREL 的成功过滤在我们场景没有直接对应物（TSC 无"成功 episo
 - `utils/logger.py`：评估白名单对 align 变体名的接纳（如沿用 sga_flx_colight + 配置开 关，则无需动）。
 - 配置：`configs/tsc/sga_flx_colight_text_event_random_200_align*.yml`（自包含）。
 - 测试：`tests/test_scene_alignment.py`（encoder 形状、InfoNCE 单调性、无事件空对、归属规则、白名单输入断言）。
-- 探针复用：`tools/run_sga_counterfactual.py` 增报窗口对齐分数字段；retrieval 评估新脚本 `tools/align_retrieval_eval.py`（读 eval records.jsonl + 冻结 checkpoint）。
+- 探针复用：`dev/att_entity_002/run_sga_counterfactual.py` 增报窗口对齐分数字段；retrieval 评估新脚本 `tools/align_retrieval_eval.py`（读 eval records.jsonl + 冻结 checkpoint）。
 
 ## 7. 不做/延后
 
@@ -125,7 +125,7 @@ CAREL 的成功过滤在我们场景没有直接对应物（TSC 无"成功 episo
 - `agent/colight.py`：`ColightNet` 在 `sga_align_lambda>0` 时挂 `align_window_encoder`（仅辅助损失使用）；`SGAFlxColightAgent.remember` 驱动累积器、`train()` 中 `loss += λ·align`、诊断行新增 `align_loss/align_pairs`；`_encode_events_for_align` 用当前参数重编码 text+meta→fusion→L2。λ=0/缺省时行为与基线完全一致（已回归）。
 - 配置：`sga_flx_colight_text_event_random_align_l{0p1,1p0}.yml`（与 stage-2 random-200 全同，唯一变量 sga_align_*）、smoke 配置与 `hz4x4_align_smoke_v1` 计划、探针配置 `sga_flx_align_probe.yml`。
 - 测试：`tests/test_scene_alignment.py` 19 项全过（窗口归属、多事件分离、global rain、连续无事件负样本、窗口上限、双编码器梯度回传、无事件空产出、缓冲上界）。
-- 工具：`tools/run_align_retrieval.py`（冻结检查点检索探针：Top-1 / margin / 分负样本类型）；`tools/flx_eval_report.py` 扩展 align 方法名与对照。
+- 工具：`dev/att_entity_003/run_align_retrieval.py`（冻结检查点检索探针：Top-1 / margin / 分负样本类型）；`dev/att_entity_003/flx_eval_report.py` 扩展 align 方法名与对照。
 
 ### Pilot 早期事实（待 ep200 + 检索确认）
 

@@ -11,9 +11,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from . import ledger
+from .paths import OUTPUT_AREAS as ROOTS
 from .provenance import REPO_ROOT
-
-ROOTS = ("data/output_data", "artifacts", "analysis", "final_result")
 
 
 def _sizes(root):

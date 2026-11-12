@@ -60,9 +60,9 @@ B = max(200, 150) = 200
 ## 运行入口与证据
 
 - 队列器：`tools/run_arterial_experiment_queue.py`
-- 资源 manifest 生成器：`tools/build_arterial_stage0_manifest.py`
-- 预算 manifest 生成器：`tools/build_arterial_stage0_budget_manifest.py`
-- 分析器：`tools/analyze_arterial_stage0.py`
+- 资源 manifest 生成器：`dev/arterial_1x6/build_arterial_stage0_manifest.py`
+- 预算 manifest 生成器：`dev/arterial_1x6/build_arterial_stage0_budget_manifest.py`
+- 分析器：`dev/arterial_1x6/analyze_arterial_stage0.py`
 - 资源状态：`artifacts/arterial_experiments/stage0/profile_w{1,2,4,8,12}_state/`
 - 预算状态：`artifacts/arterial_experiments/stage0/budget_state/`
 - 汇总证据：`artifacts/arterial_experiments/stage0/analysis.json`

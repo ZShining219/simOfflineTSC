@@ -5,6 +5,7 @@
     python -m lab find [--campaign C] [--arm A] ...   按条件列出 run
     python -m lab data [NET]                          数据注册表：net → 配置 → 文件与指纹
     python -m lab metrics [--campaign C] [--apply]    按标准口径（最佳 checkpoint）复算并回填台账指标
+    python -m lab golden [NAME] [--update]            黄金 smoke：改代码后指标须逐条一致
     python -m lab check --staged | --all | --commit-msg FILE   提交闸门（git hook 调用）
 """
 from __future__ import annotations
@@ -15,7 +16,7 @@ import sys
 import unicodedata
 from collections import Counter, defaultdict
 
-from . import checks, evidence, ledger, metrics
+from . import checks, evidence, golden, ledger, metrics
 from .provenance import REPO_ROOT, data_identity
 
 
@@ -297,6 +298,31 @@ def cmd_metrics(args):
         print("预览模式，未写入；确认后加 --apply")
 
 
+def cmd_golden(args):
+    names = [args.name] if args.name else golden.cases()
+    failed = 0
+    for name in names:
+        try:
+            observed = golden.run_case(name, keep=args.keep)
+        except RuntimeError as error:
+            print(f"✗ {name} 运行失败：{error}")
+            failed += 1
+            continue
+        if args.update:
+            golden.update(name, observed)
+            print(f"↻ {name} 期望值已更新（提交时写明为何有意改变行为）")
+            continue
+        problems = golden.compare(golden.load(name).get("expected") or {}, observed)
+        if problems:
+            failed += 1
+            print(f"✗ {name} 结果与期望不一致：")
+            for problem in problems:
+                print("   ", problem)
+        else:
+            print(f"✓ {name} 逐条一致")
+    sys.exit(1 if failed else 0)
+
+
 def cmd_check(args):
     if args.commit_msg:
         with open(args.commit_msg, encoding="utf-8") as handle:
@@ -342,6 +368,12 @@ def main(argv=None):
     met.add_argument("--apply", action="store_true", help="写回台账（默认只预览）")
     met.add_argument("-v", "--verbose", action="store_true", help="每类变更给一个示例")
     met.set_defaults(func=cmd_metrics)
+
+    gold = sub.add_parser("golden", help="黄金 smoke：改代码后指标须逐条一致")
+    gold.add_argument("name", nargs="?", help="用例名（bench/golden/*.json），缺省运行全部")
+    gold.add_argument("--update", action="store_true", help="重新生成期望值（有意改变行为时）")
+    gold.add_argument("--keep", action="store_true", help="保留临时产物目录以便排查")
+    gold.set_defaults(func=cmd_golden)
 
     check = sub.add_parser("check", help="提交闸门（git hook 调用）")
     mode = check.add_mutually_exclusive_group()

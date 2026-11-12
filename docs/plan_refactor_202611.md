@@ -55,7 +55,8 @@
 ### A. 台账可信（优先）
 - [ ] `lab` 统一登记 API（schema 校验、唯一 `config_sha` 实现、幂等追加），替代 26 个一次性登记脚本
 - [ ] 按既定约定回填 `config_sha ← run_manifest.config_hash`（1,426 行，可 git 回滚）
-- [ ] 用户定标准口径后：`lab` 提供唯一指标汇总函数并写 `metric_source`；修正 xiasha1_online_v3 / hz1x1_sanity_v1 的混入训练回合问题（旧值保留在 `metrics_legacy`）；其余 campaign 逐一核对公式
+- [x] 标准口径定为最佳 checkpoint 评估（用户 2026-11-12）：`lab metrics` 回填 3,291 行，946 行改为标准值，旧值保留（`4813e27`）
+- [x] 48 行绝对路径改为相对路径（`4813e27`）
 - [ ] 20 处重复登记交用户裁决；48 行绝对路径改为相对路径
 - [ ] 机器 34 可连通后，在 34 上运行 `lab audit`，合并两机视角，区分"在 34 上"与"真丢失"
 
@@ -77,6 +78,8 @@
 - [ ] `EXPERIMENTS.md` 面板按台账刷新
 
 ### E. 测试与 CI
+- [x] 黄金 smoke：在线主路径 + cl_hz1x1 半离线两阶段，重构前后逐条一致（`python -m lab golden`）
+- [ ] 为注意力线（scene_attention）与纯离线（sequential.offline）补黄金用例（需先让其入口遵守 `TSC_OUTPUT_ROOT`）
 - [ ] 修复或标注历史失败用例（见第 5 节），拆出快速门禁集
 - [ ] 推送打通后接入 GitHub Actions：`lab check --all` + 快速门禁
 
@@ -156,4 +159,4 @@
 2. 机器 34 无法从本机连通；10,449 行产物是否在 34 上需要在 34 上核查。
 3. 仓根未跟踪图片：`a1俯视底图.png` 是 xiasha 照片叠加工具的输入，是否移到 `data/raw_data/xiasha_photo/`（仍不入库）。
 4. 台账重复登记 20 处以哪一行为准。
-5. 台账指标标准口径：评估末 20 次均值 / 最终评估 / 最佳 checkpoint 评估，三选一（或并存并注明）；是否据此修正 348 行已证实有误的数值。
+5. ~~台账指标标准口径~~：已定为最佳 checkpoint 评估（2026-11-12）。

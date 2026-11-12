@@ -1,0 +1,228 @@
+{
+  "description": "当前主线 cl_hz1x1 半离线两阶段：st1 收集历史归档 → st2 换场景、混合采样历史（offline_ratio 0.25）、教师锚定、读 st1 checkpoint；配置取自 artifacts/cl_hz1x1/overlays/soamk_soddqnp_o2_sd0_st{1,2}.yml，预算缩小为每阶段 1 回合 300 步",
+  "steps": [
+    {
+      "id": "st1",
+      "args": [
+        "-w",
+        "sumo",
+        "-a",
+        "dqn",
+        "-n",
+        "sumohz1x1",
+        "--seed",
+        "0",
+        "--sumo_seed",
+        "0",
+        "--interface",
+        "libsumo",
+        "--ngpu",
+        "-1"
+      ],
+      "overlay": {
+        "model": {
+          "double_dqn": true,
+          "batch_size": 8,
+          "offline_sampling_strategy": "scene_intersection_balanced",
+          "history_access_mode": "causal",
+          "collect_history": true,
+          "anchor_lambda_policy": 1.0,
+          "anchor_temperature": 1.0,
+          "scene_id": "sumohz1x1",
+          "roadnet_id": "hz1x1",
+          "training_stage": 0,
+          "scene_order": [
+            "sumohz1x1",
+            "sumohz1x1_config4",
+            "sumohz1x1_config2",
+            "sumohz1x1_config3"
+          ],
+          "offline_ratio": 0.0
+        },
+        "trainer": {
+          "episodes": 1,
+          "steps": 300,
+          "test_steps": 300,
+          "learning_start": 10,
+          "buffer_size": 100,
+          "evaluation_episodes": [
+            0,
+            1
+          ],
+          "resumable_checkpoint_episodes": [
+            0,
+            1
+          ],
+          "test_when_train": false
+        },
+        "logger": {
+          "save_model": false
+        },
+        "world": {
+          "saveReplay": false
+        }
+      }
+    },
+    {
+      "id": "st2",
+      "args": [
+        "-w",
+        "sumo",
+        "-a",
+        "dqn",
+        "-n",
+        "sumohz1x1_config4",
+        "--seed",
+        "0",
+        "--sumo_seed",
+        "0",
+        "--interface",
+        "libsumo",
+        "--ngpu",
+        "-1"
+      ],
+      "overlay": {
+        "model": {
+          "double_dqn": true,
+          "batch_size": 8,
+          "offline_sampling_strategy": "scene_intersection_balanced",
+          "history_access_mode": "causal",
+          "collect_history": true,
+          "anchor_lambda_policy": 1.0,
+          "anchor_temperature": 1.0,
+          "scene_id": "sumohz1x1_config4",
+          "roadnet_id": "hz1x1",
+          "training_stage": 1,
+          "scene_order": [
+            "sumohz1x1",
+            "sumohz1x1_config4",
+            "sumohz1x1_config2",
+            "sumohz1x1_config3"
+          ],
+          "offline_ratio": 0.25,
+          "history_paths": [
+            "{run:st1}/history_archive"
+          ],
+          "stage_checkpoint": "{run:st1}/checkpoints/resumable/episode_0001.pt",
+          "replay_policy": "clear",
+          "epsilon_mode": "reset_schedule",
+          "stage_load_optimizer": true,
+          "teacher_paths": {
+            "sumohz1x1": "{run:st1}/checkpoints/resumable/episode_0001.pt"
+          }
+        },
+        "trainer": {
+          "episodes": 1,
+          "steps": 300,
+          "test_steps": 300,
+          "learning_start": 10,
+          "buffer_size": 100,
+          "evaluation_episodes": [
+            0,
+            1
+          ],
+          "resumable_checkpoint_episodes": [
+            0,
+            1
+          ],
+          "test_when_train": false
+        },
+        "logger": {
+          "save_model": false
+        },
+        "world": {
+          "saveReplay": false
+        }
+      }
+    }
+  ],
+  "expected": {
+    "st1": [
+      [
+        "EVALUATION",
+        0,
+        84.55263157894737,
+        38,
+        101,
+        48.96666666666667,
+        0.5775691350301106,
+        -2139.150146484375,
+        null,
+        0,
+        null
+      ],
+      [
+        "TRAIN",
+        1,
+        90.95945945945945,
+        74,
+        75,
+        35.63333333333333,
+        0.41094792683919273,
+        -1560.300048828125,
+        219.623779296875,
+        20,
+        null
+      ],
+      [
+        "FINAL_EVALUATION",
+        1,
+        88.17241379310344,
+        29,
+        110,
+        51.93333333333333,
+        0.549701182047526,
+        -2279.550048828125,
+        null,
+        20,
+        null
+      ]
+    ],
+    "st2": [
+      [
+        "EVALUATION",
+        0,
+        68.46428571428571,
+        28,
+        71,
+        25.2,
+        0.4492275555928548,
+        -1088.8499755859375,
+        null,
+        20,
+        null
+      ],
+      [
+        "TRAIN",
+        1,
+        105.25,
+        32,
+        67,
+        26.833333333333332,
+        0.479241943359375,
+        -1159.949951171875,
+        215.94509887695312,
+        45,
+        {
+          "td_loss": 409.20428466796875,
+          "anchor_policy_loss": 0.018294457346200943,
+          "anchor_value_loss": 0.0,
+          "offline_count": 2
+        }
+      ],
+      [
+        "FINAL_EVALUATION",
+        1,
+        84.63636363636364,
+        11,
+        88,
+        35.766666666666666,
+        0.4907698631286621,
+        -1547.5499267578125,
+        null,
+        45,
+        null
+      ]
+    ]
+  }
+}

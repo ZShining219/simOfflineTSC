@@ -41,6 +41,7 @@
 | `python -m lab audit [--campaign C]` | 各 campaign 证据是否在盘、代码版本是否可信、配置哈希是否对得上、有无重复登记 |
 | `python -m lab data [NET]` | 某个路网/车流对应哪些文件、当前指纹、被多少 run 使用 |
 | `python -m lab metrics [--campaign C] [--apply]` | 按标准口径复算并回填台账指标（默认只预览） |
+| `python -m lab golden [NAME] [--update]` | 改了代码，主线训练结果变没变（固定种子小规模运行，逐条比对） |
 
 - 新 run 的 `run_manifest.json` 自动记录 `code`（运行时 HEAD/分支/dirty/改动指纹）、`data`（输入文件指纹）、`machine`。
   在每台机器的 shell 配置中设置 `TSC_MACHINE=34` 或 `73`。
@@ -178,9 +179,16 @@ Agent 应帮助降低后续任务成本，而不仅是完成当前指令。
 ## 验证要求
 
 `tests/` 有约 600 个用例，全量运行耗时较长且存在历史失败（见 `docs/plan_refactor_202611.md` 测试基线一节）。
-每次提交至少运行快速门禁：`python -m pytest tests/test_lab.py tests/test_lab_checks.py tests/test_architecture.py`；
-改动模块再加跑对应的 `tests/test_<模块>*.py`。修改运行行为时，应执行适用范围内最小规模的实验，并记录所用仿真器、
-智能体、路网、随机种子和完整命令；同种子改动前后指标应逐条一致（除非改动本意就是改变行为）。
+验证分三层，按改动范围选用：
+
+1. **快速门禁（每次提交，约 3 秒）**：`python -m pytest tests/test_lab.py tests/test_lab_metrics.py tests/test_ledger_schema.py tests/test_lab_checks.py tests/test_architecture.py`
+2. **黄金 smoke（改动 agent/world/trainer/common/utils 或任何训练路径时必跑，约 15 秒）**：`python -m lab golden`。
+   用例在 `bench/golden/`，覆盖在线训练主路径与 cl_hz1x1 半离线两阶段（历史混合采样、教师锚定）；同种子指标须逐条一致。
+   有意改变行为时用 `--update` 重新生成期望值，并在提交信息中写明原因与影响。新的研究线上线时同步新增用例。
+3. **全量测试（按需）**：`tests/` 中多数用例绑定具体 campaign 资产，51 个在重构前即失败（名单见
+   `docs/plan_refactor_202611.md`）；只用于确认"没有搬坏"，不作为结果正确性的证据。
+
+修改运行行为时，另需记录所用仿真器、智能体、路网、随机种子和完整命令。
 
 ## 新 agent 上手 checklist
 
@@ -215,3 +223,4 @@ Agent 应帮助降低后续任务成本，而不仅是完成当前指令。
 | 2026-11-12 | gov/refactor | 新增 `lab/paths.py` 为产物落点唯一来源（`output_root/report_dir/queue_dir`；`TSC_OUTPUT_ROOT` 可让多工作树共用一个产物根，未设置时路径不变）；分析/报告产物新落点 `<output_root>/reports/<topic>/`；`tests/test_architecture.py` + `architecture_baseline.json` 棘轮：核心层 import 研究线（存量 6 处）、硬编码产物路径（存量 122 文件 266 处）、仓根未登记条目——只许减少不许新增 | 输出散落于仓根 analysis/final_result、output_data 下 23+ 随意目录与各工作树；规则只在文档中无法阻止回潮 | 新代码须经 lab.paths 取路径；存量随整理逐步迁移 |
 | 2026-11-12 | gov/refactor | 分层修复：`arterial/replay.py` → `common/history_replay.py`、`arterial/control.py` → `common/intersection_control.py`、`sequential/launcher.LogicalRunLock` → `common/locks.py`；原位置保留兼容（`arterial.replay`/`arterial.control` 为同一模块对象别名，`sequential.launcher` 继续导出 `LogicalRunLock`）；核心层对研究线的 import 由 6 处降至 1 处（`agent/shared_dqn.py` 的 arterial 场景校验，属该研究线专有逻辑） | 通用回放/归档/路口排序/文件锁被放在研究线包内，导致 LibSignal 核心依赖研究线 | 无行为变化：arterial/队列/launcher 相关测试改动前后结果一致，hz1x1 dqn_smoke 指标一致 |
 | 2026-11-12 | gov/refactor | 台账指标统一为最佳 checkpoint 评估（用户裁定）：新增 `lab/metrics.py` 与 `python -m lab metrics`；3,291 行回填 `metric_source`，其中 946 行改为标准值、旧值保留在 `metrics_legacy`（注明旧公式 final_eval / mixed_last20 等）；48 行绝对 `run_dir` 改为相对路径；`lab audit` 增加指标复核；`EXPERIMENTS/` 索引标注非标准口径；`tests/test_ledger_schema.py` 守台账结构 | 各 campaign 原用最终评估、末 20 均值、混入训练回合等不同公式，数字不可横向比较 | 台账 metrics 语义变更：标准口径行与旧数字不同；引用历史结论前用 `lab show` 核对 |
+| 2026-11-12 | gov/refactor | 新增黄金 smoke：`lab/golden.py` + `python -m lab golden`，用例 `bench/golden/online_dqn_hz1x1.json`、`cl_hz1x1_two_stage.json`（比对每条记录的指标、梯度更新数与训练诊断含锚定损失/历史采样数）；产物经 `TSC_OUTPUT_ROOT` 写临时目录用完即删 | 现有测试多绑定 campaign 资产，无法回答"改代码后结果变没变" | 验证：同代码两次一致；重构前锚点与当前分支逐条一致；人为把锚定损失放大 0.01% 可被精确检出 |

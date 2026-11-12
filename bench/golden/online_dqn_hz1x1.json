@@ -1,0 +1,92 @@
+{
+  "description": "在线训练主路径：run.py + DQN + hz1x1，1 回合 300 步（同 configs/tsc/dqn_smoke.yml）",
+  "steps": [
+    {
+      "id": "train",
+      "args": [
+        "-w",
+        "sumo",
+        "-a",
+        "dqn",
+        "-n",
+        "sumohz1x1",
+        "--seed",
+        "0",
+        "--interface",
+        "libsumo",
+        "--ngpu",
+        "-1"
+      ],
+      "overlay": {
+        "model": {
+          "batch_size": 8
+        },
+        "trainer": {
+          "episodes": 1,
+          "steps": 300,
+          "test_steps": 300,
+          "learning_start": 10,
+          "buffer_size": 100,
+          "evaluation_episodes": [
+            0,
+            1
+          ],
+          "resumable_checkpoint_episodes": [
+            0,
+            1
+          ],
+          "test_when_train": false
+        },
+        "logger": {
+          "save_model": false
+        },
+        "world": {
+          "saveReplay": false
+        }
+      }
+    }
+  ],
+  "expected": {
+    "train": [
+      [
+        "EVALUATION",
+        0,
+        77.5945945945946,
+        37,
+        102,
+        48.93333333333333,
+        0.5658253987630208,
+        -2136.60009765625,
+        null,
+        0,
+        null
+      ],
+      [
+        "TRAIN",
+        1,
+        89.1891891891892,
+        74,
+        76,
+        35.7,
+        0.3874351501464844,
+        -1564.6497802734375,
+        217.25338745117188,
+        20,
+        null
+      ],
+      [
+        "FINAL_EVALUATION",
+        1,
+        61.08163265306123,
+        49,
+        91,
+        46.3,
+        0.5819054921468099,
+        -2036.39990234375,
+        null,
+        20,
+        null
+      ]
+    ]
+  }
+}

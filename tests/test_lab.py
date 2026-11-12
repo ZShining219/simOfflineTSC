@@ -171,3 +171,29 @@ def test_run_output_path_respects_override(monkeypatch):
     assert get_output_file_path(config) == "data/output_data/tsc/sumo_dqn/sumohz1x1/p"
     monkeypatch.setenv("TSC_OUTPUT_ROOT", "/shared/out")
     assert get_output_file_path(config) == "/shared/out/tsc/sumo_dqn/sumohz1x1/p"
+
+
+def test_golden_substitute_and_compare():
+    from lab import golden
+    runs = {"st1": "/tmp/x/st1"}
+    overlay = {"model": {"history_paths": ["{run:st1}/history_archive"],
+                         "teacher_paths": {"a": "{run:st1}/ckpt.pt"}, "n": 1}}
+    assert golden._substitute(overlay, runs) == {"model": {
+        "history_paths": ["/tmp/x/st1/history_archive"],
+        "teacher_paths": {"a": "/tmp/x/st1/ckpt.pt"}, "n": 1}}
+    expected = {"st1": [["EVALUATION", 0, 77.5, 37], ["TRAIN", 0, 80.0, 30]]}
+    assert golden.compare(expected, {"st1": [list(r) for r in expected["st1"]]}) == []
+    changed = golden.compare(expected, {"st1": [["EVALUATION", 0, 77.6, 37], ["TRAIN", 0, 80.0, 30]]})
+    assert len(changed) == 1 and "travel_time" in changed[0]
+    assert golden.compare(expected, {}) == ["st1: 未产生记录"]
+
+
+def test_golden_cases_are_well_formed():
+    from lab import golden
+    assert golden.cases(), "bench/golden/ 至少应有一个用例"
+    for name in golden.cases():
+        spec = golden.load(name)
+        ids = [step["id"] for step in spec["steps"]]
+        assert set(spec["expected"]) == set(ids), f"{name} 期望值未生成，运行 python -m lab golden {name} --update"
+        for step in spec["steps"]:
+            assert "--prefix" not in step["args"] and "--experiment-config" not in step["args"]

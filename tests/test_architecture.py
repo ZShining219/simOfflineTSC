@@ -18,6 +18,8 @@ CORE = ("agent", "world", "trainer", "task", "common", "utils", "generator", "da
 RESEARCH = ("arterial", "sequential", "scene_attention", "hitl", "plan5", "tools", "dev")
 OUTPUT_LITERAL = re.compile(r"""['"](?:\./)?(?:data/output_data|analysis/|final_result/|/tmp/)""")
 OUTPUT_LITERAL_EXEMPT = {"lab/paths.py", "lab/checks.py"}  # 规则定义本身
+ABSOLUTE_PATH = re.compile(r"""['"]/(?:projects|home)/""")
+ABSOLUTE_PATH_EXEMPT = {"lab/checks.py", "tests/test_lab_checks.py", "tests/test_architecture.py"}
 
 
 def _tracked_py(*prefixes):
@@ -61,6 +63,17 @@ def hardcoded_output_paths():
     return dict(sorted(counts.items()))
 
 
+def absolute_paths():
+    counts = Counter()
+    for path in _tracked_py(*CORE, *RESEARCH, "lab", "tests"):
+        if path in ABSOLUTE_PATH_EXEMPT:
+            continue
+        hits = len(ABSOLUTE_PATH.findall((ROOT / path).read_text(encoding="utf-8")))
+        if hits:
+            counts[path] = hits
+    return dict(sorted(counts.items()))
+
+
 def _baseline():
     return json.loads(BASELINE.read_text(encoding="utf-8"))
 
@@ -86,6 +99,12 @@ def test_no_new_hardcoded_output_paths():
         f"{grown}（基线允许数：{ {p: allowed.get(p, 0) for p in grown} }）")
 
 
+def test_no_new_absolute_paths():
+    allowed = _baseline()["absolute_paths"]
+    grown = {p: n for p, n in absolute_paths().items() if n > allowed.get(p, 0)}
+    assert not grown, f"新增了本机绝对路径（公网仓库禁止，GOVERNANCE §10）：{grown}"
+
+
 def test_root_entries_registered():
     from lab.checks import ROOT_ALLOWLIST
     out = subprocess.run(["git", "-c", "core.quotepath=off", "ls-files", "-z"], cwd=ROOT,
@@ -98,5 +117,6 @@ if __name__ == "__main__" and "--write-baseline" in sys.argv:
     BASELINE.write_text(json.dumps({
         "core_research_imports": core_research_imports(),
         "hardcoded_output_paths": hardcoded_output_paths(),
+        "absolute_paths": absolute_paths(),
     }, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print(f"已写出 {BASELINE}")

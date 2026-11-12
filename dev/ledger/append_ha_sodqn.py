@@ -11,7 +11,7 @@ Field order matches dev/ledger/build_ledger.py output.
 """
 import json, os, re, collections, datetime, sys
 
-ROOT = "/projects/simOfflineTSC"
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # 仓库根
 HA = "data/output_data/ha_sodqn"
 LEDGER = os.path.join(ROOT, "ledger", "runs.jsonl")
 FORMAL = f"{HA}/formal_e7705f7_20260726"

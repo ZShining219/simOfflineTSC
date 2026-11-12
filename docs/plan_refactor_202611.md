@@ -43,7 +43,10 @@
 | `ce25a94` | 提交闸门 `.githooks/`（符号链接、产物入库、仓根白名单、大文件、内网 IP/绝对路径、中文提交信息） |
 | `64c833f` | manifest 记录 `data` 指纹；`python -m lab data` 数据注册表 |
 | `908f3c7` | `lab.paths` 产物落点收口（`TSC_OUTPUT_ROOT`）；架构棘轮测试 |
-| 本提交 | 仓根散件归入 `docs/briefs/`、`docs/refs/`；AGENTS.md 纠错并加入 lab 使用规范；本计划文档 |
+| `335d2bf` | 仓根散件归入 `docs/briefs/`、`docs/refs/`；AGENTS.md 纠错并加入 lab 使用规范；本计划文档 |
+
+| `5444895` | 记录台账指标混入训练回合的已证实问题 |
+| `9814bc7` | 通用回放/路口排序/文件锁迁入 `common/`，核心层对研究线的依赖由 6 处降至 1 处 |
 
 验证：`hz1x1` `dqn_smoke` 在改动前后同种子运行，指标记录逐条一致；新 manifest 的数据指纹与 `lab data` 一致。
 
@@ -62,8 +65,8 @@
 - [ ] 历史产物"永留 / 可弃"清单（含冻结线 `ha_sodqn` 381G、`sequential` 290G）交用户裁决
 
 ### C. 代码分层
-- [ ] `arterial/` 的通用回放与归档迁入核心层，原位置保留兼容层（消除 5 处倒置）
-- [ ] `common/experiment_queue.py` 对 `sequential` 的依赖反转
+- [x] `arterial/` 的通用回放与归档迁入核心层，原位置保留兼容层（`9814bc7`）
+- [x] `common/experiment_queue.py` 对 `sequential` 的依赖反转（`9814bc7`）
 - [ ] `scene_attention/_legacy/` 移出活跃包；`tools/` 中 campaign 一次性脚本归 `dev/<campaign>/`
 - [ ] 仓根兼容 shim（`offline_run.py`、`sequential_run.py`）按 README 承诺移除
 
@@ -79,7 +82,73 @@
 
 ## 5. 测试基线
 
-见下方（在 `pre-refactor-20261112` 干净工作树中运行全量 `tests/`）。
+在 `pre-refactor-20261112` 的干净工作树中运行全量 `tests/`（colight 环境，Python 3.10）：
+**541 通过 / 51 失败 / 2 跳过，耗时 19 分钟**。干净工作树中没有 gitignored 的本机产物，部分用例依赖这些产物。
+
+| 失败类别 | 数量 | 说明 |
+|---|---|---|
+| 断言失败 | 24 | 其中 `test_paper_agents_sumo` 20 个，需逐个排查是代码回归还是测试过时 |
+| 缺少本机产物/文件 | 12 | 依赖 `artifacts/`、`data/output_data/` 等未入库内容，应改为自带夹具或标记为本机集成测试 |
+| 正式实验 seed 门禁 | 9 | 测试未按门禁传入 `seed/sumo_seed`，门禁生效后测试未同步 |
+| 依赖/其他 | 6 | `test_concat_colight` 导入问题、事件生成器确定性等 |
+
+判定规则：重构分支上的失败若在下列名单中，视为既有问题；不在名单中即为新引入，必须修复。
+
+<details><summary>重构前失败用例名单（51）</summary>
+
+- `tests.test_arterial_stage1_manifest::test_stage1_manifest_has_frozen_twenty_run_matrix`
+- `tests.test_concat_colight::test_concat_empty_scene_is_zero_and_finite`
+- `tests.test_concat_colight::test_concat_forward_is_trainable_and_legal`
+- `tests.test_cross_algorithm_assets.CrossAlgorithmAssetPlanTests::test_asset_chain_has_frozen_twenty_run_matrix`
+- `tests.test_event_plans::test_generator_is_deterministic`
+- `tests.test_feishu_wiki.ExperimentWorkflowTest::test_large_plan_rejected_before_network`
+- `tests.test_hitl_packager.HitlPackagerTest::test_broken_state_chain_quarantines_episode`
+- `tests.test_hitl_packager.HitlPackagerTest::test_dataset_manifest_passes_loader_validation`
+- `tests.test_hitl_packager.HitlPackagerTest::test_expert_intervention_metadata_preserved`
+- `tests.test_hitl_packager.HitlPackagerTest::test_invalid_action_quarantines_episode`
+- `tests.test_hitl_packager.HitlPackagerTest::test_missing_field_quarantines_and_labels`
+- `tests.test_hitl_packager.HitlPackagerTest::test_semantic_hashes_present`
+- `tests.test_hitl_packager.HitlPackagerTest::test_valid_session_produces_loadable_dataset`
+- `tests.test_hitl_packager.HitlPackagerTest::test_yellow_phase_index_quarantines`
+- `tests.test_milestone0_run_state.RunStateTest::test_completed_lifecycle_has_fixed_identity_and_times`
+- `tests.test_milestone0_run_state.RunStateTest::test_explicit_evaluation_seed_is_recorded_without_changing_default`
+- `tests.test_milestone0_run_state.RunStateTest::test_failure_is_terminal_and_redacts_environment_values`
+- `tests.test_paper_agents_sumo::test_hz4x4_training_readiness[legacy-events-colight]`
+- `tests.test_paper_agents_sumo::test_hz4x4_training_readiness[legacy-events-colight_phase_index]`
+- `tests.test_paper_agents_sumo::test_hz4x4_training_readiness[legacy-events-colight_phase_one_hot]`
+- `tests.test_paper_agents_sumo::test_hz4x4_training_readiness[legacy-events-frap]`
+- `tests.test_paper_agents_sumo::test_hz4x4_training_readiness[legacy-events-presslight]`
+- `tests.test_paper_agents_sumo::test_hz4x4_training_readiness[legacy-normal-colight]`
+- `tests.test_paper_agents_sumo::test_hz4x4_training_readiness[legacy-normal-colight_phase_index]`
+- `tests.test_paper_agents_sumo::test_hz4x4_training_readiness[legacy-normal-colight_phase_one_hot]`
+- `tests.test_paper_agents_sumo::test_hz4x4_training_readiness[legacy-normal-frap]`
+- `tests.test_paper_agents_sumo::test_hz4x4_training_readiness[legacy-normal-presslight]`
+- `tests.test_paper_agents_sumo::test_hz4x4_training_readiness[signal_v1-events-colight]`
+- `tests.test_paper_agents_sumo::test_hz4x4_training_readiness[signal_v1-events-colight_phase_index]`
+- `tests.test_paper_agents_sumo::test_hz4x4_training_readiness[signal_v1-events-colight_phase_one_hot]`
+- `tests.test_paper_agents_sumo::test_hz4x4_training_readiness[signal_v1-events-frap]`
+- `tests.test_paper_agents_sumo::test_hz4x4_training_readiness[signal_v1-events-presslight]`
+- `tests.test_paper_agents_sumo::test_hz4x4_training_readiness[signal_v1-normal-colight]`
+- `tests.test_paper_agents_sumo::test_hz4x4_training_readiness[signal_v1-normal-colight_phase_index]`
+- `tests.test_paper_agents_sumo::test_hz4x4_training_readiness[signal_v1-normal-colight_phase_one_hot]`
+- `tests.test_paper_agents_sumo::test_hz4x4_training_readiness[signal_v1-normal-frap]`
+- `tests.test_paper_agents_sumo::test_hz4x4_training_readiness[signal_v1-normal-presslight]`
+- `tests.test_paper_experiment::test_interrupted_training_resumes_exactly`
+- `tests.test_paper_experiment::test_serial_parallel_match_and_dashboard`
+- `tests.test_paper_p0::test_frozen_grounding_dependencies_preserved`
+- `tests.test_paper_preflight::test_preflight_cli_finishes_assessment_without_training`
+- `tests.test_paper_rewards_monitor::test_corrected_training_reproducible[colight]`
+- `tests.test_paper_rewards_monitor::test_corrected_training_reproducible[colight_phase]`
+- `tests.test_paper_rewards_monitor::test_corrected_training_reproducible[frap]`
+- `tests.test_paper_rewards_monitor::test_corrected_training_reproducible[presslight]`
+- `tests.test_paper_rewards_monitor::test_real_reward_training_and_dashboard[signal_v1-colight]`
+- `tests.test_paper_rewards_monitor::test_real_reward_training_and_dashboard[signal_v1-colight_phase]`
+- `tests.test_paper_rewards_monitor::test_real_reward_training_and_dashboard[signal_v1-frap]`
+- `tests.test_paper_rewards_monitor::test_real_reward_training_and_dashboard[signal_v1-presslight]`
+- `tests.test_plan1_trajectory.Plan1TrajectoryTest::test_online_replay_tuple_is_not_expanded`
+- `tests.test_strong_training::test_formal_plan_balances_joint_profiles_and_keeps_holdouts`
+
+</details>
 
 ## 6. 待用户裁决
 

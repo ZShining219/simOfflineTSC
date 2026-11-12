@@ -10,7 +10,7 @@ Field order matches dev/ledger/build_ledger.py output.
 """
 import json, os, re, collections, datetime
 
-ROOT = "/projects/simOfflineTSC"
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # 仓库根
 SEQ = "data/output_data/sequential"
 LEDGER = os.path.join(ROOT, "ledger", "runs.jsonl")
 BUCKET_RE = re.compile(r"^seq8_(norep|rep|drift)_(formal|smoke)")

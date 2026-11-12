@@ -125,5 +125,19 @@
     "tools/watch_stage5_eval.py": 3,
     "tools/xiasha_sumo/evidence.py": 1,
     "utils/logger.py": 1
+  },
+  "absolute_paths": {
+    "dev/demand_packs/build_xiasha_compound_probe.py": 8,
+    "dev/demand_packs/build_xiasha_notrain_queue.py": 4,
+    "dev/demand_packs/verify_xiasha_packs.py": 1,
+    "dev/hz1x1_sanity/build_queue.py": 2,
+    "dev/scene_semantics/p0_window_recovery.py": 1,
+    "dev/seq8_anchor/build_queue.py": 2,
+    "dev/xiasha1_offline/build_queue.py": 2,
+    "dev/xiasha1_online_v3/build_queue.py": 2,
+    "plan5/manifest.py": 1,
+    "tools/plot_guozhong_midterm_260804.py": 1,
+    "tools/run_stage2_old_eval.py": 2,
+    "tools/xiasha_sumo/build_photo_network.py": 1
   }
 }

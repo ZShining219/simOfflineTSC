@@ -766,7 +766,7 @@ class DQNNet(nn.Module):
 class DuelingDQNNet(nn.Module):
     """Small dueling head with the same input/action contract as ``DQNNet``.
 
-    Matches sequential/agent.py's DuelingDQNNet layout (feature trunk +
+    Matches semi_offline/sequential/agent.py's DuelingDQNNet layout (feature trunk +
     value/advantage streams) so run.py-line arms can share the architecture.
     """
 

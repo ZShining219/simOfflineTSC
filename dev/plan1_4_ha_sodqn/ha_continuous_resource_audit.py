@@ -831,7 +831,7 @@ def asset_accuracy_audit(root: Path, output_dir: Path, frozen_stage_cell_count: 
     state_files = list(ROOT.glob("data/output_data/**/saveState*")) + list(ROOT.glob("data/output_data/**/*save_state*"))
     counterfactual_files = []
     this_script = Path(__file__).resolve()
-    for search_root in (ROOT / "tools", ROOT / "sequential", ROOT / "world", ROOT / "scripts"):
+    for search_root in (ROOT / "tools", ROOT / "semi_offline", ROOT / "infra", ROOT / "world", ROOT / "scripts"):
         if search_root.exists():
             for path in search_root.rglob("*.py"):
                 try:

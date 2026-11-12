@@ -13,7 +13,7 @@
   p1      tsc/sumo_dqn/<net>/p1_formal_*_400ep 按 PLAN2_STAGES 切 Q1–Q4
   hitl    hitl_probe/{pilot,pilot5,multiscene/*,warmloop/p*}/runs/* 人类接管
 
-覆盖口径 = ha_coverage_v1（sequential/owp.py）去 network/seed 维：
+覆盖口径 = ha_coverage_v1（semi_offline/sequential/owp.py）去 network/seed 维：
   cell = (total_load_bin, max_lane_bin, imbalance_bin, phase_argmax, action)
   bins = np.digitize(v, [0,1,3,7,15,31]) -> 0..6
 可比性：每单元固定取 ≤CAP_EPISODES 个 episode（等距 stride），使各单元

@@ -193,7 +193,7 @@ def build_state_schema() -> None:
             "dimension": 16,
             "composition": "8 lane counts concatenated with 8-way current-phase one-hot",
             "evidence": [
-                "sequential/evaluator.py InferenceOnlyDQN._bind/get_action",
+                "infra/evaluator.py InferenceOnlyDQN._bind/get_action",
                 "ANALYSIS_BUNDLE_V1/scripts/episode_diagnostics.py (explicit [:, :8] extraction)",
             ],
         },

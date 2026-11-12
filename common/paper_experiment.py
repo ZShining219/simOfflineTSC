@@ -57,7 +57,7 @@ def source_identity(agent):
              'world/paper_rewards.py', 'common/paper_rewards.py',
              'agent/base.py', 'agent/rl_agent.py', 'agent/utils.py', 'agent/__init__.py',
              'common/interface.py', 'common/registry.py', 'common/utils.py', 'common/metrics.py',
-             'task/task.py', 'sequential/launcher.py',
+             'task/task.py', 'infra/launcher.py',
              'configs/tsc/base.yml', f'configs/tsc/{agent}.yml',
              'configs/tsc/paper_experiment_base.yml',
              f'configs/tsc/{agent.removeprefix("paper_")}.yml',

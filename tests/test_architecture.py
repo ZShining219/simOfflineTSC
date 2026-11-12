@@ -71,6 +71,28 @@ def _imported_modules(path):
             yield from (f"{node.module}.{alias.name}" for alias in node.names)
 
 
+LEGACY_PATH = re.compile(r"(?<![\w/.-])(?:sequential|plan5|arterial)/[\w/]*\.py\b|(?<![\w/.-])arterial_run\.py\b"
+                         r"|(?<![\w/.-])(?:agent/offline_dqn|trainer/offline_tsc_trainer|task/offline_tsc_task"
+                         r"|data/dataset/offline_trajectory_dataset|hitl/live/injects)\.py\b")
+
+
+def legacy_path_strings():
+    """代码字符串里的旧源码路径（迁移后应指向新位置；产物/配置目录不受影响）。"""
+    found = set()
+    for path in _tracked_py(*CORE, *INFRA, *RESEARCH, "lab") + ["run.py"]:
+        tree = ast.parse((ROOT / path).read_text(encoding="utf-8"), filename=path)
+        # 文档字符串允许保留"自 X 迁入"这类历史说明
+        docstrings = {id(node.body[0].value) for node in ast.walk(tree)
+                      if isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef))
+                      and node.body and isinstance(node.body[0], ast.Expr)
+                      and isinstance(node.body[0].value, ast.Constant)}
+        for node in ast.walk(tree):
+            if (isinstance(node, ast.Constant) and isinstance(node.value, str) and id(node) not in docstrings
+                    and LEGACY_PATH.search(node.value)):
+                found.add(f"{path}: {LEGACY_PATH.search(node.value).group(0)}")
+    return sorted(found)
+
+
 def legacy_imports():
     found = set()
     for path in _tracked_py(*CORE, *INFRA, *RESEARCH, "lab", "tests") + ["run.py"]:
@@ -158,6 +180,10 @@ def test_no_new_cross_line_imports():
     assert not new, f"研究线之间新增了依赖（通用能力请下沉 infra/ 或框架层）：{new}"
     fixed = sorted(allowed - set(cross_line_imports()))
     assert not fixed, f"这些跨线依赖已消除，请从 {BASELINE.name} 删除以收紧基线：{fixed}"
+
+
+def test_no_legacy_source_paths_in_strings():
+    assert legacy_path_strings() == [], f"代码中仍引用已迁移的源码路径：{legacy_path_strings()[:10]}"
 
 
 def test_lab_is_dependency_free():

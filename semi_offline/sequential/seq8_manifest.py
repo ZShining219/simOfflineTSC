@@ -7,7 +7,7 @@ HA-SODQN-compatible entries so ``runtime.run_child`` executes them
 unchanged; the offline leg uses archive_mode='NONE' (CONT-FIFO).
 Semi-offline conditions (archive_mode='SELF') were retired 2026-10-16:
 the canonical semi-offline implementation lives on the cl_hz1x1 line
-(agent/dqn.py anchor losses + arterial/replay.py HistoricalPool).
+(agent/dqn.py anchor losses + common/history_replay.py HistoricalPool).
 """
 
 import copy

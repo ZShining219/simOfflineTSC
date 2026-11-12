@@ -15,6 +15,7 @@ from datetime import datetime
 from json import JSONDecodeError
 
 from common.registry import Registry
+from lab.paths import OUTPUT_ENV
 from lab.provenance import code_identity, data_identity, machine_alias
 
 
@@ -1065,7 +1066,10 @@ def get_output_file_path(config):
     param = config['command']
     if param.get('output_path'):
         return os.path.abspath(param['output_path'])
-    path = os.path.join(config['world']['dir'] , 'output_data', param['task'], 
+    # 设了 TSC_OUTPUT_ROOT 时统一落到该根（见 lab/paths.py）；否则保持历史相对路径不变。
+    root = (os.environ.get(OUTPUT_ENV)
+            or os.path.join(config['world']['dir'], 'output_data'))
+    path = os.path.join(root, param['task'],
         f"{param['world']}_{param['agent']}", param['network'], param['prefix'])
     return path
 

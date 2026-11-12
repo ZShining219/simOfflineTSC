@@ -148,3 +148,26 @@ def test_data_identity_missing_inputs(tmp_path):
     cfg = tmp_path / "sim.cfg"
     cfg.write_text(json.dumps({"dir": "", "roadnetFile": "gone.json"}))
     assert provenance.data_identity(cfg, root=tmp_path)["files"] == {"gone.json": None}
+
+
+def test_paths_default_and_override(tmp_path, monkeypatch):
+    from lab import paths
+    monkeypatch.delenv(paths.OUTPUT_ENV, raising=False)
+    assert paths.output_root() == paths.DEFAULT_OUTPUT_ROOT
+    monkeypatch.setenv(paths.OUTPUT_ENV, str(tmp_path))
+    assert paths.report_dir("fig2c") == tmp_path / "reports" / "fig2c"
+    assert (tmp_path / "reports" / "fig2c").is_dir()
+    for bad in ("", "a/b", ".hidden"):
+        with pytest.raises(ValueError):
+            paths.report_dir(bad)
+
+
+def test_run_output_path_respects_override(monkeypatch):
+    from utils.logger import get_output_file_path
+    config = {"command": {"task": "tsc", "world": "sumo", "agent": "dqn",
+                          "network": "sumohz1x1", "prefix": "p"},
+              "world": {"dir": "data/"}}
+    monkeypatch.delenv("TSC_OUTPUT_ROOT", raising=False)
+    assert get_output_file_path(config) == "data/output_data/tsc/sumo_dqn/sumohz1x1/p"
+    monkeypatch.setenv("TSC_OUTPUT_ROOT", "/shared/out")
+    assert get_output_file_path(config) == "/shared/out/tsc/sumo_dqn/sumohz1x1/p"

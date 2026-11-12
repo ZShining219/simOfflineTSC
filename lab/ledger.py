@@ -13,6 +13,7 @@ from pathlib import Path
 from .provenance import REPO_ROOT
 
 LEDGER_PATH = REPO_ROOT / "ledger" / "runs.jsonl"
+SIM_CONFIG_DIR = REPO_ROOT / "configs" / "sim"
 
 # utils/logger.py 中写死的常量；manifest/台账里出现它不代表真实运行版本。
 CONSTANT_BASELINE_COMMIT = "73d860bb3924ec15c30433a8f8b7af17787baeff"
@@ -73,3 +74,9 @@ def code_level(row, manifest=None):
     if commit or (manifest or {}).get("baseline_commit"):
         return CODE_CONSTANT, None
     return CODE_NONE, None
+
+
+def sim_config(net):
+    """台账 net → configs/sim/<net>.cfg；持续学习的阶段序列（含 ':'）等无单一配置时返回 None。"""
+    path = SIM_CONFIG_DIR / f"{net}.cfg"
+    return path if net and path.exists() else None

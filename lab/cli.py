@@ -3,6 +3,7 @@
     python -m lab audit [--campaign C] [--json OUT]   各 campaign 证据完整度体检
     python -m lab show RUN_ID                         单个 run 的全链路溯源
     python -m lab find [--campaign C] [--arm A] ...   按条件列出 run
+    python -m lab data [NET]                          数据注册表：net → 配置 → 文件与指纹
     python -m lab check --staged | --all | --commit-msg FILE   提交闸门（git hook 调用）
 """
 from __future__ import annotations
@@ -14,7 +15,7 @@ import unicodedata
 from collections import Counter, defaultdict
 
 from . import checks, evidence, ledger
-from .provenance import REPO_ROOT
+from .provenance import REPO_ROOT, data_identity
 
 
 def _fmt(value, digits=3):
@@ -150,6 +151,18 @@ def cmd_show(args):
     if ledger.config_mismatch(row, manifest):
         print(f"       ⚠ 台账 config_sha={row['config_sha'][:16]}… 与 manifest config_hash 不一致，"
               "以 run 目录内配置快照为准")
+    data = (manifest or {}).get("data") or {}
+    if data.get("fingerprint"):
+        print(f"\n[数据] 指纹={data['fingerprint'][:16]}（运行时记录）")
+        for name, digest in data.get("files", {}).items():
+            print(f"       {name}  {(digest or '缺失')[:16]}")
+    else:
+        cfg = ledger.sim_config(row.get("net"))
+        current = data_identity(cfg) if cfg else {}
+        print(f"\n[数据] 运行时未记录数据指纹（历史 run）；net={row.get('net')}"
+              + (f" → {cfg.relative_to(REPO_ROOT)}" if cfg else "（无单一仿真配置）"))
+        if current.get("fingerprint"):
+            print(f"       当前文件指纹={current['fingerprint'][:16]}（仅供参考：文件在该 run 之后可能被修改过）")
     hashes = (files["config/config_hashes.json"] or {}).get("files") or {}
     if hashes:
         print("\n[配置快照] " + (str(path / 'config') if path else ""))
@@ -205,6 +218,32 @@ def cmd_find(args):
         print(f"\n共 {len(rows)} 条，仅显示前 {len(shown)} 条（--limit 调整）")
 
 
+def cmd_data(args):
+    counts = Counter(row.get("net") for row in ledger.load().values())
+    if args.net:
+        cfg = ledger.sim_config(args.net)
+        if not cfg:
+            sys.exit(f"configs/sim/{args.net}.cfg 不存在；台账中该 net 有 {counts.get(args.net, 0)} 行")
+        identity = data_identity(cfg)
+        print(f"net        {args.net}\n配置       {cfg.relative_to(REPO_ROOT)}\n"
+              f"台账行数   {counts.get(args.net, 0)}\n当前指纹   {identity['fingerprint']}")
+        for name, digest in identity["files"].items():
+            print(f"  {name}\n      {digest or '文件缺失'}")
+        return
+    table = []
+    for cfg in sorted(ledger.SIM_CONFIG_DIR.glob("*.cfg")):
+        identity = data_identity(cfg)
+        missing = sum(digest is None for digest in identity["files"].values())
+        table.append([cfg.stem, counts.get(cfg.stem, 0), len(identity["files"]),
+                      missing or "", (identity["fingerprint"] or "-")[:12]])
+    _table(["net", "台账行数", "文件数", "缺失", "当前指纹"], table)
+    orphans = [(net, n) for net, n in counts.most_common() if not ledger.sim_config(net)]
+    if orphans:
+        print(f"\n台账中无单一仿真配置的 net（阶段序列/别名等）：{sum(n for _, n in orphans)} 行")
+        for net, n in orphans[:10]:
+            print(f"   {n:5d}  {net}")
+
+
 def cmd_check(args):
     if args.commit_msg:
         with open(args.commit_msg, encoding="utf-8") as handle:
@@ -240,6 +279,10 @@ def main(argv=None):
     find.add_argument("--limit", type=int, default=50)
     find.add_argument("--check-disk", action="store_true", help="同时检查本机是否在盘")
     find.set_defaults(func=cmd_find)
+
+    data = sub.add_parser("data", help="数据注册表：net → 配置 → 文件与指纹")
+    data.add_argument("net", nargs="?")
+    data.set_defaults(func=cmd_data)
 
     check = sub.add_parser("check", help="提交闸门（git hook 调用）")
     mode = check.add_mutually_exclusive_group()

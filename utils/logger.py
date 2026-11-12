@@ -15,7 +15,7 @@ from datetime import datetime
 from json import JSONDecodeError
 
 from common.registry import Registry
-from lab.provenance import code_identity, machine_alias
+from lab.provenance import code_identity, data_identity, machine_alias
 
 
 CONFIG_ARCHIVE_DIR = 'config'
@@ -144,6 +144,7 @@ class RunStateManager:
             'baseline_commit': BASELINE_COMMIT,
             'code': code_identity(),
             'machine': machine_alias(),
+            'data': data_identity(os.path.join(config_path, 'simulator_resolved.cfg')),
             'created_at_utc': created_at,
             'config_hash': config_hash,
         }

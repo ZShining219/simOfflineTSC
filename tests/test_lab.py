@@ -120,3 +120,31 @@ def test_cli_audit_and_show(tmp_path, monkeypatch, capsys):
     cli.main(["show", "r1"])
     shown = capsys.readouterr().out
     assert "可信等级=verified" in shown and "不一致" in shown
+
+
+def test_data_identity_follows_sumocfg_inputs(tmp_path):
+    raw = tmp_path / "data" / "raw_data" / "net1"
+    raw.mkdir(parents=True)
+    (raw / "a.net.xml").write_text("<net/>")
+    (raw / "a.rou.xml").write_text("<routes/>")
+    (raw / "a.add.xml").write_text("<additional/>")
+    (raw / "a.sumocfg").write_text(
+        '<configuration><input><net-file value="a.net.xml"/>'
+        '<route-files value="a.rou.xml"/><additional-files value="a.add.xml"/>'
+        "</input></configuration>")
+    cfg = tmp_path / "sim.cfg"
+    cfg.write_text(json.dumps({"dir": "data/", "combined_file": "raw_data/net1/a.sumocfg",
+                               "roadnetFile": "raw_data/net1/a.net.xml",
+                               "flowFile": "raw_data/net1/a.rou.xml"}))
+    first = provenance.data_identity(cfg, root=tmp_path)
+    assert sorted(first["files"]) == [f"data/raw_data/net1/a.{ext}"
+                                      for ext in ("add.xml", "net.xml", "rou.xml", "sumocfg")]
+    (raw / "a.add.xml").write_text("<additional>changed</additional>")
+    assert provenance.data_identity(cfg, root=tmp_path)["fingerprint"] != first["fingerprint"]
+
+
+def test_data_identity_missing_inputs(tmp_path):
+    assert provenance.data_identity(tmp_path / "absent.cfg") == {"files": {}, "fingerprint": None}
+    cfg = tmp_path / "sim.cfg"
+    cfg.write_text(json.dumps({"dir": "", "roadnetFile": "gone.json"}))
+    assert provenance.data_identity(cfg, root=tmp_path)["files"] == {"gone.json": None}

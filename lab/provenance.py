@@ -7,8 +7,10 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import subprocess
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -54,3 +56,54 @@ def code_identity(root=None) -> dict:
 def machine_alias():
     """机器代号（如 34/73），由环境变量 TSC_MACHINE 提供；入库文件只用代号不写主机名。"""
     return os.environ.get(MACHINE_ENV) or None
+
+
+SIM_FILE_KEYS = ("roadnetFile", "flowFile", "combined_file")
+SUMOCFG_INPUT_TAGS = ("net-file", "route-files", "additional-files")
+
+
+def _sha256_file(path, chunk=1 << 20):
+    digest = hashlib.sha256()
+    with open(path, "rb") as handle:
+        for block in iter(lambda: handle.read(chunk), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def _sumocfg_inputs(path):
+    """解析 .sumocfg 中引用的 net/route/additional 文件（相对 sumocfg 所在目录）。"""
+    try:
+        root = ET.parse(path).getroot()
+    except (OSError, ET.ParseError):
+        return []
+    found = []
+    for tag in SUMOCFG_INPUT_TAGS:
+        for element in root.iter(tag):
+            for name in (element.get("value") or "").split(","):
+                if name.strip():
+                    found.append(os.path.normpath(os.path.join(os.path.dirname(path), name.strip())))
+    return found
+
+
+def data_identity(sim_cfg_path, root=None) -> dict:
+    """返回仿真输入数据的文件指纹；同一路网名在不同时期内容可能不同，只认指纹。
+
+    sim_cfg_path 为 run 归档的 simulator_resolved.cfg（JSON）；路径相对仓库根解析。
+    """
+    root = Path(root) if root else REPO_ROOT
+    try:
+        with open(sim_cfg_path, encoding="utf-8") as handle:
+            cfg = json.load(handle)
+    except (OSError, ValueError):
+        return {"files": {}, "fingerprint": None}
+    base = root / cfg.get("dir", "")
+    paths = [str(base / cfg[key]) for key in SIM_FILE_KEYS if cfg.get(key)]
+    for sumocfg in [path for path in paths if path.endswith(".sumocfg")]:
+        paths.extend(_sumocfg_inputs(sumocfg))
+    files = {}
+    for path in dict.fromkeys(os.path.normpath(p) for p in paths):
+        rel = os.path.relpath(path, root)
+        files[rel] = _sha256_file(path) if os.path.isfile(path) else None
+    fingerprint = hashlib.sha256("\n".join(
+        f"{rel}:{sha}" for rel, sha in sorted(files.items())).encode()).hexdigest()
+    return {"files": files, "fingerprint": fingerprint}

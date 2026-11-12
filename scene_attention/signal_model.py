@@ -196,7 +196,7 @@ class SceneJointPolicy(SceneResidualPolicy):
         self.base_arch = base_arch
         in_dim = int(base_input_dim or (len(perm) + self.n_phases))
         self.base_input_dim = in_dim
-        from sequential.agent import build_q_network
+        from semi_offline.sequential.agent import build_q_network
         self.base = build_q_network(base_arch, in_dim, self.n_phases)
         if base_state_dict is not None:
             self.base.load_state_dict(base_state_dict)

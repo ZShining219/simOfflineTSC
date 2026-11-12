@@ -6,7 +6,7 @@ Reads ``artifacts/xiasha1_offline_v1/dataset_specs.json`` (produced by
 ``artifacts/xiasha1_offline_v1/run_queue.json`` with
 7 experiments x 3 pool replicas x 2 algorithms x 3 offline seeds = 126 tasks.
 
-Each task runs ``python -m sequential.offline train`` at the formal
+Each task runs ``python -m semi_offline.offline train`` at the formal
 144k-update budget with the 81-node evaluation overlay
 (``configs/offline_tsc/xiasha1_v1.yml``) and the native backend.
 
@@ -72,7 +72,7 @@ def main():
                         'agent': algorithm,
                         'seed': seed,
                         'command': [
-                            PYTHON, '-m', 'sequential.offline', 'train',
+                            PYTHON, '-m', 'semi_offline.offline', 'train',
                             '-a', algorithm,
                             '-w', 'sumo',
                             '-n', EVAL_NETWORK,

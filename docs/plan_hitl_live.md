@@ -6,7 +6,7 @@
 
 ## 0. 一句话
 
-把"专家席"接进 `tools/sumo_live_broadcast`：虚拟专家（MaxPressure）先坐进去按任务书语义产生干预/示范数据，数据打包成与 Plan 系档案同构的只读档案喂给半离线训练线（`sequential/`），用同 seed 对照实验证明人在回路有效；真人未来可同席位顶替，接口零改造。
+把"专家席"接进 `tools/sumo_live_broadcast`：虚拟专家（MaxPressure）先坐进去按任务书语义产生干预/示范数据，数据打包成与 Plan 系档案同构的只读档案喂给半离线训练线（`semi_offline/sequential/`），用同 seed 对照实验证明人在回路有效；真人未来可同席位顶替，接口零改造。
 
 ## 1. 角色锁定（Z 裁决 2026-10-09）
 
@@ -57,7 +57,7 @@
 | `recorder.py` | 已落地 | 会话级录制：`transitions.jsonl` + `proposals.jsonl` + `interventions.jsonl` + `manifest.json`，落在 `--record DIR/<session_id>/` |
 | `gate.py` | 已落地 | 触发器 periodic/on_demand + 预算/冷却/eligible；预算默认 spec 公式 B=⌊0.1×N⌋ |
 | 专家席 | 已落地（virtual+human） | `--expert NAME` 虚拟专家当场答；`--expert human` 真人席：gate 命中→`awaiting='expert_request'` 横幅冻结仿真（每路口列排队/触发原因/学生建议+相位按钮+倒计时），`--hitl-human-timeout`（默认30s）到期沉默仍计费（查询在 gate.check 时已消耗）；答案经 `resolve choices={rank:phase}` 作为专家动作执行，hitl.expert_id='human'；仲裁序 学生提案 < 专家答 < 人工 pending |
-| `sequential/expert_pool.py` + HA 第三腿 | 已落地 | `ExpertPoolArchive` 读打包档案的 `expert_pool_manifest.json` → `VisibleArchiveView` → RAND 采样器；`HASODQNAgent` 加 `expert_pool_manifest/expert_ratio/expert_capacity` 三参，`loss = Σ(count_i/64)·loss_i`（online/offline/expert 三腿），账本记 `expert_transition_ids/expert_episode_ids/expert_stability`；checkpoint `ha_sodqn.expert` 块前后兼容（旧档无此块要求 expert_ratio=0）；plan 侧 child 键 `expert_pool_manifest/expert_ratio/expert_capacity`（runtime `.get()` 兼容旧 plan）。不配参数 = 逐位等价现状 |
+| `semi_offline/sequential/expert_pool.py` + HA 第三腿 | 已落地 | `ExpertPoolArchive` 读打包档案的 `expert_pool_manifest.json` → `VisibleArchiveView` → RAND 采样器；`HASODQNAgent` 加 `expert_pool_manifest/expert_ratio/expert_capacity` 三参，`loss = Σ(count_i/64)·loss_i`（online/offline/expert 三腿），账本记 `expert_transition_ids/expert_episode_ids/expert_stability`；checkpoint `ha_sodqn.expert` 块前后兼容（旧档无此块要求 expert_ratio=0）；plan 侧 child 键 `expert_pool_manifest/expert_ratio/expert_capacity`（runtime `.get()` 兼容旧 plan）。不配参数 = 逐位等价现状 |
 
 CLI：`--record DIR` 开录制；`--expert maxpressure --hitl-gate periodic|on_demand [--hitl-period N | --hitl-queue-threshold X | --hitl-queue-growth X] [--hitl-budget B] [--hitl-cooldown C]` 开虚拟专家干预。全部 opt-in，不配 = 不存在。
 
@@ -65,7 +65,7 @@ CLI：`--record DIR` 开录制；`--expert maxpressure --hitl-gate periodic|on_d
 
 训练臂 pilot 管线（已落地）：`build_pilot_plan.py` 从同一 ep0 checkpoint + 同 seed
 生成 HITL_C0 / HITL_EXP(纠偏池) / HITL_CTRL(等量机器数据) / HITL_DEMO(纯示范池)
-四臂 plan；逐臂 `python -m sequential run-child`（注意 `CUDA_VISIBLE_DEVICES=""`——
+四臂 plan；逐臂 `python -m semi_offline.sequential run-child`（注意 `CUDA_VISIBLE_DEVICES=""`——
 checkpoint 的 rng_state_digest 按 CPU-only 语义钉死，GPU 可见时 digest 不匹配）；
 `curve_figs.py` 从 `_shared_evaluation` + `replay_diagnostics` 抽自主冻结 eval
 学习曲线/AULC/对基线 delta/专家腿消耗账本。`ReplayDiagnostics` 已补
@@ -139,7 +139,7 @@ reward_mode 等键（runtime 并入 trainer_config）；B×C 互斥校验在
 抽出后三腿（online/offline/expert）过同一判官面板出同一口径
 `r_eff = r_base + λ·z` 再进 TD loss。
 
-`sequential/adjudication.py` 判官面板：
+`semi_offline/sequential/adjudication.py` 判官面板：
 - `terms`——带参治理词条 `raw=Σw_k·φ_k`（现词表：
   queue_per_capacity/queue_max/unserved_max/unserved_mean，词表即
   配置可扩），B1 公式即 `{queue_per_capacity:-0.5, unserved_max:-0.5}`
@@ -231,7 +231,7 @@ BP-vs-B2 直接配对、投票聚合、词条权重寻优。
 已改为全部指标先取（live engine）→ close 刷 tripinfo → RRT 解析。
 RRT 口径：(1/N_due)Σ[min(arrival,T)−planned_depart]，未到达计 T。
 
-A 通道管线（pilot 档，spec §8）：`sequential/demo_ac.py` 的
+A 通道管线（pilot 档，spec §8）：`semi_offline/sequential/demo_ac.py` 的
 `DemoACAgent`——actor/critic 共用 DQNNet(d→20→20→P) 躯干，同一 ep0
 checkpoint 逐位初始化；`demo_pretrain` 块控制 A0/Aπ/AQ/AπQ 开关；
 示范集 `build_demos.py` 从打包档案产扁平 npz（episode 序保持）。

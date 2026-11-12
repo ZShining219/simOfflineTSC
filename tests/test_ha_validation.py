@@ -3,8 +3,8 @@ import tempfile
 import unittest
 from unittest import mock
 
-from sequential.io import atomic_json
-from sequential.validation import (
+from infra.io import atomic_json
+from semi_offline.sequential.validation import (
     _register_ha_sampling_window, _resolve_attempt_chain_artifact,
     _validate_ha_visibility_networks, validate_ha_attempt,
 )
@@ -162,8 +162,8 @@ class HAValidationTest(unittest.TestCase):
             return diagnostics[path]
 
         with mock.patch(
-            'sequential.validation.validate_attempt', return_value=validated,
-        ), mock.patch('sequential.validation.read_json', side_effect=read):
+            'semi_offline.sequential.validation.validate_attempt', return_value=validated,
+        ), mock.patch('semi_offline.sequential.validation.read_json', side_effect=read):
             with self.assertRaisesRegex(ValueError, 'current/future leakage'):
                 validate_ha_attempt('/run')
 
@@ -212,9 +212,9 @@ class HAValidationTest(unittest.TestCase):
         }
 
         with mock.patch(
-            'sequential.validation.validate_attempt', return_value=validated,
+            'semi_offline.sequential.validation.validate_attempt', return_value=validated,
         ), mock.patch(
-            'sequential.validation.read_json',
+            'semi_offline.sequential.validation.read_json',
             side_effect=lambda path: diagnostics[path],
         ):
             with self.assertRaisesRegex(ValueError, 'q_abs_max is not finite'):

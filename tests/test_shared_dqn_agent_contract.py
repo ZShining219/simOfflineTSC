@@ -10,7 +10,7 @@ sys.modules.setdefault('libsumo', types.ModuleType('libsumo'))
 
 from agent.dqn import DQNNet
 from agent.shared_dqn import SharedDQNAgent
-from arterial.control import build_action_mask
+from semi_offline.arterial.control import build_action_mask
 
 
 class FixedQ(torch.nn.Module):

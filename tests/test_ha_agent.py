@@ -4,12 +4,12 @@ import unittest
 import numpy as np
 import torch
 
-from sequential.core import (
+from infra.core import (
     ReplayMetadata, ReplayRecord, SequentialReplay, TargetUpdateScheduler,
     TrainingPayload,
 )
-from sequential.ha_agent import HASODQNAgent
-from sequential.historical_archive import HistoricalBatch
+from semi_offline.sequential.ha_agent import HASODQNAgent
+from semi_offline.sequential.historical_archive import HistoricalBatch
 
 
 class Space:

@@ -3,8 +3,8 @@ import os
 import tempfile
 import unittest
 
-from sequential.calibration import METRIC_FIELDS, compare_evaluator_calibration
-from sequential.io import atomic_json
+from semi_offline.sequential.calibration import METRIC_FIELDS, compare_evaluator_calibration
+from infra.io import atomic_json
 
 
 class SequentialCalibrationTests(unittest.TestCase):

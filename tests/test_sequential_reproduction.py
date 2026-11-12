@@ -6,8 +6,8 @@ from unittest import mock
 
 import numpy as np
 
-from sequential.io import sha256_file
-from sequential.reproduction import (
+from infra.io import sha256_file
+from semi_offline.sequential.reproduction import (
     compare_plan1_reproduction, plan1_reproduction_signature,
     plan1_trajectory_digest,
 )
@@ -67,7 +67,7 @@ class SequentialReproductionTests(unittest.TestCase):
         reproduction = {'run_path': '/reproduction', 'network': 'network',
                         'training_seed': 0, **signature}
         with mock.patch(
-            'sequential.reproduction.plan1_reproduction_signature',
+            'semi_offline.sequential.reproduction.plan1_reproduction_signature',
             side_effect=[source, reproduction],
         ):
             self.assertTrue(compare_plan1_reproduction(
@@ -76,7 +76,7 @@ class SequentialReproductionTests(unittest.TestCase):
         reproduction = dict(reproduction)
         reproduction['rng_state_digest'] = 'different'
         with mock.patch(
-            'sequential.reproduction.plan1_reproduction_signature',
+            'semi_offline.sequential.reproduction.plan1_reproduction_signature',
             side_effect=[source, reproduction],
         ):
             report = compare_plan1_reproduction(
@@ -85,8 +85,8 @@ class SequentialReproductionTests(unittest.TestCase):
             self.assertFalse(report['valid'])
             self.assertFalse(report['checks']['rng_state_digest'])
 
-    @mock.patch('sequential.reproduction.validate_parent_source')
-    @mock.patch('sequential.reproduction.plan1_trajectory_digest')
+    @mock.patch('semi_offline.sequential.reproduction.validate_parent_source')
+    @mock.patch('semi_offline.sequential.reproduction.plan1_trajectory_digest')
     def test_reproduction_signature_can_validate_nonformal_frozen_run(
         self, trajectory_digest, validate_parent_source,
     ):

@@ -60,7 +60,7 @@ npz 轨迹 ──► 滑窗恢复（窗口长 W、步长 S，单位=decision）
 
 - 探索脚本：`dev/scene_semantics/`，登记 `dev/INDEX.md`；
 - 标注产物：`data/output_data/scene_semantics/`（不进 git）；产物需带 manifest（源 run、窗口参数、模板版本、encoder hash）；
-- 不改动 `sequential/`、`agent/`、`world/` 现有模块；若 P4 转正另议；
+- 不改动 `semi_offline/sequential/`、`agent/`、`world/` 现有模块；若 P4 转正另议；
 - 本阶段不登记 `ledger/runs.jsonl`（非训练/评估 run）；若 P3 形成正式验证批次再按治理口径补登记。
 
 ## 7. 规模与时间开销（本机 RTX 4060 Ti + 24C + 62G 实测口径）

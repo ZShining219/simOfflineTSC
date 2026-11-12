@@ -11,9 +11,9 @@
 ## 修改文件
 
 - `agent/shared_dqn.py`：共享参数的分散式 DQN、本地 observation/reward、position encoding、in/out 状态、action mask、mixed batch、TD 诊断、epsilon 模式、历史导入导出。新增文件，不改变旧 `dqn` 类。
-- `arterial/control.py`：自然排序的稳定路口顺序、action mask 和 ID 到动作映射。
-- `arterial/replay.py`：可追溯本地 transition、在线 FIFO replay、历史池、causal/full 可见性、scene×intersection 分层采样、mixed batch、分块历史档案。
-- `arterial/experiment.py`：四场景映射、三种顺序、配置校验、stage overlay、跨场景 evaluation manifest 与矩阵行协议。
+- `semi_offline/arterial/control.py`：自然排序的稳定路口顺序、action mask 和 ID 到动作映射。
+- `semi_offline/arterial/replay.py`：可追溯本地 transition、在线 FIFO replay、历史池、causal/full 可见性、scene×intersection 分层采样、mixed batch、分块历史档案。
+- `semi_offline/arterial/experiment.py`：四场景映射、三种顺序、配置校验、stage overlay、跨场景 evaluation manifest 与矩阵行协议。
 - `arterial_run.py`：从实验配置生成或执行单个顺序 stage，显式传入历史路径与父 checkpoint。
 - `environment.py`：MultiDiscrete 声明改为每个受控路口一个离散维度；单路口仍为单维。
 - `trainer/tsc_trainer.py`：共享 transition 写入、更新就绪条件、纯离线模式、updates-per-decision、流式 history archive、动作/路口/时间窗口日志、共享 checkpoint、stage 导入、冻结评估扩展。

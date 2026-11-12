@@ -111,7 +111,7 @@ formal device = CPU
 
 #### 2. Plan5 runtime and identities
 
-优先扩展现有 `sequential/` 公共基础设施，保持 `common/registry.py` 注册架构和 `world/` 的 SUMO 特有边界。新增清晰隔离的 Plan5 config/schema、manifest builder、launcher、run state、checkpoint index、validator、analyzer 和 CLI 子命令；不要复制一套无法与现有恢复/评估设施互操作的一次性训练脚本。
+优先扩展现有 `semi_offline/sequential/` 公共基础设施，保持 `common/registry.py` 注册架构和 `world/` 的 SUMO 特有边界。新增清晰隔离的 Plan5 config/schema、manifest builder、launcher、run state、checkpoint index、validator、analyzer 和 CLI 子命令；不要复制一套无法与现有恢复/评估设施互操作的一次性训练脚本。
 
 正式配置入口：
 

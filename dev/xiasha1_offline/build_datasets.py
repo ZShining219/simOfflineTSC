@@ -4,7 +4,7 @@
 Scans completed ``xiasha1_online_v2`` runs (``xi2on_<arm>_<pack>_s<seed>``),
 writes the run-list CSV (with ``arm`` column) and the explicit dataset-spec
 JSON for the seven experiment pools x three pool replicas, then invokes
-``python -m sequential.offline prepare-plan2`` to emit the read-only index.
+``python -m semi_offline.offline prepare-plan2`` to emit the read-only index.
 
 Dataset root: ``data/output_data/offline_datasets/xiasha1/v1_hetero``.
 
@@ -199,7 +199,7 @@ def main():
     print(f'wrote {specs_path.relative_to(ROOT)}')
 
     command = [
-        sys.executable, '-m', 'sequential.offline', 'prepare-plan2',
+        sys.executable, '-m', 'semi_offline.offline', 'prepare-plan2',
         '--run-list', str(run_list_path),
         '--output-root', str(OUTPUT_ROOT),
         '--dataset-id', DATASET_ID,

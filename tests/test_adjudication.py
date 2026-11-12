@@ -7,11 +7,11 @@ from types import SimpleNamespace
 import numpy as np
 import torch
 
-from sequential.adjudication import (
+from semi_offline.sequential.adjudication import (
     Adjudicator, QGapJudge, RewardModelJudge, TermsJudge,
     build_adjudicator, leg_features_from_view)
-from sequential.core import ReplayRecord, TrainingPayload, ReplayMetadata
-from sequential.historical_archive import HistoricalBatch
+from infra.core import ReplayRecord, TrainingPayload, ReplayMetadata
+from semi_offline.sequential.historical_archive import HistoricalBatch
 
 
 def _feats(action=0, obs=None, next_obs=None):
@@ -157,7 +157,7 @@ class QGapJudgeTest(unittest.TestCase):
 
 class RewardModelJudgeTest(unittest.TestCase):
     def test_scores_with_frozen_net(self):
-        from sequential.reward_model import PreferenceRewardNet
+        from semi_offline.sequential.reward_model import PreferenceRewardNet
         feat_dim = 8 + 4 + 8 + 4 + 4
         net = PreferenceRewardNet(feat_dim)
         path = tempfile.mktemp(suffix='.pt')
@@ -236,7 +236,7 @@ class UnifiedScoringTest(unittest.TestCase):
     content receive the same r_eff under the same judge manifest."""
 
     def _agent(self):
-        from sequential.ha_agent import HASODQNAgent
+        from semi_offline.sequential.ha_agent import HASODQNAgent
         a = HASODQNAgent.__new__(HASODQNAgent)
         a.phase = True
         a.one_hot = True

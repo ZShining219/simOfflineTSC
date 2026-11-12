@@ -26,10 +26,10 @@ sys.path.insert(0, str(ROOT))
 
 import torch  # noqa: E402
 
-from sequential.checkpoint import (  # noqa: E402
+from infra.checkpoint import (  # noqa: E402
     atomic_torch_save, decode_checkpoint_payload, validate_full_checkpoint,
 )
-from sequential.owp import OWP_SCHEMA_VERSION  # noqa: E402
+from semi_offline.sequential.owp import OWP_SCHEMA_VERSION  # noqa: E402
 
 
 def _sampler_state(payload):

@@ -8,9 +8,9 @@ from types import SimpleNamespace
 import torch
 
 from agent.dqn import DQNNet
-from sequential.core import canonical_digest
-from sequential.evaluator import IndependentEvaluator, save_online_snapshot
-from sequential.io import atomic_json, read_json
+from infra.core import canonical_digest
+from infra.evaluator import IndependentEvaluator, save_online_snapshot
+from infra.io import atomic_json, read_json
 
 
 def fixture_evaluation_worker(request_path):

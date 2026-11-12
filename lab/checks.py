@@ -14,9 +14,9 @@ from pathlib import Path
 ROOT_ALLOWLIST = {
     ".github", ".githooks", ".gitignore",
     "AGENTS.md", "EXPERIMENTS.md", "GOVERNANCE.md", "README.md", "THIRD_PARTY_NOTICES.md",
-    "EXPERIMENTS", "agent", "arterial", "bench", "common", "configs", "data", "dev",
-    "docs", "generator", "hitl", "lab", "ledger", "plan5", "scene_attention",
-    "sequential", "task", "tests", "tools", "trainer", "utils", "world",
+    "EXPERIMENTS", "agent", "bench", "common", "configs", "data", "dev",
+    "docs", "generator", "hitl", "infra", "lab", "ledger", "scene_attention",
+    "semi_offline", "task", "tests", "tools", "trainer", "utils", "world",
     "run.py", "environment.py", "arterial_run.py",
     "requirements.txt", "requirements-colight.txt", "requirements-dashboard.txt",
     "requirements-offline.txt",

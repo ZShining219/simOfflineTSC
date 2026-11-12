@@ -8,7 +8,7 @@ import torch
 
 sys.modules.setdefault('libsumo', types.ModuleType('libsumo'))
 
-from arterial.replay import split_local_transitions
+from semi_offline.arterial.replay import split_local_transitions
 from trainer.tsc_trainer import EvaluationIsolationGuard
 
 

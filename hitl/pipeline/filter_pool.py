@@ -214,7 +214,7 @@ def main(argv=None):
         json.dump(pm, fh, indent=1, sort_keys=True)
 
     # Load-check through the real adapter (hash verification on).
-    from sequential.expert_pool import ExpertPoolArchive
+    from semi_offline.sequential.expert_pool import ExpertPoolArchive
     view = ExpertPoolArchive(
         os.path.join(dst, 'expert_pool_manifest.json'),
         training_seed=0, verify_hashes=True).view()

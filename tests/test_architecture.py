@@ -16,8 +16,11 @@ if str(ROOT) not in sys.path:  # 以脚本方式（--write-baseline）运行时�
     sys.path.insert(0, str(ROOT))
 BASELINE = Path(__file__).with_name("architecture_baseline.json")
 
+# 三层：框架层（LibSignal）→ 实验基座（infra，lab 另为纯标准库的管理工具）→ 研究线；只许上层依赖下层。
 CORE = ("agent", "world", "trainer", "task", "common", "utils", "generator", "data")
-RESEARCH = ("arterial", "sequential", "scene_attention", "hitl", "plan5", "tools", "dev")
+INFRA = ("infra",)
+RESEARCH = ("semi_offline", "scene_attention", "hitl", "tools", "dev")
+LEGACY = ("sequential", "plan5", "arterial")  # 2026-11-12 迁入 infra/ 与 semi_offline/ 的旧包名
 OUTPUT_LITERAL = re.compile(r"""['"](?:\./)?(?:data/output_data|analysis/|final_result/|/tmp/)""")
 OUTPUT_LITERAL_EXEMPT = {"lab/paths.py", "lab/checks.py"}  # 规则定义本身
 ABSOLUTE_PATH = re.compile(r"""['"]/(?:projects|home)/""")
@@ -46,19 +49,29 @@ def core_research_imports():
     found = set()
     for path in _tracked_py(*CORE):
         for root in _imported_roots(path):
-            if root in RESEARCH:
+            if root in RESEARCH + INFRA:
                 found.add(f"{path} -> {root}")
     return sorted(found)
 
 
+def infra_research_imports():
+    return sorted(f"{path} -> {root}" for path in _tracked_py(*INFRA)
+                  for root in _imported_roots(path) if root in RESEARCH)
+
+
+def legacy_imports():
+    return sorted(f"{path} -> {root}" for path in _tracked_py(*CORE, *INFRA, *RESEARCH, "lab", "tests")
+                  for root in _imported_roots(path) if root in LEGACY)
+
+
 def lab_internal_imports():
     return sorted(f"{path} -> {root}" for path in _tracked_py("lab")
-                  for root in _imported_roots(path) if root in CORE + RESEARCH)
+                  for root in _imported_roots(path) if root in CORE + INFRA + RESEARCH)
 
 
 def hardcoded_output_paths():
     counts = Counter()
-    for path in _tracked_py(*CORE, *RESEARCH, "lab"):
+    for path in _tracked_py(*CORE, *INFRA, *RESEARCH, "lab"):
         if path in OUTPUT_LITERAL_EXEMPT:
             continue
         hits = len(OUTPUT_LITERAL.findall((ROOT / path).read_text(encoding="utf-8")))
@@ -69,7 +82,7 @@ def hardcoded_output_paths():
 
 def absolute_paths():
     counts = Counter()
-    for path in _tracked_py(*CORE, *RESEARCH, "lab", "tests"):
+    for path in _tracked_py(*CORE, *INFRA, *RESEARCH, "lab", "tests"):
         if path in ABSOLUTE_PATH_EXEMPT:
             continue
         hits = len(ABSOLUTE_PATH.findall((ROOT / path).read_text(encoding="utf-8")))
@@ -95,6 +108,16 @@ def test_core_does_not_import_research_lines():
         f"{sorted(current - allowed)}")
     assert not allowed - current, (
         f"这些存量违规已修复，请从 {BASELINE.name} 删除以收紧基线：{sorted(allowed - current)}")
+
+
+def test_infra_does_not_import_research_lines():
+    assert infra_research_imports() == [], "实验基座 infra/ 不得依赖研究线"
+
+
+def test_no_imports_of_legacy_package_names():
+    assert legacy_imports() == [], (
+        "sequential/plan5/arterial 已迁入 infra/ 与 semi_offline/，旧名字仅供读取历史 checkpoint，"
+        f"代码中请改用新路径：{legacy_imports()[:10]}")
 
 
 def test_lab_is_dependency_free():

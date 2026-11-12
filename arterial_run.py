@@ -9,7 +9,7 @@ from pathlib import Path
 
 import yaml
 
-from arterial.experiment import (ARTERIAL_SCENES, EvaluationMatrixWriter,
+from semi_offline.arterial.experiment import (ARTERIAL_SCENES, EvaluationMatrixWriter,
                                  stage_overlay, validate_experiment_config)
 
 

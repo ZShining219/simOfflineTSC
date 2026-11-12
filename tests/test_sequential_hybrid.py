@@ -6,12 +6,12 @@ import os
 
 import numpy as np
 
-from sequential.core import ReplayMetadata, ReplayRecord, TrainingPayload
-from sequential.hybrid import HybridReplayPool
-from sequential.evaluation_matrix import validate_lower_triangle
-from sequential.manifest import build_hybrid_plan, validate_hybrid_plan
-from sequential.hybrid_agent import HybridDQNAgent
-from sequential.config import load_sequential_config
+from infra.core import ReplayMetadata, ReplayRecord, TrainingPayload
+from semi_offline.sequential.hybrid import HybridReplayPool
+from semi_offline.sequential.evaluation_matrix import validate_lower_triangle
+from semi_offline.sequential.manifest import build_hybrid_plan, validate_hybrid_plan
+from semi_offline.sequential.hybrid_agent import HybridDQNAgent
+from semi_offline.sequential.config import load_sequential_config
 
 
 def record(stage, episode, step):

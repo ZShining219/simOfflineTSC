@@ -64,7 +64,7 @@ def main(argv=None):
     net = None
     if args.model:
         import torch
-        from sequential.reward_model import PreferenceRewardNet
+        from semi_offline.sequential.reward_model import PreferenceRewardNet
         blob = torch.load(args.model, map_location='cpu')
         net = PreferenceRewardNet(int(blob['feature_dim']))
         net.load_state_dict(blob['state_dict'])

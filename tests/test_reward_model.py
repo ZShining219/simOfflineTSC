@@ -3,7 +3,7 @@ import unittest
 import numpy as np
 import torch
 
-from sequential.reward_model import (
+from semi_offline.sequential.reward_model import (
     PreferenceRewardNet, evaluate_pairs, pair_loss, predict_segment_scores)
 
 

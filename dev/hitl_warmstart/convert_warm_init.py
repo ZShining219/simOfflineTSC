@@ -15,7 +15,7 @@
   溯源信息写进工件本体，不构成审计歧义；
 - --sidecar 输出一份可直接贴进 plan child ``initial_state`` 的 dict
   （checkpoint_path/checkpoint_file_sha256/digests，digest 复用
-  sequential.core 的四个摘要函数重算）。
+  infra.core 的四个摘要函数重算）。
 
 用法（repo 根，conda env: colight）：
 
@@ -38,11 +38,11 @@ if str(_REPO_ROOT) not in sys.path:
 
 import torch
 
-from sequential.core import (
+from infra.core import (
     online_parameter_digest, optimizer_state_digest, rng_state_digest,
     target_parameter_digest,
 )
-from sequential.io import atomic_json, sha256_file
+from infra.io import atomic_json, sha256_file
 
 # 顶层与 training_counters 散装键 + agents[] 内同名键；training_counters
 # 内另有 epoch/step 进度键

@@ -1,6 +1,6 @@
 import unittest
 
-from sequential.ha_manifest import load_ha_config, stage_specifications
+from semi_offline.sequential.ha_manifest import load_ha_config, stage_specifications
 
 
 class HAManifestTest(unittest.TestCase):

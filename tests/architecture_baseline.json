@@ -1,6 +1,6 @@
 {
   "core_research_imports": [
-    "agent/shared_dqn.py -> arterial"
+    "agent/shared_dqn.py -> semi_offline"
   ],
   "hardcoded_output_paths": {
     "common/utils.py": 1,
@@ -81,7 +81,6 @@
     "hitl/plans/build_r3_plan.py": 5,
     "hitl/probe/paired_probe.py": 1,
     "hitl/probe/rm_env_corr.py": 4,
-    "plan5/cli.py": 6,
     "scene_attention/_legacy/router/channel_ablate.py": 4,
     "scene_attention/_legacy/router/collect_attn_trace.py": 1,
     "scene_attention/_legacy/router/collect_scene_dump.py": 2,
@@ -108,9 +107,10 @@
     "scene_attention/probe/dispatch_eval.py": 2,
     "scene_attention/probe/takeover.py": 1,
     "scene_attention/train.py": 4,
-    "sequential/cli.py": 2,
-    "sequential/offline.py": 1,
-    "sequential/seq8_manifest.py": 1,
+    "semi_offline/offline.py": 1,
+    "semi_offline/plan5/cli.py": 6,
+    "semi_offline/sequential/cli.py": 2,
+    "semi_offline/sequential/seq8_manifest.py": 1,
     "tools/allocation_accuracy_counterfactual.py": 3,
     "tools/att004_baseline_eval.py": 1,
     "tools/att004_build_queue.py": 2,
@@ -135,7 +135,7 @@
     "dev/seq8_anchor/build_queue.py": 2,
     "dev/xiasha1_offline/build_queue.py": 2,
     "dev/xiasha1_online_v3/build_queue.py": 2,
-    "plan5/manifest.py": 1,
+    "semi_offline/plan5/manifest.py": 1,
     "tools/xiasha_sumo/build_photo_network.py": 1
   },
   "configs_root_overlays": [

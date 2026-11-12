@@ -40,19 +40,19 @@
 | 工作 | 面 | 配置 | 产物 |
 | --- | --- | --- | --- |
 | Online/传统 TSC（fixedtime/dqn/colight 等） | `python run.py` | `configs/tsc/` | `data/output_data/tsc/` |
-| Plan 2 纯 Offline DQN | `python -m sequential.offline train` | `configs/offline_tsc/` | `data/output_data/offline_tsc/` |
-| Plan 3/4 Sequential / HA-SODQN / HITL 通道训练（❄️ 冻结，仅复跑底稿） | `python -m sequential <verb>`（manifest 驱动） | `configs/sequential/` | `data/output_data/{sequential,ha_sodqn,hitl_probe}/` |
+| Plan 2 纯 Offline DQN | `python -m semi_offline.offline train` | `configs/offline_tsc/` | `data/output_data/offline_tsc/` |
+| Plan 3/4 Sequential / HA-SODQN / HITL 通道训练（❄️ 冻结，仅复跑底稿） | `python -m semi_offline.sequential <verb>`（manifest 驱动） | `configs/sequential/` | `data/output_data/{sequential,ha_sodqn,hitl_probe}/` |
 | 半离线持续学习正式批（✅ 当前唯一激活链路 cl_hz1x1） | `python tools/run_experiment_queue.py`（队列 manifest 驱动，生成件 `dev/cl_hz1x1/`） | `dev/cl_hz1x1/` overlays + `configs/tsc/` | `data/output_data/tsc/` + `artifacts/cl_hz1x1/` |
 | 场景引导注意力训练/评测 | `python -m scene_attention.train` / `.eval` | `scene_attention/events.py` 常量源 | `data/output_data/dev_takeover_probe/` |
 | HITL 实时服务 | `python -m hitl.serve` | `--scene/--dispatch/--gate/--record` | `data/output_data/hitl_probe/sessions/` |
 | HITL 数据面/plan/探针/审计 | `python -m hitl.pipeline <stage>` / `hitl.plans build --round <r>` / `hitl.probe.<x>` / `hitl.audit.<x>` | 见 `hitl/README.md` | `data/output_data/hitl_probe/` |
 
-旧兼容 shim `sequential_run.py`、`offline_run.py` 已于 2026-11-12 移除，请用 `python -m sequential` / `python -m sequential.offline`。
+旧兼容 shim `sequential_run.py`、`offline_run.py` 已于 2026-11-12 移除，请用 `python -m semi_offline.sequential` / `python -m semi_offline.offline`。
 
 调用规则：
 
-- 各面必须使用各自命令，不能用相似参数名替代实验语义：不要通过 `run.py --agent batch_dqn` 启动 Offline，也不要通过 `-m sequential.offline` 启动 Online/传统实验。
-- `-m sequential.offline` 训练期间不会向数据集追加 transition，也不会修改源 Plan 1 NPZ。
+- 各面必须使用各自命令，不能用相似参数名替代实验语义：不要通过 `run.py --agent batch_dqn` 启动 Offline，也不要通过 `-m semi_offline.offline` 启动 Online/传统实验。
+- `-m semi_offline.offline` 训练期间不会向数据集追加 transition，也不会修改源 Plan 1 NPZ。
 - HA-SODQN 不能通过修改 YAML 直接切换为 Double DQN 或 PPO；跨算法验证需要先增加算法 identity、训练 target/loss、checkpoint 和 evaluator 适配。
 - 正式 run 只走两条路径：队列 runner（`tools/run_experiment_queue.py`+`run_queue_*.json`）或 `bench/` profile；一次性件归 `dev/<topic>/` 并登 `dev/INDEX.md`。
 - 出图/表格脚本（`<pkg>/figs/` 等）为产物件不是入口。
@@ -137,13 +137,13 @@ loss**——各历史场景 stage 末的冻结网络给出参考 Q，约束 `λ_
 
 **当前唯一激活实现 = `cl_hz1x1` 线**（campaign `cl_hz1x1`，5584 run 已收口）：
 `agent/dqn.py`+`agent/frap.py` 的 `collect_history`/`_anchor_loss` +
-`arterial/replay.py` 的 `HistoricalPool`/`mixed_batch`（`global_uniform` 或
+`semi_offline/arterial/replay.py` 的 `HistoricalPool`/`mixed_batch`（`global_uniform` 或
 `scene_intersection_balanced`）+ `tools/run_experiment_queue.py` 队列编排
 （stage=进程边界，`history_paths`/`teacher_paths`/`depends_on` 逐段交接），
 队列生成件与收割件在 `dev/cl_hz1x1/`。结论摘要见 EXPERIMENTS.md 面板；
 设计稿 `docs/plan_qanchor_clhz1x1.md`。
 
-**已冻结保留**：Plan 1–4 / HA-SODQN 链（`sequential/` 方法包，manifest 驱动
+**已冻结保留**：Plan 1–4 / HA-SODQN 链（`semi_offline/sequential/` 方法包，manifest 驱动
 的单进程 stage 循环 + 外部 Plan-2 档案 P1C/P1F 可见性 + DHOA/RAND/CQ/CQA
 采样器）。证据链完整、可审计、可复跑底稿，但**不再发起新实验**——与
 cl_hz1x1 并存会造成「两套半离线口径」歧义，故冻结。
@@ -179,7 +179,7 @@ cl_hz1x1 并存会造成「两套半离线口径」歧义，故冻结。
 - Plan 2 另需 `python -m pip install --no-deps -r requirements-offline.txt`（固定 `d3rlpy==2.0.4`，避免扰动现有 Torch/Gym/NumPy）。第三方来源与适配边界见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
 - 部分智能体有额外依赖，如 PPO/PFRL 需要 `pfrl`，CoLight 部分实现需要 PyTorch Geometric。
 
-seed 语义按入口区分：`run.py --seed` 是 Online 流程的 `training_seed`；`python -m sequential.offline train --seed` 是 Plan 2 的 base seed，并默认派生 `model_init_seed=base`、`dataset_sampler_seed=base+10000`、`evaluation_seed=base+20000`（可覆盖，分别写入 metadata/checkpoint）。SUMO 默认采用固定默认随机实现（`sumo_seed_mode=fixed_default`），仅显式传 `--sumo-seed` 才生效。
+seed 语义按入口区分：`run.py --seed` 是 Online 流程的 `training_seed`；`python -m semi_offline.offline train --seed` 是 Plan 2 的 base seed，并默认派生 `model_init_seed=base`、`dataset_sampler_seed=base+10000`、`evaluation_seed=base+20000`（可覆盖，分别写入 metadata/checkpoint）。SUMO 默认采用固定默认随机实现（`sumo_seed_mode=fixed_default`），仅显式传 `--sumo-seed` 才生效。
 
 ## 快速开始
 
@@ -192,12 +192,12 @@ python run.py --agent maxpressure --world sumo --network sumo1x1 \
 
 # Plan 2 纯 Offline（prepare-plan2 / validate-dataset / train 三步，
 # manifest schema v2，详见 Plan 2 支持说明）
-python -m sequential.offline train --agent batch_dqn --network sumohz1x1 \
+python -m semi_offline.offline train --agent batch_dqn --network sumohz1x1 \
   --dataset-manifest /path/to/manifest.json --prefix p2_seed1000 --seed 1000
 
 # Sequential / HA-SODQN（❄️已冻结，manifest 驱动；新半离线实验用
 # cl_hz1x1 队列路径，见上表）
-python -m sequential --help
+python -m semi_offline.sequential --help
 ```
 
 正式 Sequential/HA 实验需先构建并 validate manifest，launch 会产生大规模 SUMO 训练并要求显式授权；执行顺序、资产清单与门禁见 [半离线复现指南](docs/semi_offline_cross_algorithm_reproduction.md)。
@@ -212,29 +212,29 @@ python -m sequential --help
 artifacts/<campaign>/                                  # 队列与运行时状态
 ```
 
-历史目录（`data/output_data/` 下的 `offline_tsc/`、`sequential/`、`ha_sodqn/`、`analysis/` 等，以及仓根 `analysis/`、`final_result/`）冻结只读；
+历史目录（`data/output_data/` 下的 `offline_tsc/`、`semi_offline/sequential/`、`ha_sodqn/`、`analysis/` 等，以及仓根 `analysis/`、`final_result/`）冻结只读；
 每个目录的归属、大小与台账引用见 `python -m lab outputs`。以上目录与 checkpoint/日志/图像均被 `.gitignore` 排除，提交闸门会拦截误提交。
 
 ## 项目结构
 
-| 路径 | 说明 |
-| --- | --- |
-| run.py | Online/传统实验入口 |
-| environment.py | 环境探测辅助 |
-| agent/ | 传统控制及强化学习智能体 |
-| world/ | CityFlow、SUMO 等仿真器适配层 |
-| trainer/、task/ | 训练评估流程与任务编排 |
-| configs/{tsc,offline_tsc,sequential,sim,evaluation} | 智能体、离线、顺序/半离线、仿真器及评估配置 |
-| data/ | 数据层：`raw_data/`（路网输入，只读）、`output_data/`（run 产物证据桶，gitignore）、`dataset/`（数据集接口代码） |
-| common/、generator/ | 注册器与配置加载、特征生成器 |
-| sequential/ | 方法包（❄️已冻结）：持续学习+HA-SODQN 半离线（manifest 驱动；README 方法卡）。新半离线实验走 cl_hz1x1 |
-| scene_attention/ | 方法包：场景引导注意力主线（`python -m scene_attention`；README 方法卡） |
-| hitl/ | 通道包：人在回路实时+数据面（`python -m hitl`；README 通道卡与边界） |
-| GOVERNANCE.md、EXPERIMENTS.md、EXPERIMENTS/、ledger/ | 实验治理规范、台账索引与各 campaign 明细、机读台账 |
-| bench/ | 正式验收口径（BENCH.md + profiles） |
-| dev/ | 一次性脚本唯一合法堆放处 + INDEX.md 登记 |
-| docs/ | 计划文档 + **实验记录**（`docs/experiments/`，每实验一份固定格式，规则见 `docs/README.md`）+ 里程碑归档 `docs/done/` |
-| tools/、tests/ | 分析与可视化工具（见下节）、最小回归测试 |
+三层结构，只许上层依赖下层（`tests/test_architecture.py` 校验）：
+
+| 层 | 路径 | 说明 |
+| --- | --- | --- |
+| 框架层 | `run.py` | 训练入口（Online/传统，cl_hz1x1 也经此运行） |
+| | `agent/`、`world/`、`trainer/`、`task/` | 智能体、仿真器适配（CityFlow/SUMO）、训练评估流程 |
+| | `common/`、`utils/`、`generator/` | 注册器与配置加载、日志与指标、特征生成；`common/history_replay.py` 为历史归档与混合采样 |
+| | `data/` | `raw_data/` 路网与车流输入（只读）；`dataset/` 数据集接口；`output_data/` 产物（不入库） |
+| 实验基座 | `lab/` | 管理：台账查询与核查、溯源、指标口径、登记回填、黄金 smoke、提交闸门（`python -m lab`） |
+| | `infra/` | 运行：checkpoint 保存/校验/恢复、事务、资源调度、独立评估（见 `infra/README.md`） |
+| 研究线 | `semi_offline/` | 半离线/持续学习：当前主线 cl_hz1x1 指针、纯离线入口 `offline.py`、冻结的 `sequential/`、`plan5/`、`arterial/` |
+| | `scene_attention/` | 场景引导注意力（`python -m scene_attention`） |
+| | `hitl/` | 人在回路：实时会话与数据面（`python -m hitl`） |
+| 配套 | `configs/` | 配置；`configs/tsc/README.md` 区分智能体默认配置与实验 overlay |
+| | `tools/`、`dev/` | 可复用工具；一次性脚本按 `dev/<topic>/` 存放并登记 `dev/INDEX.md` |
+| | `bench/`、`tests/` | 验收口径与黄金 smoke；测试 |
+| | `GOVERNANCE.md`、`EXPERIMENTS.md`、`EXPERIMENTS/`、`ledger/` | 治理规范、台账索引与明细、机读台账 |
+| | `docs/` | 计划、实验记录（`docs/experiments/`）、架构变更日志、归档（`docs/done/`） |
 
 ## 工具与可视化
 
@@ -259,9 +259,9 @@ artifacts/<campaign>/                                  # 队列与运行时状�
 
 本仓在 LibSignal 基座（`agent/`+`world/`+`trainer/`+`run.py`）之上并行推进三条研究线，均为 Route A 包形状（`python -m <pkg>` 打面表，方法卡见各自 README）：
 
-### 1. 半离线 / 持续学习（cl_hz1x1 当前线 + `sequential/` 已冻结）
+### 1. 半离线 / 持续学习（cl_hz1x1 当前线 + `semi_offline/sequential/` 已冻结）
 
-在线交互 + 过去阶段自产历史数据的混合训练线。**当前实现**：`cl_hz1x1` 队列路径（run.py 逐 stage 进程 + `history_archive` 全量归档 + 教师锚定 loss；生成/收割件 `dev/cl_hz1x1/`，产物 `data/output_data/tsc/` + `artifacts/cl_hz1x1/`）。**冻结保留**：Plan 2 纯离线（`python -m sequential.offline`）、manifest 驱动 HA-SODQN（`python -m sequential`，已冻结）、HITL 采集数据回流训练。产物 `data/output_data/{offline_tsc,offline_datasets,sequential,ha_sodqn}/`（冻结层）。
+在线交互 + 过去阶段自产历史数据的混合训练线。**当前实现**：`cl_hz1x1` 队列路径（run.py 逐 stage 进程 + `history_archive` 全量归档 + 教师锚定 loss；生成/收割件 `dev/cl_hz1x1/`，产物 `data/output_data/tsc/` + `artifacts/cl_hz1x1/`）。**冻结保留**：Plan 2 纯离线（`python -m semi_offline.offline`）、manifest 驱动 HA-SODQN（`python -m semi_offline.sequential`，已冻结）、HITL 采集数据回流训练。产物 `data/output_data/{offline_tsc,offline_datasets,sequential,ha_sodqn}/`（冻结层）。
 
 ### 2. 人在回路（`hitl/`）
 

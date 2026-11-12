@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # r3 多场景训练 run 派发器（探索件，登记 dev/INDEX.md）。
-# 逐 child 跑 python -m sequential run-child；attempt_dir 用
+# 逐 child 跑 python -m semi_offline.sequential run-child；attempt_dir 用
 # multiscene/<tag>/runs/<id> 两层结构 → eval 落
 # multiscene/<tag>/_shared_evaluation（runtime.py launch_root 语义）。
 # 用法: bash hitl/plans/dispatch_r3.sh [qc|kn|sb|all] [并发数]
@@ -31,7 +31,7 @@ EOF
     out="data/output_data/hitl_probe/multiscene/'"$tag"'/runs/$id"
     log="data/output_data/hitl_probe/multiscene/'"$tag"'/logs/$id.log"
     [ -f "$out/completed.json" ] && { echo "skip $id"; exit 0; }
-    '"$PY"' -m sequential run-child \
+    '"$PY"' -m semi_offline.sequential run-child \
       --manifest "'"$PLAN"'" \
       --logical-run-id "$id" \
       --attempt-dir "$out" >"$log" 2>&1 \

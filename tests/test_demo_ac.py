@@ -5,11 +5,11 @@ import unittest
 import numpy as np
 import torch
 
-from sequential.core import (
+from infra.core import (
     ReplayMetadata, ReplayRecord, SequentialReplay, TargetUpdateScheduler,
     TrainingPayload,
 )
-from sequential.demo_ac import DemoACAgent
+from semi_offline.sequential.demo_ac import DemoACAgent
 from agent.dqn import DQNNet
 
 

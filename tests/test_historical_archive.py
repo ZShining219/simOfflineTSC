@@ -5,10 +5,10 @@ import unittest
 import numpy as np
 
 from data.dataset.offline_trajectory_dataset import OfflineBatch
-from sequential.historical_archive import (
+from semi_offline.sequential.historical_archive import (
     HistoricalArchive, derive_rng_seed, stable_digest,
 )
-from sequential.owp import (
+from semi_offline.sequential.owp import (
     build_historical_sampler, restore_rand_historical_sampler,
 )
 

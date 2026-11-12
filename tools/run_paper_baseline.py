@@ -94,7 +94,7 @@ def cli():
         task = next((t for t in manifest['tasks'] if t['run_id'] == args.task_id), None)
         if task is None:
             raise ValueError('Unknown manifest task')
-        from sequential.launcher import LogicalRunLock
+        from infra.launcher import LogicalRunLock
         with LogicalRunLock(root / 'locks' / (args.task_id + '.lock')):
             marker = Path(task['output_path']) / 'completed.json'
             if marker.exists():
@@ -115,7 +115,7 @@ def cli():
             args.max_workers is not None and args.max_workers < 1):
         raise ValueError('Worker pool sizes must be positive')
     from common.experiment_queue import QueueRunner
-    from sequential.launcher import LogicalRunLock
+    from infra.launcher import LogicalRunLock
     with LogicalRunLock(root / 'launch.lock'):
         state = root / 'queue'
         if args.operation == 'launch' and (state / 'run_manifest.json').exists():
@@ -430,7 +430,7 @@ def main(worker_lock_held=False):
             raise ValueError('Both resume arguments are required')
         if not worker_lock_held:
             import yaml
-            from sequential.launcher import LogicalRunLock
+            from infra.launcher import LogicalRunLock
             saved = yaml.safe_load((Path(args.resume_output) / 'config/resolved_config.yaml').read_text())
             plan_path = saved['trainer'].get('episode_plan')
             if not plan_path:

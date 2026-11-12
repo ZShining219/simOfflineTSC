@@ -2,7 +2,7 @@ import unittest
 
 import numpy as np
 
-from sequential.reward_shaping import (
+from semi_offline.sequential.reward_shaping import (
     RewardShaper, ServiceGapTracker, lane_capacities_from_lengths)
 
 

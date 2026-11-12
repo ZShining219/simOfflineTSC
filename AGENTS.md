@@ -8,16 +8,16 @@
 
 ## 项目结构
 
-- run.py：实验主入口和命令行参数定义。
-- agent/：交通信号控制智能体实现。
-- world/：不同交通仿真器的适配实现。
-- trainer/ 和 task/：训练循环与任务编排。
-- common/、utils/ 和 generator/：共享配置、日志、指标和特征生成工具。
-- configs/：仿真器与交通信号控制实验配置。
-- data/raw_data/：路网和交通流输入数据。
-- data/dataset/：数据集接口与实现。
-- docs/：存放 plan、goal 及其他阶段性执行参考文件。
-- final_result/：结果处理工具或实验产物。
+三层，只许上层依赖下层（`tests/test_architecture.py` 校验）：
+
+- **框架层（LibSignal）**：`run.py` 训练入口；`agent/` 智能体；`world/` 仿真器适配；`trainer/`、`task/` 训练循环；
+  `common/`、`utils/`、`generator/` 共享工具；`data/raw_data/` 路网与车流输入，`data/dataset/` 数据集接口。
+- **实验基座**：`lab/` 管理（台账、溯源、核查、黄金 smoke、提交闸门，纯标准库）；`infra/` 运行（checkpoint、事务、调度、独立评估）。
+- **研究线**：`semi_offline/`（半离线/持续学习：当前主线 cl_hz1x1、纯离线入口、冻结的 sequential/plan5/arterial）；
+  `scene_attention/`（场景引导注意力）；`hitl/`（人在回路）。各包 README 说明状态与入口。
+- **配套**：`configs/` 配置（`configs/tsc/README.md` 为索引）；`tools/` 可复用工具；`dev/<topic>/` 一次性脚本（登记于 `dev/INDEX.md`）；
+  `bench/` 验收口径与黄金 smoke；`ledger/`、`EXPERIMENTS/` 台账；`docs/` 计划、实验记录与归档；`tests/` 测试。
+- **产物（不入库）**：`data/output_data/`、`artifacts/`；仓根 `analysis/`、`final_result/` 为冻结的历史产物。
 
 ## 开发流程
 
@@ -57,7 +57,7 @@
 - 产物路径一律经 `lab.paths`（`output_root()`/`report_dir(topic)`/`queue_dir(campaign)`）获取；分析、图表、汇报产物写
   `<output_root>/reports/<topic>/`，不得再在仓根或 output_data 下新开散目录。`TSC_OUTPUT_ROOT` 可让多工作树共用产物根。
 - `tests/test_architecture.py` 是棘轮：核心层（agent/world/trainer/task/common/utils/generator/data）不得新增对研究线
-  （arterial/sequential/scene_attention/hitl/plan5/tools/dev）的 import，不得新增硬编码产物路径；存量登记在
+  （semi_offline/arterial/sequential/scene_attention/hitl/plan5/tools/dev）的 import，不得新增硬编码产物路径；存量登记在
   `tests/architecture_baseline.json`，修掉一处就删一处。
 
 ## 修改规范

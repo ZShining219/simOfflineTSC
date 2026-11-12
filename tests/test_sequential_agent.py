@@ -7,17 +7,17 @@ import unittest
 import numpy as np
 import torch
 
-from sequential.agent import SequentialDQNAgent, SequentialCounters
-from sequential.config import load_sequential_config
-from sequential.core import (
+from semi_offline.sequential.agent import SequentialDQNAgent, SequentialCounters
+from semi_offline.sequential.config import load_sequential_config
+from infra.core import (
     ReplayMetadata, ReplayRecord, SequentialReplay, TargetUpdateScheduler,
     TrainingPayload, capture_rng_state, online_parameter_digest,
     optimizer_state_digest, replay_content_digest, replay_metadata_digest,
     rng_state_digest, target_parameter_digest,
 )
-from sequential.parents import convert_parent_replay
-from sequential.trainer import SequentialStageTrainer
-from sequential.evaluator import save_online_snapshot
+from semi_offline.sequential.parents import convert_parent_replay
+from semi_offline.sequential.trainer import SequentialStageTrainer
+from infra.evaluator import save_online_snapshot
 
 
 class FakeIntersection:

@@ -9,8 +9,8 @@
 | 路径 | 用途 | 关联 | 判定 |
 |---|---|---|---|
 | `run.py` | 实验主入口/参数定义 | 全仓 | 正式入口 |
-| `python -m sequential.offline` | 纯离线训练面（旧 `offline_run.py` shim 已于 2026-11-12 移除） | 半离线线 | 正式面 |
-| `python -m sequential` | sequential 包门面 | sequential/ | 正式面 |
+| `python -m semi_offline.offline` | 纯离线训练面（旧 `offline_run.py` shim 已于 2026-11-12 移除） | 半离线线 | 正式面 |
+| `python -m semi_offline.sequential` | sequential 包门面 | semi_offline/sequential/ | 正式面 |
 | `python -m scene_attention` | 注意力方法包门面 | scene_attention/ | 正式面 |
 | `python -m hitl` | HITL 通道包门面 | hitl/ | 正式面 |
 | `environment.py` | 环境探测辅助 | — | 基础设施 |
@@ -515,7 +515,7 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
 - `hitl/plans/build_pilot_plan.py`：C 通道训练臂对照 plan 生成器——
   同一 ep0 checkpoint/seed 出 HITL_C0/HITL_EXP/HITL_CTRL/HITL_DEMO 四臂
   （差异仅 `expert_pool_manifest`/`expert_ratio`）；产物用
-  `python -m sequential run-child` 逐臂执行（探索性 pilot，不入台账）。
+  `python -m semi_offline.sequential run-child` 逐臂执行（探索性 pilot，不入台账）。
 - `hitl/figs/curve_figs.py`：训练期佐证图——自主冻结 eval 学习曲线
   （vs 决策数，多 seed mean±std 带）、AULC、对 C0 同 seed 配对 delta、
   专家腿消耗量（sampling_windows 账本）；eval 快照 digest 去重的
@@ -610,9 +610,9 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
   h/f_hat 的 μ/σ，产 reward_calibration.json 供训练器 shaping）。
 - `hitl/probe/paired_bootstrap.py`：同 seed 配对 bootstrap（10000
   重采样；AULC_delta/final_delta + 95% CI，spec §11.4 口径）。
-- `sequential/reward_model.py`：偏好奖励网络 PreferenceRewardNet
+- `semi_offline/sequential/reward_model.py`：偏好奖励网络 PreferenceRewardNet
   （128→128→1，温度 0.25，BCE 含平局 y=0.5）。
-- `sequential/reward_shaping.py`：B 通道奖励塑形——r=r0+λ·z（B1 规则
+- `semi_offline/sequential/reward_shaping.py`：B 通道奖励塑形——r=r0+λ·z（B1 规则
   教师分 / B2 冻结模型分；z=clip((f-μ)/σ,-3,3)；崩溃回退 r0；仅作用
   在线腿）。塑形器在首个转移处惰性构建（SUMO 连接在 reset 前未载路
   网）；轨迹 npz 保留环境真值 r_base，塑形审计（z/h/f_hat/r_base 均
@@ -620,7 +620,7 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
   replay_diagnostics JSON。经 plan child `trainer_overrides` 接入
   （reward_mode/reward_lambda/reward_calibration_path/
   reward_model_path）。
-- `sequential/demo_ac.py`：A 通道 DemoLight 机制——actor/critic 各为
+- `semi_offline/sequential/demo_ac.py`：A 通道 DemoLight 机制——actor/critic 各为
   DQNNet(d→20→20→P)；预训练 = actor Gumbel-NLL（独立均匀流）+
   critic PER（α0.6/β0.4→1，n-step≤10 后缀 + margin 0.8 + L2 1e-5，
   目标网每 50 步同步）；在线逐决策更新（critic 0.5TD + actor 优势
@@ -630,7 +630,7 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
 - `hitl/pipeline/build_demos.py`：示范集构建——打包档案→扁平
   (obs,aE,r,obs',done,episode_id) npz，episode 序保持（n-step 后缀
   按 episode_id 分组推导）。
-- `sequential/adjudication.py`：B′ 采样时裁定层——判官面板
+- `semi_offline/sequential/adjudication.py`：B′ 采样时裁定层——判官面板
   （terms 带参治理词表 / reward_model 冻结 RM / qgap 收敛 DQN 快照，
   qgap 硬门槛 episode≥min_episode 且 gradient_updates>0，ep0 档拒载），
   `z=clip(Σw_j·z_j/Σ|w_j|,±clip)` 权重归一合成，单判官崩溃降级不
@@ -699,7 +699,7 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
   的 orb empty 约定），weights/optimizer/epsilon/RNG 原样保留，追加
   `warm_source` 溯源块（源路径/源 episode/源 sha256）写进工件本体；
   --sidecar 产可直接贴进 plan child `initial_state` 的 dict（digest 复用
-  `sequential.core` 四摘要函数）。消费端零改动：`from_initial_state`
+  `infra.core` 四摘要函数）。消费端零改动：`from_initial_state`
   只校验档内 episode==0+counters==0。链式用法：phase0 短程 ep0 run 产
   M₀ → paired_probe student 臂冻结基线 → hitl 臂同档介入采集 →
   package/filter_pool 建 per-seed 池 → warm-init 续训（expert_pool
@@ -745,12 +745,12 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
   两批 stage_01 轨迹均未持久化，实际贡献 st2–4）、p1_formal（80 单元=
   4 config×seed0-4×Q1-Q4 切片，同 seed 多批 run 取 episode 最全者）、
   hitl_probe pilot/pilot5/multiscene/warmloop（254 单元，人类接管）。
-  覆盖口径 `ha_coverage_v1`（sequential/owp.py）去 network/seed 维：
+  覆盖口径 `ha_coverage_v1`（semi_offline/sequential/owp.py）去 network/seed 维：
   cell=(load_bin×max_bin×imb_bin×phase×action)，分箱 [0,1,3,7,15,31]。
   `harvest.py` 产 `cache/units.json`（1534 单元：SACo=占用 cell 数/
   saco_frac/cell_entropy_norm、TQ=均 reward）+ `marginals.npz`；
   `harvest_evals.py` 产 `cache/evals.json`（3777 个 stage 末冻结评估
-  格：sequential/ 系走 events.jsonl `evaluation:stage_k:local_*:<net>`
+  格：semi_offline/sequential/ 系走 events.jsonl `evaluation:stage_k:local_*:<net>`
   取 local 最大者→_shared_evaluation，s8f 走 evK_<scene>/summary.json
   末条）；`plot_figs.py` 产 `figs/`——fig1_seq8_{N1,R1,D1,union}（行=
   stage/需求包、列=三控制器 log 热力图）、fig1_hz1x1（4 config 场景×
@@ -761,7 +761,7 @@ probe3_sup、probes、single_cmp_layered、status、statelib_matrix.sh）、`flx
   fig3_seq8 与 fig3_ha_e4（非对角遗忘 Δ%=(k 段回评/j 段自评−1)×100
   mean±95%CI；seq8 每臂每序 n=56、ALL n=168；ha E4 五臂×O1-O4，每臂
   每序 n≈24-30 场景格、ALL n≈111-114）。注意：seq8 ANCHOR 与 CONT/
-  DHOA 跨 runtime（run.py+队列 vs sequential/）；plan34 fifo_matched_
+  DHOA 跨 runtime（run.py+队列 vs semi_offline/sequential/）；plan34 fifo_matched_
   wait reward 变体使其 TQ 跨臂不可比；SELF-CQ 按裁决不进结论；CI 按
   场景格计非种子级。
 - `dev/xiasha1_online_monitor/`：xiasha1_online_v1 只读 TensorBoard 投影件
@@ -855,4 +855,17 @@ campaign 绑定的一次性脚本从 `tools/` 迁至 `dev/<campaign>/`（`git mv
   ep0 语义暖启动初始态（保留权重/优化器/epsilon/RNG，清零计数器与 replay）；
   `fig_queue_compare.py` 绘制 warmloop 三臂（M0 / 虚拟专家 / M1）queue 轨迹对比图。收编于 `1cb161a`。
 - 自本次起，`dev/` 下每个子目录都必须在本文件登记（`tests/test_architecture.py::test_dev_dirs_registered` 校验）。
+
+## 顶层研究包重组（2026-11-12 整理，分支 gov/layout）
+
+| 原路径 | 新路径 |
+|---|---|
+| `sequential/{io,core,checkpoint,transaction,state,launcher,evaluator}.py` | `infra/`（实验运行基座，模块名不变） |
+| `sequential/offline.py`（`python -m sequential.offline`） | `semi_offline/offline.py`（`python -m semi_offline.offline`） |
+| `sequential/` 其余（`python -m sequential`） | `semi_offline/sequential/`（`python -m semi_offline.sequential`） |
+| `plan5/`（`python -m plan5`） | `semi_offline/plan5/` |
+| `arterial/` | `semi_offline/arterial/` |
+
+活跃代码、测试与文档中的引用已改写；台账、实验记录等历史文件中的旧路径未改，按上表对照。
+历史 checkpoint 中 pickle 的旧模块路径由 `infra/_legacy.py` 解析，可照常加载。
 

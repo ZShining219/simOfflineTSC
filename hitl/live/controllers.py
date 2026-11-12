@@ -205,7 +205,7 @@ class SnapshotController:
         return self._payload
 
     def bind(self, world, ranks=None):
-        from sequential.agent import build_q_network
+        from semi_offline.sequential.agent import build_q_network
 
         payload = self.payload
         if self._model is None:
@@ -374,8 +374,8 @@ class ManualController:
 
 def _build_inference_agent(world, payload, rank=0, model=None):
     """Assemble an InferenceOnlyDQN-equivalent bound to one junction rank."""
-    from sequential.agent import build_q_network
-    from sequential.evaluator import InferenceOnlyDQN
+    from semi_offline.sequential.agent import build_q_network
+    from infra.evaluator import InferenceOnlyDQN
 
     agent = InferenceOnlyDQN.__new__(InferenceOnlyDQN)
     agent.world = world

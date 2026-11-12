@@ -63,7 +63,7 @@ dev/_legacy/<date>/      # 历史散件归档（移动非删除）
 
 正式能力一律收进包，拉起语法统一为 **`python -m <pkg>[.<face>] [args]`**；`python -m <pkg>` 打开包门面（子命令集或面表卡，见各包 README）。禁止新写根级 `*_run.py` 入口。
 
-**方法包**（`sequential/`、`scene_attention/`、后续新算法）固定槽位：
+**方法包**（`semi_offline/sequential/`、`scene_attention/`、后续新算法）固定槽位：
 
 ```
 <pkg>/README.md   方法卡：问什么/入口面表/当前结论/变体状态/证据指针
@@ -75,13 +75,13 @@ dev/_legacy/<date>/      # 历史散件归档（移动非删除）
 <pkg>/_legacy/    可选：死代际归档（附死因 README）
 ```
 
-**通道包**（`hitl/`）槽位按职责命名：`serve`（`python -m hitl.serve`）、`pipeline/<stage>`、`plans`、`probe`、`audit`；HITL 训练态一律走 `sequential`（`mode=hitl_channel`），本包不开 train 面。
+**通道包**（`hitl/`）槽位按职责命名：`serve`（`python -m hitl.serve`）、`pipeline/<stage>`、`plans`、`probe`、`audit`；HITL 训练态一律走 `semi_offline.sequential`（`mode=hitl_channel`），本包不开 train 面。
 
 约束：
 
-- 包只许依赖下层契约（`world/`、`common/`、`data/dataset/`、`utils/` 与自身内部件）；禁跨包 import 内部实现。
+- 三层依赖（`tests/test_architecture.py` 校验）：框架层（`agent/ world/ trainer/ task/ common/ utils/ generator/ data/`）→ 实验基座（`infra/` 运行、`lab/` 管理）→ 研究线（`semi_offline/ scene_attention/ hitl/`）；只许上层依赖下层，禁跨研究线 import 内部实现（存量例外：`hitl` 训练通道复用 `semi_offline.sequential`）。
 - 工单放 `configs/<pkg>/`；实验参数禁内嵌在脚本里。
-- 老根级入口只许留薄 shim（deprecation 提示后转发 `-m` 面），下一版本清理。
+- 不新增根级入口与根级研究包；新研究线放独立包并在本节登记，通用能力下沉 `infra/` 而不是留在方法包里。
 - 出图/一次性件不进面，按 dev/ 规则登记或归 `<pkg>/figs/`。
 
 ## 4. 台账（两级，强制）

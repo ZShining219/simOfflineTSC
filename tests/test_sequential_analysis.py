@@ -5,13 +5,13 @@ import unittest
 
 import numpy as np
 
-from sequential.analysis import (
+from semi_offline.sequential.analysis import (
     exact_sign_flip_test, holm_adjust, normalized_auc, paired_bootstrap, raw_auc,
     replay_uniformity_envelope, _select_analysis_children, summarize_run,
 )
-from sequential.core import canonical_transition_digest
-from sequential.validation import validate_trajectory_marker
-from sequential.hybrid_analysis import (
+from infra.core import canonical_transition_digest
+from semi_offline.sequential.validation import validate_trajectory_marker
+from semi_offline.sequential.hybrid_analysis import (
     _paired_effect, _replay_performance_association,
     _standardized_paired_effect, _stratified_effect,
 )
@@ -230,7 +230,7 @@ class SequentialAnalysisTests(unittest.TestCase):
                 shard, **{key: np.asarray([value]) for key, value in transition.items()},
                 transition_id=np.asarray(['id-1']),
             )
-            from sequential.io import sha256_file
+            from infra.io import sha256_file
             marker = {
                 'schema_version': 1, 'identity': {}, 'transition_count': 1,
                 'trajectory_path': shard, 'trajectory_sha256': sha256_file(shard),

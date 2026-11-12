@@ -66,7 +66,7 @@ def main(argv=None):
     args = ap.parse_args(argv)
 
     import torch
-    from sequential.reward_model import (
+    from semi_offline.sequential.reward_model import (
         PreferenceRewardNet, predict_segment_scores)
 
     blob = torch.load(_REPO_ROOT / MODEL, map_location='cpu')

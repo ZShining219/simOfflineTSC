@@ -3,7 +3,7 @@ import os
 import tempfile
 import unittest
 
-from sequential.ha_analysis import _resolve_analysis_whitelist, _selection_table
+from semi_offline.sequential.ha_analysis import _resolve_analysis_whitelist, _selection_table
 
 
 def run(logical_id, archive_mode, method, ratio, adaptation,

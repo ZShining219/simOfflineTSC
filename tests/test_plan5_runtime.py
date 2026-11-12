@@ -6,16 +6,16 @@ import numpy as np
 import pytest
 import torch
 
-from plan5.agent import Plan5CTXDDQNAgent, Plan5DDQNAgent, nested_initialize
-from plan5.checkpoint import (
+from semi_offline.plan5.agent import Plan5CTXDDQNAgent, Plan5DDQNAgent, nested_initialize
+from semi_offline.plan5.checkpoint import (
     load_checkpoint, restore_checkpoint, save_checkpoint,
 )
-from plan5.checkpoint_index import CheckpointIndex
-from plan5.ppo_adapter import Plan5PPOAdapter
-from plan5.runtime import Plan5FormalRunner
-from plan5.validation import validate_checkpoint_binding
-from sequential.core import canonical_digest
-from sequential.io import sha256_file
+from semi_offline.plan5.checkpoint_index import CheckpointIndex
+from semi_offline.plan5.ppo_adapter import Plan5PPOAdapter
+from semi_offline.plan5.runtime import Plan5FormalRunner
+from semi_offline.plan5.validation import validate_checkpoint_binding
+from infra.core import canonical_digest
+from infra.io import sha256_file
 
 
 class FakeIntersection:

@@ -118,7 +118,7 @@ def build_queue(cfg, artifacts, dataset):
                     'experiment': spec['name'].rsplit('_p', 1)[0],
                     'pool_replica': int(spec['name'].rsplit('_p', 1)[1]),
                     'agent': algorithm, 'seed': seed,
-                    'command': [sys.executable, '-m', 'sequential.offline', 'train',
+                    'command': [sys.executable, '-m', 'semi_offline.offline', 'train',
                                 '-a', algorithm, '-w', 'sumo', '-n', target,
                                 '--dataset-manifest', str(manifest.relative_to(ROOT)),
                                 '--prefix', run_id, '--seed', str(seed),

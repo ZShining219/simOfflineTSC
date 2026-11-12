@@ -7,15 +7,15 @@ import unittest
 import numpy as np
 import torch
 
-from sequential.config import FORMAL_POLICIES, load_sequential_config
-from sequential.core import (
+from semi_offline.sequential.config import FORMAL_POLICIES, load_sequential_config
+from infra.core import (
     ReplayMetadata, ReplayRecord, SequentialReplay, TargetUpdateScheduler,
     TrainingPayload, canonical_digest, optimizer_state_digest,
     replay_content_digest, replay_metadata_digest,
 )
-from sequential.io import atomic_json
-from sequential.manifest import build_formal_plan, validate_formal_plan
-from sequential.parents import convert_parent_replay
+from infra.io import atomic_json
+from semi_offline.sequential.manifest import build_formal_plan, validate_formal_plan
+from semi_offline.sequential.parents import convert_parent_replay
 
 
 class SequentialParentSupportTests(unittest.TestCase):

@@ -39,7 +39,7 @@ PPO 不纳入本轮 replay-based 跨算法矩阵。PPO 的 on-policy 数据语�
 
 ### 3.0 历史资产生产链
 
-跨算法实验使用的历史数据和初始状态按以下顺序设计。A0～A5 的计划、路径和校验摘要由 `configs/sequential/ha_cross_algorithm_assets_v1.yml` 和 `sequential/historical_assets.py` 统一描述；这些大文件留在 `data/output_data/`，不提交到 Git。
+跨算法实验使用的历史数据和初始状态按以下顺序设计。A0～A5 的计划、路径和校验摘要由 `configs/sequential/ha_cross_algorithm_assets_v1.yml` 和 `semi_offline/sequential/historical_assets.py` 统一描述；这些大文件留在 `data/output_data/`，不提交到 Git。
 
 | 阶段 | 产物 | 设计约束 |
 | --- | --- | --- |
@@ -53,15 +53,15 @@ PPO 不纳入本轮 replay-based 跨算法矩阵。PPO 的 on-policy 数据语�
 资产计划只定义生成链，不伪造 trajectory 或 checkpoint。可以先生成和校验计划：
 
 ```bash
-python -m sequential build-cross-algorithm-assets-plan \
+python -m semi_offline.sequential build-cross-algorithm-assets-plan \
   --config configs/sequential/ha_cross_algorithm_assets_v1.yml \
   --output data/output_data/ha_sodqn/engineering_cross_algorithm/assets_plan.json
 
-python -m sequential validate-cross-algorithm-assets-plan \
+python -m semi_offline.sequential validate-cross-algorithm-assets-plan \
   --plan data/output_data/ha_sodqn/engineering_cross_algorithm/assets_plan.json
 ```
 
-A0 完成后，按既有 Plan 1 runner 生成 20 个源运行；A1–A4 依次使用 `python -m sequential.offline prepare-plan2`、`build-ha-reproduction-audit`、`build-ha-archive`，A5 使用 `build-ha-initial-catalog` 和 `build-dueling-initial-catalog`。只有 `validate-cross-algorithm-assets-plan --require-existing`、各源 validator、Q1 validator、行为审计和 archive hash 均通过，才允许构建 12-run Pilot manifest。
+A0 完成后，按既有 Plan 1 runner 生成 20 个源运行；A1–A4 依次使用 `python -m semi_offline.offline prepare-plan2`、`build-ha-reproduction-audit`、`build-ha-archive`，A5 使用 `build-ha-initial-catalog` 和 `build-dueling-initial-catalog`。只有 `validate-cross-algorithm-assets-plan --require-existing`、各源 validator、Q1 validator、行为审计和 archive hash 均通过，才允许构建 12-run Pilot manifest。
 
 A2 对本轮 100 episode 源运行必须显式传入 `--expected-episodes 100`；A5 构建初始目录时显式传入 `--source-episodes 100`。旧的 400 episode Plan 1 资产可以复用，但不再是本轮历史资产的生成要求。
 
@@ -181,18 +181,18 @@ O2 × training seed 0 × 12 episodes/stage
 
 | 工作项 | 状态 | 证据 |
 | --- | --- | --- |
-| 算法 identity：DQN/DDQN/Dueling DDQN | 已完成 | `sequential/agent.py` |
-| DDQN target operator | 已完成 | `sequential/agent.py`、`sequential/ha_agent.py` |
-| Dueling Q 网络 | 已完成 | `sequential/agent.py` |
-| checkpoint/resume 算法隔离 | 已完成 | `sequential/agent.py`、`sequential/ha_agent.py` |
-| HA runtime 传递 algorithm identity | 已完成 | `sequential/runtime.py` |
+| 算法 identity：DQN/DDQN/Dueling DDQN | 已完成 | `semi_offline/sequential/agent.py` |
+| DDQN target operator | 已完成 | `semi_offline/sequential/agent.py`、`semi_offline/sequential/ha_agent.py` |
+| Dueling Q 网络 | 已完成 | `semi_offline/sequential/agent.py` |
+| checkpoint/resume 算法隔离 | 已完成 | `semi_offline/sequential/agent.py`、`semi_offline/sequential/ha_agent.py` |
+| HA runtime 传递 algorithm identity | 已完成 | `semi_offline/sequential/runtime.py` |
 | 跨算法 Pilot 配置 | 已完成 | `configs/sequential/ha_cross_algorithm_v1.yml` |
-| 12-run Pilot manifest builder/validator | 已完成 | `sequential/cross_algorithm.py`、`sequential/cli.py` |
-| 240-run 正式 manifest builder/validator | 已完成 | `sequential/cross_algorithm.py`、`sequential/cli.py` |
-| 跨算法结果分析接口 | 已完成 | `sequential/cross_analysis.py`、`sequential/cli.py` |
-| Dueling episode-0 初始化转换器 | 已完成 | `sequential/initial_state.py` |
+| 12-run Pilot manifest builder/validator | 已完成 | `semi_offline/sequential/cross_algorithm.py`、`semi_offline/sequential/cli.py` |
+| 240-run 正式 manifest builder/validator | 已完成 | `semi_offline/sequential/cross_algorithm.py`、`semi_offline/sequential/cli.py` |
+| 跨算法结果分析接口 | 已完成 | `semi_offline/sequential/cross_analysis.py`、`semi_offline/sequential/cli.py` |
+| Dueling episode-0 初始化转换器 | 已完成 | `semi_offline/sequential/initial_state.py` |
 | 单元测试和受影响 Sequential 测试 | 已完成 | `tests/test_sequential_algorithms.py`、`tests/test_cross_algorithm_manifest.py` |
-| 历史资产 A0–A5 设计与计划校验 | 已完成 | `configs/sequential/ha_cross_algorithm_assets_v1.yml`、`sequential/historical_assets.py`、`tests/test_cross_algorithm_assets.py` |
+| 历史资产 A0–A5 设计与计划校验 | 已完成 | `configs/sequential/ha_cross_algorithm_assets_v1.yml`、`semi_offline/sequential/historical_assets.py`、`tests/test_cross_algorithm_assets.py` |
 | Plan 1/HA 历史资产实际生成 | 未完成 | 需执行 A0 源运行和 A1–A4 索引/审计链 |
 | Dueling initial-state catalog 实际生成 | 未完成 | 需先完成 A5 的 Independent episode-0 catalog |
 | 12-run Pilot smoke/正式运行 | 未完成 | 等待历史资产和资源门禁 |
@@ -208,10 +208,10 @@ O2 × training seed 0 × 12 episodes/stage
 0. 生成并验证资产计划；按 A0–A5 完成源运行、Q1 索引、行为审计、archive 和两个初始状态目录：
 
 ```bash
-python -m sequential build-cross-algorithm-assets-plan \
+python -m semi_offline.sequential build-cross-algorithm-assets-plan \
   --config configs/sequential/ha_cross_algorithm_assets_v1.yml \
   --output data/output_data/ha_sodqn/engineering_cross_algorithm/assets_plan.json
-python -m sequential validate-cross-algorithm-assets-plan \
+python -m semi_offline.sequential validate-cross-algorithm-assets-plan \
   --plan data/output_data/ha_sodqn/engineering_cross_algorithm/assets_plan.json \
   --require-existing
 ```
@@ -219,7 +219,7 @@ python -m sequential validate-cross-algorithm-assets-plan \
 1. 生成 Dueling initial-state catalog：
 
 ```bash
-python -m sequential build-dueling-initial-catalog \
+python -m semi_offline.sequential build-dueling-initial-catalog \
   --source-catalog data/output_data/ha_sodqn/engineering_20260726/initial_state_catalog.json \
   --output-root data/output_data/ha_sodqn/engineering_20260726/dueling_initial \
   --output data/output_data/ha_sodqn/engineering_20260726/initial_state_catalog_dueling.json
@@ -228,22 +228,22 @@ python -m sequential build-dueling-initial-catalog \
 2. 构建并验证 12-run Pilot manifest：
 
 ```bash
-python -m sequential build-cross-algorithm-pilot \
+python -m semi_offline.sequential build-cross-algorithm-pilot \
   --config configs/sequential/ha_cross_algorithm_v1.yml \
   --output data/output_data/ha_sodqn/engineering/cross_algorithm_pilot.json
 
-python -m sequential validate-cross-algorithm-pilot \
+python -m semi_offline.sequential validate-cross-algorithm-pilot \
   --plan data/output_data/ha_sodqn/engineering/cross_algorithm_pilot.json
 ```
 
 3. 历史资产、Pilot 和审计通过后，生成并验证 240-run 正式 manifest：
 
 ```bash
-python -m sequential build-cross-algorithm-formal \
+python -m semi_offline.sequential build-cross-algorithm-formal \
   --config configs/sequential/ha_cross_algorithm_v1.yml \
   --output data/output_data/ha_sodqn/engineering/cross_algorithm_formal.json
 
-python -m sequential validate-cross-algorithm-formal \
+python -m semi_offline.sequential validate-cross-algorithm-formal \
   --plan data/output_data/ha_sodqn/engineering/cross_algorithm_formal.json
 ```
 
@@ -260,7 +260,7 @@ python -m sequential validate-cross-algorithm-formal \
 6. 运行完成并通过 HA audit 后，使用同一分析入口生成算法内和算法间配对效应：
 
 ```bash
-python -m sequential analyze-cross-algorithm \
+python -m semi_offline.sequential analyze-cross-algorithm \
   --manifest data/output_data/ha_sodqn/engineering/cross_algorithm_formal.json \
   --output-root data/output_data/ha_sodqn/cross_algorithm_formal \
   --whitelist data/output_data/ha_sodqn/analysis/cross_algorithm_audit.json \

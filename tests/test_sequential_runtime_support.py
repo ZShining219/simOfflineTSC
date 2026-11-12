@@ -6,14 +6,14 @@ from types import SimpleNamespace
 
 import numpy as np
 
-from sequential.core import (
+from infra.core import (
     ReplayMetadata, ReplayRecord, SequentialReplay, TrainingPayload,
 )
-from sequential.diagnostics import ReplayDiagnostics
-from sequential.io import atomic_json, read_json
-from sequential.manifest import build_pilot_plan
-from sequential.runtime import SequentialChildRunner
-from sequential.state import SequentialJournal
+from semi_offline.sequential.diagnostics import ReplayDiagnostics
+from infra.io import atomic_json, read_json
+from semi_offline.sequential.manifest import build_pilot_plan
+from semi_offline.sequential.runtime import SequentialChildRunner
+from infra.state import SequentialJournal
 
 
 class SequentialRuntimeSupportTests(unittest.TestCase):
@@ -258,8 +258,8 @@ class SequentialRuntimeSupportTests(unittest.TestCase):
                 'transition_id': 'transition-18',
             }
             with mock.patch(
-                'sequential.runtime.time.monotonic', side_effect=[0.0, 31.0]
-            ), mock.patch('sequential.runtime.time.sleep'):
+                'semi_offline.sequential.runtime.time.monotonic', side_effect=[0.0, 31.0]
+            ), mock.patch('semi_offline.sequential.runtime.time.sleep'):
                 runner._decision_progress_hook(progress)
             persisted = read_json(os.path.join(directory, 'training_progress.json'))
             self.assertEqual(persisted['simulation_step'], 180)

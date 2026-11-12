@@ -60,7 +60,7 @@ def infer_method(state_dict):
 
 
 def build_wrapper(method, traffic_dim, lane_dim):
-    from arterial.control import stable_intersection_order
+    from semi_offline.arterial.control import stable_intersection_order
     from reproduction.tarl_tsc.parent_adapter import _QWrapper
     graph = json.loads(
         (ROOT / 'reproduction/tarl_tsc/data/hangzhou_4x4_gudang_18041610_1h'

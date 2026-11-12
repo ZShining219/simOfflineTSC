@@ -6,9 +6,9 @@ import tempfile
 import unittest
 from unittest import mock
 
-from sequential.io import atomic_json
-from sequential.cli import main as sequential_main
-from sequential.launcher import (
+from infra.io import atomic_json
+from semi_offline.sequential.cli import main as sequential_main
+from infra.launcher import (
     AttemptLineage, ConcurrencyController, GIB, LogicalRunLock,
     ResourceGate, SequentialLauncher, classify_failure, collect_status,
     is_auto_recoverable, process_exists, reconcile_invalid_ha_runs,
@@ -88,7 +88,7 @@ class SequentialLauncherTests(unittest.TestCase):
             )
 
             with mock.patch(
-                'sequential.launcher.load_full_checkpoint', return_value={},
+                'infra.launcher.load_full_checkpoint', return_value={},
             ):
                 context = AttemptLineage(
                     directory, 'logical',
@@ -150,9 +150,9 @@ class SequentialLauncherTests(unittest.TestCase):
             )
 
             with mock.patch(
-                'sequential.launcher.load_full_checkpoint', return_value={},
+                'infra.launcher.load_full_checkpoint', return_value={},
             ), mock.patch(
-                'sequential.launcher.subprocess.Popen', ImmediateProcess,
+                'infra.launcher.subprocess.Popen', ImmediateProcess,
             ):
                 SequentialLauncher(
                     manifest, output_root, resource_gate=PassingGate(),
@@ -216,7 +216,7 @@ class SequentialLauncherTests(unittest.TestCase):
                 return {}
 
             with mock.patch(
-                'sequential.launcher.load_full_checkpoint', side_effect=checkpoint,
+                'infra.launcher.load_full_checkpoint', side_effect=checkpoint,
             ):
                 report = reconcile_invalid_ha_runs(
                     directory, manifest, ['invalid'],
@@ -305,7 +305,7 @@ class SequentialLauncherTests(unittest.TestCase):
                 return {}
 
             with mock.patch(
-                'sequential.launcher.load_full_checkpoint', side_effect=checkpoint,
+                'infra.launcher.load_full_checkpoint', side_effect=checkpoint,
             ):
                 report = reconcile_invalid_ha_runs(
                     directory, manifest, ['valid'],
@@ -363,7 +363,7 @@ class SequentialLauncherTests(unittest.TestCase):
             with mock.patch.object(
                 AttemptLineage, 'latest_recovery_checkpoint', recovery,
             ), mock.patch(
-                'sequential.launcher.os.path.getmtime', return_value=1,
+                'infra.launcher.os.path.getmtime', return_value=1,
             ):
                 report = reconcile_stale_runs(
                     directory, manifest, stale_seconds=10,
@@ -414,7 +414,7 @@ class SequentialLauncherTests(unittest.TestCase):
             lock = LogicalRunLock(os.path.join(lineage.root, 'run.lock')).acquire()
             try:
                 with mock.patch(
-                    'sequential.launcher.os.path.getmtime', return_value=1,
+                    'infra.launcher.os.path.getmtime', return_value=1,
                 ):
                     report = reconcile_stale_runs(
                         directory, manifest, stale_seconds=10,
@@ -426,7 +426,7 @@ class SequentialLauncherTests(unittest.TestCase):
             self.assertEqual(lineage.manifest['status'], 'running')
 
             with mock.patch(
-                'sequential.launcher.os.path.getmtime', return_value=95,
+                'infra.launcher.os.path.getmtime', return_value=95,
             ):
                 report = reconcile_stale_runs(
                     directory, manifest, stale_seconds=10,
@@ -450,7 +450,7 @@ class SequentialLauncherTests(unittest.TestCase):
             with mock.patch.object(
                 LogicalRunLock, 'acquire', change_pid_then_acquire,
             ), mock.patch(
-                'sequential.launcher.os.path.getmtime', return_value=1,
+                'infra.launcher.os.path.getmtime', return_value=1,
             ):
                 report = reconcile_stale_runs(
                     directory, manifest, stale_seconds=10,
@@ -475,7 +475,7 @@ class SequentialLauncherTests(unittest.TestCase):
                 {'checkpoint_path': corrupt},
             )
             with mock.patch(
-                'sequential.launcher.os.path.getmtime', return_value=1,
+                'infra.launcher.os.path.getmtime', return_value=1,
             ):
                 rejected = reconcile_stale_runs(
                     directory, manifest, stale_seconds=10,
@@ -493,7 +493,7 @@ class SequentialLauncherTests(unittest.TestCase):
                 AttemptLineage, 'latest_recovery_checkpoint',
                 return_value='/valid/recovery.pt',
             ), mock.patch(
-                'sequential.launcher.os.path.getmtime', return_value=1,
+                'infra.launcher.os.path.getmtime', return_value=1,
             ):
                 first = reconcile_stale_runs(
                     directory, manifest, stale_seconds=10,
@@ -688,9 +688,9 @@ class SequentialLauncherTests(unittest.TestCase):
                     launcher._signal_handler(signal.SIGINT, None)
 
             with mock.patch(
-                'sequential.launcher.subprocess.Popen', DelayedInterruptProcess,
+                'infra.launcher.subprocess.Popen', DelayedInterruptProcess,
             ), mock.patch(
-                'sequential.launcher.time.sleep', interrupt_after_spawn,
+                'infra.launcher.time.sleep', interrupt_after_spawn,
             ):
                 result = launcher.launch()
 

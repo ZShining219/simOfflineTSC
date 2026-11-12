@@ -109,6 +109,18 @@
   `shared_dqn` 对 arterial 场景常量的依赖；`scene_attention/_legacy/` 移出（仍被 figs 与 HITL 引用）。
 - **其他 agent 恢复工作前**：各克隆执行 `git config core.hooksPath .githooks`；dsh 各工作树基于新 main 重建。
 
+## 3.2 第二轮：顶层研究包重组（2026-11-12，分支 gov/layout）
+
+- [x] `infra/`：从 `sequential/` 抽出通用运行基座；`semi_offline/`：收拢 `sequential/`、`plan5/`、`arterial/` 与纯离线入口
+- [x] 旧模块路径兼容（历史 checkpoint 以 `sequential.core.*` pickle 了类；不经兼容层无法加载）
+- [x] 架构测试三层约束 + 禁止 import 旧名字；README、AGENTS、GOVERNANCE 项目结构与入口更新
+- 类似问题排查结论：
+  - 重复实现：`semi_offline/plan5/` 自带 checkpoint/launcher/evaluator/manifest/config 副本（已冻结），新工作用 `infra/`，不合并以免改变历史行为；
+  - 研究线代码仍在框架层：注意力线 `agent/scene_attention.py`、`agent/scene_alignment.py`、`agent/tarl.py`、`utils/scene_context.py`；
+    论文基线 `agent/paper_baselines.py`、`trainer/paper_trainer.py`、`common/paper_*.py`、`world/paper_rewards.py`；
+    纯离线 `agent/offline_dqn.py`、`trainer/offline_tsc_trainer.py`、`task/offline_tsc_task.py`、`data/dataset/offline_trajectory_dataset.py`；
+    arterial `agent/shared_dqn.py`。这些通过注册表被 `run.py` 加载，移出需改注册机制，见下条评估。
+
 ## 4.1 研究侧备忘（不属于本次整理，不安排执行）
 
 - 指标口径改为最佳 checkpoint 后，`xiasha1_online_v3` 有 2/12、`hz1x1_sanity_v1` 有 1/4 个车流包的最优臂改变。

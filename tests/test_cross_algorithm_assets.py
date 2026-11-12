@@ -3,7 +3,7 @@ import os
 import tempfile
 import unittest
 
-from sequential.historical_assets import (
+from semi_offline.sequential.historical_assets import (
     build_historical_asset_plan,
     validate_historical_asset_plan,
 )

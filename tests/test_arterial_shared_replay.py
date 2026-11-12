@@ -4,10 +4,10 @@ import numpy as np
 import json
 import pytest
 
-from arterial.control import (actions_by_intersection, build_action_mask,
+from semi_offline.arterial.control import (actions_by_intersection, build_action_mask,
                               stable_intersection_order)
-from arterial.experiment import SCENE_ORDERS, stage_overlay, validate_experiment_config
-from arterial.replay import (HistoricalPool, LocalTransition,
+from semi_offline.arterial.experiment import SCENE_ORDERS, stage_overlay, validate_experiment_config
+from semi_offline.arterial.replay import (HistoricalPool, LocalTransition,
                              HistoryArchiveWriter, TraceableReplayBuffer, TransitionMetadata,
                              mixed_batch, split_local_transitions)
 

@@ -15,7 +15,7 @@ from torch.nn.utils import clip_grad_norm_
 import torch.optim as optim
 
 from common.intersection_control import build_action_mask, stable_intersection_order
-from arterial.experiment import ARTERIAL_SCENES
+from semi_offline.arterial.experiment import ARTERIAL_SCENES
 from common.history_replay import (HistoricalPool, LocalTransition, mixed_batch,
                              split_local_transitions)
 from common.registry import Registry

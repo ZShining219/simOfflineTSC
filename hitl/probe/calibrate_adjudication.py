@@ -51,9 +51,9 @@ def main(argv=None):
     parser.add_argument('--out', required=True)
     args = parser.parse_args(argv)
 
-    from sequential.adjudication import (
+    from semi_offline.sequential.adjudication import (
         Adjudicator, leg_features_from_view, load_topology_ctx)
-    from sequential.expert_pool import ExpertPoolArchive
+    from semi_offline.sequential.expert_pool import ExpertPoolArchive
 
     ctx = load_topology_ctx(args.topology, args.action_interval)
     ctx['action_interval'] = float(args.action_interval)

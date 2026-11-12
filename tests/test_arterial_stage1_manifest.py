@@ -5,7 +5,7 @@ from pathlib import Path
 
 import yaml
 
-from arterial.experiment import ARTERIAL_SCENES
+from semi_offline.arterial.experiment import ARTERIAL_SCENES
 
 
 def test_stage1_manifest_has_frozen_twenty_run_matrix(tmp_path):

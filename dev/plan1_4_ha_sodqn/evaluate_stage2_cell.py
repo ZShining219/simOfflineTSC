@@ -3,8 +3,8 @@
 import argparse, json, sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-from sequential.config import simulator_config_path
-from sequential.evaluator import IndependentEvaluator
+from semi_offline.sequential.config import simulator_config_path
+from infra.evaluator import IndependentEvaluator
 
 def main():
     p = argparse.ArgumentParser()

@@ -1,11 +1,11 @@
 import unittest
 
-from sequential.cross_algorithm import (
+from semi_offline.sequential.cross_algorithm import (
     ALGORITHMS,
     CONDITION_IDS,
     load_cross_algorithm_config,
 )
-from sequential.cross_analysis import _algorithm_effects, _algorithm_pair_effects
+from semi_offline.sequential.cross_analysis import _algorithm_effects, _algorithm_pair_effects
 
 
 class CrossAlgorithmManifestTest(unittest.TestCase):

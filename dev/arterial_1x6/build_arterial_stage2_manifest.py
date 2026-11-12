@@ -15,7 +15,7 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 if str(REPOSITORY_ROOT) not in sys.path:
     sys.path.insert(0, str(REPOSITORY_ROOT))
 
-from arterial.experiment import ARTERIAL_SCENES, SCENE_ORDERS, validate_experiment_config
+from semi_offline.arterial.experiment import ARTERIAL_SCENES, SCENE_ORDERS, validate_experiment_config
 from dev.arterial_1x6.build_arterial_stage0_manifest import THREAD_ENV
 from dev.arterial_1x6.run_arterial_sequential import load_frozen_hoa
 

@@ -6,14 +6,14 @@ import unittest
 import numpy as np
 import torch
 
-from sequential.checkpoint import (
+from infra.checkpoint import (
     RollingRecoveryManager, atomic_torch_save, build_resume_validation,
     load_full_checkpoint,
 )
-from sequential.core import canonical_digest, capture_rng_state
-from sequential.io import atomic_json
-from sequential.state import SequentialJournal, SequentialRunPhase
-from sequential.transaction import EpisodeTransaction
+from infra.core import canonical_digest, capture_rng_state
+from infra.io import atomic_json
+from infra.state import SequentialJournal, SequentialRunPhase
+from infra.transaction import EpisodeTransaction
 
 
 class StatefulAgent:

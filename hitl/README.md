@@ -9,7 +9,7 @@
 |---|---|---|
 | `live/` | 实时引擎：SUMO 转播、真人专家席、问询门（periodic/on_demand/random/margin/window）、逐决策 transitions 录制 | C 通道载体 |
 | `pipeline/` | 数据面：会话打包→片段切割→偏好对/示范集/专家池→RM 拟合 | A 示范、B 偏好 |
-| `plans/` | 正式 plan 生成器与派发器（喂 `sequential/` 的 run-child） | 全通道 |
+| `plans/` | 正式 plan 生成器与派发器（喂 `semi_offline/sequential/` 的 run-child） | 全通道 |
 | `probe/` | 配对探针（student/hitl/expert 同 seed 对照）+ 判官/RM 归一化校准 | B′、C |
 | `figs/` | 出图与汇总表 | — |
 | `audit/` | B′ 判官审计（错序/分歧/反事实/rank_aux） | B′ |
@@ -17,12 +17,12 @@
 
 ## 边界（重要）
 
-- **训练态件在 `sequential/`**：`adjudication`/`reward_model`/`reward_shaping`/`demo_ac`/`expert_pool`
+- **训练态件在 `semi_offline/sequential/`**：`adjudication`/`reward_model`/`reward_shaping`/`demo_ac`/`expert_pool`
   是 sequential 训练协议的 B′ 通道臂，由训练环直接消费，**不属本包**。
-- **本包只做产物生产**：`pipeline/` 可引 `sequential.io`/`sequential.reward_model`（模型类），
-  但不实现训练逻辑；`sequential/` 只按 manifest/schema 消费产物，不知 HITL 语义。
-- **依赖单向**：`hitl/` → 下层包公共接口（agent/world/sequential.io）；
-  `sequential/`、骨架层、`live/` 引擎**禁止** `import hitl.*`。
+- **本包只做产物生产**：`pipeline/` 可引 `infra.io`/`sequential.reward_model`（模型类），
+  但不实现训练逻辑；`semi_offline/sequential/` 只按 manifest/schema 消费产物，不知 HITL 语义。
+- **依赖单向**：`hitl/` → 下层包公共接口（agent/world/infra.io）；
+  `semi_offline/sequential/`、骨架层、`live/` 引擎**禁止** `import hitl.*`。
 - **agent 接入走 adapter**：`live/controllers` 为注册表面，HITL 不 import agent 具体类；
   新控制器在各自方法包侧注册（跨模块改动按 mechanism→宿主、policy→hitl 分家）。
 

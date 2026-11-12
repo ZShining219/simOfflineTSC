@@ -34,7 +34,7 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-from sequential.io import atomic_json, read_json, sha256_file  # noqa: E402
+from infra.io import atomic_json, read_json, sha256_file  # noqa: E402
 
 
 def _initial_state(checkpoint_path, catalog_path, network, seed):

@@ -5,42 +5,42 @@ import numpy as np
 import pytest
 import torch
 
-from sequential.io import sha256_file
+from infra.io import sha256_file
 
-from plan5.cli import run_manifest_destination
-from plan5.algorithms import ddqn_target, dqn_full_vector_target
-from plan5.analysis import (
+from semi_offline.plan5.cli import run_manifest_destination
+from semi_offline.plan5.algorithms import ddqn_target, dqn_full_vector_target
+from semi_offline.plan5.analysis import (
     context_distinction, current_adaptation, historical_metrics,
     freeze_ppo_calibration, paired_cluster_bootstrap, policy_disagreement,
     probe_internal_metrics,
 )
-from plan5.analysis_package import build_inference_tables
-from plan5.context import ContextHistory, context_from_events, direction_from_geometry
-from plan5.config import load_config
-from plan5.evaluator import (
+from semi_offline.plan5.analysis_package import build_inference_tables
+from semi_offline.plan5.context import ContextHistory, context_from_events, direction_from_geometry
+from semi_offline.plan5.config import load_config
+from semi_offline.plan5.evaluator import (
     build_fixedtime_reference, formal_evaluation_schedule,
     full_checkpoint_schedule,
 )
-from plan5.frozen_evaluator import SnapshotDQNPolicy
-from plan5.manifest import (
+from semi_offline.plan5.frozen_evaluator import SnapshotDQNPolicy
+from semi_offline.plan5.manifest import (
     build_ppo_calibration_manifest, build_run_manifest, calibration_run_id,
     run_id, validate_ppo_calibration_manifest, validate_run_manifest,
     validate_same_start, write_ppo_calibration_manifest, write_run_manifest,
 )
-from plan5.launcher import Plan5Launcher
-from plan5.probe import (
+from semi_offline.plan5.launcher import Plan5Launcher
+from semi_offline.plan5.probe import (
     PROBE_ID, fixed_probe_inference, generate_probe,
     validate_probe_manifest, write_probe,
 )
-from plan5.provenance import collect_source_provenance, is_source_scope_path
-from plan5.schema import (
+from semi_offline.plan5.provenance import collect_source_provenance, is_source_scope_path
+from semi_offline.plan5.schema import (
     JSON_REQUIRED_FIELDS, RUN_MANIFEST_COLUMNS, TABLE_SCHEMAS,
     validate_json_fields, validate_table_header, write_schema_index,
     write_table,
 )
-from plan5.runtime import Plan5FormalRunner
-from plan5.sumo_runtime import causal_gate_report
-from plan5.validation import (
+from semi_offline.plan5.runtime import Plan5FormalRunner
+from semi_offline.plan5.sumo_runtime import causal_gate_report
+from semi_offline.plan5.validation import (
     validate_formal_records, validate_launch_row, validate_same_start_matrix,
 )
 
@@ -695,7 +695,7 @@ def test_probe_generation_failure_does_not_promote_trajectories(
             },
         }
     monkeypatch.setattr(
-        'plan5.sumo_runtime.evaluate_policy', failing_evaluation,
+        'semi_offline.plan5.sumo_runtime.evaluate_policy', failing_evaluation,
     )
     output = tmp_path / PROBE_ID
     evaluations = tmp_path / 'evaluation_runs'

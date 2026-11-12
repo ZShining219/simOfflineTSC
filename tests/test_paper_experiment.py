@@ -15,7 +15,7 @@ import torch
 import yaml
 
 from common.paper_experiment import plan, load_manifest, read_json, digest, load_config
-from sequential.launcher import LogicalRunLock
+from infra.launcher import LogicalRunLock
 from trainer.tsc_trainer import _state_values_equal
 
 ROOT = Path(__file__).resolve().parents[1]

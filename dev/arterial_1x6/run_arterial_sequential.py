@@ -17,7 +17,7 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 if str(REPOSITORY_ROOT) not in sys.path:
     sys.path.insert(0, str(REPOSITORY_ROOT))
 
-from arterial.experiment import (ARTERIAL_SCENES, SCENE_ORDERS,
+from semi_offline.arterial.experiment import (ARTERIAL_SCENES, SCENE_ORDERS,
                                  build_cross_scene_evaluation_manifest)
 
 

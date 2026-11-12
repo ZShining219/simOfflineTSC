@@ -13,7 +13,7 @@ from data.dataset.offline_trajectory_dataset import (
     OfflineBatch, _reward_transform, _source_reward_descriptor,
 )
 from dev.hz1x1_offline.prepare import build_specs
-from sequential.offline import build_parser
+from semi_offline.offline import build_parser
 from trainer.offline_tsc_trainer import source_network_counts
 from utils.logger import build_config, merge_dicts
 from world.world_sumo import World

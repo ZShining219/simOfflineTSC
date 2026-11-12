@@ -1,7 +1,7 @@
 import yaml
 
 from arterial_run import command_for_stage
-from arterial.experiment import (build_cross_scene_evaluation_manifest,
+from semi_offline.arterial.experiment import (build_cross_scene_evaluation_manifest,
                                  stage_overlay, validate_experiment_config)
 
 

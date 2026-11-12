@@ -15,7 +15,7 @@
 - batch_size=64 时，ratio 0.25/0.50/0.75 分别为 16/32/48 个 historical samples。
 - online 与 historical 分别计算同一 DQN TD/MSE loss，再做加权和。
 - historical archive 来自 Plan 2 Q1、episodes 1–100；P1C 只访问当前 stage 之前场景，P1F 访问全部场景。
-- RAND、COV、CQ、CQA、DHOA 的实际 selection/sampling 规则可以由 `sequential/owp.py` 还原。
+- RAND、COV、CQ、CQA、DHOA 的实际 selection/sampling 规则可以由 `semi_offline/sequential/owp.py` 还原。
 - frozen evaluation 为 epsilon=0、无 replay 写入、无 gradient update；`evaluation_retries=3` 是同一 evaluation cell 的最多三次执行尝试，不是三个 evaluation seeds。
 - travel time 是已完成车辆的实际行程时间平均值。
 - Q drift 是固定 probe 上完整 8-action Q 向量的 Euclidean L2 距离均值。
@@ -45,30 +45,30 @@
 
 | Methods item | confirmed implementation | evidence path/line | confidence |
 |---|---|---|---|
-| Training reward | `LaneVehicleGenerator(['lane_waiting_count'], in_only=True, average='all', negative=True)`，再乘 12 | `sequential/agent.py:140-149, 380-382` | CONFIRMED |
+| Training reward | `LaneVehicleGenerator(['lane_waiting_count'], in_only=True, average='all', negative=True)`，再乘 12 | `semi_offline/sequential/agent.py:140-149, 380-382` | CONFIRMED |
 | Waiting count | 实际代码根据 `waiting_times` 中的 `wait>0` 计数；不是仅按当前速度判断 | `world/world_sumo.py:275-290` | CONFIRMED |
 | Reward aggregation | 每 road 先 lane mean，再 road mean，取负 | `generator/lane_vehicle.py:158-172` | CONFIRMED |
-| Decision reward | 10 个一秒 reward 的 arithmetic mean | `sequential/trainer.py:57-84` | CONFIRMED |
-| Terminal reward | 无特殊 terminal reward | `sequential/trainer.py:74-84` | CONFIRMED |
-| Terminal bootstrap | `terminated/truncated` 保存但 TD target 不做 terminal mask | formal `e7705f7:sequential/ha_agent.py:184-198`; `build_checkpoint_probe.py:291-293` | CONFIRMED |
-| State | 8 lane-count + 8 phase one-hot = 16 | `archive_root_manifest.json` 的 `observation_dim=16/state_dim=8/phase_dim=8`; `sequential/agent.py:431-450` | CONFIRMED |
-| Lane count | incoming lanes 的 SUMO lane vehicle count，检测范围默认 200 m | `sequential/agent.py:140-143`; `world/world_sumo.py:309-327, 738-750` | CONFIRMED |
-| State normalization | 未执行 normalization | `sequential/agent.py:431-461` | CONFIRMED |
+| Decision reward | 10 个一秒 reward 的 arithmetic mean | `semi_offline/sequential/trainer.py:57-84` | CONFIRMED |
+| Terminal reward | 无特殊 terminal reward | `semi_offline/sequential/trainer.py:74-84` | CONFIRMED |
+| Terminal bootstrap | `terminated/truncated` 保存但 TD target 不做 terminal mask | formal `e7705f7:semi_offline/sequential/ha_agent.py:184-198`; `build_checkpoint_probe.py:291-293` | CONFIRMED |
+| State | 8 lane-count + 8 phase one-hot = 16 | `archive_root_manifest.json` 的 `observation_dim=16/state_dim=8/phase_dim=8`; `semi_offline/sequential/agent.py:431-450` | CONFIRMED |
+| Lane count | incoming lanes 的 SUMO lane vehicle count，检测范围默认 200 m | `semi_offline/sequential/agent.py:140-143`; `world/world_sumo.py:309-327, 738-750` | CONFIRMED |
+| State normalization | 未执行 normalization | `semi_offline/sequential/agent.py:431-461` | CONFIRMED |
 | Action | 8 个 green-phase index | `archive_root_manifest.json` 的 `action_dim=8/green_action_count=8` | CONFIRMED |
 | Yellow | phase 切换时自动生成 interstitial yellow phase | `world/world_sumo.py:127-132, 340-361` | CONFIRMED |
-| Action mask | 正式 DQN path 未见 action mask | `sequential/agent.py:389-405`; `sequential/evaluator.py:149-160` | CONFIRMED |
-| Timing | 3600 s / 10 s = 360 decisions | `configs/sequential/ha_sodqn_b100.yml:15-23`; `sequential/evaluator.py:394-397` | CONFIRMED |
-| Online replay | persistent FIFO deque，capacity=5000 | `sequential/core.py:96-108` | CONFIRMED |
-| Historical archive | Plan 2 Q1，episodes 1–100 | `sequential/historical_archive.py:41-87, 222-233` | CONFIRMED |
-| Ratio/update | historical quota 与 historical loss weight | `sequential/ha_agent.py:224-253` | CONFIRMED |
-| Warm-up | local episode≤10 时关闭历史采样，同时收集 alignment observations | `sequential/ha_agent.py:153-168, 224-233` | CONFIRMED |
-| Target network | 每 10 次成功 gradient update 同步 | `sequential/ha_agent.py:260-268`; `sequential/core.py:63-93` | CONFIRMED |
-| Frozen evaluation | epsilon=0，无 replay/update | `sequential/evaluator.py:86-100, 217-239` | CONFIRMED |
+| Action mask | 正式 DQN path 未见 action mask | `semi_offline/sequential/agent.py:389-405`; `infra/evaluator.py:149-160` | CONFIRMED |
+| Timing | 3600 s / 10 s = 360 decisions | `configs/sequential/ha_sodqn_b100.yml:15-23`; `infra/evaluator.py:394-397` | CONFIRMED |
+| Online replay | persistent FIFO deque，capacity=5000 | `infra/core.py:96-108` | CONFIRMED |
+| Historical archive | Plan 2 Q1，episodes 1–100 | `semi_offline/sequential/historical_archive.py:41-87, 222-233` | CONFIRMED |
+| Ratio/update | historical quota 与 historical loss weight | `semi_offline/sequential/ha_agent.py:224-253` | CONFIRMED |
+| Warm-up | local episode≤10 时关闭历史采样，同时收集 alignment observations | `semi_offline/sequential/ha_agent.py:153-168, 224-233` | CONFIRMED |
+| Target network | 每 10 次成功 gradient update 同步 | `semi_offline/sequential/ha_agent.py:260-268`; `infra/core.py:63-93` | CONFIRMED |
+| Frozen evaluation | epsilon=0，无 replay/update | `infra/evaluator.py:86-100, 217-239` | CONFIRMED |
 | Travel time | completed vehicles 的实际行程时间均值 | `world/world_sumo.py:540-546, 680-696`; `common/metrics.py:162-170` | CONFIRMED |
 | Q drift | 完整 Q 向量的 Euclidean L2，先 state-level 再均值 | `build_checkpoint_probe.py:193-201` | CONFIRMED |
 | Probe | 每 scene×behavior seed×probe type=128，uniform without replacement | `build_checkpoint_probe.py:32, 114-150` | CONFIRMED |
 | HA statistics | two-sided SciPy Wilcoxon signed-rank | `complete_mechanism_bundle.py:313-321, 543-555` | CONFIRMED |
-| Plan34 statistics | exact sign-flip + paired bootstrap | `sequential/analysis.py:329-367` | CONFIRMED |
+| Plan34 statistics | exact sign-flip + paired bootstrap | `semi_offline/sequential/analysis.py:329-367` | CONFIRMED |
 
 ## 3. Reward definition
 
@@ -152,11 +152,11 @@ for each stage:
 
 | method | input | selection rule | output | unique mechanism | source code |
 |---|---|---|---|---|---|
-| RAND | visible historical transitions | 从 visible ordinal 中均匀随机抽取 `min(owp_capacity, candidate_count)` | 固定 working pool | random subset | `sequential/owp.py:204-212` |
-| COV | transitions；前 8 个 state features、phase argmax、action、scene、behavior seed | 按 scene、seed、total/max/imbalance lane bins、phase、action 构造 coverage cell，lexicographic round-robin | 固定 working pool | coverage-balanced allocation | `sequential/owp.py:15-25, 50-78, 106-129, 213-216` |
-| CQ | 与 COV 相同 | episode mean reward 与 local reward 的 z-score 组合后，在 coverage cell 内 score 降序 round-robin | 固定 working pool | coverage + quality | `sequential/owp.py:81-103, 213-218` |
-| CQA | 与 CQ 相同，另使用 warm-up online state | 75% 由 global coverage/quality 选择，剩余 25% 按与 warm-up state 的 standardized Euclidean distance 选择 | 固定 working pool | coverage/quality + alignment | `sequential/owp.py:219-241` |
-| DHOA | 全部 visible historical transitions | 不建立固定子集，直接从 visible view 抽样 | visible population 内动态 batch | full-history sampling | `sequential/owp.py:204-205, 242-260` |
+| RAND | visible historical transitions | 从 visible ordinal 中均匀随机抽取 `min(owp_capacity, candidate_count)` | 固定 working pool | random subset | `semi_offline/sequential/owp.py:204-212` |
+| COV | transitions；前 8 个 state features、phase argmax、action、scene、behavior seed | 按 scene、seed、total/max/imbalance lane bins、phase、action 构造 coverage cell，lexicographic round-robin | 固定 working pool | coverage-balanced allocation | `semi_offline/sequential/owp.py:15-25, 50-78, 106-129, 213-216` |
+| CQ | 与 COV 相同 | episode mean reward 与 local reward 的 z-score 组合后，在 coverage cell 内 score 降序 round-robin | 固定 working pool | coverage + quality | `semi_offline/sequential/owp.py:81-103, 213-218` |
+| CQA | 与 CQ 相同，另使用 warm-up online state | 75% 由 global coverage/quality 选择，剩余 25% 按与 warm-up state 的 standardized Euclidean distance 选择 | 固定 working pool | coverage/quality + alignment | `semi_offline/sequential/owp.py:219-241` |
+| DHOA | 全部 visible historical transitions | 不建立固定子集，直接从 visible view 抽样 | visible population 内动态 batch | full-history sampling | `semi_offline/sequential/owp.py:204-205, 242-260` |
 
 CQ quality score：
 
@@ -178,7 +178,7 @@ CQA 的 alignment feature 是 state 前 8 个 lane-count；online target 是前 
 visible = ordered_networks[:stage_index - 1] if mode == 'P1C' else archive_networks
 ```
 
-证据：`sequential/historical_archive.py:244-281`。
+证据：`semi_offline/sequential/historical_archive.py:244-281`。
 
 以 O1 `S4 -> S1 -> S3 -> S2` 为例：
 
@@ -217,9 +217,9 @@ P1C/P1F 先改变 visible archive 范围，再由 RAND/COV/CQ/CQA/DHOA 建立或
 
 ### 继承关系
 
-**Plan34：** 从 Plan 1 episode-100 parent checkpoint 导入 model、target、optimizer、epsilon、RNG 和 parent state。`clear` 在 stage 切换清空 replay；`fifo` 保留 persistent FIFO；`fifo_matched_wait` 保留 FIFO，但 readiness 使用当前 stage 新写入数量。证据：`sequential/core.py:110-125`、`sequential/agent.py:346-360, 542-579`。
+**Plan34：** 从 Plan 1 episode-100 parent checkpoint 导入 model、target、optimizer、epsilon、RNG 和 parent state。`clear` 在 stage 切换清空 replay；`fifo` 保留 persistent FIFO；`fifo_matched_wait` 保留 FIFO，但 readiness 使用当前 stage 新写入数量。证据：`infra/core.py:110-125`、`semi_offline/sequential/agent.py:346-360, 542-579`。
 
-**HA-SODQN/CONT/DHOA：** 从 Plan 1 episode-0 initial checkpoint 开始；model、target、optimizer、epsilon 被加载，counters 必须为零，online replay 重新初始化为空；stage 切换不清空 online replay。CONT 的身份是 `archive_mode=NONE, method=CONT, offline_ratio=0`，DHOA 等方法只额外启用 historical sampling。证据：`sequential/ha_agent.py:68-118, 134-160` 及 formal `child_run_manifest.json`。
+**HA-SODQN/CONT/DHOA：** 从 Plan 1 episode-0 initial checkpoint 开始；model、target、optimizer、epsilon 被加载，counters 必须为零，online replay 重新初始化为空；stage 切换不清空 online replay。CONT 的身份是 `archive_mode=NONE, method=CONT, offline_ratio=0`，DHOA 等方法只额外启用 historical sampling。证据：`semi_offline/sequential/ha_agent.py:68-118, 134-160` 及 formal `child_run_manifest.json`。
 
 严格 CONT–DHOA 配对的 order、seed、initialization、Stage-1 checkpoint、budget、optimizer、epsilon schedule、batch size、replay capacity 和 interaction count 相同；O3 seed1 被排除。证据：`build_ha_pair_index.py:37-70`、`build_mechanism_completion.py:475-482`。
 
@@ -232,13 +232,13 @@ P1C/P1F 先改变 visible archive 范围，再由 RAND/COV/CQ/CQA/DHOA 建立或
 - 相同 checkpoint/network/protocol 使用 shared evaluation cache；
 - `evaluation_retries=3` 是最多三次 attempt，首个成功 attempt 被提交。
 
-证据：`sequential/evaluator.py:86-100, 217-239, 349-445`。
+证据：`infra/evaluator.py:86-100, 217-239, 349-445`。
 
 ## 8. Metric definitions
 
 ### Travel time
 
-车辆进入时记录进入时间，车辆到达时记录 `current_time-entry_time`；最终对 `world.vehicles` 中已完成车辆求平均。证据：`world/world_sumo.py:540-546, 680-696`。evaluation summary 调用 `metric.real_average_travel_time()`，证据：`sequential/evaluator.py:304-318`。
+车辆进入时记录进入时间，车辆到达时记录 `current_time-entry_time`；最终对 `world.vehicles` 中已完成车辆求平均。证据：`world/world_sumo.py:540-546, 680-696`。evaluation summary 调用 `metric.real_average_travel_time()`，证据：`infra/evaluator.py:304-318`。
 
 ### Historical travel-time degradation / forgetting
 
@@ -250,7 +250,7 @@ F_{abs}=TT_{final}-TT_{own\ stage\ end},
 F_{rel}=\frac{TT_{final}-TT_{own\ stage\ end}}{TT_{own\ stage\ end}}.
 \]
 
-证据：`sequential/ha_analysis.py:165-179`。reference 是该 scene 自己训练完成时的 stage-end checkpoint，不是 Plan 1 baseline。
+证据：`semi_offline/sequential/ha_analysis.py:165-179`。reference 是该 scene 自己训练完成时的 stage-end checkpoint，不是 Plan 1 baseline。
 
 Plan34 的 normalized travel time 则是：
 
@@ -258,7 +258,7 @@ Plan34 的 normalized travel time 则是：
 TT_{norm}=TT_{eval}/TT_{Plan1,scene\ episode400\ mean}.
 \]
 
-证据：`sequential/analysis.py:201-221`、`build_plan_comparison_tables.py:175-182`。两种 denominator 不同。
+证据：`semi_offline/sequential/analysis.py:201-221`、`build_plan_comparison_tables.py:175-182`。两种 denominator 不同。
 
 ### Retention
 
@@ -268,7 +268,7 @@ HA 保存：
 RetentionRatio=TT_{own\ stage\ end}/TT_{final}.
 \]
 
-证据：`sequential/ha_analysis.py:170-178`。当前代码没有名为 `retention_benefit` 的正式原始字段，也没有确认一个独立的 `degradation_CONT - degradation_Semi` 指标。
+证据：`semi_offline/sequential/ha_analysis.py:170-178`。当前代码没有名为 `retention_benefit` 的正式原始字段，也没有确认一个独立的 `degradation_CONT - degradation_Semi` 指标。
 
 ### Adaptation AULC
 
@@ -278,7 +278,7 @@ HA 先计算 `travel_time / Plan1 scene reference`，再执行：
 np.trapz(series, dx=1.0) / (len(series)-1)
 ```
 
-证据：`sequential/ha_analysis.py:114-120, 130-155`。
+证据：`semi_offline/sequential/ha_analysis.py:114-120, 130-155`。
 
 - x-axis：local episode；
 - y-axis：normalized travel time；
@@ -317,7 +317,7 @@ D_{policy}=\frac{1}{N}\sum_i\mathbf{1}[\arg\max_aQ_t(s_i,a)\ne\arg\max_aQ_{ref}(
 
 ## 9. Statistical rules
 
-- Plan34 的 paired unit 是 same `order_id × training_seed`；代码使用 paired bootstrap 和 exact sign-flip，不是 Wilcoxon。证据：`sequential/analysis.py:329-367`。
+- Plan34 的 paired unit 是 same `order_id × training_seed`；代码使用 paired bootstrap 和 exact sign-flip，不是 Wilcoxon。证据：`semi_offline/sequential/analysis.py:329-367`。
 - HA mechanism bundle 对保存的 paired differences 使用 SciPy 默认 two-sided Wilcoxon signed-rank。证据：`complete_mechanism_bundle.py:313-321, 543-555`。
 - HA CONT–DHOA R25 primary strict pairs=19；O3 seed1 因 Stage-1 end checkpoint digest 不一致排除。
 - checkpoint-level observations 不作为独立实验 n；主配对单位仍是 order×seed。

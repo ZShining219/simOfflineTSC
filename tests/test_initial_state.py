@@ -3,8 +3,8 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from sequential.initial_state import build_initial_state_catalog
-from sequential.parents import ParentSource
+from semi_offline.sequential.initial_state import build_initial_state_catalog
+from semi_offline.sequential.parents import ParentSource
 
 
 class InitialStateCatalogTest(unittest.TestCase):
@@ -42,11 +42,11 @@ class InitialStateCatalogTest(unittest.TestCase):
             }
 
         with tempfile.TemporaryDirectory() as temporary, mock.patch(
-            'sequential.initial_state.load_sequential_config', return_value=config,
+            'semi_offline.sequential.initial_state.load_sequential_config', return_value=config,
         ), mock.patch(
-            'sequential.initial_state.read_parent_whitelist', return_value=sources,
+            'semi_offline.sequential.initial_state.read_parent_whitelist', return_value=sources,
         ), mock.patch(
-            'sequential.initial_state.validate_initial_source', side_effect=validated,
+            'semi_offline.sequential.initial_state.validate_initial_source', side_effect=validated,
         ):
             output = Path(temporary) / 'catalog.json'
             catalog = build_initial_state_catalog('whitelist.csv', output, 'config.yml')

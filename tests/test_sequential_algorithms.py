@@ -3,13 +3,13 @@ import unittest
 import torch
 from torch import nn
 
-from sequential.agent import (
+from semi_offline.sequential.agent import (
     DuelingDQNNet,
     SequentialDQNAgent,
     build_q_network,
     normalize_algorithm_id,
 )
-from sequential.initial_state import _dueling_state_dict
+from semi_offline.sequential.initial_state import _dueling_state_dict
 
 
 class FixedQ(nn.Module):

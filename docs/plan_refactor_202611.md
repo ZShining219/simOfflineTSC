@@ -16,7 +16,7 @@
 4. 小步提交，每步中文提交信息；合入 `main`、推送远端均须用户确认。
 5. 整理期间其他 agent 暂停写仓（用户 2026-11-12 决定）。
 
-## 1.1 ⚠ 注意力线代码缺失（2026-11-12 发现，最高优先级）
+## 1.1 注意力线代码缺失（2026-11-12 发现；用户决定暂不处理）
 
 `tarl_*` 智能体（sensor/gat/concat/selfattn/attention/gating/crossq）与 `agent/scene_attention.py` 的文本编码器，
 实现都在 `reproduction/tarl_tsc/`。该目录约 3GB、**只有 2 个文件入过库**，其余（`models/tarl.py`、`text/encoder.py`、
@@ -103,10 +103,8 @@
 
 ## 3.1 剩余事项（需用户或其他机器）
 
-- **注意力线代码恢复**（§1.1）：需从机器 34 取回 `reproduction/tarl_tsc` 源码。
-- **机器 34 证据核查**：在 34 上运行 `python -m lab audit --json audit_34.json`，区分 10,449 行"在 34 上"与"真丢失"；
-  同时在 34 上运行 `python -m lab metrics` 把这些 run 的指标统一为标准口径。
-- **合入 main**：`gov/refactor` 包含 main 全部历史，可快进合入；合入并推送 main 需用户确认（GOVERNANCE §8.2）。
+- ~~注意力线代码恢复、机器 34 证据核查~~：用户 2026-11-12 决定不处理；相关事实保留在 §1.1 与 §2 供查阅，agent 无需跟进。
+- **合入 main**：已于 2026-11-12 经用户确认快进合入并推送。
 - **渐进项（有棘轮约束，只减不增）**：存量 266 处硬编码产物路径改用 `lab.paths`；dev/ 下 27 处绝对路径；
   `shared_dqn` 对 arterial 场景常量的依赖；`scene_attention/_legacy/` 移出（仍被 figs 与 HITL 引用）。
 - **其他 agent 恢复工作前**：各克隆执行 `git config core.hooksPath .githooks`；dsh 各工作树基于新 main 重建。

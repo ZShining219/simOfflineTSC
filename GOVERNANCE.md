@@ -43,14 +43,18 @@ DESIGN → REGISTERED → SMOKE → RUNNING → DONE
 
 ```
 GOVERNANCE.md            # 本文件
-AGENTS.md                # agent 上手入口 + 架构变更日志
+AGENTS.md                # agent 上手入口（规则清单、lab 用法、验证分层）
+docs/architecture_changelog.md  # 架构变更日志（只追加）
+lab/                     # 实验基础设施：python -m lab audit/show/find/data/metrics/outputs/configs/golden/check
+.githooks/               # 提交闸门（git config core.hooksPath .githooks）
 EXPERIMENTS.md           # 台账索引（面板+总览+campaign 索引表）
 EXPERIMENTS/             # 每 campaign 一篇明细
 ledger/runs.jsonl        # 机读台账（仓根 ledger/，不放 artifacts/——那层被 gitignore）
-bench/                   # 测试集规范（BENCH.md + profiles/*.yml）
-configs/                 # 实验配置（tsc/、events/plans/、sim/）
+bench/                   # 测试集规范（BENCH.md + profiles/*.yml）；bench/golden/ 黄金 smoke 用例
+configs/                 # 实验配置（tsc/、events/plans/、sim/）；configs/tsc 根目录只放智能体默认配置，新 overlay 放 configs/tsc/<campaign>/
 artifacts/               # 队列/状态/评估包/设计稿/wiki_claims（不入 git）
-data/output_data/        # run 产物树（不入 git）
+data/output_data/        # run 产物树（不入 git）；分析/汇报产物写 <output_root>/reports/<topic>/，路径一律经 lab.paths
+analysis/ final_result/  # 历史分析/汇报散目录，冻结只读，不再写入
 dev/                     # 一次性脚本唯一合法堆放处 + INDEX.md
 dev/_legacy/<date>/      # 历史散件归档（移动非删除）
 ```
@@ -93,14 +97,15 @@ status plan_id code_commit dirty queue_file run_dir tmux started
 eval_mode behavior_source metrics abort_reason error evidence_lost
 notes run_kind config_sha sumo_seed_mode sumo_seed eval_seed condition
 superseded_by runtime_env
+metric_source metric_detail metrics_legacy metric_source_legacy   # 2026-11-12 起
 ```
 
 - episode 三字段：`episodes_total`（终点）、`episodes_increment`（本次新增）、`resume_from`。
 - `alias_of` 非空 = 别名/隔离副本，统计 n 时去重。
 - `eval_mode`：本仓现有口径 `train_frozen_eval`（训练内联 eval）、`frozen_eval_attempt`（独立冻结评估）、`engineering_validation`。
 - `behavior_source`：eval attempt 回指训练 run/包名。
-- `run_kind`：`train` / `eval` / `smoke` / `calibration` / `batch`。
-- `metrics`：训练行填末次完整 eval 的 `travel_time/throughput/unfinished_vehicles/queue/delay`；eval attempt 行指标留在包 manifest，不重复展开。
+- `run_kind`：`train` / `eval` / `smoke` / `calibration` / `batch`（存量另有 `collection` / `probe` / `note`）。`run_id` 全表唯一（`tests/test_ledger_schema.py`）。
+- `metrics`：**标准口径 = 最佳 checkpoint 评估**（用户 2026-11-12 裁定；沿用 trainer `evaluation/summary.json` 的选择：travel_time 最小、并列取最早），一律用 `python -m lab metrics --campaign C --apply` 回填，不得自写公式。`metric_source` 标明口径：`best_ckpt` 标准 / `eval_attempt` 冻结评估行 / `legacy:<公式>` 无法复算的旧值；被替换的旧值存 `metrics_legacy` 并注明 `metric_source_legacy`。
 - 更正用追加新行 + `superseded_by`，不改旧行。
 
 ### 4.2 `EXPERIMENTS.md`（索引）+ `EXPERIMENTS/<campaign>.md`（明细）
@@ -187,10 +192,10 @@ EXPERIMENTS/ = 台账自动索引层。叙事层引用 run_id 与 campaign，不
 
 ## 8. git 纪律
 
-1. 架构优化/新建 = 必 commit（特性分支）+ AGENTS.md「架构变更日志」追加：日期/commit/改动/动机/影响臂与 profile。
+1. 架构优化/新建 = 必 commit（特性分支）+ `docs/architecture_changelog.md` 追加：日期/commit/改动/动机/影响臂与 profile。
 2. 治理文件随仓 git；分支 `gov/<主题>`；push 主线需用户明确指令。
 3. 新 tmux 会话名不得撞 `devin`/`devin2`；建议 `d34_*`/`d73_*`/任务前缀。
-4. commit message 用中文。
+4. commit message 用中文。本条与 §8.5、§10 的入库纪律由提交闸门自动执行（`.githooks/` → `python -m lab check`；每个克隆执行一次 `git config core.hooksPath .githooks`），不再依赖人工自查。
 5. **符号链接零容忍（P1 条款，2026-10-07 hitl 仓事故立）**：严禁符号链接入库
    （git mode 120000）；提交前 `git ls-files -s | awk '$1=="120000"'` 必须为空；
    merge/checkout/pull 前 `git ls-tree -r <ref> | awk '$1=="120000"'` dry-run，命中即停手
@@ -223,10 +228,7 @@ EXPERIMENTS/ = 台账自动索引层。叙事层引用 run_id 与 campaign，不
 
 ## 12. 新 agent 上手 checklist
 
-1. 读 `AGENTS.md` → `EXPERIMENTS.md` 顶部「当前面板」（现状）；`GOVERNANCE.md` 按需查节（新 run 流程看 §3-4，状态语义 §2，本仓硬约定 §5）；campaign 明细只读 `EXPERIMENTS/<相关campaign>.md`。
-2. 认领登记（`artifacts/wiki_claims/`）→ 台账 REGISTERED → §6 合法路径执行 → §4 回填；同时按 §4.5 在 `docs/experiments/` 建/更实验记录（四节必填）。
-3. 改架构 = commit + 变更日志；改判据/口径属变更，台账开新 campaign，新旧口径不混排。
-4. 拿不准 → "受阻"+原因，等裁决。
+见 `AGENTS.md`「新 agent 上手 checklist」（唯一版本）。
 
 ## 13. 边界
 

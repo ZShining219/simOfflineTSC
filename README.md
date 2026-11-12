@@ -4,6 +4,20 @@
 
 本仓库在统一框架上持续开展多条研究线，当前包括场景引导注意力（campaign `att_entity_*`）与**半离线持续学习**（当前激活口径为 `cl_hz1x1` 线：自产历史归档 + 教师锚定，见下文「研究线」节；更早的 Plan 1–4 / HA-SODQN 线已冻结保留）等；各研究线的 run 级事实与结论统一登记在仓库台账中。
 
+## 从这里开始：看结果、数据与证据
+
+| 想知道 | 命令 |
+|---|---|
+| 某个结果对应哪个 run、哪版代码/配置/数据、指标口径 | `python -m lab show <run_id>` |
+| 某个实验有哪些 run | `python -m lab find --campaign <C> [--arm A --net N]` |
+| 各实验证据是否在盘、代码版本是否可信、指标能否复核 | `python -m lab audit` |
+| 某个路网/车流对应哪些文件 | `python -m lab data [NET]` |
+| 每个产物目录属于谁、多大、是否被台账引用 | `python -m lab outputs` |
+| 改了代码，主线训练结果变没变 | `python -m lab golden` |
+
+台账指标的标准口径是**最佳 checkpoint 评估**；非标准口径的数字在 `lab show` 与 `EXPERIMENTS/` 中有标注。
+当前已知问题与整理进度见 `docs/plan_refactor_202611.md`。
+
 ## 仓库地图
 
 - **实验进度与结论**：`EXPERIMENTS.md` 顶部「当前面板」；逐 run 机读事实源 `ledger/runs.jsonl`，各 campaign 明细在 `EXPERIMENTS/`。动态实验状态一律以台账为准，本文件不复述。
@@ -190,18 +204,16 @@ python -m sequential --help
 
 ## 输出目录
 
-各入口输出彼此隔离，均不写入其他实验的目录：
+产物路径一律经 `lab.paths` 获取（`TSC_OUTPUT_ROOT` 可让多个工作树共用一个产物根，未设置时为 `data/output_data/`）：
 
 ```text
-data/output_data/tsc/                    # Online/传统
-data/output_data/offline_datasets/plan2/ # Plan 2 只读数据索引
-data/output_data/offline_tsc/            # Plan 2 训练输出
-data/output_data/analysis/               # 分析汇总
-data/output_data/sequential/             # Sequential DQN
-data/output_data/ha_sodqn/               # HA-SODQN engineering / 正式运行 / 分析
+<output_root>/<task>/<world>_<agent>/<net>/<prefix>/   # run 产物（run.py 既有布局，台账依赖）
+<output_root>/reports/<topic>/                         # 分析表、图、汇报材料（新）
+artifacts/<campaign>/                                  # 队列与运行时状态
 ```
 
-`data/output_data/`、根目录 `data/output_data/`、`analysis/`、`tmp/` 以及 checkpoint/日志/图像类文件均已在 `.gitignore` 中忽略，可再生成的大型产物不提交 Git。
+历史目录（`data/output_data/` 下的 `offline_tsc/`、`sequential/`、`ha_sodqn/`、`analysis/` 等，以及仓根 `analysis/`、`final_result/`）冻结只读；
+每个目录的归属、大小与台账引用见 `python -m lab outputs`。以上目录与 checkpoint/日志/图像均被 `.gitignore` 排除，提交闸门会拦截误提交。
 
 ## 项目结构
 
@@ -267,6 +279,8 @@ Git 只同步代码、配置与场景；trajectory、checkpoint、dataset index 
 
 ## 开发约定
 
+- 每个克隆执行一次 `git config core.hooksPath .githooks` 启用提交闸门；规则清单见 `AGENTS.md`，流程见 `GOVERNANCE.md`。
+- 验证分三层：快速门禁 → `python -m lab golden` → 全量测试（按需），见 `AGENTS.md`「验证要求」。
 - 新实验优先通过 configs/ 管理参数，避免硬编码；四类入口不混用。
 - **每次实验（含相关改动）在 `docs/experiments/` 建档**：一份固定格式文档回答改动意图/改动模块/实验设计/实验结果，模板 `docs/experiments/TEMPLATE.md`，规则见 `docs/README.md` 与 `GOVERNANCE.md` §4.5。
 - 修改智能体或训练流程后，至少运行一个受影响仿真器的最小代表性实验，并记录仿真器、agent、网络、随机种子和完整命令；正式实验另记 Order/Archive/seed/manifest hash 与恢复链。

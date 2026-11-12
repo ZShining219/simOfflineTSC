@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# 提交信息首行须含中文（AGENTS.md「Git 提交信息必须使用中文」）。
+set -euo pipefail
+cd "$(git rev-parse --show-toplevel)"
+exec "$(command -v python3 || command -v python)" -m lab check --commit-msg "$1"

@@ -3,6 +3,7 @@
     python -m lab audit [--campaign C] [--json OUT]   各 campaign 证据完整度体检
     python -m lab show RUN_ID                         单个 run 的全链路溯源
     python -m lab find [--campaign C] [--arm A] ...   按条件列出 run
+    python -m lab check --staged | --all | --commit-msg FILE   提交闸门（git hook 调用）
 """
 from __future__ import annotations
 
@@ -12,7 +13,8 @@ import sys
 import unicodedata
 from collections import Counter, defaultdict
 
-from . import evidence, ledger
+from . import checks, evidence, ledger
+from .provenance import REPO_ROOT
 
 
 def _fmt(value, digits=3):
@@ -203,6 +205,17 @@ def cmd_find(args):
         print(f"\n共 {len(rows)} 条，仅显示前 {len(shown)} 条（--limit 调整）")
 
 
+def cmd_check(args):
+    if args.commit_msg:
+        with open(args.commit_msg, encoding="utf-8") as handle:
+            code = checks.report(checks.check_commit_message(handle.read()), "提交信息检查")
+    elif args.all:
+        code = checks.report(checks.check_all(REPO_ROOT), "全量结构检查")
+    else:
+        code = checks.report(checks.check_staged(REPO_ROOT), "提交前检查")
+    sys.exit(code)
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(prog="python -m lab", description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -227,6 +240,13 @@ def main(argv=None):
     find.add_argument("--limit", type=int, default=50)
     find.add_argument("--check-disk", action="store_true", help="同时检查本机是否在盘")
     find.set_defaults(func=cmd_find)
+
+    check = sub.add_parser("check", help="提交闸门（git hook 调用）")
+    mode = check.add_mutually_exclusive_group()
+    mode.add_argument("--staged", action="store_true", help="检查暂存区（默认）")
+    mode.add_argument("--all", action="store_true", help="全量结构检查（CI 用）")
+    mode.add_argument("--commit-msg", metavar="FILE", help="检查提交信息文件")
+    check.set_defaults(func=cmd_check)
 
     args = parser.parse_args(argv)
     args.func(args)

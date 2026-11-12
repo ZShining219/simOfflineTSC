@@ -6,7 +6,7 @@
 - plan_id/队列：—
 - 设计稿/证据位置：—
 - 结论：—
-- 登记单元 312（train/eval/smoke/batch/calibration = 48/264/0/0/0）（追溯登记 2026-10-07）
+- 登记单元 292（train/eval/smoke/batch/calibration = 48/244/0/0/0）（追溯登记 2026-10-07）
 
 | run_id | 臂/net/seed | ep | 状态 | 起始 | TT/th/unfinished | 产物路径 | 备注 |
 |---|---|---|---|---|---|---|---|
@@ -59,8 +59,8 @@
 | `s8f_soddqnp_R1_sd1_st7` | soddqnp_r25/sumohz1x1_fluct_burst/s1 | 100 | DONE | 2026-10-16 | 99.3/1458/101 | `data/output_data/tsc/sumo_dqn/sumohz1x1_fluct_burst/s8f_soddqnp_R1_sd1_st7` | REGISTERED: seq8_anchor formal train order=R1 stage=7 ratio=0.25 anchor_lambda_p |
 | `s8f_soddqnp_R1_sd1_st8` | soddqnp_r25/sumohz1x1_dense_high/s1 | 100 | DONE | 2026-10-16 | 108.3/2635/109 | `data/output_data/tsc/sumo_dqn/sumohz1x1_dense_high/s8f_soddqnp_R1_sd1_st8` | REGISTERED: seq8_anchor formal train order=R1 stage=8 ratio=0.25 anchor_lambda_p |
 
-评估 attempt 共 264 行，按包/来源聚合：
+评估 attempt 共 244 行，按包/来源聚合：
 
 | 评估包/来源 | n DONE/FAILED/ABORTED | 条件集 | eval seeds |
 |---|---|---|---|
-| `soddqnp_r25` | 264/0/0 | semi_offline_anchor | 101 |
+| `soddqnp_r25` | 244/0/0 | semi_offline_anchor | 101 |

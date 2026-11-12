@@ -5,8 +5,6 @@ from collections import Counter
 from lab import ledger, metrics
 
 ROWS = ledger.read_lines()
-# 重复登记存量（2026-11-12 盘点 20 处，待用户裁决以哪行为准）；只许减少。
-KNOWN_DUPLICATES = 20
 
 
 def _has_metrics(row):
@@ -38,6 +36,7 @@ def test_run_dirs_are_repo_relative():
     assert not bad, f"run_dir 须为仓内相对路径（GOVERNANCE §10）：{bad[:10]}"
 
 
-def test_duplicate_run_ids_do_not_grow():
-    duplicates = sum(n - 1 for n in Counter(r["run_id"] for r in ROWS).values() if n > 1)
-    assert duplicates <= KNOWN_DUPLICATES, f"新增了重复登记的 run_id（现有 {duplicates} 处）"
+def test_run_ids_are_unique():
+    # 2026-11-12 清理了 20 处逐字段相同的重复追加；此后一律不允许重复。
+    duplicates = [run_id for run_id, n in Counter(r["run_id"] for r in ROWS).items() if n > 1]
+    assert not duplicates, f"run_id 重复登记（追加前先查重，或用 lab 统一登记）：{duplicates[:10]}"

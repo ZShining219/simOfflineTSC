@@ -27,7 +27,7 @@
 
 ## 0. 总览
 
-登记 run 总数：**15735**（train 3273、eval attempt 12130、smoke 140、calibration 18、batch 46）
+登记 run 总数：**15715**（train 3273、eval attempt 12110、smoke 140、calibration 18、batch 46）
 
 | campaign | DONE | FAILED | ABORTED | SUPERSEDED | REGISTERED | SCOPE_DISCARD | LEGACY_UNCLEAR | 合计 |
 |---|---|---|---|---|---|---|---|---|
@@ -64,14 +64,14 @@
 | hitl_live_r3 | 150 | 0 | 0 | 0 | 0 | 0 | 0 | 150 |
 | hitl_live_r4 | 20 | 0 | 0 | 0 | 0 | 0 | 0 | 20 |
 | hitl_warmloop | 26 | 0 | 0 | 0 | 2 | 0 | 0 | 28 |
-| seq8_anchor | 312 | 0 | 0 | 0 | 0 | 0 | 0 | 312 |
+| seq8_anchor | 292 | 0 | 0 | 0 | 0 | 0 | 0 | 292 |
 | seq8_demand | 24 | 0 | 0 | 0 | 0 | 18 | 0 | 42 |
 | signal_control_v1 | 0 | 0 | 0 | 0 | 0 | 4 | 0 | 4 |
 | takeover_probe_sig15 | 24 | 0 | 0 | 0 | 0 | 0 | 0 | 24 |
 | xiasha1_compound_probe_v1 | 22 | 0 | 0 | 0 | 0 | 0 | 0 | 22 |
 | xiasha1_compound_train_v1 | 30 | 0 | 0 | 0 | 0 | 0 | 0 | 30 |
 | xiasha1_v2_bestckpt_ts_v1 | 96 | 0 | 0 | 0 | 0 | 0 | 0 | 96 |
-| **合计** | 14474 | 243 | 114 | 4 | 2 | 898 | 0 | **15735** |
+| **合计** | 14454 | 243 | 114 | 4 | 2 | 898 | 0 | **15715** |
 
 状态语义见 GOVERNANCE.md §2。LEGACY_UNCLEAR=0 表示全部可识别 run 均通过队列/状态文件/目录归属证据还原出 campaign；个别 run 的臂内身份仍以命名约定为据，已在 notes 标注处保持保守。
 
@@ -112,7 +112,7 @@
 | `hitl_live_r3` | 150 | 150/0/0/0 | — | [明细](EXPERIMENTS/hitl_live_r3.md) |
 | `hitl_live_r4` | 20 | 20/0/0/0 | — | [明细](EXPERIMENTS/hitl_live_r4.md) |
 | `hitl_warmloop` | 28 | 26/0/0/0 | — | [明细](EXPERIMENTS/hitl_warmloop.md) |
-| `seq8_anchor` | 312 | 312/0/0/0 | — | [明细](EXPERIMENTS/seq8_anchor.md) |
+| `seq8_anchor` | 292 | 292/0/0/0 | — | [明细](EXPERIMENTS/seq8_anchor.md) |
 | `seq8_demand` | 42 | 24/0/0/18 | — | [明细](EXPERIMENTS/seq8_demand.md) |
 | `signal_control_v1` | 4 | 0/0/0/4 | — | [明细](EXPERIMENTS/signal_control_v1.md) |
 | `takeover_probe_sig15` | 24 | 24/0/0/0 | — | [明细](EXPERIMENTS/takeover_probe_sig15.md) |

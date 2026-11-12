@@ -109,7 +109,7 @@
   `shared_dqn` 对 arterial 场景常量的依赖；`scene_attention/_legacy/` 移出（仍被 figs 与 HITL 引用）。
 - **其他 agent 恢复工作前**：各克隆执行 `git config core.hooksPath .githooks`；dsh 各工作树基于新 main 重建。
 
-## 3.2 第二轮：顶层研究包重组（2026-11-12，分支 gov/layout）
+## 3.2 第二轮：顶层研究包重组（2026-11-12，分支 gov/layout，已合入 main；全量测试无新增失败）
 
 - [x] `infra/`：从 `sequential/` 抽出通用运行基座；`semi_offline/`：收拢 `sequential/`、`plan5/`、`arterial/` 与纯离线入口
 - [x] 旧模块路径兼容（历史 checkpoint 以 `sequential.core.*` pickle 了类；不经兼容层无法加载）

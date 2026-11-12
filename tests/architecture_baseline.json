@@ -107,7 +107,7 @@
     "scene_attention/probe/dispatch_eval.py": 2,
     "scene_attention/probe/takeover.py": 1,
     "scene_attention/train.py": 4,
-    "semi_offline/offline.py": 1,
+    "semi_offline/offline/cli.py": 1,
     "semi_offline/plan5/cli.py": 6,
     "semi_offline/sequential/cli.py": 2,
     "semi_offline/sequential/seq8_manifest.py": 1,

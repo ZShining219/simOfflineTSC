@@ -227,7 +227,7 @@ artifacts/<campaign>/                                  # 队列与运行时状�
 | | `data/` | `raw_data/` 路网与车流输入（只读）；`dataset/` 数据集接口；`output_data/` 产物（不入库） |
 | 实验基座 | `lab/` | 管理：台账查询与核查、溯源、指标口径、登记回填、黄金 smoke、提交闸门（`python -m lab`） |
 | | `infra/` | 运行：checkpoint 保存/校验/恢复、事务、资源调度、独立评估（见 `infra/README.md`） |
-| 研究线 | `semi_offline/` | 半离线/持续学习：当前主线 cl_hz1x1 指针、纯离线入口 `offline.py`、冻结的 `sequential/`、`plan5/`、`arterial/` |
+| 研究线 | `semi_offline/` | 半离线/持续学习：当前主线 cl_hz1x1 指针、纯离线训练 `offline/`、冻结的 `sequential/`、`plan5/`、`arterial/` |
 | | `scene_attention/` | 场景引导注意力（`python -m scene_attention`） |
 | | `hitl/` | 人在回路：实时会话与数据面（`python -m hitl`） |
 | 配套 | `configs/` | 配置；`configs/tsc/README.md` 区分智能体默认配置与实验 overlay |

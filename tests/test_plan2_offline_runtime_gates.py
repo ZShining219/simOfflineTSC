@@ -10,7 +10,7 @@ import numpy as np
 import torch
 from torch import nn
 
-from trainer.offline_tsc_trainer import (
+from semi_offline.offline.trainer import (
     OfflineMetricLogger, OfflineTSCTrainer, isolated_random_seed,
     should_update_target,
 )

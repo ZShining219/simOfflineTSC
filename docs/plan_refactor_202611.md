@@ -118,8 +118,10 @@
   - 重复实现：`semi_offline/plan5/` 自带 checkpoint/launcher/evaluator/manifest/config 副本（已冻结），新工作用 `infra/`，不合并以免改变历史行为；
   - 研究线代码仍在框架层：注意力线 `agent/scene_attention.py`、`agent/scene_alignment.py`、`agent/tarl.py`、`utils/scene_context.py`；
     论文基线 `agent/paper_baselines.py`、`trainer/paper_trainer.py`、`common/paper_*.py`、`world/paper_rewards.py`；
-    纯离线 `agent/offline_dqn.py`、`trainer/offline_tsc_trainer.py`、`task/offline_tsc_task.py`、`data/dataset/offline_trajectory_dataset.py`；
-    arterial `agent/shared_dqn.py`。这些通过注册表被 `run.py` 加载，移出需改注册机制，见下条评估。
+    arterial `agent/shared_dqn.py`。
+  - 评估结论：纯离线一组（4 个文件）框架层无其他使用者，已整组移入 `semi_offline/offline/`；
+    论文基线中 `common/paper_experiment.py` 被事件系统 `world/sumo_events` 依赖，注意力线的 `scene_attention`/`scene_context`
+    被 colight、mplight、dqn、trainer、world 等使用，均已织入框架，保留；`shared_dqn` 为冻结线的注册智能体，收益小，保留。
 
 ## 4.1 研究侧备忘（不属于本次整理，不安排执行）
 

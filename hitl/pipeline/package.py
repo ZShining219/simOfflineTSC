@@ -10,7 +10,7 @@ proposals/interventions + manifest）打包成离线档案：
             manifest.json index.jsonl validation.json
         source_shards.jsonl       Plan 2 风格 source index
         datasets/<network>/<stage>/manifest.json
-            ↑ 可直接喂 ``data.dataset.offline_trajectory_dataset`` 的
+            ↑ 可直接喂 ``semi_offline.offline.dataset`` 的
               ``OfflineTrajectoryDataset`` / ``validate_offline_dataset``
         config/simulator_resolved.cfg   语义哈希用（dir 已解析为绝对路径）
         config/source_sim.cfg           录制时的原始仿真配置副本
@@ -56,7 +56,7 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-from data.dataset.offline_trajectory_dataset import (  # noqa: E402
+from semi_offline.offline.dataset import (  # noqa: E402
     FEATURE_SCHEMA_VERSION,
     OFFLINE_DATASET_BUILDER_VERSION,
     OFFLINE_DATASET_SCHEMA_VERSION,

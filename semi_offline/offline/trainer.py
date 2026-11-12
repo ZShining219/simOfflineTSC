@@ -15,7 +15,7 @@ import numpy as np
 import torch
 
 from common.registry import Registry
-from data.dataset.offline_trajectory_dataset import OfflineTrajectoryDataset
+from semi_offline.offline.dataset import OfflineTrajectoryDataset
 from trainer.tsc_trainer import TSCTrainer
 from utils.logger import hash_torch_state_dict
 

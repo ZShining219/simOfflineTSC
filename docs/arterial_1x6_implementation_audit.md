@@ -10,7 +10,7 @@
 4. `agent/dqn.py` 是 vanilla DQN，不是 Double DQN：target network 对下一状态直接取最大 Q。
 5. online/target 均为 20-20 隐层 MLP；target 按 trainer 的 `update_target_rate` 硬同步。
 6. 旧 replay 是有界 `deque`，FIFO 淘汰，默认容量 5000；记录为 key 加六字段 legacy payload。
-7. 纯离线线路由 `python -m semi_offline.offline`（原 `offline_run.py`）、`trainer/offline_tsc_trainer.py`、`agent/offline_dqn.py` 和轨迹数据集组成，服务于既有单路口 Plan 2。
+7. 纯离线线路由 `python -m semi_offline.offline`（原 `offline_run.py`）、`semi_offline/offline/trainer.py`、`semi_offline/offline/agent.py` 和轨迹数据集组成，服务于既有单路口 Plan 2。
 8. 仓库已有 `semi_offline/sequential/hybrid*.py` 的混合 replay，但其来源维度围绕旧单路口网络/阶段组织，不能直接表达六路口 `scene × intersection`。
 9. 既有顺序训练支持 clear、FIFO 和 matched-wait；clear 会在场景切换时清空 replay，FIFO 保留并自然覆盖。
 10. 既有顺序线路保存并恢复 epsilon；本次扩展显式提供 reset、continue、fixed-low 三种模式。

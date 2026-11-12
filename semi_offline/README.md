@@ -5,7 +5,7 @@
 | 位置 | 内容 | 状态 | 台账 campaign |
 |---|---|---|---|
 | （见下）cl_hz1x1 当前线 | 自产历史归档 + 混合采样 + 教师锚定（经 `run.py`） | ✅ 当前主线 | `cl_hz1x1`、`seq8_anchor` |
-| `offline.py` | 纯离线训练入口（Plan 2 batch_dqn / cql_dqn），`python -m semi_offline.offline` | 在用（离线基线） | `hz1x1_offline_v1`（`xiasha1_offline_v1/v2` 已作废） |
+| `offline/` | 纯离线训练（Plan 2 batch_dqn / cql_dqn）：入口 `cli.py`（`python -m semi_offline.offline`）及智能体、trainer、task、数据集实现（原在框架层） | 在用（离线基线） | `hz1x1_offline_v1`（`xiasha1_offline_v1/v2` 已作废） |
 | `sequential/` | Plan 3/4 Sequential DQN、HA-SODQN、seq8 与 HITL 通道训练，`python -m semi_offline.sequential` | ❄️ 冻结，仅复跑底稿 | `ha_sodqn`、`seq8_demand`、HITL 通道训练 |
 | `plan5/` | 8 月跨算法半离线实验（自带一套基座副本），`python -m semi_offline.plan5` | ❄️ 已结束 | `plan5_b100` |
 | `arterial/` | arterial 1×6 走廊的场景定义与评估矩阵（通用回放已迁入 `common/`） | ❄️ 已结束 | `arterial_1x6` |

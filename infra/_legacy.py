@@ -4,6 +4,8 @@
     sequential.offline                                                     → semi_offline.offline
     sequential[.<其余>]                                                    → semi_offline.sequential[.<其余>]
     plan5[.<x>] / arterial[.<x>]                                           → semi_offline.plan5 / semi_offline.arterial
+    agent.offline_dqn / trainer.offline_tsc_trainer / task.offline_tsc_task /
+    data.dataset.offline_trajectory_dataset                               → semi_offline.offline.<agent|trainer|task|dataset>
 """
 from __future__ import annotations
 
@@ -15,10 +17,17 @@ import sys
 INFRA_MODULES = ("io", "core", "checkpoint", "transaction", "state", "launcher", "evaluator")
 PACKAGES = {"sequential": "semi_offline.sequential", "plan5": "semi_offline.plan5",
             "arterial": "semi_offline.arterial"}
+# 从框架层迁出的单个模块（其所在框架包仍存在，只按完整模块名精确匹配）
+MOVED_MODULES = {"agent.offline_dqn": "semi_offline.offline.agent",
+                 "trainer.offline_tsc_trainer": "semi_offline.offline.trainer",
+                 "task.offline_tsc_task": "semi_offline.offline.task",
+                 "data.dataset.offline_trajectory_dataset": "semi_offline.offline.dataset"}
 
 
 def target(name):
     """旧模块名对应的新模块名；不是旧名字时返回 None。"""
+    if name in MOVED_MODULES:
+        return MOVED_MODULES[name]
     root, _, rest = name.partition(".")
     if root not in PACKAGES:
         return None

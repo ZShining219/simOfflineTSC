@@ -14,7 +14,7 @@ import sys
 
 import yaml
 
-from data.dataset.offline_trajectory_dataset import (
+from semi_offline.offline.dataset import (
     OFFLINE_DATASET_BUILDER_VERSION, OfflineTrajectoryDataset,
     prepare_plan2_datasets, validate_offline_dataset,
 )

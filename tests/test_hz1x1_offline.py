@@ -7,14 +7,14 @@ import numpy as np
 import torch
 import yaml
 
-from agent.offline_dqn import BatchDQNAgent, CQLDQNAgent
+from semi_offline.offline.agent import BatchDQNAgent, CQLDQNAgent
 from common.registry import Registry
-from data.dataset.offline_trajectory_dataset import (
+from semi_offline.offline.dataset import (
     OfflineBatch, _reward_transform, _source_reward_descriptor,
 )
 from dev.hz1x1_offline.prepare import build_specs
 from semi_offline.offline import build_parser
-from trainer.offline_tsc_trainer import source_network_counts
+from semi_offline.offline.trainer import source_network_counts
 from utils.logger import build_config, merge_dicts
 from world.world_sumo import World
 

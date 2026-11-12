@@ -16,7 +16,7 @@ import subprocess
 import yaml
 from concurrent.futures import ProcessPoolExecutor
 
-from data.dataset.offline_trajectory_dataset import (
+from semi_offline.offline.dataset import (
     prepare_plan2_datasets,
     validate_offline_dataset,
 )
@@ -59,7 +59,7 @@ def _git_commit():
 
 
 def _benchmark_dataset_worker(arguments):
-    from data.dataset.offline_trajectory_dataset import OfflineTrajectoryDataset
+    from semi_offline.offline.dataset import OfflineTrajectoryDataset
     manifest, source_root, seed, batch_size, sample_batches = arguments
     dataset = OfflineTrajectoryDataset(
         manifest, seed=seed, source_root=source_root
@@ -194,9 +194,9 @@ class OfflineRunner:
         import task  # noqa: F401
         import trainer  # noqa: F401
         import world  # noqa: F401
-        import agent.offline_dqn  # noqa: F401
-        import task.offline_tsc_task  # noqa: F401
-        import trainer.offline_tsc_trainer  # noqa: F401
+        import semi_offline.offline.agent  # noqa: F401
+        import semi_offline.offline.task  # noqa: F401
+        import semi_offline.offline.trainer  # noqa: F401
         from common import interface
         from common.registry import Registry
         from utils.logger import (

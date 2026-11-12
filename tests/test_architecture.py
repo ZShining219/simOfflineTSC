@@ -21,6 +21,8 @@ CORE = ("agent", "world", "trainer", "task", "common", "utils", "generator", "da
 INFRA = ("infra",)
 RESEARCH = ("semi_offline", "scene_attention", "hitl", "tools", "dev")
 LEGACY = ("sequential", "plan5", "arterial")  # 2026-11-12 迁入 infra/ 与 semi_offline/ 的旧包名
+LEGACY_MODULES = ("agent.offline_dqn", "trainer.offline_tsc_trainer", "task.offline_tsc_task",
+                  "data.dataset.offline_trajectory_dataset")  # 同日迁入 semi_offline/offline/
 OUTPUT_LITERAL = re.compile(r"""['"](?:\./)?(?:data/output_data|analysis/|final_result/|/tmp/)""")
 OUTPUT_LITERAL_EXEMPT = {"lab/paths.py", "lab/checks.py"}  # 规则定义本身
 ABSOLUTE_PATH = re.compile(r"""['"]/(?:projects|home)/""")
@@ -59,9 +61,23 @@ def infra_research_imports():
                   for root in _imported_roots(path) if root in RESEARCH)
 
 
+def _imported_modules(path):
+    tree = ast.parse((ROOT / path).read_text(encoding="utf-8"), filename=path)
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            yield from (alias.name for alias in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.level == 0 and node.module:
+            yield node.module
+            yield from (f"{node.module}.{alias.name}" for alias in node.names)
+
+
 def legacy_imports():
-    return sorted(f"{path} -> {root}" for path in _tracked_py(*CORE, *INFRA, *RESEARCH, "lab", "tests")
-                  for root in _imported_roots(path) if root in LEGACY)
+    found = set()
+    for path in _tracked_py(*CORE, *INFRA, *RESEARCH, "lab", "tests") + ["run.py"]:
+        for name in _imported_modules(path):
+            if name.split(".")[0] in LEGACY or name in LEGACY_MODULES:
+                found.add(f"{path} -> {name}")
+    return sorted(found)
 
 
 def lab_internal_imports():

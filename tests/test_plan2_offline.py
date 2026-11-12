@@ -12,8 +12,8 @@ import torch
 import yaml
 
 from agent.dqn import DQNNet
-from agent.offline_dqn import BatchDQNAgent, CQLDQNAgent
-from data.dataset.offline_trajectory_dataset import (
+from semi_offline.offline.agent import BatchDQNAgent, CQLDQNAgent
+from semi_offline.offline.dataset import (
     OfflineBatch,
     OfflineTrajectoryDataset,
     prepare_plan2_datasets,

@@ -861,7 +861,7 @@ campaign 绑定的一次性脚本从 `tools/` 迁至 `dev/<campaign>/`（`git mv
 | 原路径 | 新路径 |
 |---|---|
 | `sequential/{io,core,checkpoint,transaction,state,launcher,evaluator}.py` | `infra/`（实验运行基座，模块名不变） |
-| `sequential/offline.py`（`python -m sequential.offline`） | `semi_offline/offline.py`（`python -m semi_offline.offline`） |
+| `sequential/offline.py`（`python -m sequential.offline`） | `semi_offline/offline/cli.py`（`python -m semi_offline.offline`） |
 | `sequential/` 其余（`python -m sequential`） | `semi_offline/sequential/`（`python -m semi_offline.sequential`） |
 | `plan5/`（`python -m plan5`） | `semi_offline/plan5/` |
 | `arterial/` | `semi_offline/arterial/` |

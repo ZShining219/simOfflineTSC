@@ -20,6 +20,9 @@ def test_target_mapping():
     assert _legacy.target("sequential") == "semi_offline.sequential"
     assert _legacy.target("plan5.config") == "semi_offline.plan5.config"
     assert _legacy.target("arterial") == "semi_offline.arterial"
+    assert _legacy.target("agent.offline_dqn") == "semi_offline.offline.agent"
+    assert _legacy.target("data.dataset.offline_trajectory_dataset") == "semi_offline.offline.dataset"
+    assert _legacy.target("agent.dqn") is None  # 未迁移的框架模块不受影响
     assert _legacy.target("semi_offline.sequential") is None and _legacy.target("infra.core") is None
 
 

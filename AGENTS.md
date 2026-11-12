@@ -13,7 +13,7 @@
 - **框架层（LibSignal）**：`run.py` 训练入口；`agent/` 智能体；`world/` 仿真器适配；`trainer/`、`task/` 训练循环；
   `common/`、`utils/`、`generator/` 共享工具；`data/raw_data/` 路网与车流输入，`data/dataset/` 数据集接口。
 - **实验基座**：`lab/` 管理（台账、溯源、核查、黄金 smoke、提交闸门，纯标准库）；`infra/` 运行（checkpoint、事务、调度、独立评估）。
-- **研究线**：`semi_offline/`（半离线/持续学习：当前主线 cl_hz1x1、纯离线入口、冻结的 sequential/plan5/arterial）；
+- **研究线**：`semi_offline/`（半离线/持续学习：当前主线 cl_hz1x1、纯离线训练 offline/、冻结的 sequential/plan5/arterial）；
   `scene_attention/`（场景引导注意力）；`hitl/`（人在回路）。各包 README 说明状态与入口。
 - **配套**：`configs/` 配置（`configs/tsc/README.md` 为索引）；`tools/` 可复用工具；`dev/<topic>/` 一次性脚本（登记于 `dev/INDEX.md`）；
   `bench/` 验收口径与黄金 smoke；`ledger/`、`EXPERIMENTS/` 台账；`docs/` 计划、实验记录与归档；`tests/` 测试。

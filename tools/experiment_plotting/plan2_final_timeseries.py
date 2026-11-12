@@ -18,13 +18,13 @@ import torch
 import yaml
 
 import agent  # noqa: F401 - registry side effects
-import agent.offline_dqn  # noqa: F401 - registry side effects
+import semi_offline.offline.agent  # noqa: F401 - registry side effects
 import data.dataset  # noqa: F401 - registry side effects
 import trainer  # noqa: F401 - registry side effects
 import world  # noqa: F401 - registry side effects
 from common import interface
 from common.registry import Registry
-from trainer.offline_tsc_trainer import isolated_random_seed
+from semi_offline.offline.trainer import isolated_random_seed
 from trainer.tsc_trainer import TSCTrainer
 from utils.logger import hash_torch_state_dict
 

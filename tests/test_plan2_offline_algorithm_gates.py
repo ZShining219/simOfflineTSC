@@ -5,12 +5,12 @@ import numpy as np
 import torch
 from torch import nn
 
-from agent.offline_dqn import (
+from semi_offline.offline.agent import (
     BatchDQNAgent, CQLDQNAgent, build_full_q_mse_target,
     compute_offline_loss_tensors,
 )
-from data.dataset.offline_trajectory_dataset import OfflineBatch
-from trainer.offline_tsc_trainer import should_update_target
+from semi_offline.offline.dataset import OfflineBatch
+from semi_offline.offline.trainer import should_update_target
 
 
 class TableQNet(nn.Module):

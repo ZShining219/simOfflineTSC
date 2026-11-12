@@ -16,10 +16,10 @@ Online 与 Offline 是两个明确隔离的入口：
 ## 架构
 
 - `python -m semi_offline.offline`：独立的准备、校验和训练入口；准备/校验数据时不初始化 SUMO。
-- `data/dataset/offline_trajectory_dataset.py`：校验 Plan 1 白名单运行并生成只读索引，不复制 trajectory；提供阶段切分和场景均衡采样。
-- `agent/offline_dqn.py`：复用现有 DQN 网络与评估观测，提供 Batch-DQN/CQL-DQN loss。
-- `trainer/offline_tsc_trainer.py`：执行固定数据更新、固定节点 SUMO 评估、结构化指标和完整 checkpoint/resume。
-- `task/offline_tsc_task.py`：沿用仓库 Registry 任务编排。
+- `semi_offline/offline/dataset.py`：校验 Plan 1 白名单运行并生成只读索引，不复制 trajectory；提供阶段切分和场景均衡采样。
+- `semi_offline/offline/agent.py`：复用现有 DQN 网络与评估观测，提供 Batch-DQN/CQL-DQN loss。
+- `semi_offline/offline/trainer.py`：执行固定数据更新、固定节点 SUMO 评估、结构化指标和完整 checkpoint/resume。
+- `semi_offline/offline/task.py`：沿用仓库 Registry 任务编排。
 - `configs/offline_tsc/`：离线公共配置和两种算法的差异配置。
 - `tools.experiment_plotting plan2`：严格验证正式矩阵并生成 Plan 2 汇总表。
 

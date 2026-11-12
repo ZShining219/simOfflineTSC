@@ -41,6 +41,7 @@
 | `python -m lab audit [--campaign C]` | 各 campaign 证据是否在盘、代码版本是否可信、配置哈希是否对得上、有无重复登记 |
 | `python -m lab data [NET]` | 某个路网/车流对应哪些文件、当前指纹、被多少 run 使用 |
 | `python -m lab metrics [--campaign C] [--apply]` | 按标准口径复算并回填台账指标（默认只预览） |
+| `python -m lab outputs [--root R]` | 每个产物目录多大、属于哪个 campaign、台账是否引用、未登记的由哪个脚本写出 |
 | `python -m lab golden [NAME] [--update]` | 改了代码，主线训练结果变没变（固定种子小规模运行，逐条比对） |
 
 - 新 run 的 `run_manifest.json` 自动记录 `code`（运行时 HEAD/分支/dirty/改动指纹）、`data`（输入文件指纹）、`machine`。

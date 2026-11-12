@@ -61,6 +61,8 @@
 - [ ] 机器 34 可连通后，在 34 上运行 `lab audit`，合并两机视角，区分"在 34 上"与"真丢失"
 
 ### B. 产物落点
+- [x] 产物地图 `python -m lab outputs`（2026-11-12 快照：4 个产物区 52 个目录；`ha_sodqn` 379G + `sequential` 287G 占 91%，
+  其中 `sequential` 仅 42 行台账引用；31 个目录 2.5G 未被台账引用，26 个可追溯到写入脚本）
 - [ ] 历史散目录（仓根 `analysis/`、`final_result/`，`data/output_data/` 下非 run 目录）放置冻结说明
 - [ ] 分析/出图脚本逐步改用 `lab.paths.report_dir()`，随迁随收紧棘轮基线
 - [ ] 历史产物"永留 / 可弃"清单（含冻结线 `ha_sodqn` 381G、`sequential` 290G）交用户裁决
@@ -82,6 +84,11 @@
 - [ ] 为注意力线（scene_attention）与纯离线（sequential.offline）补黄金用例（需先让其入口遵守 `TSC_OUTPUT_ROOT`）
 - [ ] 修复或标注历史失败用例（见第 5 节），拆出快速门禁集
 - [ ] 推送打通后接入 GitHub Actions：`lab check --all` + 快速门禁
+
+## 4.1 研究侧备忘（不属于本次整理，不安排执行）
+
+- 指标口径改为最佳 checkpoint 后，`xiasha1_online_v3` 有 2/12、`hz1x1_sanity_v1` 有 1/4 个车流包的最优臂改变。
+  该口径选择与报告同源、偏向训练曲线波动大的算法；若要据此下结论，需对最佳 checkpoint 做独立种子冻结复评。
 
 ## 5. 测试基线
 

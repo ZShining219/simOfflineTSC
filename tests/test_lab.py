@@ -197,3 +197,14 @@ def test_golden_cases_are_well_formed():
         assert set(spec["expected"]) == set(ids), f"{name} 期望值未生成，运行 python -m lab golden {name} --update"
         for step in spec["steps"]:
             assert "--prefix" not in step["args"] and "--experiment-config" not in step["args"]
+
+
+def test_outputs_reference_counting():
+    from lab import outputs
+    rows = [{"campaign": "a", "run_dir": "data/output_data/tsc/x/r1"},
+            {"campaign": "a", "queue_file": "artifacts/a/run_queue.json"},
+            {"campaign": "b", "run_dir": "data/output_data/tsc_extra/r2"},
+            {"campaign": "c", "behavior_source": "data/output_data/tsc/y/r3"}]
+    assert outputs._references(rows, "data/output_data/tsc") == {"a": 1, "c": 1}
+    assert outputs._references(rows, "artifacts/a") == {"a": 1}
+    assert outputs._references(rows, "analysis/none") == {}

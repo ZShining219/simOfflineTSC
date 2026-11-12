@@ -6,6 +6,7 @@
     python -m lab data [NET]                          数据注册表：net → 配置 → 文件与指纹
     python -m lab metrics [--campaign C] [--apply]    按标准口径（最佳 checkpoint）复算并回填台账指标
     python -m lab golden [NAME] [--update]            黄金 smoke：改代码后指标须逐条一致
+    python -m lab outputs [--root R] [--json OUT]    产物地图：每个产物目录属于谁、多大、台账是否引用
     python -m lab check --staged | --all | --commit-msg FILE   提交闸门（git hook 调用）
 """
 from __future__ import annotations
@@ -16,7 +17,7 @@ import sys
 import unicodedata
 from collections import Counter, defaultdict
 
-from . import checks, evidence, golden, ledger, metrics
+from . import checks, evidence, golden, ledger, metrics, outputs
 from .provenance import REPO_ROOT, data_identity
 
 
@@ -323,6 +324,32 @@ def cmd_golden(args):
     sys.exit(1 if failed else 0)
 
 
+def _human(size):
+    if size is None:
+        return "-"
+    for unit in ("B", "K", "M", "G", "T"):
+        if size < 1024 or unit == "T":
+            return f"{size:.0f}{unit}" if unit in ("B", "K") else f"{size:.1f}{unit}"
+        size /= 1024
+
+
+def cmd_outputs(args):
+    entries = outputs.scan(args.root or outputs.ROOTS)
+    entries.sort(key=lambda e: -(e["bytes"] or 0))
+    table = [[e["path"], _human(e["bytes"]), e["latest"], e["ledger_rows"] or "",
+              "、".join(f"{c}({n})" for c, n in e["campaigns"].items())
+              or ("⚠ 未登记；代码引用：" + ("、".join(e["writers"]) or "无"))] for e in entries]
+    _table(["目录", "大小", "最近写入", "台账行", "所属 campaign（引用行数）"], table)
+    unreferenced = [e for e in entries if not e["ledger_rows"]]
+    print(f"\n共 {len(entries)} 个目录；台账未引用 {len(unreferenced)} 个，"
+          f"合计 {_human(sum(e['bytes'] or 0 for e in unreferenced))}"
+          "（多为分析/汇报产物或一次性探针，归属需人工确认）")
+    if args.json:
+        with open(args.json, "w", encoding="utf-8") as handle:
+            json.dump(entries, handle, ensure_ascii=False, indent=2)
+        print(f"已写出 {args.json}")
+
+
 def cmd_check(args):
     if args.commit_msg:
         with open(args.commit_msg, encoding="utf-8") as handle:
@@ -374,6 +401,11 @@ def main(argv=None):
     gold.add_argument("--update", action="store_true", help="重新生成期望值（有意改变行为时）")
     gold.add_argument("--keep", action="store_true", help="保留临时产物目录以便排查")
     gold.set_defaults(func=cmd_golden)
+
+    out = sub.add_parser("outputs", help="产物地图：每个产物目录属于谁、多大、台账是否引用")
+    out.add_argument("--root", action="append", help="只扫该目录（可多次），如 data/output_data/tsc")
+    out.add_argument("--json", help="同时写出机读结果")
+    out.set_defaults(func=cmd_outputs)
 
     check = sub.add_parser("check", help="提交闸门（git hook 调用）")
     mode = check.add_mutually_exclusive_group()

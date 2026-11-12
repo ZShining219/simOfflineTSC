@@ -94,3 +94,17 @@ def test_renamed_file_legacy_content_not_flagged(repo):
     _git(repo, "add", "lab/new.py")
     problems = checks.check_staged(repo)
     assert len(problems) == 1 and "/projects/" in problems[0]
+
+
+def test_ledger_invariants_checked_when_staged(repo):
+    import json
+    good = {"run_id": "a", "metrics": {"travel_time": 1.0}, "metric_source": "best_ckpt",
+            "run_dir": "data/output_data/x"}
+    _stage(repo, "ledger/runs.jsonl", (json.dumps(good) + "\n").encode())
+    assert checks.check_ledger(repo, ["ledger/runs.jsonl"]) == []
+    bad = [good, {**good, "metric_source": None}, {"run_id": "b", "run_dir": "/abs/x"}]
+    _stage(repo, "ledger/runs.jsonl", "".join(json.dumps(r) + "\n" for r in bad).encode())
+    problems = checks.check_ledger(repo, ["ledger/runs.jsonl"])
+    assert any("重复" in p for p in problems) and any("口径" in p for p in problems)
+    assert any("相对路径" in p for p in problems)
+    assert checks.check_ledger(repo, ["lab/ok.py"]) == []

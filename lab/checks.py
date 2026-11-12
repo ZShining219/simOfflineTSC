@@ -113,10 +113,46 @@ def check_sensitive(repo, paths):
     return problems
 
 
+def check_configs_index(repo):
+    """configs/tsc/README.md 须与实际文件一致（新增/删除配置后运行 python -m lab configs --write）。"""
+    from . import configs
+    if Path(repo).resolve() != configs.REPO_ROOT.resolve() or not configs.README.exists():
+        return []
+    if configs.README.read_text(encoding="utf-8") != configs.render():
+        return ["configs/tsc/README.md 已过期：运行 python -m lab configs --write 后一并提交"]
+    return []
+
+
+def check_ledger(repo, paths):
+    """暂存了台账时检查结构不变量（与 tests/test_ledger_schema.py 同口径）。"""
+    if "ledger/runs.jsonl" not in paths:
+        return []
+    import json
+    from collections import Counter
+    from . import metrics
+    staged = _git(repo, "show", ":ledger/runs.jsonl").decode("utf-8")
+    rows = [json.loads(line) for line in staged.splitlines() if line.strip()]
+    problems = []
+    duplicates = [run_id for run_id, n in Counter(r["run_id"] for r in rows).items() if n > 1]
+    if duplicates:
+        problems.append(f"台账 run_id 重复：{duplicates[:5]}")
+    undeclared = [r["run_id"] for r in rows
+                  if any((r.get("metrics") or {}).get(k) is not None for k in metrics.METRIC_KEYS)
+                  and not (r.get("metric_source") in (metrics.STANDARD, metrics.EVAL_ATTEMPT)
+                           or str(r.get("metric_source", "")).startswith(metrics.LEGACY_PREFIX))]
+    if undeclared:
+        problems.append(f"台账有指标未声明口径（用 python -m lab metrics 回填）：{undeclared[:5]}")
+    absolute = [r["run_id"] for r in rows if (r.get("run_dir") or "").startswith("/")]
+    if absolute:
+        problems.append(f"台账 run_dir 须为仓内相对路径：{absolute[:5]}")
+    return problems
+
+
 def check_staged(repo):
     paths = _staged(repo)
     return (check_symlinks(repo) + check_paths(paths)
-            + check_sizes(repo, paths) + check_sensitive(repo, paths))
+            + check_sizes(repo, paths) + check_sensitive(repo, paths)
+            + check_configs_index(repo) + check_ledger(repo, paths))
 
 
 def check_all(repo):

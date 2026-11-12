@@ -40,11 +40,16 @@
 | `python -m lab find --campaign C --arm A --net N --status DONE` | 某条件下有哪些 run |
 | `python -m lab audit [--campaign C]` | 各 campaign 证据是否在盘、代码版本是否可信、配置哈希是否对得上、有无重复登记 |
 | `python -m lab data [NET]` | 某个路网/车流对应哪些文件、当前指纹、被多少 run 使用 |
+| `python -m lab metrics [--campaign C] [--apply]` | 按标准口径复算并回填台账指标（默认只预览） |
 
 - 新 run 的 `run_manifest.json` 自动记录 `code`（运行时 HEAD/分支/dirty/改动指纹）、`data`（输入文件指纹）、`machine`。
   在每台机器的 shell 配置中设置 `TSC_MACHINE=34` 或 `73`。
 - 代码版本可信等级：`verified`（运行时记录）> `registered`（仅登记时提交号）> `constant`（写死常量，等于没有）> `none`。
   引用结果做结论时注明等级；2026-11-12 之前的 run 均不是 `verified`。
+- **台账指标标准口径 = 最佳 checkpoint 评估**（trainer 写入 `evaluation/summary.json` 的选择：travel_time 最小、并列取最早）。
+  回填/登记指标一律 `python -m lab metrics --campaign C`（预览）→ `--apply`，禁止在登记脚本里自写公式。
+  每行 `metric_source` 标明口径：`best_ckpt` 标准；`eval_attempt` 冻结评估行；`legacy:*` 无法复算的旧值，比较前先核对。
+  该值取自训练期逐回合评估、选择与报告同源，偏乐观；需无偏比较时对最佳 checkpoint 另做冻结复评。
 - 产物路径一律经 `lab.paths`（`output_root()`/`report_dir(topic)`/`queue_dir(campaign)`）获取；分析、图表、汇报产物写
   `<output_root>/reports/<topic>/`，不得再在仓根或 output_data 下新开散目录。`TSC_OUTPUT_ROOT` 可让多工作树共用产物根。
 - `tests/test_architecture.py` 是棘轮：核心层（agent/world/trainer/task/common/utils/generator/data）不得新增对研究线
@@ -209,3 +214,4 @@ Agent 应帮助降低后续任务成本，而不仅是完成当前指令。
 | 2026-11-12 | gov/refactor | run_manifest 增 `data`（仿真输入文件 sha256 与总指纹，`.sumocfg` 引用的 net/route/additional 一并计入）；新增 `python -m lab data [NET]` 数据注册表视图（net → configs/sim → 文件与当前指纹 → 台账用量）；`lab show` 展示数据来源，历史 run 明示"运行时未记录" | 同一 net 名在不同时期可能对应不同文件内容（如 xiasha1 几何修正），只记文件名无法判断结果用的是哪版数据 | 全部经 `run.py` 的新 run；不改训练/评估语义 |
 | 2026-11-12 | gov/refactor | 新增 `lab/paths.py` 为产物落点唯一来源（`output_root/report_dir/queue_dir`；`TSC_OUTPUT_ROOT` 可让多工作树共用一个产物根，未设置时路径不变）；分析/报告产物新落点 `<output_root>/reports/<topic>/`；`tests/test_architecture.py` + `architecture_baseline.json` 棘轮：核心层 import 研究线（存量 6 处）、硬编码产物路径（存量 122 文件 266 处）、仓根未登记条目——只许减少不许新增 | 输出散落于仓根 analysis/final_result、output_data 下 23+ 随意目录与各工作树；规则只在文档中无法阻止回潮 | 新代码须经 lab.paths 取路径；存量随整理逐步迁移 |
 | 2026-11-12 | gov/refactor | 分层修复：`arterial/replay.py` → `common/history_replay.py`、`arterial/control.py` → `common/intersection_control.py`、`sequential/launcher.LogicalRunLock` → `common/locks.py`；原位置保留兼容（`arterial.replay`/`arterial.control` 为同一模块对象别名，`sequential.launcher` 继续导出 `LogicalRunLock`）；核心层对研究线的 import 由 6 处降至 1 处（`agent/shared_dqn.py` 的 arterial 场景校验，属该研究线专有逻辑） | 通用回放/归档/路口排序/文件锁被放在研究线包内，导致 LibSignal 核心依赖研究线 | 无行为变化：arterial/队列/launcher 相关测试改动前后结果一致，hz1x1 dqn_smoke 指标一致 |
+| 2026-11-12 | gov/refactor | 台账指标统一为最佳 checkpoint 评估（用户裁定）：新增 `lab/metrics.py` 与 `python -m lab metrics`；3,291 行回填 `metric_source`，其中 946 行改为标准值、旧值保留在 `metrics_legacy`（注明旧公式 final_eval / mixed_last20 等）；48 行绝对 `run_dir` 改为相对路径；`lab audit` 增加指标复核；`EXPERIMENTS/` 索引标注非标准口径；`tests/test_ledger_schema.py` 守台账结构 | 各 campaign 原用最终评估、末 20 均值、混入训练回合等不同公式，数字不可横向比较 | 台账 metrics 语义变更：标准口径行与旧数字不同；引用历史结论前用 `lab show` 核对 |

@@ -80,3 +80,20 @@ def sim_config(net):
     """台账 net → configs/sim/<net>.cfg；持续学习的阶段序列（含 ':'）等无单一配置时返回 None。"""
     path = SIM_CONFIG_DIR / f"{net}.cfg"
     return path if net and path.exists() else None
+
+
+def read_lines(path=None):
+    """逐行读取台账原文（保留重复行与行序），用于改写；返回 dict 列表。"""
+    with open(path or LEDGER_PATH, encoding="utf-8") as handle:
+        return [json.loads(line) for line in handle if line.strip()]
+
+
+def write_lines(rows, path=None):
+    """原子写回台账；保持既有键序与 json.dumps 默认格式，便于 git diff 审阅。"""
+    path = Path(path or LEDGER_PATH)
+    temporary = path.with_suffix(".jsonl.tmp")
+    with open(temporary, "w", encoding="utf-8") as handle:
+        for row in rows:
+            handle.write(json.dumps({k: v for k, v in row.items() if not k.startswith("_")},
+                                    ensure_ascii=False) + "\n")
+    temporary.replace(path)

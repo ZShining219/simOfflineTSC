@@ -12,7 +12,7 @@
 |---|---|---|---|---|---|---|---|
 | `colight_event_smoke_s17` | colight_event_smoke_s17/hz4x4/s17 | 2 | DONE | 2026-09-23 | — | `data/output_data/tsc/sumo_colight/hz4x4/colight_event_smoke_s17` |  |
 | `colight_event_smoke_v1` | colight_event_smoke_v1/hz4x4/s7 | 2 | DONE | 2026-09-23 | — | `data/output_data/tsc/sumo_colight/hz4x4/colight_event_smoke_v1` |  |
-| `concat_colight_text_event_smoke_v1` | concat_colight_text_event_smoke_v1/hz4x4/s7 | 2 | DONE | 2026-09-24 | 186.9/15/227 | `data/output_data/tsc/sumo_concat_colight/hz4x4/concat_colight_text_event_smoke_v` |  |
+| `concat_colight_text_event_smoke_v1` | concat_colight_text_event_smoke_v1/hz4x4/s7 | 2 | DONE | 2026-09-24 | 186.9/15/227 ⟨旧口径⟩ | `data/output_data/tsc/sumo_concat_colight/hz4x4/concat_colight_text_event_smoke_v` |  |
 | `concat_colight_text_normal_smoke_v1` | concat_colight_text_normal_smoke_v1/hz4x4/s7 | 2 | DONE | 2026-09-24 | — | `data/output_data/tsc/sumo_concat_colight/hz4x4/concat_colight_text_normal_smoke_` |  |
 | `mplight_event_smoke` | mplight_event_smoke/hz4x4/s7 | — | FAILED | 2026-09-23 | — | `data/output_data/tsc/sumo_mplight/hz4x4/mplight_event_smoke` |  |
 | `mplight_event_smoke_s17` | mplight_event_smoke_s17/hz4x4/s17 | 2 | DONE | 2026-09-23 | — | `data/output_data/tsc/sumo_mplight/hz4x4/mplight_event_smoke_s17` |  |
@@ -37,7 +37,7 @@
 | `sga_event_evalfix_smoke` | sga_event_evalfix_smoke/hz4x4/s7 | — | FAILED | — | — | `data/output_data/tsc/sumo_sga_colight/hz4x4/sga_event_evalfix_smoke` |  |
 | `sga_event_evalfix_smoke_v2` | sga_event_evalfix_smoke_v2/hz4x4/s7 | — | FAILED | 2026-09-24 | — | `data/output_data/tsc/sumo_sga_colight/hz4x4/sga_event_evalfix_smoke_v2` |  |
 | `sga_event_evalfix_smoke_v3` | sga_event_evalfix_smoke_v3/hz4x4/s7 | — | FAILED | 2026-09-24 | — | `data/output_data/tsc/sumo_sga_colight/hz4x4/sga_event_evalfix_smoke_v3` |  |
-| `sga_event_evalfix_smoke_v4` | sga_event_evalfix_smoke_v4/hz4x4/s7 | 2 | DONE | 2026-09-24 | 197.3/13/229 | `data/output_data/tsc/sumo_sga_colight/hz4x4/sga_event_evalfix_smoke_v4` |  |
+| `sga_event_evalfix_smoke_v4` | sga_event_evalfix_smoke_v4/hz4x4/s7 | 2 | DONE | 2026-09-24 | 197.3/13/229 ⟨旧口径⟩ | `data/output_data/tsc/sumo_sga_colight/hz4x4/sga_event_evalfix_smoke_v4` |  |
 | `sga_mplight_event_smoke_s17` | sga_mplight_event_smoke_s17/hz4x4/s17 | 2 | DONE | 2026-09-23 | — | `data/output_data/tsc/sumo_sga_mplight/hz4x4/sga_mplight_event_smoke_s17` |  |
 | `sga_mplight_event_smoke_s7` | sga_mplight_event_smoke_s7/hz4x4/s7 | — | FAILED | 2026-09-23 | — | `data/output_data/tsc/sumo_sga_mplight/hz4x4/sga_mplight_event_smoke_s7` |  |
 | `sga_mplight_event_smoke_s7v2` | sga_mplight_event_smoke_s7v2/hz4x4/s7 | 2 | DONE | 2026-09-23 | — | `data/output_data/tsc/sumo_sga_mplight/hz4x4/sga_mplight_event_smoke_s7v2` |  |
@@ -60,21 +60,21 @@
 | `artifacts__sga_concat_colight_200_v1__quarantine__pre_pause_` | sga_colight_text_normal/hz4x4/s27 | 0 | ABORTED | 2026-09-24 | — | `artifacts/sga_concat_colight_200_v1/quarantine/pre_pause_s27_launches/sga_coligh` | alias→sumo_sga_colight__hz4x4__sga_colight_tex; quarantined; 同名隔离/残留副本，逻辑同一 run→sumo_sga_colight__hz4x4__sga_colight_text_normal |
 | `artifacts__sga_concat_colight_200_v1__quarantine__pre_pause_` | sga_colight_text_normal/hz4x4/s37 | — | ABORTED | 2026-09-24 | — | `artifacts/sga_concat_colight_200_v1/quarantine/pre_pause_s27_launches/sga_coligh` | alias→sumo_sga_colight__hz4x4__sga_colight_tex; quarantined; 同名隔离/残留副本，逻辑同一 run→sumo_sga_colight__hz4x4__sga_colight_text_normal |
 | `artifacts__sga_concat_colight_200_v1__quarantine__pre_pause_` | sga_colight_text_normal/hz4x4/s47 | — | ABORTED | 2026-09-24 | — | `artifacts/sga_concat_colight_200_v1/quarantine/pre_pause_s27_launches/sga_coligh` | alias→sumo_sga_colight__hz4x4__sga_colight_tex; quarantined; 同名隔离/残留副本，逻辑同一 run→sumo_sga_colight__hz4x4__sga_colight_text_normal |
-| `colight_adaptation_probe_20260920` | colight_adaptation_probe_20260920/hz4x4/s7 | 2 | DONE | 2026-09-20 | 167.8/21/221 | `data/output_data/tsc/sumo_colight/hz4x4/colight_adaptation_probe_20260920` |  |
-| `colight_event_200_s17` | colight_event_200_s17/hz4x4/s17 | 200 | DONE | 2026-09-24 | 336.2/2739/244 | `data/output_data/tsc/sumo_colight/hz4x4/colight_event_200_s17` |  |
-| `colight_event_200_s7` | colight_event_200_s7/hz4x4/s7 | 200 | DONE | 2026-09-24 | 336.4/2741/242 | `data/output_data/tsc/sumo_colight/hz4x4/colight_event_200_s7` |  |
+| `colight_adaptation_probe_20260920` | colight_adaptation_probe_20260920/hz4x4/s7 | 2 | DONE | 2026-09-20 | 167.8/21/221 ⟨旧口径⟩ | `data/output_data/tsc/sumo_colight/hz4x4/colight_adaptation_probe_20260920` |  |
+| `colight_event_200_s17` | colight_event_200_s17/hz4x4/s17 | 200 | DONE | 2026-09-24 | 336.2/2739/244 ⟨旧口径⟩ | `data/output_data/tsc/sumo_colight/hz4x4/colight_event_200_s17` |  |
+| `colight_event_200_s7` | colight_event_200_s7/hz4x4/s7 | 200 | DONE | 2026-09-24 | 336.4/2741/242 ⟨旧口径⟩ | `data/output_data/tsc/sumo_colight/hz4x4/colight_event_200_s7` |  |
 | `colight_normal_200_s17` | colight_normal/hz4x4/s17 | 29 | FAILED | 2026-09-24 | — | `artifacts/sga_concat_colight_200_v1/quarantine/misresolved_includes_20260924/col` | quarantined |
 | `colight_normal_200_s7` | colight_normal/hz4x4/s7 | 30 | FAILED | 2026-09-24 | — | `artifacts/sga_concat_colight_200_v1/quarantine/misresolved_includes_20260924/col` | quarantined |
-| `concat_colight_text_event_200_s17` | concat_colight_text_event_200_s17/hz4x4/s17 | 200 | DONE | 2026-09-24 | 361.4/2710/273 | `data/output_data/tsc/sumo_concat_colight/hz4x4/concat_colight_text_event_200_s17` |  |
+| `concat_colight_text_event_200_s17` | concat_colight_text_event_200_s17/hz4x4/s17 | 200 | DONE | 2026-09-24 | 361.4/2710/273 ⟨旧口径⟩ | `data/output_data/tsc/sumo_concat_colight/hz4x4/concat_colight_text_event_200_s17` |  |
 | `concat_colight_text_event_200_s7` | concat_colight_text_event/hz4x4/s7 | — | ABORTED | 2026-09-24 | — | `artifacts/sga_concat_colight_200_v1/quarantine/dropped_stragglers_20260924/conca` | quarantined |
-| `concat_colight_text_normal_200_s17` | concat_colight_text_normal_200_s17/hz4x4/s17 | 200 | DONE | 2026-09-24 | 409.5/1984/882 | `data/output_data/tsc/sumo_concat_colight/hz4x4/concat_colight_text_normal_200_s1` |  |
+| `concat_colight_text_normal_200_s17` | concat_colight_text_normal_200_s17/hz4x4/s17 | 200 | DONE | 2026-09-24 | 409.5/1984/882 ⟨旧口径⟩ | `data/output_data/tsc/sumo_concat_colight/hz4x4/concat_colight_text_normal_200_s1` |  |
 | `concat_colight_text_normal_200_s7` | concat_colight_text_normal/hz4x4/s7 | 16 | FAILED | 2026-09-24 | — | `artifacts/sga_concat_colight_200_v1/quarantine/misresolved_includes_20260924/con` | quarantined |
 | `sga_colight_text_150_module_s7` | sga_colight_text_150_module_s7/hz4x4/s7 | 150 | DONE | 2026-09-24 | — | `data/output_data/tsc/sumo_sga_colight/hz4x4/sga_colight_text_150_module_s7` |  |
 | `sga_colight_text_150_s7` | sga_colight_text_150_s7/hz4x4/s7 | — | FAILED | 2026-09-24 | — | `data/output_data/tsc/sumo_sga_colight/hz4x4/sga_colight_text_150_s7` |  |
 | `sga_colight_text_150_s7_v2` | sga_colight_text_150_s7_v2/hz4x4/s7 | 16 | ABORTED | 2026-09-24 | — | `data/output_data/tsc/sumo_sga_colight/hz4x4/sga_colight_text_150_s7_v2` |  |
-| `sga_colight_text_event_200_s17` | sga_colight_text_event_200_s17/hz4x4/s17 | 200 | DONE | 2026-09-24 | 335.8/2735/248 | `data/output_data/tsc/sumo_sga_colight/hz4x4/sga_colight_text_event_200_s17` |  |
+| `sga_colight_text_event_200_s17` | sga_colight_text_event_200_s17/hz4x4/s17 | 200 | DONE | 2026-09-24 | 335.8/2735/248 ⟨旧口径⟩ | `data/output_data/tsc/sumo_sga_colight/hz4x4/sga_colight_text_event_200_s17` |  |
 | `sga_colight_text_event_200_s7` | sga_colight_text_event/hz4x4/s7 | — | ABORTED | 2026-09-24 | — | `artifacts/sga_concat_colight_200_v1/quarantine/dropped_stragglers_20260924/sga_c` | quarantined |
-| `sga_colight_text_normal_200_s17` | sga_colight_text_normal_200_s17/hz4x4/s17 | 200 | DONE | 2026-09-24 | 332.8/2739/244 | `data/output_data/tsc/sumo_sga_colight/hz4x4/sga_colight_text_normal_200_s17` |  |
+| `sga_colight_text_normal_200_s17` | sga_colight_text_normal_200_s17/hz4x4/s17 | 200 | DONE | 2026-09-24 | 332.8/2739/244 ⟨旧口径⟩ | `data/output_data/tsc/sumo_sga_colight/hz4x4/sga_colight_text_normal_200_s17` |  |
 | `sga_colight_text_normal_200_s7` | sga_colight_text_normal/hz4x4/s7 | 16 | FAILED | 2026-09-24 | — | `artifacts/sga_concat_colight_200_v1/quarantine/misresolved_includes_20260924/sga` | quarantined |
 | `sga_concat_colight_200_v1__colight_normal_200_s17` | colight_normal_200_s17/hz4x4/s17 | — | FAILED | — | — | `—` | 队列登记无对应产物目录(prefix=colight_normal_200_s17); 目标目录不存在（计划输出位置仅作记录） ｜ 2026-11-06 巡检复 |
 | `sga_concat_colight_200_v1__colight_normal_200_s7` | colight_normal_200_s7/hz4x4/s7 | — | FAILED | — | — | `—` | 队列登记无对应产物目录(prefix=colight_normal_200_s7); 目标目录不存在（计划输出位置仅作记录） ｜ 2026-11-06 巡检复核 |
@@ -83,24 +83,24 @@
 | `sga_concat_colight_200_v1__sga_colight_text_event_200_s7` | sga_colight_text_event_200_s7/hz4x4/s7 | — | FAILED | — | — | `—` | 队列登记无对应产物目录(prefix=sga_colight_text_event_200_s7); 目标目录不存在（计划输出位置仅作记录） ｜ 2026-11 |
 | `sga_concat_colight_200_v1__sga_colight_text_normal_200_s7` | sga_colight_text_normal_200_s7/hz4x4/s7 | — | FAILED | — | — | `—` | 队列登记无对应产物目录(prefix=sga_colight_text_normal_200_s7); 目标目录不存在（计划输出位置仅作记录） ｜ 2026-1 |
 | `sga_sigmoid_text_150_s7` | sga_sigmoid_text_150_s7/hz4x4/s7 | 150 | DONE | 2026-09-24 | — | `data/output_data/tsc/sumo_sga_colight/hz4x4/sga_sigmoid_text_150_s7` |  |
-| `sumo_colight__hz4x4__colight_event_200_s27` | colight_event_200_s27/hz4x4/s27 | 200 | DONE | 2026-09-24 | 334.7/2742/241 | `data/output_data/tsc/sumo_colight/hz4x4/colight_event_200_s27` |  |
-| `sumo_colight__hz4x4__colight_event_200_s37` | colight_event_200_s37/hz4x4/s37 | 200 | DONE | 2026-09-24 | 337.0/2741/242 | `data/output_data/tsc/sumo_colight/hz4x4/colight_event_200_s37` |  |
-| `sumo_colight__hz4x4__colight_event_200_s47` | colight_event_200_s47/hz4x4/s47 | 200 | DONE | 2026-09-24 | 337.3/2740/243 | `data/output_data/tsc/sumo_colight/hz4x4/colight_event_200_s47` |  |
-| `sumo_colight__hz4x4__colight_normal_200_s27` | colight_normal_200_s27/hz4x4/s27 | 200 | DONE | 2026-09-24 | 334.4/2743/240 | `data/output_data/tsc/sumo_colight/hz4x4/colight_normal_200_s27` |  |
-| `sumo_colight__hz4x4__colight_normal_200_s37` | colight_normal_200_s37/hz4x4/s37 | 200 | DONE | 2026-09-24 | 332.9/2736/247 | `data/output_data/tsc/sumo_colight/hz4x4/colight_normal_200_s37` |  |
-| `sumo_colight__hz4x4__colight_normal_200_s47` | colight_normal_200_s47/hz4x4/s47 | 200 | DONE | 2026-09-24 | 333.7/2740/243 | `data/output_data/tsc/sumo_colight/hz4x4/colight_normal_200_s47` |  |
-| `sumo_concat_colight__hz4x4__concat_colight_text_event_200_s2` | concat_colight_text_event_200_s27/hz4x4/s27 | 200 | DONE | 2026-09-24 | 354.6/2108/788 | `data/output_data/tsc/sumo_concat_colight/hz4x4/concat_colight_text_event_200_s27` |  |
-| `sumo_concat_colight__hz4x4__concat_colight_text_event_200_s3` | concat_colight_text_event_200_s37/hz4x4/s37 | 200 | DONE | 2026-09-24 | 388.9/1557/1264 | `data/output_data/tsc/sumo_concat_colight/hz4x4/concat_colight_text_event_200_s37` |  |
-| `sumo_concat_colight__hz4x4__concat_colight_text_event_200_s4` | concat_colight_text_event_200_s47/hz4x4/s47 | 200 | DONE | 2026-09-24 | 439.7/2073/817 | `data/output_data/tsc/sumo_concat_colight/hz4x4/concat_colight_text_event_200_s47` |  |
-| `sumo_concat_colight__hz4x4__concat_colight_text_normal_200_s` | concat_colight_text_normal_200_s27/hz4x4/s27 | 200 | DONE | 2026-09-24 | 358.3/2069/858 | `data/output_data/tsc/sumo_concat_colight/hz4x4/concat_colight_text_normal_200_s2` |  |
-| `sumo_concat_colight__hz4x4__concat_colight_text_normal_200_s` | concat_colight_text_normal_200_s37/hz4x4/s37 | 200 | DONE | 2026-09-24 | 537.2/2037/938 | `data/output_data/tsc/sumo_concat_colight/hz4x4/concat_colight_text_normal_200_s3` |  |
-| `sumo_concat_colight__hz4x4__concat_colight_text_normal_200_s` | concat_colight_text_normal_200_s47/hz4x4/s47 | 200 | DONE | 2026-09-24 | 406.3/1673/1303 | `data/output_data/tsc/sumo_concat_colight/hz4x4/concat_colight_text_normal_200_s4` |  |
-| `sumo_sga_colight__hz4x4__sga_colight_text_event_200_s27` | sga_colight_text_event_200_s27/hz4x4/s27 | 200 | DONE | 2026-09-24 | 335.4/2738/245 | `data/output_data/tsc/sumo_sga_colight/hz4x4/sga_colight_text_event_200_s27` |  |
-| `sumo_sga_colight__hz4x4__sga_colight_text_event_200_s37` | sga_colight_text_event_200_s37/hz4x4/s37 | 200 | DONE | 2026-09-24 | 335.2/2734/249 | `data/output_data/tsc/sumo_sga_colight/hz4x4/sga_colight_text_event_200_s37` |  |
-| `sumo_sga_colight__hz4x4__sga_colight_text_event_200_s47` | sga_colight_text_event_200_s47/hz4x4/s47 | 200 | DONE | 2026-09-24 | 336.4/2738/245 | `data/output_data/tsc/sumo_sga_colight/hz4x4/sga_colight_text_event_200_s47` |  |
-| `sumo_sga_colight__hz4x4__sga_colight_text_normal_200_s27` | sga_colight_text_normal_200_s27/hz4x4/s27 | 200 | DONE | 2026-09-24 | 335.4/2737/246 | `data/output_data/tsc/sumo_sga_colight/hz4x4/sga_colight_text_normal_200_s27` |  |
-| `sumo_sga_colight__hz4x4__sga_colight_text_normal_200_s37` | sga_colight_text_normal_200_s37/hz4x4/s37 | 200 | DONE | 2026-09-24 | 333.9/2739/244 | `data/output_data/tsc/sumo_sga_colight/hz4x4/sga_colight_text_normal_200_s37` |  |
-| `sumo_sga_colight__hz4x4__sga_colight_text_normal_200_s47` | sga_colight_text_normal_200_s47/hz4x4/s47 | 200 | DONE | 2026-09-24 | 333.8/2740/243 | `data/output_data/tsc/sumo_sga_colight/hz4x4/sga_colight_text_normal_200_s47` |  |
+| `sumo_colight__hz4x4__colight_event_200_s27` | colight_event_200_s27/hz4x4/s27 | 200 | DONE | 2026-09-24 | 334.7/2742/241 ⟨旧口径⟩ | `data/output_data/tsc/sumo_colight/hz4x4/colight_event_200_s27` |  |
+| `sumo_colight__hz4x4__colight_event_200_s37` | colight_event_200_s37/hz4x4/s37 | 200 | DONE | 2026-09-24 | 337.0/2741/242 ⟨旧口径⟩ | `data/output_data/tsc/sumo_colight/hz4x4/colight_event_200_s37` |  |
+| `sumo_colight__hz4x4__colight_event_200_s47` | colight_event_200_s47/hz4x4/s47 | 200 | DONE | 2026-09-24 | 337.3/2740/243 ⟨旧口径⟩ | `data/output_data/tsc/sumo_colight/hz4x4/colight_event_200_s47` |  |
+| `sumo_colight__hz4x4__colight_normal_200_s27` | colight_normal_200_s27/hz4x4/s27 | 200 | DONE | 2026-09-24 | 334.4/2743/240 ⟨旧口径⟩ | `data/output_data/tsc/sumo_colight/hz4x4/colight_normal_200_s27` |  |
+| `sumo_colight__hz4x4__colight_normal_200_s37` | colight_normal_200_s37/hz4x4/s37 | 200 | DONE | 2026-09-24 | 332.9/2736/247 ⟨旧口径⟩ | `data/output_data/tsc/sumo_colight/hz4x4/colight_normal_200_s37` |  |
+| `sumo_colight__hz4x4__colight_normal_200_s47` | colight_normal_200_s47/hz4x4/s47 | 200 | DONE | 2026-09-24 | 333.7/2740/243 ⟨旧口径⟩ | `data/output_data/tsc/sumo_colight/hz4x4/colight_normal_200_s47` |  |
+| `sumo_concat_colight__hz4x4__concat_colight_text_event_200_s2` | concat_colight_text_event_200_s27/hz4x4/s27 | 200 | DONE | 2026-09-24 | 354.6/2108/788 ⟨旧口径⟩ | `data/output_data/tsc/sumo_concat_colight/hz4x4/concat_colight_text_event_200_s27` |  |
+| `sumo_concat_colight__hz4x4__concat_colight_text_event_200_s3` | concat_colight_text_event_200_s37/hz4x4/s37 | 200 | DONE | 2026-09-24 | 388.9/1557/1264 ⟨旧口径⟩ | `data/output_data/tsc/sumo_concat_colight/hz4x4/concat_colight_text_event_200_s37` |  |
+| `sumo_concat_colight__hz4x4__concat_colight_text_event_200_s4` | concat_colight_text_event_200_s47/hz4x4/s47 | 200 | DONE | 2026-09-24 | 439.7/2073/817 ⟨旧口径⟩ | `data/output_data/tsc/sumo_concat_colight/hz4x4/concat_colight_text_event_200_s47` |  |
+| `sumo_concat_colight__hz4x4__concat_colight_text_normal_200_s` | concat_colight_text_normal_200_s27/hz4x4/s27 | 200 | DONE | 2026-09-24 | 358.3/2069/858 ⟨旧口径⟩ | `data/output_data/tsc/sumo_concat_colight/hz4x4/concat_colight_text_normal_200_s2` |  |
+| `sumo_concat_colight__hz4x4__concat_colight_text_normal_200_s` | concat_colight_text_normal_200_s37/hz4x4/s37 | 200 | DONE | 2026-09-24 | 537.2/2037/938 ⟨旧口径⟩ | `data/output_data/tsc/sumo_concat_colight/hz4x4/concat_colight_text_normal_200_s3` |  |
+| `sumo_concat_colight__hz4x4__concat_colight_text_normal_200_s` | concat_colight_text_normal_200_s47/hz4x4/s47 | 200 | DONE | 2026-09-24 | 406.3/1673/1303 ⟨旧口径⟩ | `data/output_data/tsc/sumo_concat_colight/hz4x4/concat_colight_text_normal_200_s4` |  |
+| `sumo_sga_colight__hz4x4__sga_colight_text_event_200_s27` | sga_colight_text_event_200_s27/hz4x4/s27 | 200 | DONE | 2026-09-24 | 335.4/2738/245 ⟨旧口径⟩ | `data/output_data/tsc/sumo_sga_colight/hz4x4/sga_colight_text_event_200_s27` |  |
+| `sumo_sga_colight__hz4x4__sga_colight_text_event_200_s37` | sga_colight_text_event_200_s37/hz4x4/s37 | 200 | DONE | 2026-09-24 | 335.2/2734/249 ⟨旧口径⟩ | `data/output_data/tsc/sumo_sga_colight/hz4x4/sga_colight_text_event_200_s37` |  |
+| `sumo_sga_colight__hz4x4__sga_colight_text_event_200_s47` | sga_colight_text_event_200_s47/hz4x4/s47 | 200 | DONE | 2026-09-24 | 336.4/2738/245 ⟨旧口径⟩ | `data/output_data/tsc/sumo_sga_colight/hz4x4/sga_colight_text_event_200_s47` |  |
+| `sumo_sga_colight__hz4x4__sga_colight_text_normal_200_s27` | sga_colight_text_normal_200_s27/hz4x4/s27 | 200 | DONE | 2026-09-24 | 335.4/2737/246 ⟨旧口径⟩ | `data/output_data/tsc/sumo_sga_colight/hz4x4/sga_colight_text_normal_200_s27` |  |
+| `sumo_sga_colight__hz4x4__sga_colight_text_normal_200_s37` | sga_colight_text_normal_200_s37/hz4x4/s37 | 200 | DONE | 2026-09-24 | 333.9/2739/244 ⟨旧口径⟩ | `data/output_data/tsc/sumo_sga_colight/hz4x4/sga_colight_text_normal_200_s37` |  |
+| `sumo_sga_colight__hz4x4__sga_colight_text_normal_200_s47` | sga_colight_text_normal_200_s47/hz4x4/s47 | 200 | DONE | 2026-09-24 | 333.8/2740/243 ⟨旧口径⟩ | `data/output_data/tsc/sumo_sga_colight/hz4x4/sga_colight_text_normal_200_s47` |  |
 
 评估 attempt 共 2200 行，按包/来源聚合：
 

@@ -22,79 +22,79 @@
 | `sga_flx_smoke_v2` | sga_flx_smoke_v2/hz4x4/s7 | 3 | DONE | 2026-09-28 | — | `data/output_data/tsc/sumo_sga_flx_colight/hz4x4/sga_flx_smoke_v2` |  |
 | `tarlcf_smoke` | smoke/hz4x4/s7 | 1 | DONE | 2026-09-29 | — | `data/output_data/tsc/sumo_tarl_attention/hz4x4/tarlcf_smoke` |  |
 | `tarlcf_smoke3` | smoke3/hz4x4/s7 | 1 | DONE | 2026-09-29 | — | `data/output_data/tsc/sumo_tarl_attention/hz4x4/tarlcf_smoke3` |  |
-| `tarlp_att_smoke` | att_smoke/hz4x4/s7 | 4 | DONE | 2026-09-29 | 160.6/22/220 | `data/output_data/tsc/sumo_tarl_attention/hz4x4/tarlp_att_smoke` |  |
+| `tarlp_att_smoke` | att_smoke/hz4x4/s7 | 4 | DONE | 2026-09-29 | 160.6/22/220 ⟨旧口径⟩ | `data/output_data/tsc/sumo_tarl_attention/hz4x4/tarlp_att_smoke` |  |
 | `tarlrepr_att7_smoke` | att7_smoke/hz4x4/s400007 | 1 | DONE | 2026-09-30 | — | `data/output_data/tsc/sumo_tarl_attention/hz4x4/tarlrepr_att7_smoke` |  |
 | `tarlutil_gatg7_emp_smoke` | gatg7_emp_smoke/hz4x4/s400007 | 1 | DONE | 2026-09-30 | — | `data/output_data/tsc/sumo_tarl_gating/hz4x4/tarlutil_gatg7_emp_smoke` |  |
-| `align_l0.1_s17` | align_l0.1_s17/hz4x4/s17 | 200 | DONE | 2026-09-29 | 350.6/2741/242 | `data/output_data/tsc/sumo_sga_flx_colight/hz4x4/align_l0.1_s17` |  |
-| `align_l0.1_s7` | align_l0.1_s7/hz4x4/s7 | 200 | DONE | 2026-09-29 | 350.4/2738/245 | `data/output_data/tsc/sumo_sga_flx_colight/hz4x4/align_l0.1_s7` |  |
-| `align_l1.0_s17` | align_l1.0_s17/hz4x4/s17 | 200 | DONE | 2026-09-29 | 350.1/2739/244 | `data/output_data/tsc/sumo_sga_flx_colight/hz4x4/align_l1.0_s17` |  |
-| `align_l1.0_s7` | align_l1.0_s7/hz4x4/s7 | 200 | DONE | 2026-09-29 | 352.0/2537/446 | `data/output_data/tsc/sumo_sga_flx_colight/hz4x4/align_l1.0_s7` |  |
-| `align_trans_l0.1_s17` | align_trans_l0.1_s17/hz4x4/s17 | 200 | DONE | 2026-09-29 | 349.5/2738/245 | `data/output_data/tsc/sumo_sga_flx_colight/hz4x4/align_trans_l0.1_s17` |  |
-| `align_trans_l0.1_s27` | align_trans_l0.1_s27/hz4x4/s27 | 200 | DONE | 2026-09-29 | 349.5/2738/245 | `data/output_data/tsc/sumo_sga_flx_colight/hz4x4/align_trans_l0.1_s27` |  |
-| `align_trans_l0.1_s37` | align_trans_l0.1_s37/hz4x4/s37 | 200 | DONE | 2026-09-29 | 349.7/2738/245 | `data/output_data/tsc/sumo_sga_flx_colight/hz4x4/align_trans_l0.1_s37` |  |
-| `align_trans_l0.1_s47` | align_trans_l0.1_s47/hz4x4/s47 | 200 | DONE | 2026-09-29 | 335.7/2072/889 | `data/output_data/tsc/sumo_sga_flx_colight/hz4x4/align_trans_l0.1_s47` |  |
-| `align_trans_l0.1_s7` | align_trans_l0.1_s7/hz4x4/s7 | 200 | DONE | 2026-09-29 | 350.4/2734/249 | `data/output_data/tsc/sumo_sga_flx_colight/hz4x4/align_trans_l0.1_s7` |  |
-| `align_trans_l1.0_s17` | align_trans_l1.0_s17/hz4x4/s17 | 200 | DONE | 2026-09-29 | 350.8/2739/244 | `data/output_data/tsc/sumo_sga_flx_colight/hz4x4/align_trans_l1.0_s17` |  |
-| `align_trans_l1.0_s7` | align_trans_l1.0_s7/hz4x4/s7 | 200 | DONE | 2026-09-29 | 352.1/2740/243 | `data/output_data/tsc/sumo_sga_flx_colight/hz4x4/align_trans_l1.0_s7` |  |
-| `align_trans_meta_l0.1_s17` | align_trans_meta_l0.1_s17/hz4x4/s17 | 200 | DONE | 2026-09-29 | 352.9/2734/249 | `data/output_data/tsc/sumo_sga_flx_colight/hz4x4/align_trans_meta_l0.1_s17` |  |
-| `align_trans_meta_l0.1_s27` | align_trans_meta_l0.1_s27/hz4x4/s27 | 200 | DONE | 2026-09-29 | 351.8/2741/242 | `data/output_data/tsc/sumo_sga_flx_colight/hz4x4/align_trans_meta_l0.1_s27` |  |
-| `align_trans_meta_l0.1_s37` | align_trans_meta_l0.1_s37/hz4x4/s37 | 200 | DONE | 2026-09-29 | 385.1/2521/462 | `data/output_data/tsc/sumo_sga_flx_colight/hz4x4/align_trans_meta_l0.1_s37` |  |
-| `align_trans_meta_l0.1_s47` | align_trans_meta_l0.1_s47/hz4x4/s47 | 200 | DONE | 2026-09-29 | 350.1/2737/246 | `data/output_data/tsc/sumo_sga_flx_colight/hz4x4/align_trans_meta_l0.1_s47` |  |
-| `align_trans_meta_l0.1_s7` | align_trans_meta_l0.1_s7/hz4x4/s7 | 200 | DONE | 2026-09-29 | 351.3/2741/242 | `data/output_data/tsc/sumo_sga_flx_colight/hz4x4/align_trans_meta_l0.1_s7` |  |
-| `colight_event_random_200_s17` | colight_event_random_200_s17/hz4x4/s17 | 200 | DONE | 2026-09-28 | 349.4/2736/247 | `data/output_data/tsc/sumo_colight/hz4x4/colight_event_random_200_s17` |  |
-| `colight_event_random_200_s27` | colight_event_random_200_s27/hz4x4/s27 | 200 | DONE | 2026-09-28 | 348.6/2740/243 | `data/output_data/tsc/sumo_colight/hz4x4/colight_event_random_200_s27` |  |
-| `colight_event_random_200_s37` | colight_event_random_200_s37/hz4x4/s37 | 200 | DONE | 2026-09-28 | 326.7/2302/681 | `data/output_data/tsc/sumo_colight/hz4x4/colight_event_random_200_s37` |  |
-| `colight_event_random_200_s47` | colight_event_random_200_s47/hz4x4/s47 | 200 | DONE | 2026-09-28 | 340.3/2443/540 | `data/output_data/tsc/sumo_colight/hz4x4/colight_event_random_200_s47` |  |
-| `colight_event_random_200_s7` | colight_event_random_200_s7/hz4x4/s7 | 200 | DONE | 2026-09-28 | 351.2/2738/245 | `data/output_data/tsc/sumo_colight/hz4x4/colight_event_random_200_s7` |  |
-| `flx_align_l0.1_event_random_200_s17` | flx_align_l0.1_event_random_200_s17/hz4x4/s17 | 200 | DONE | 2026-09-29 | 350.6/2741/242 | `data/output_data/tsc/sumo_sga_flx_colight/hz4x4/flx_align_l0.1_event_random_200_` |  |
-| `flx_align_l0.1_event_random_200_s27` | flx_align_l0.1_event_random_200_s27/hz4x4/s27 | 200 | DONE | 2026-09-29 | 336.8/2025/958 | `data/output_data/tsc/sumo_sga_flx_colight/hz4x4/flx_align_l0.1_event_random_200_` |  |
-| `flx_align_l0.1_event_random_200_s37` | flx_align_l0.1_event_random_200_s37/hz4x4/s37 | 200 | DONE | 2026-09-29 | 349.5/2739/244 | `data/output_data/tsc/sumo_sga_flx_colight/hz4x4/flx_align_l0.1_event_random_200_` |  |
-| `flx_align_l0.1_event_random_200_s47` | flx_align_l0.1_event_random_200_s47/hz4x4/s47 | 200 | DONE | 2026-09-29 | 354.3/2736/247 | `data/output_data/tsc/sumo_sga_flx_colight/hz4x4/flx_align_l0.1_event_random_200_` |  |
-| `flx_align_l0.1_event_random_200_s7` | flx_align_l0.1_event_random_200_s7/hz4x4/s7 | 200 | DONE | 2026-09-29 | 350.4/2738/245 | `data/output_data/tsc/sumo_sga_flx_colight/hz4x4/flx_align_l0.1_event_random_200_` |  |
-| `mplight_event_random_200_s17` | mplight_event_random_200_s17/hz4x4/s17 | 200 | DONE | 2026-09-29 | 348.4/2739/244 | `data/output_data/tsc/sumo_mplight/hz4x4/mplight_event_random_200_s17` |  |
-| `mplight_event_random_200_s27` | mplight_event_random_200_s27/hz4x4/s27 | 200 | DONE | 2026-09-29 | 348.9/2736/247 | `data/output_data/tsc/sumo_mplight/hz4x4/mplight_event_random_200_s27` |  |
-| `mplight_event_random_200_s37` | mplight_event_random_200_s37/hz4x4/s37 | 200 | DONE | 2026-09-29 | 348.9/2738/245 | `data/output_data/tsc/sumo_mplight/hz4x4/mplight_event_random_200_s37` |  |
-| `mplight_event_random_200_s47` | mplight_event_random_200_s47/hz4x4/s47 | 200 | DONE | 2026-09-29 | 347.7/2628/355 | `data/output_data/tsc/sumo_mplight/hz4x4/mplight_event_random_200_s47` |  |
-| `mplight_event_random_200_s7` | mplight_event_random_200_s7/hz4x4/s7 | 200 | DONE | 2026-09-29 | 348.1/2739/244 | `data/output_data/tsc/sumo_mplight/hz4x4/mplight_event_random_200_s7` |  |
-| `sga_colight_text_event_random_200_s17` | sga_colight_text_event_random_200_s17/hz4x4/s17 | 200 | DONE | 2026-09-28 | 353.6/2731/252 | `data/output_data/tsc/sumo_sga_colight/hz4x4/sga_colight_text_event_random_200_s1` |  |
-| `sga_colight_text_event_random_200_s27` | sga_colight_text_event_random_200_s27/hz4x4/s27 | 200 | DONE | 2026-09-28 | 349.9/2739/244 | `data/output_data/tsc/sumo_sga_colight/hz4x4/sga_colight_text_event_random_200_s2` |  |
-| `sga_colight_text_event_random_200_s37` | sga_colight_text_event_random_200_s37/hz4x4/s37 | 200 | DONE | 2026-09-28 | 350.7/2733/250 | `data/output_data/tsc/sumo_sga_colight/hz4x4/sga_colight_text_event_random_200_s3` |  |
-| `sga_colight_text_event_random_200_s47` | sga_colight_text_event_random_200_s47/hz4x4/s47 | 200 | DONE | 2026-09-28 | 349.3/2734/249 | `data/output_data/tsc/sumo_sga_colight/hz4x4/sga_colight_text_event_random_200_s4` |  |
-| `sga_colight_text_event_random_200_s7` | sga_colight_text_event_random_200_s7/hz4x4/s7 | 200 | DONE | 2026-09-28 | 349.8/2739/244 | `data/output_data/tsc/sumo_sga_colight/hz4x4/sga_colight_text_event_random_200_s7` |  |
-| `sga_flx_colight_text_event_200_s17` | sga_flx_colight_text_event_200_s17/hz4x4/s17 | 200 | DONE | 2026-09-28 | 335.8/2739/244 | `data/output_data/tsc/sumo_sga_flx_colight/hz4x4/sga_flx_colight_text_event_200_s` |  |
-| `sga_flx_colight_text_event_200_s27` | sga_flx_colight_text_event_200_s27/hz4x4/s27 | 200 | DONE | 2026-09-28 | 335.6/2739/244 | `data/output_data/tsc/sumo_sga_flx_colight/hz4x4/sga_flx_colight_text_event_200_s` |  |
-| `sga_flx_colight_text_event_200_s37` | sga_flx_colight_text_event_200_s37/hz4x4/s37 | 200 | DONE | 2026-09-28 | 336.1/2741/242 | `data/output_data/tsc/sumo_sga_flx_colight/hz4x4/sga_flx_colight_text_event_200_s` |  |
-| `sga_flx_colight_text_event_200_s47` | sga_flx_colight_text_event_200_s47/hz4x4/s47 | 200 | DONE | 2026-09-28 | 335.3/2738/245 | `data/output_data/tsc/sumo_sga_flx_colight/hz4x4/sga_flx_colight_text_event_200_s` |  |
-| `sga_flx_colight_text_event_200_s7` | sga_flx_colight_text_event_200_s7/hz4x4/s7 | 200 | DONE | 2026-09-28 | 335.5/2740/243 | `data/output_data/tsc/sumo_sga_flx_colight/hz4x4/sga_flx_colight_text_event_200_s` |  |
-| `sga_flx_colight_text_event_random_200_s17` | sga_flx_colight_text_event_random_200_s17/hz4x4/s17 | 200 | DONE | 2026-09-28 | 351.2/2739/244 | `data/output_data/tsc/sumo_sga_flx_colight/hz4x4/sga_flx_colight_text_event_rando` |  |
-| `sga_flx_colight_text_event_random_200_s27` | sga_flx_colight_text_event_random_200_s27/hz4x4/s27 | 200 | DONE | 2026-09-28 | 349.4/2737/246 | `data/output_data/tsc/sumo_sga_flx_colight/hz4x4/sga_flx_colight_text_event_rando` |  |
-| `sga_flx_colight_text_event_random_200_s37` | sga_flx_colight_text_event_random_200_s37/hz4x4/s37 | 200 | DONE | 2026-09-28 | 349.5/2739/244 | `data/output_data/tsc/sumo_sga_flx_colight/hz4x4/sga_flx_colight_text_event_rando` |  |
-| `sga_flx_colight_text_event_random_200_s47` | sga_flx_colight_text_event_random_200_s47/hz4x4/s47 | 200 | DONE | 2026-09-28 | 348.4/2626/357 | `data/output_data/tsc/sumo_sga_flx_colight/hz4x4/sga_flx_colight_text_event_rando` |  |
-| `sga_flx_colight_text_event_random_200_s7` | sga_flx_colight_text_event_random_200_s7/hz4x4/s7 | 200 | DONE | 2026-09-28 | 349.6/2739/244 | `data/output_data/tsc/sumo_sga_flx_colight/hz4x4/sga_flx_colight_text_event_rando` |  |
-| `sga_flx_diag60_s17` | sga_flx_diag60_s17/hz4x4/s17 | 60 | DONE | 2026-09-28 | 350.4/2736/247 | `data/output_data/tsc/sumo_sga_flx_colight/hz4x4/sga_flx_diag60_s17` |  |
-| `sga_flx_diag60_s27` | sga_flx_diag60_s27/hz4x4/s27 | 60 | DONE | 2026-09-28 | 350.0/2742/241 | `data/output_data/tsc/sumo_sga_flx_colight/hz4x4/sga_flx_diag60_s27` |  |
-| `sga_flx_diag60_s7` | sga_flx_diag60_s7/hz4x4/s7 | 60 | DONE | 2026-09-28 | 353.9/2738/245 | `data/output_data/tsc/sumo_sga_flx_colight/hz4x4/sga_flx_diag60_s7` |  |
+| `align_l0.1_s17` | align_l0.1_s17/hz4x4/s17 | 200 | DONE | 2026-09-29 | 350.6/2741/242 ⟨旧口径⟩ | `data/output_data/tsc/sumo_sga_flx_colight/hz4x4/align_l0.1_s17` |  |
+| `align_l0.1_s7` | align_l0.1_s7/hz4x4/s7 | 200 | DONE | 2026-09-29 | 350.4/2738/245 ⟨旧口径⟩ | `data/output_data/tsc/sumo_sga_flx_colight/hz4x4/align_l0.1_s7` |  |
+| `align_l1.0_s17` | align_l1.0_s17/hz4x4/s17 | 200 | DONE | 2026-09-29 | 350.1/2739/244 ⟨旧口径⟩ | `data/output_data/tsc/sumo_sga_flx_colight/hz4x4/align_l1.0_s17` |  |
+| `align_l1.0_s7` | align_l1.0_s7/hz4x4/s7 | 200 | DONE | 2026-09-29 | 352.0/2537/446 ⟨旧口径⟩ | `data/output_data/tsc/sumo_sga_flx_colight/hz4x4/align_l1.0_s7` |  |
+| `align_trans_l0.1_s17` | align_trans_l0.1_s17/hz4x4/s17 | 200 | DONE | 2026-09-29 | 349.5/2738/245 ⟨旧口径⟩ | `data/output_data/tsc/sumo_sga_flx_colight/hz4x4/align_trans_l0.1_s17` |  |
+| `align_trans_l0.1_s27` | align_trans_l0.1_s27/hz4x4/s27 | 200 | DONE | 2026-09-29 | 349.5/2738/245 ⟨旧口径⟩ | `data/output_data/tsc/sumo_sga_flx_colight/hz4x4/align_trans_l0.1_s27` |  |
+| `align_trans_l0.1_s37` | align_trans_l0.1_s37/hz4x4/s37 | 200 | DONE | 2026-09-29 | 349.7/2738/245 ⟨旧口径⟩ | `data/output_data/tsc/sumo_sga_flx_colight/hz4x4/align_trans_l0.1_s37` |  |
+| `align_trans_l0.1_s47` | align_trans_l0.1_s47/hz4x4/s47 | 200 | DONE | 2026-09-29 | 335.7/2072/889 ⟨旧口径⟩ | `data/output_data/tsc/sumo_sga_flx_colight/hz4x4/align_trans_l0.1_s47` |  |
+| `align_trans_l0.1_s7` | align_trans_l0.1_s7/hz4x4/s7 | 200 | DONE | 2026-09-29 | 350.4/2734/249 ⟨旧口径⟩ | `data/output_data/tsc/sumo_sga_flx_colight/hz4x4/align_trans_l0.1_s7` |  |
+| `align_trans_l1.0_s17` | align_trans_l1.0_s17/hz4x4/s17 | 200 | DONE | 2026-09-29 | 350.8/2739/244 ⟨旧口径⟩ | `data/output_data/tsc/sumo_sga_flx_colight/hz4x4/align_trans_l1.0_s17` |  |
+| `align_trans_l1.0_s7` | align_trans_l1.0_s7/hz4x4/s7 | 200 | DONE | 2026-09-29 | 352.1/2740/243 ⟨旧口径⟩ | `data/output_data/tsc/sumo_sga_flx_colight/hz4x4/align_trans_l1.0_s7` |  |
+| `align_trans_meta_l0.1_s17` | align_trans_meta_l0.1_s17/hz4x4/s17 | 200 | DONE | 2026-09-29 | 352.9/2734/249 ⟨旧口径⟩ | `data/output_data/tsc/sumo_sga_flx_colight/hz4x4/align_trans_meta_l0.1_s17` |  |
+| `align_trans_meta_l0.1_s27` | align_trans_meta_l0.1_s27/hz4x4/s27 | 200 | DONE | 2026-09-29 | 351.8/2741/242 ⟨旧口径⟩ | `data/output_data/tsc/sumo_sga_flx_colight/hz4x4/align_trans_meta_l0.1_s27` |  |
+| `align_trans_meta_l0.1_s37` | align_trans_meta_l0.1_s37/hz4x4/s37 | 200 | DONE | 2026-09-29 | 385.1/2521/462 ⟨旧口径⟩ | `data/output_data/tsc/sumo_sga_flx_colight/hz4x4/align_trans_meta_l0.1_s37` |  |
+| `align_trans_meta_l0.1_s47` | align_trans_meta_l0.1_s47/hz4x4/s47 | 200 | DONE | 2026-09-29 | 350.1/2737/246 ⟨旧口径⟩ | `data/output_data/tsc/sumo_sga_flx_colight/hz4x4/align_trans_meta_l0.1_s47` |  |
+| `align_trans_meta_l0.1_s7` | align_trans_meta_l0.1_s7/hz4x4/s7 | 200 | DONE | 2026-09-29 | 351.3/2741/242 ⟨旧口径⟩ | `data/output_data/tsc/sumo_sga_flx_colight/hz4x4/align_trans_meta_l0.1_s7` |  |
+| `colight_event_random_200_s17` | colight_event_random_200_s17/hz4x4/s17 | 200 | DONE | 2026-09-28 | 349.4/2736/247 ⟨旧口径⟩ | `data/output_data/tsc/sumo_colight/hz4x4/colight_event_random_200_s17` |  |
+| `colight_event_random_200_s27` | colight_event_random_200_s27/hz4x4/s27 | 200 | DONE | 2026-09-28 | 348.6/2740/243 ⟨旧口径⟩ | `data/output_data/tsc/sumo_colight/hz4x4/colight_event_random_200_s27` |  |
+| `colight_event_random_200_s37` | colight_event_random_200_s37/hz4x4/s37 | 200 | DONE | 2026-09-28 | 326.7/2302/681 ⟨旧口径⟩ | `data/output_data/tsc/sumo_colight/hz4x4/colight_event_random_200_s37` |  |
+| `colight_event_random_200_s47` | colight_event_random_200_s47/hz4x4/s47 | 200 | DONE | 2026-09-28 | 340.3/2443/540 ⟨旧口径⟩ | `data/output_data/tsc/sumo_colight/hz4x4/colight_event_random_200_s47` |  |
+| `colight_event_random_200_s7` | colight_event_random_200_s7/hz4x4/s7 | 200 | DONE | 2026-09-28 | 351.2/2738/245 ⟨旧口径⟩ | `data/output_data/tsc/sumo_colight/hz4x4/colight_event_random_200_s7` |  |
+| `flx_align_l0.1_event_random_200_s17` | flx_align_l0.1_event_random_200_s17/hz4x4/s17 | 200 | DONE | 2026-09-29 | 350.6/2741/242 ⟨旧口径⟩ | `data/output_data/tsc/sumo_sga_flx_colight/hz4x4/flx_align_l0.1_event_random_200_` |  |
+| `flx_align_l0.1_event_random_200_s27` | flx_align_l0.1_event_random_200_s27/hz4x4/s27 | 200 | DONE | 2026-09-29 | 336.8/2025/958 ⟨旧口径⟩ | `data/output_data/tsc/sumo_sga_flx_colight/hz4x4/flx_align_l0.1_event_random_200_` |  |
+| `flx_align_l0.1_event_random_200_s37` | flx_align_l0.1_event_random_200_s37/hz4x4/s37 | 200 | DONE | 2026-09-29 | 349.5/2739/244 ⟨旧口径⟩ | `data/output_data/tsc/sumo_sga_flx_colight/hz4x4/flx_align_l0.1_event_random_200_` |  |
+| `flx_align_l0.1_event_random_200_s47` | flx_align_l0.1_event_random_200_s47/hz4x4/s47 | 200 | DONE | 2026-09-29 | 354.3/2736/247 ⟨旧口径⟩ | `data/output_data/tsc/sumo_sga_flx_colight/hz4x4/flx_align_l0.1_event_random_200_` |  |
+| `flx_align_l0.1_event_random_200_s7` | flx_align_l0.1_event_random_200_s7/hz4x4/s7 | 200 | DONE | 2026-09-29 | 350.4/2738/245 ⟨旧口径⟩ | `data/output_data/tsc/sumo_sga_flx_colight/hz4x4/flx_align_l0.1_event_random_200_` |  |
+| `mplight_event_random_200_s17` | mplight_event_random_200_s17/hz4x4/s17 | 200 | DONE | 2026-09-29 | 348.4/2739/244 ⟨旧口径⟩ | `data/output_data/tsc/sumo_mplight/hz4x4/mplight_event_random_200_s17` |  |
+| `mplight_event_random_200_s27` | mplight_event_random_200_s27/hz4x4/s27 | 200 | DONE | 2026-09-29 | 348.9/2736/247 ⟨旧口径⟩ | `data/output_data/tsc/sumo_mplight/hz4x4/mplight_event_random_200_s27` |  |
+| `mplight_event_random_200_s37` | mplight_event_random_200_s37/hz4x4/s37 | 200 | DONE | 2026-09-29 | 348.9/2738/245 ⟨旧口径⟩ | `data/output_data/tsc/sumo_mplight/hz4x4/mplight_event_random_200_s37` |  |
+| `mplight_event_random_200_s47` | mplight_event_random_200_s47/hz4x4/s47 | 200 | DONE | 2026-09-29 | 347.7/2628/355 ⟨旧口径⟩ | `data/output_data/tsc/sumo_mplight/hz4x4/mplight_event_random_200_s47` |  |
+| `mplight_event_random_200_s7` | mplight_event_random_200_s7/hz4x4/s7 | 200 | DONE | 2026-09-29 | 348.1/2739/244 ⟨旧口径⟩ | `data/output_data/tsc/sumo_mplight/hz4x4/mplight_event_random_200_s7` |  |
+| `sga_colight_text_event_random_200_s17` | sga_colight_text_event_random_200_s17/hz4x4/s17 | 200 | DONE | 2026-09-28 | 353.6/2731/252 ⟨旧口径⟩ | `data/output_data/tsc/sumo_sga_colight/hz4x4/sga_colight_text_event_random_200_s1` |  |
+| `sga_colight_text_event_random_200_s27` | sga_colight_text_event_random_200_s27/hz4x4/s27 | 200 | DONE | 2026-09-28 | 349.9/2739/244 ⟨旧口径⟩ | `data/output_data/tsc/sumo_sga_colight/hz4x4/sga_colight_text_event_random_200_s2` |  |
+| `sga_colight_text_event_random_200_s37` | sga_colight_text_event_random_200_s37/hz4x4/s37 | 200 | DONE | 2026-09-28 | 350.7/2733/250 ⟨旧口径⟩ | `data/output_data/tsc/sumo_sga_colight/hz4x4/sga_colight_text_event_random_200_s3` |  |
+| `sga_colight_text_event_random_200_s47` | sga_colight_text_event_random_200_s47/hz4x4/s47 | 200 | DONE | 2026-09-28 | 349.3/2734/249 ⟨旧口径⟩ | `data/output_data/tsc/sumo_sga_colight/hz4x4/sga_colight_text_event_random_200_s4` |  |
+| `sga_colight_text_event_random_200_s7` | sga_colight_text_event_random_200_s7/hz4x4/s7 | 200 | DONE | 2026-09-28 | 349.8/2739/244 ⟨旧口径⟩ | `data/output_data/tsc/sumo_sga_colight/hz4x4/sga_colight_text_event_random_200_s7` |  |
+| `sga_flx_colight_text_event_200_s17` | sga_flx_colight_text_event_200_s17/hz4x4/s17 | 200 | DONE | 2026-09-28 | 335.8/2739/244 ⟨旧口径⟩ | `data/output_data/tsc/sumo_sga_flx_colight/hz4x4/sga_flx_colight_text_event_200_s` |  |
+| `sga_flx_colight_text_event_200_s27` | sga_flx_colight_text_event_200_s27/hz4x4/s27 | 200 | DONE | 2026-09-28 | 335.6/2739/244 ⟨旧口径⟩ | `data/output_data/tsc/sumo_sga_flx_colight/hz4x4/sga_flx_colight_text_event_200_s` |  |
+| `sga_flx_colight_text_event_200_s37` | sga_flx_colight_text_event_200_s37/hz4x4/s37 | 200 | DONE | 2026-09-28 | 336.1/2741/242 ⟨旧口径⟩ | `data/output_data/tsc/sumo_sga_flx_colight/hz4x4/sga_flx_colight_text_event_200_s` |  |
+| `sga_flx_colight_text_event_200_s47` | sga_flx_colight_text_event_200_s47/hz4x4/s47 | 200 | DONE | 2026-09-28 | 335.3/2738/245 ⟨旧口径⟩ | `data/output_data/tsc/sumo_sga_flx_colight/hz4x4/sga_flx_colight_text_event_200_s` |  |
+| `sga_flx_colight_text_event_200_s7` | sga_flx_colight_text_event_200_s7/hz4x4/s7 | 200 | DONE | 2026-09-28 | 335.5/2740/243 ⟨旧口径⟩ | `data/output_data/tsc/sumo_sga_flx_colight/hz4x4/sga_flx_colight_text_event_200_s` |  |
+| `sga_flx_colight_text_event_random_200_s17` | sga_flx_colight_text_event_random_200_s17/hz4x4/s17 | 200 | DONE | 2026-09-28 | 351.2/2739/244 ⟨旧口径⟩ | `data/output_data/tsc/sumo_sga_flx_colight/hz4x4/sga_flx_colight_text_event_rando` |  |
+| `sga_flx_colight_text_event_random_200_s27` | sga_flx_colight_text_event_random_200_s27/hz4x4/s27 | 200 | DONE | 2026-09-28 | 349.4/2737/246 ⟨旧口径⟩ | `data/output_data/tsc/sumo_sga_flx_colight/hz4x4/sga_flx_colight_text_event_rando` |  |
+| `sga_flx_colight_text_event_random_200_s37` | sga_flx_colight_text_event_random_200_s37/hz4x4/s37 | 200 | DONE | 2026-09-28 | 349.5/2739/244 ⟨旧口径⟩ | `data/output_data/tsc/sumo_sga_flx_colight/hz4x4/sga_flx_colight_text_event_rando` |  |
+| `sga_flx_colight_text_event_random_200_s47` | sga_flx_colight_text_event_random_200_s47/hz4x4/s47 | 200 | DONE | 2026-09-28 | 348.4/2626/357 ⟨旧口径⟩ | `data/output_data/tsc/sumo_sga_flx_colight/hz4x4/sga_flx_colight_text_event_rando` |  |
+| `sga_flx_colight_text_event_random_200_s7` | sga_flx_colight_text_event_random_200_s7/hz4x4/s7 | 200 | DONE | 2026-09-28 | 349.6/2739/244 ⟨旧口径⟩ | `data/output_data/tsc/sumo_sga_flx_colight/hz4x4/sga_flx_colight_text_event_rando` |  |
+| `sga_flx_diag60_s17` | sga_flx_diag60_s17/hz4x4/s17 | 60 | DONE | 2026-09-28 | 350.4/2736/247 ⟨旧口径⟩ | `data/output_data/tsc/sumo_sga_flx_colight/hz4x4/sga_flx_diag60_s17` |  |
+| `sga_flx_diag60_s27` | sga_flx_diag60_s27/hz4x4/s27 | 60 | DONE | 2026-09-28 | 350.0/2742/241 ⟨旧口径⟩ | `data/output_data/tsc/sumo_sga_flx_colight/hz4x4/sga_flx_diag60_s27` |  |
+| `sga_flx_diag60_s7` | sga_flx_diag60_s7/hz4x4/s7 | 60 | DONE | 2026-09-28 | 353.9/2738/245 ⟨旧口径⟩ | `data/output_data/tsc/sumo_sga_flx_colight/hz4x4/sga_flx_diag60_s7` |  |
 | `sga_flx_noalign_regr_s7` | sga_flx_noalign_regr_s7/hz4x4/s7 | 3 | DONE | 2026-09-29 | — | `data/output_data/tsc/sumo_sga_flx_colight/hz4x4/sga_flx_noalign_regr_s7` |  |
-| `tarlp_att_s17` | att_s17/hz4x4/s17 | 200 | DONE | 2026-09-29 | 356.5/2726/257 | `data/output_data/tsc/sumo_tarl_attention/hz4x4/tarlp_att_s17` |  |
-| `tarlp_att_s27` | att_s27/hz4x4/s27 | 200 | DONE | 2026-09-29 | 399.9/2555/428 | `data/output_data/tsc/sumo_tarl_attention/hz4x4/tarlp_att_s27` |  |
-| `tarlp_att_s37` | att_s37/hz4x4/s37 | 200 | DONE | 2026-09-29 | 357.2/2722/261 | `data/output_data/tsc/sumo_tarl_attention/hz4x4/tarlp_att_s37` |  |
-| `tarlp_att_s47` | att_s47/hz4x4/s47 | 200 | DONE | 2026-09-30 | 356.4/2728/255 | `data/output_data/tsc/sumo_tarl_attention/hz4x4/tarlp_att_s47` |  |
-| `tarlp_att_s7` | att_s7/hz4x4/s7 | 200 | DONE | 2026-09-29 | 355.7/2726/257 | `data/output_data/tsc/sumo_tarl_attention/hz4x4/tarlp_att_s7` |  |
-| `tarlp_gat_s17` | gat_s17/hz4x4/s17 | 200 | DONE | 2026-09-29 | 357.4/2728/255 | `data/output_data/tsc/sumo_tarl_gat/hz4x4/tarlp_gat_s17` |  |
-| `tarlp_gat_s27` | gat_s27/hz4x4/s27 | 200 | DONE | 2026-09-29 | 361.7/2730/253 | `data/output_data/tsc/sumo_tarl_gat/hz4x4/tarlp_gat_s27` |  |
-| `tarlp_gat_s37` | gat_s37/hz4x4/s37 | 200 | DONE | 2026-09-29 | 359.4/2727/256 | `data/output_data/tsc/sumo_tarl_gat/hz4x4/tarlp_gat_s37` |  |
-| `tarlp_gat_s47` | gat_s47/hz4x4/s47 | 200 | DONE | 2026-09-30 | 354.4/2735/248 | `data/output_data/tsc/sumo_tarl_gat/hz4x4/tarlp_gat_s47` |  |
-| `tarlp_gat_s7` | gat_s7/hz4x4/s7 | 200 | DONE | 2026-09-29 | 355.4/2740/243 | `data/output_data/tsc/sumo_tarl_gat/hz4x4/tarlp_gat_s7` |  |
-| `tarlp_gatg_s17` | gatg_s17/hz4x4/s17 | 200 | DONE | 2026-09-29 | 366.8/2728/255 | `data/output_data/tsc/sumo_tarl_gating/hz4x4/tarlp_gatg_s17` |  |
-| `tarlp_gatg_s27` | gatg_s27/hz4x4/s27 | 200 | DONE | 2026-09-29 | 359.0/2728/255 | `data/output_data/tsc/sumo_tarl_gating/hz4x4/tarlp_gatg_s27` |  |
-| `tarlp_gatg_s37` | gatg_s37/hz4x4/s37 | 200 | DONE | 2026-09-29 | 373.4/2533/450 | `data/output_data/tsc/sumo_tarl_gating/hz4x4/tarlp_gatg_s37` |  |
-| `tarlp_gatg_s47` | gatg_s47/hz4x4/s47 | 200 | DONE | 2026-09-30 | 357.9/2727/256 | `data/output_data/tsc/sumo_tarl_gating/hz4x4/tarlp_gatg_s47` |  |
-| `tarlp_gatg_s7` | gatg_s7/hz4x4/s7 | 200 | DONE | 2026-09-29 | 362.4/2734/249 | `data/output_data/tsc/sumo_tarl_gating/hz4x4/tarlp_gatg_s7` |  |
-| `tarlp_sen_s17` | sen_s17/hz4x4/s17 | 200 | DONE | 2026-09-29 | 348.0/2739/244 | `data/output_data/tsc/sumo_tarl_sensor/hz4x4/tarlp_sen_s17` |  |
-| `tarlp_sen_s27` | sen_s27/hz4x4/s27 | 200 | DONE | 2026-09-29 | 347.3/2740/243 | `data/output_data/tsc/sumo_tarl_sensor/hz4x4/tarlp_sen_s27` |  |
-| `tarlp_sen_s37` | sen_s37/hz4x4/s37 | 200 | DONE | 2026-09-30 | 347.4/2737/246 | `data/output_data/tsc/sumo_tarl_sensor/hz4x4/tarlp_sen_s37` |  |
-| `tarlp_sen_s47` | sen_s47/hz4x4/s47 | 200 | DONE | 2026-09-30 | 347.1/2737/246 | `data/output_data/tsc/sumo_tarl_sensor/hz4x4/tarlp_sen_s47` |  |
-| `tarlp_sen_s7` | sen_s7/hz4x4/s7 | 200 | DONE | 2026-09-29 | 347.7/2742/241 | `data/output_data/tsc/sumo_tarl_sensor/hz4x4/tarlp_sen_s7` |  |
+| `tarlp_att_s17` | att_s17/hz4x4/s17 | 200 | DONE | 2026-09-29 | 356.5/2726/257 ⟨旧口径⟩ | `data/output_data/tsc/sumo_tarl_attention/hz4x4/tarlp_att_s17` |  |
+| `tarlp_att_s27` | att_s27/hz4x4/s27 | 200 | DONE | 2026-09-29 | 399.9/2555/428 ⟨旧口径⟩ | `data/output_data/tsc/sumo_tarl_attention/hz4x4/tarlp_att_s27` |  |
+| `tarlp_att_s37` | att_s37/hz4x4/s37 | 200 | DONE | 2026-09-29 | 357.2/2722/261 ⟨旧口径⟩ | `data/output_data/tsc/sumo_tarl_attention/hz4x4/tarlp_att_s37` |  |
+| `tarlp_att_s47` | att_s47/hz4x4/s47 | 200 | DONE | 2026-09-30 | 356.4/2728/255 ⟨旧口径⟩ | `data/output_data/tsc/sumo_tarl_attention/hz4x4/tarlp_att_s47` |  |
+| `tarlp_att_s7` | att_s7/hz4x4/s7 | 200 | DONE | 2026-09-29 | 355.7/2726/257 ⟨旧口径⟩ | `data/output_data/tsc/sumo_tarl_attention/hz4x4/tarlp_att_s7` |  |
+| `tarlp_gat_s17` | gat_s17/hz4x4/s17 | 200 | DONE | 2026-09-29 | 357.4/2728/255 ⟨旧口径⟩ | `data/output_data/tsc/sumo_tarl_gat/hz4x4/tarlp_gat_s17` |  |
+| `tarlp_gat_s27` | gat_s27/hz4x4/s27 | 200 | DONE | 2026-09-29 | 361.7/2730/253 ⟨旧口径⟩ | `data/output_data/tsc/sumo_tarl_gat/hz4x4/tarlp_gat_s27` |  |
+| `tarlp_gat_s37` | gat_s37/hz4x4/s37 | 200 | DONE | 2026-09-29 | 359.4/2727/256 ⟨旧口径⟩ | `data/output_data/tsc/sumo_tarl_gat/hz4x4/tarlp_gat_s37` |  |
+| `tarlp_gat_s47` | gat_s47/hz4x4/s47 | 200 | DONE | 2026-09-30 | 354.4/2735/248 ⟨旧口径⟩ | `data/output_data/tsc/sumo_tarl_gat/hz4x4/tarlp_gat_s47` |  |
+| `tarlp_gat_s7` | gat_s7/hz4x4/s7 | 200 | DONE | 2026-09-29 | 355.4/2740/243 ⟨旧口径⟩ | `data/output_data/tsc/sumo_tarl_gat/hz4x4/tarlp_gat_s7` |  |
+| `tarlp_gatg_s17` | gatg_s17/hz4x4/s17 | 200 | DONE | 2026-09-29 | 366.8/2728/255 ⟨旧口径⟩ | `data/output_data/tsc/sumo_tarl_gating/hz4x4/tarlp_gatg_s17` |  |
+| `tarlp_gatg_s27` | gatg_s27/hz4x4/s27 | 200 | DONE | 2026-09-29 | 359.0/2728/255 ⟨旧口径⟩ | `data/output_data/tsc/sumo_tarl_gating/hz4x4/tarlp_gatg_s27` |  |
+| `tarlp_gatg_s37` | gatg_s37/hz4x4/s37 | 200 | DONE | 2026-09-29 | 373.4/2533/450 ⟨旧口径⟩ | `data/output_data/tsc/sumo_tarl_gating/hz4x4/tarlp_gatg_s37` |  |
+| `tarlp_gatg_s47` | gatg_s47/hz4x4/s47 | 200 | DONE | 2026-09-30 | 357.9/2727/256 ⟨旧口径⟩ | `data/output_data/tsc/sumo_tarl_gating/hz4x4/tarlp_gatg_s47` |  |
+| `tarlp_gatg_s7` | gatg_s7/hz4x4/s7 | 200 | DONE | 2026-09-29 | 362.4/2734/249 ⟨旧口径⟩ | `data/output_data/tsc/sumo_tarl_gating/hz4x4/tarlp_gatg_s7` |  |
+| `tarlp_sen_s17` | sen_s17/hz4x4/s17 | 200 | DONE | 2026-09-29 | 348.0/2739/244 ⟨旧口径⟩ | `data/output_data/tsc/sumo_tarl_sensor/hz4x4/tarlp_sen_s17` |  |
+| `tarlp_sen_s27` | sen_s27/hz4x4/s27 | 200 | DONE | 2026-09-29 | 347.3/2740/243 ⟨旧口径⟩ | `data/output_data/tsc/sumo_tarl_sensor/hz4x4/tarlp_sen_s27` |  |
+| `tarlp_sen_s37` | sen_s37/hz4x4/s37 | 200 | DONE | 2026-09-30 | 347.4/2737/246 ⟨旧口径⟩ | `data/output_data/tsc/sumo_tarl_sensor/hz4x4/tarlp_sen_s37` |  |
+| `tarlp_sen_s47` | sen_s47/hz4x4/s47 | 200 | DONE | 2026-09-30 | 347.1/2737/246 ⟨旧口径⟩ | `data/output_data/tsc/sumo_tarl_sensor/hz4x4/tarlp_sen_s47` |  |
+| `tarlp_sen_s7` | sen_s7/hz4x4/s7 | 200 | DONE | 2026-09-29 | 347.7/2742/241 ⟨旧口径⟩ | `data/output_data/tsc/sumo_tarl_sensor/hz4x4/tarlp_sen_s7` |  |
 
 评估 attempt 共 1354 行，按包/来源聚合：
 

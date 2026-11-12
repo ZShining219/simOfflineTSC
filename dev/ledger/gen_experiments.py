@@ -262,6 +262,14 @@ META = {
 },
 }
 
+def source_mark(r):
+    """标注非标准口径（标准=最佳 checkpoint 评估，见 lab/metrics.py）。"""
+    source = r.get("metric_source")
+    if not r.get("metrics") or source in (None, "best_ckpt"):
+        return ""
+    return " ⟨评估⟩" if source == "eval_attempt" else " ⟨旧口径⟩"
+
+
 def fmt_metrics(m):
     if not m:
         return "—"
@@ -352,7 +360,7 @@ for camp in order + sorted(set(camps) - set(order)):
                 note, run_dir = note[:80], run_dir[:80]
             if r.get("alias_of"): note = f"alias→{r['alias_of'][:40]}; " + note
             d.append(f"| `{r['run_id'][:60]}` | {sid} | {ep if ep is not None else '—'} | "
-                     f"{r['status']} | {(r.get('started') or '—')[:10]} | {fmt_metrics(r.get('metrics'))} | "
+                     f"{r['status']} | {(r.get('started') or '—')[:10]} | {fmt_metrics(r.get('metrics'))}{source_mark(r)} | "
                      f"`{run_dir}` | {note} |")
         d.append("")
     evs = [r for r in rs if r["run_kind"] == "eval"]

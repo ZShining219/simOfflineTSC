@@ -4,6 +4,7 @@
     python -m lab show RUN_ID                         单个 run 的全链路溯源
     python -m lab find [--campaign C] [--arm A] ...   按条件列出 run
     python -m lab data [NET]                          数据注册表：net → 配置 → 文件与指纹
+    python -m lab metrics [--campaign C] [--apply]    按标准口径（最佳 checkpoint）复算并回填台账指标
     python -m lab check --staged | --all | --commit-msg FILE   提交闸门（git hook 调用）
 """
 from __future__ import annotations
@@ -14,7 +15,7 @@ import sys
 import unicodedata
 from collections import Counter, defaultdict
 
-from . import checks, evidence, ledger
+from . import checks, evidence, ledger, metrics
 from .provenance import REPO_ROOT, data_identity
 
 
@@ -57,11 +58,16 @@ def cmd_audit(args):
             if not args.campaign or r.get("campaign") == args.campaign]
     stats = defaultdict(lambda: {"n": 0, "done": 0, "metrics": 0,
                                  "where": Counter(), "code": Counter(),
-                                 "missing_unflagged": 0, "config_mismatch": 0})
+                                 "missing_unflagged": 0, "config_mismatch": 0,
+                                 "standard": 0, "metric_mismatch": 0})
     for row in rows:
-        where, _, level, _, manifest = _inspect(row)
+        where, path, level, _, manifest = _inspect(row)
         s = stats[row.get("campaign")]
         s["config_mismatch"] += ledger.config_mismatch(row, manifest)
+        if row.get("metric_source") == metrics.STANDARD:
+            s["standard"] += 1
+            if path is not None and not metrics.verify(row, str(path)):
+                s["metric_mismatch"] += 1
         s["n"] += 1
         s["done"] += row.get("status") == "DONE"
         s["metrics"] += ledger.has_metrics(row)
@@ -70,10 +76,12 @@ def cmd_audit(args):
         if where == evidence.MISSING and not row.get("evidence_lost"):
             s["missing_unflagged"] += 1
     total = {"n": 0, "done": 0, "metrics": 0, "where": Counter(),
-             "code": Counter(), "missing_unflagged": 0, "config_mismatch": 0}
+             "code": Counter(), "missing_unflagged": 0, "config_mismatch": 0,
+             "standard": 0, "metric_mismatch": 0}
     table = []
     for campaign, s in sorted(stats.items(), key=lambda kv: -kv[1]["n"]):
-        for key in ("n", "done", "metrics", "missing_unflagged", "config_mismatch"):
+        for key in ("n", "done", "metrics", "missing_unflagged", "config_mismatch",
+                    "standard", "metric_mismatch"):
             total[key] += s[key]
         total["where"].update(s["where"])
         total["code"].update(s["code"])
@@ -81,9 +89,11 @@ def cmd_audit(args):
     table.append(_audit_row("【合计】", total))
     print("证据核查（本机视角；missing = 本机与本仓工作树中都找不到 run_dir）")
     print(f"代码身份：verified=运行时记录 HEAD；registered=仅登记时提交号；"
-          f"constant=写死常量 {ledger.CONSTANT_BASELINE_COMMIT[:8]}；none=无\n")
-    _table(["campaign", "行数", "DONE", "有指标", "本机在盘", "工作树", "缺失(未标记)",
-            "无run_dir", "verified", "registered", "constant", "none", "配置哈希不符"], table)
+          f"constant=写死常量 {ledger.CONSTANT_BASELINE_COMMIT[:8]}；none=无")
+    print("指标：标准口径=最佳 checkpoint 评估（metric_source=best_ckpt）；复核不符=按 run 目录重算与台账不一致\n")
+    _table(["campaign", "行数", "DONE", "有指标", "标准口径", "复核不符", "本机在盘", "工作树",
+            "缺失(未标记)", "无run_dir", "verified", "registered", "constant", "none",
+            "配置哈希不符"], table)
     if duplicates:
         print(f"\n重复登记的 run_id：{len(duplicates)} 处（统计取最后一行；需人工裁决哪行为准）")
         for run_id, first, again in duplicates[:10]:
@@ -104,7 +114,8 @@ def cmd_audit(args):
 def _audit_row(name, s):
     w, c = s["where"], s["code"]
     on_disk = w[evidence.HERE] + w[evidence.ABSOLUTE]
-    return [name, s["n"], s["done"], s["metrics"], on_disk, w[evidence.WORKTREE],
+    return [name, s["n"], s["done"], s["metrics"], s["standard"], s["metric_mismatch"],
+            on_disk, w[evidence.WORKTREE],
             s["missing_unflagged"], w[evidence.NO_RUN_DIR],
             c[ledger.CODE_VERIFIED], c[ledger.CODE_REGISTERED],
             c[ledger.CODE_CONSTANT], c[ledger.CODE_NONE], s["config_mismatch"]]
@@ -173,12 +184,21 @@ def cmd_show(args):
         print(f"\n[运行状态] {status.get('status')}  {status.get('started_at_utc')} → "
               f"{status.get('finished_at_utc')}  exit={status.get('exit_code')}")
     summary = files["evaluation/summary.json"]
-    metrics = row.get("metrics") or {}
-    if summary or metrics:
-        print("\n[指标]  台账值与评估摘要并列；台账未注明取值口径，引用前先核对")
+    row_metrics = row.get("metrics") or {}
+    if summary or row_metrics:
+        source = row.get("metric_source") or "未标注"
+        detail = row.get("metric_detail") or {}
+        print(f"\n[指标]  口径={source}"
+              + (f"（{detail.get('step_key')}={detail.get('step')}，{detail.get('checkpoint')}）"
+                 if detail else ""))
+        if source != metrics.STANDARD:
+            print("       ⚠ 非标准口径（标准为最佳 checkpoint 评估），与其他 run 比较前先核对")
         for key in ledger.METRIC_KEYS:
-            if key in metrics:
-                print(f"       台账 {key:<20} {_fmt(metrics[key])}")
+            if key in row_metrics:
+                print(f"       台账 {key:<20} {_fmt(row_metrics[key])}")
+        legacy = row.get("metrics_legacy") or {}
+        if legacy:
+            print(f"       旧值（{row.get('metric_source_legacy')}） travel_time={_fmt(legacy.get('travel_time'))}")
         if summary:
             for key in ("final_episode", "final_travel_time", "best_episode",
                         "best_travel_time", "best_checkpoint"):
@@ -208,11 +228,12 @@ def cmd_find(args):
     table = []
     for row in shown:
         where = evidence.locate(row.get("run_dir"))[0] if args.check_disk else ""
-        metrics = row.get("metrics") or {}
+        row_metrics = row.get("metrics") or {}
         table.append([row["run_id"], row.get("status"), row.get("run_kind"),
                       row.get("arm"), row.get("net"), _fmt(row.get("seed")),
-                      _fmt(metrics.get("travel_time"), 2), where])
-    _table(["run_id", "状态", "类型", "arm", "net", "seed", "travel_time",
+                      _fmt(row_metrics.get("travel_time"), 2),
+                      row.get("metric_source") or "-", where])
+    _table(["run_id", "状态", "类型", "arm", "net", "seed", "travel_time", "指标口径",
             "位置" if args.check_disk else ""], table)
     if len(rows) > len(shown):
         print(f"\n共 {len(rows)} 条，仅显示前 {len(shown)} 条（--limit 调整）")
@@ -242,6 +263,38 @@ def cmd_data(args):
         print(f"\n台账中无单一仿真配置的 net（阶段序列/别名等）：{sum(n for _, n in orphans)} 行")
         for net, n in orphans[:10]:
             print(f"   {n:5d}  {net}")
+
+
+def cmd_metrics(args):
+    """按标准口径复算台账指标；默认只预览，--apply 才写回 ledger/runs.jsonl。"""
+    rows = ledger.read_lines()
+    changes = Counter()
+    examples = {}
+    for row in rows:
+        if args.campaign and row.get("campaign") != args.campaign:
+            continue
+        _, path = evidence.locate(row.get("run_dir"))
+        update = metrics.standardize(row, str(path) if path else None)
+        update = {k: v for k, v in update.items() if row.get(k) != v}
+        if not update:
+            continue
+        kind = update.get("metric_source", row.get("metric_source"))
+        if "metrics_legacy" in update:
+            kind += f"（替换 {update['metric_source_legacy']}）"
+        changes[(row.get("campaign"), kind)] += 1
+        examples.setdefault((row.get("campaign"), kind), (row["run_id"], update))
+        row.update(update)
+    table = [[c, k, n] for (c, k), n in sorted(changes.items(), key=lambda kv: (-kv[1], kv[0]))]
+    _table(["campaign", "变更", "行数"], table)
+    print(f"\n合计 {sum(changes.values())} 行需要更新")
+    if args.verbose:
+        for (c, k), (run_id, update) in examples.items():
+            print(f"\n例 [{c} / {k}] {run_id}\n   {json.dumps(update, ensure_ascii=False)[:400]}")
+    if args.apply and changes:
+        ledger.write_lines(rows)
+        print("已写回 ledger/runs.jsonl（git diff 可审阅，git checkout 可回滚）")
+    elif changes:
+        print("预览模式，未写入；确认后加 --apply")
 
 
 def cmd_check(args):
@@ -283,6 +336,12 @@ def main(argv=None):
     data = sub.add_parser("data", help="数据注册表：net → 配置 → 文件与指纹")
     data.add_argument("net", nargs="?")
     data.set_defaults(func=cmd_data)
+
+    met = sub.add_parser("metrics", help="按标准口径复算并回填台账指标")
+    met.add_argument("--campaign")
+    met.add_argument("--apply", action="store_true", help="写回台账（默认只预览）")
+    met.add_argument("-v", "--verbose", action="store_true", help="每类变更给一个示例")
+    met.set_defaults(func=cmd_metrics)
 
     check = sub.add_parser("check", help="提交闸门（git hook 调用）")
     mode = check.add_mutually_exclusive_group()

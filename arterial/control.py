@@ -1,30 +1,10 @@
-"""ID-stable local control helpers independent of simulator bindings."""
+"""兼容层：实现已迁至 common/intersection_control.py（2026-11-12 整理，消除核心层对研究线的依赖）。
 
-from __future__ import annotations
+`arterial.control` 与 `common.intersection_control` 是同一个模块对象，旧的 import 与属性修改行为完全不变。
+新代码请直接 import common.intersection_control。
+"""
+import sys
 
-import re
-import numpy as np
+from common import intersection_control as _module
 
-
-def stable_intersection_order(intersection_ids):
-    def natural(value):
-        return tuple(int(part) if part.isdigit() else part
-                     for part in re.split(r'(\d+)', str(value)))
-    ordered = tuple(sorted((str(x) for x in intersection_ids), key=natural))
-    if len(set(ordered)) != len(ordered):
-        raise ValueError('Intersection IDs must be unique')
-    return ordered
-
-
-def build_action_mask(action_dims):
-    dims = tuple(int(x) for x in action_dims)
-    if not dims or any(x <= 0 for x in dims):
-        raise ValueError('Action dimensions must be positive')
-    return np.arange(max(dims))[None, :] < np.asarray(dims)[:, None]
-
-
-def actions_by_intersection(intersection_ids, actions):
-    actions = np.asarray(actions).reshape(-1)
-    if len(intersection_ids) != len(actions):
-        raise ValueError('Action count does not match intersection count')
-    return {str(key): int(value) for key, value in zip(intersection_ids, actions)}
+sys.modules[__name__] = _module

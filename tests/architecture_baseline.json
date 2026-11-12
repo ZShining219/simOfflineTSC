@@ -1,11 +1,6 @@
 {
   "core_research_imports": [
-    "agent/dqn.py -> arterial",
-    "agent/frap.py -> arterial",
-    "agent/shared_dqn.py -> arterial",
-    "common/experiment_queue.py -> sequential",
-    "trainer/tsc_trainer.py -> arterial",
-    "world/world_sumo.py -> arterial"
+    "agent/shared_dqn.py -> arterial"
   ],
   "hardcoded_output_paths": {
     "common/utils.py": 1,

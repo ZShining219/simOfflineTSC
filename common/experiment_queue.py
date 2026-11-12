@@ -16,6 +16,7 @@ from pathlib import Path
 
 import psutil
 
+from common.locks import LogicalRunLock
 from lab.provenance import code_identity
 
 
@@ -479,7 +480,6 @@ class QueueRunner:
         return pool not in limits or used < limits[pool]
 
     def run(self):
-        from sequential.launcher import LogicalRunLock
         with LogicalRunLock(self.root / 'queue.lock'):
             return self._run_locked()
 

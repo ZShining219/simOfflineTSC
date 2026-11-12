@@ -1,5 +1,4 @@
 import contextlib
-import fcntl
 import json
 import os
 import shutil
@@ -8,6 +7,7 @@ import subprocess
 import sys
 import time
 
+from common.locks import LogicalRunLock  # noqa: F401  兼容旧的 sequential.launcher 导入
 from .checkpoint import RollingRecoveryManager, load_full_checkpoint
 from .io import atomic_json, read_json
 
@@ -19,40 +19,6 @@ RECOVERABLE_FAILURES = {
 NONRECOVERABLE_FAILURES = {
     'config', 'schema', 'digest', 'environment_signature', 'checkpoint_corrupt',
 }
-
-
-class LogicalRunLock:
-    def __init__(self, path):
-        self.path = os.path.abspath(path)
-        self.handle = None
-
-    def acquire(self):
-        os.makedirs(os.path.dirname(self.path), exist_ok=True)
-        self.handle = open(self.path, 'a+', encoding='utf-8')
-        try:
-            fcntl.flock(self.handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError as error:
-            self.handle.close()
-            self.handle = None
-            raise RuntimeError(f'Logical run is already locked: {self.path}') from error
-        self.handle.seek(0)
-        self.handle.truncate()
-        self.handle.write(f'{os.getpid()}\n')
-        self.handle.flush()
-        os.fsync(self.handle.fileno())
-        return self
-
-    def release(self):
-        if self.handle is not None:
-            fcntl.flock(self.handle.fileno(), fcntl.LOCK_UN)
-            self.handle.close()
-            self.handle = None
-
-    def __enter__(self):
-        return self.acquire()
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        self.release()
 
 
 def available_memory_bytes():

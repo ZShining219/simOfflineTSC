@@ -13,7 +13,7 @@ import gym
 from generator import LaneVehicleGenerator, IntersectionPhaseGenerator, IntersectionVehicleGenerator
 from torch.nn.utils import clip_grad_norm_
 from agent import utils
-from arterial.replay import (HistoricalPool, LocalTransition, mixed_batch,
+from common.history_replay import (HistoricalPool, LocalTransition, mixed_batch,
                              split_local_transitions)
 
 

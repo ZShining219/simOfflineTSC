@@ -17,7 +17,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 from torch.nn.utils import clip_grad_norm_
 from utils.scene_context import pack_scene_transition, unpack_scene_transition
-from arterial.replay import (HistoricalPool, LocalTransition, mixed_batch,
+from common.history_replay import (HistoricalPool, LocalTransition, mixed_batch,
                              split_local_transitions)
 
 

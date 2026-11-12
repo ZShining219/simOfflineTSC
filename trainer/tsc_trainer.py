@@ -16,7 +16,7 @@ from trainer.base_trainer import BaseTrainer
 from utils.logger import StructuredMetricLogger, hash_torch_state_dict
 from utils.trajectory import EpisodeTrajectoryWriter
 from agent import utils as agent_utils
-from arterial.replay import HistoryArchiveWriter
+from common.history_replay import HistoryArchiveWriter
 
 
 class EngineStateRecorder:

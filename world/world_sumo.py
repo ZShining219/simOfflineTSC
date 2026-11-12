@@ -22,7 +22,7 @@ from collections import deque
 import sumolib
 import libsumo
 import traci
-from arterial.control import stable_intersection_order
+from common.intersection_control import stable_intersection_order
 
 class Intersection(object):
     '''

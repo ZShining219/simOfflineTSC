@@ -15,10 +15,12 @@ from datetime import datetime
 from json import JSONDecodeError
 
 from common.registry import Registry
+from lab.provenance import code_identity, machine_alias
 
 
 CONFIG_ARCHIVE_DIR = 'config'
 RUN_SCHEMA_VERSION = 1
+# 历史常量：仅标识 LibSignal 整理基线，不代表运行时代码版本；运行时版本见 manifest['code']。
 BASELINE_COMMIT = '73d860bb3924ec15c30433a8f8b7af17787baeff'
 RUN_STATUSES = {'已创建', '运行中', '已完成', '失败'}
 METRIC_RECORD_TYPES = {'TRAIN', 'EVALUATION', 'FINAL_EVALUATION'}
@@ -140,6 +142,8 @@ class RunStateManager:
                 else 'fixed_default'
             ),
             'baseline_commit': BASELINE_COMMIT,
+            'code': code_identity(),
+            'machine': machine_alias(),
             'created_at_utc': created_at,
             'config_hash': config_hash,
         }
@@ -213,6 +217,8 @@ class RunStateManager:
                 else 'fixed_default'
             ),
             'baseline_commit': BASELINE_COMMIT,
+            'code': code_identity(),
+            'machine': machine_alias(),
             'created_at_utc': created_at,
             'config_hash': None,
         }

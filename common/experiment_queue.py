@@ -16,6 +16,8 @@ from pathlib import Path
 
 import psutil
 
+from lab.provenance import code_identity
+
 
 STATUSES = {
     "PENDING", "RUNNING", "SUCCEEDED", "FAILED", "INTERRUPTED",
@@ -260,7 +262,8 @@ class QueueRunner:
             "offline_ratio", "history_mode", "epsilon_mode", "training_seed",
             "episode_budget", "config_path", "output_path", "status", "pid",
             "start_time", "end_time", "exit_code", "retry_count",
-            "checkpoint_path", "config_hash", "git_commit", "failure_reason",
+            "checkpoint_path", "config_hash", "git_commit", "git_dirty",
+            "failure_reason",
         ]
         with tempfile.NamedTemporaryFile(
                 "w", encoding="utf-8", newline="", dir=self.root,
@@ -383,11 +386,14 @@ class QueueRunner:
                        or self._resume_command(task))
         env = os.environ.copy()
         env.update({str(k): str(v) for k, v in task.get("env", {}).items()})
+        # 启动瞬间记录实际代码版本；task 的 cwd 可能是另一个工作树，以它为准。
+        code = code_identity(task.get("cwd") or os.getcwd())
         process = subprocess.Popen(
             command, cwd=task.get("cwd"), env=env, stdout=stdout, stderr=stderr,
             start_new_session=True)
         task.update({
             "status": "RUNNING", "pid": process.pid,
+            "git_commit": code["commit"], "git_dirty": code["dirty"],
             "active_command": command,
             "start_time": utc_now(), "end_time": None, "exit_code": None,
             "failure_reason": None,

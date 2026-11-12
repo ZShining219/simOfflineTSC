@@ -163,6 +163,8 @@ def test_paths_default_and_override(tmp_path, monkeypatch):
 
 
 def test_run_output_path_respects_override(monkeypatch):
+    pytest.importorskip("numpy")  # CI 的轻量环境没有训练依赖时跳过
+    pytest.importorskip("yaml")
     from utils.logger import get_output_file_path
     config = {"command": {"task": "tsc", "world": "sumo", "agent": "dqn",
                           "network": "sumohz1x1", "prefix": "p"},
